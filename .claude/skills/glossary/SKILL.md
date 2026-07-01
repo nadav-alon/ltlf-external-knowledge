@@ -29,6 +29,12 @@ sync and kill synonyms before they spread.
 
 ## Rules
 
+- **Math must render in Markdown/KaTeX.** `docs/GLOSSARY.md` is previewed as
+  Markdown, which does **not** know `main.tex`'s `\newcommand` macros. Write the
+  *expanded* LaTeX in glossary math: e.g. `\mathcal{I}_{k}` not `\Iknown`,
+  `\mathcal{O}_{k}` not `\Oknown`, `S_{\mathit{Inp}}` not `\Sin`,
+  `\mathrm{cons}` not `\cons`. The `main.tex` column still *names* the macro in
+  backticks (prose), but any `$…$` math must be standalone KaTeX.
 - **Three columns are mandatory.** If a term has no `main.tex` symbol yet, say so
   explicitly (`— (no symbol; code-only)`) rather than leaving it blank.
 - **One canonical C++ name.** If you discover two names in code for one concept,

@@ -33,27 +33,27 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Do not call it:** in/out vars, signals.
 
 ### Governed variables (V)
-- **`main.tex`:** $\mathcal{V}\subseteq(\mathcal{I}\cup\mathcal{O})$, $\mathcal{V}=\Iknown\cup\Oknown$.
+- **`main.tex`:** $\mathcal{V}\subseteq(\mathcal{I}\cup\mathcal{O})$, $\mathcal{V}=\mathcal{I}_{k}\cup\mathcal{O}_{k}$.
 - **Definition:** the variables decided by external knowledge strategies.
 - **C++:** `VariablePartition::known()`.
 - **Do not call it:** external vars, dependent vars, known set (as a bare noun).
 
 ### Free inputs / Known inputs / Free outputs / Known outputs
-- **`main.tex`:** $\Ifree,\Iknown,\Ofree,\Oknown$ (§Problem Definition align block).
+- **`main.tex`:** $\mathcal{I}_{f},\mathcal{I}_{k},\mathcal{O}_{f},\mathcal{O}_{k}$ (§Problem Definition align block).
 - **Definition:** the four-way split — free = decided by env / controller,
   known = produced by an external strategy.
 - **C++:** `VariablePartition::input_free / input_known / output_free / output_known`.
 - **Do not call it:** unknown/uncontrolled (for free), fixed (for known).
 
 ### External knowledge strategy
-- **`main.tex`:** $\Sin,\Sout$ (input/output knowledge strategies).
+- **`main.tex`:** $S_{\mathit{Inp}},S_{\mathit{Out}}$ (input/output knowledge strategies).
 - **Definition:** pure functions producing the known variables from history.
 - **C++:** modeled as `Transducer` (their regular representation); the input one
   and output one are `t_in` / `t_out`.
 - **Do not call it:** oracle, helper, assumption.
 
 ### Controller (system strategy)
-- **`main.tex`:** $S_C$ / $T_C$, signature $\ldots\to 2^{\Ofree}$ (Def. probDef / probDefTransducer).
+- **`main.tex`:** $S_C$ / $T_C$, signature $\ldots\to 2^{\mathcal{O}_{f}}$ (Def. probDef / probDefTransducer).
 - **Definition:** the strategy we synthesize; produces the free outputs.
 - **C++:** `Controller`.
 - **Do not call it:** solution, policy, winning strategy.
@@ -100,7 +100,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
 ## Algorithms
 
 ### Consistency (cons)
-- **`main.tex`:** $\cons(q_{in},q_{out},v)$ (Method 1) — the per-letter filter.
+- **`main.tex`:** $\mathrm{cons}(q_{in},q_{out},v)$ (Method 1) — the per-letter filter.
 - **Definition:** $v$'s V-variables are exactly what $T_{in},T_{out}$ output.
 - **C++:** `consistent(t_in, q_in, t_out, q_out, v)`.
 - **Do not call it:** agrees, valid, matches, feasible.
