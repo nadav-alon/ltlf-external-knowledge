@@ -1,0 +1,55 @@
+# LTLf Synthesis with External Information
+
+C++ implementation of the synthesis methods described in `main.tex`: given an
+$\text{LTL}_f$ Goal $\varphi$ over inputs $\mathcal{I}$ and outputs $\mathcal{O}$
+and two external-knowledge transducers $T_{in}, T_{out}$, synthesize a
+controller $T_C$ such that every trace agreeing with $T_{in}, T_{out}, T_C$
+satisfies $\varphi$.
+
+Built on [Spot](https://spot.lre.epita.fr/) (thin domain wrappers), with custom
+types for the non-standard lambda-split transducers and NFAs.
+
+## Methods
+
+1. NFA product (`NfaProduct`) — §nfa
+2. **DFA product (`DfaProduct`) — §fulldfa  *(implemented first)***
+3. On-the-fly: no aggregation / aggregated / dynamic aggregation — §otf
+
+All share `Synthesis::synthesize(phi, vars, t_in, t_out)`.
+
+## Build
+
+Requires a C++20 compiler, CMake ≥ 3.16, and Spot (`libspot` on the
+`pkg-config` path). GoogleTest is fetched automatically.
+
+```sh
+cmake -S . -B build
+cmake --build build -j
+ctest --test-dir build --output-on-failure
+```
+
+## Layout
+
+```
+include/ltlf_ek/   public headers (domain types + Synthesis interface)
+src/               implementations
+tests/             GoogleTest unit tests
+docs/GLOSSARY.md   ubiquitous language: math ↔ prose ↔ C++
+main.tex           the theory (source of reference, not word of god)
+```
+
+## Working in this repo (skills)
+
+Project-scoped Claude Code skills encode the workflow and the ubiquitous
+language. Trigger them with a slash:
+
+| Skill | Phase |
+|---|---|
+| `/grill-prd` | interview → PRD (in ubiquitous language) for a feature |
+| `/developer` | implement a method/feature against the PRD + glossary |
+| `/test-writer` | unit tests (+ metamorphic / verifier oracles) |
+| `/code-reviewer` | Spot/BDD + glossary + domain-invariant review (spawns theory review on semantic diffs) |
+| `/theory-review` | code↔math faithfulness &/or LaTeX soundness; may edit `main.tex` under `\cl` notes |
+| `/glossary` | maintain the 3-column glossary |
+
+See `.claude/skills/*/SKILL.md`.

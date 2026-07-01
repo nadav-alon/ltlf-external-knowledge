@@ -1,0 +1,420 @@
+\documentclass{article}
+\usepackage{graphicx} 
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm} 
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{float}
+\usepackage{hyperref} 
+\usepackage{cleveref} 
+
+% \usepackage[disable]{todonotes}
+\usepackage{todonotes}
+
+\newtheorem{example}{Example}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{definition}{Definition}
+\newcommand{\algname}[1]{\textbf{\textsc{#1}}}
+\algrenewcommand{\algorithmicrequire}{\textbf{Input:}}
+\algrenewcommand{\algorithmicensure}{\textbf{Output:}}
+\makeatletter
+\renewcommand{\theHALG@line}{\thealgorithm.\arabic{ALG@line}}
+\makeatother
+
+\crefalias{ALG@line}{line}
+
+\newcommand{\na}[2][]{\todo[color=cyan,#1]{NA: {#2}}}
+\newcommand{\sz}[2][]{\todo[color=gray!40,#1]{SZ: {#2}}}
+\newcommand{\spc}[2][]{\todo[color=magenta!40,#1]{SC: {#2}}}
+\newcommand{\df}[2][]{\todo[color=orange!40,#1]{DF: {#2}}}
+\newcommand{\cl}[2][]{\todo[color=green!30,#1]{CL: {#2}}} % Claude (theory-review)
+
+\newcommand{\Ifree}{\mathcal{I}_{f}}   
+\newcommand{\Iknown}{\mathcal{I}_{k}}  
+\newcommand{\Ofree}{\mathcal{O}_{f}}   
+\newcommand{\Oknown}{\mathcal{O}_{k}}  
+\newcommand{\Tin}{T_{\mathit{Inp}}}
+\newcommand{\Tout}{T_{\mathit{Out}}}
+\newcommand{\Sin}{S_{\mathit{Inp}}}
+\newcommand{\Sout}{S_{\mathit{Out}}}
+\newcommand{\cons}{\mathrm{cons}}      
+
+\title{LTLf Synthesis with External Information}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+LTLf Synthesis is a problem in which given a specification in LTLf over inputs and outputs, we are to generate a controller that determines output values for each possible input series such that the resulting finite trace satisfies the specification. 
+
+There are some instances in which we know some restrictions on the possible traces. An example of which, is when some output variables are dependent, possible traces are only those that satisfy the dependencies. 
+In that case, the dependencies are inherent to the formula, but that is not always so. For instance, when solving PDDL problems, the domain is external knowledge to the goal. 
+It is possible to encode the domain as an LTLf formula and synthesize for the combined $\text{Domain} \land \text{Goal}$, however if the domain encoding is large it may incur a cost.
+
+First we define the problem formally in~\cref{definition}, then we suggest three methods---\cref{nfa,fulldfa,otf}---plus a half~(\cref{otfagg}) (and a quick modification to that half, \cref{dynamicagg}) for synthesizing LTLf goals given external knowledge strategies.
+
+\section{Problem Definition}\label{definition}
+
+To formally define synthesis with external information, we need to define sets of variables on which the external information is implied, plus auxiliary strategies that describe the information. 
+Specifically, let $\varphi$ be an $\text{LTL}_f$ formula over variables $\mathcal{I}$ and $\mathcal{O}$ (with $\mathcal{I} \cap \mathcal{O} = \emptyset$). We define $\mathcal{V} \subseteq (\mathcal{I} \cup \mathcal{O})$ to be the subset of variables governed by external knowledge strategies $\Sin, \Sout$.
+
+To handle input and output variables separately, we divide our variables into 4 groups, each of $\mathcal{I}, \mathcal{O}$ being split into known (decided by a predefined strategy) and free variable set:
+\begin{align*}
+    \Ifree  &:= \mathcal{I} \setminus \mathcal{V} && \text{free inputs, environment decides,}\\
+    \Iknown &:= \mathcal{I} \cap \mathcal{V}      && \text{known inputs, produced by } \Sin,\\
+    \Ofree  &:= \mathcal{O} \setminus \mathcal{V} && \text{free outputs, to be produced by the system strategy } S_C,\\
+    \Oknown &:= \mathcal{O} \cap \mathcal{V}      && \text{known outputs, produced by } \Sout,
+\end{align*}
+so that $\mathcal{V} = \Iknown \cup \Oknown$.
+
+The external knowledge strategies signatures are then:
+\begin{align*}
+    \Sin &: (2^{\mathcal{I} \cup \mathcal{O}})^*\times 2^{\Ifree} \to 2^{\Iknown} \\
+    \Sout &: (2^{\mathcal{I} \cup \mathcal{O}})^* \times 2^{\mathcal{I} \cup \Ofree} \to 2^{\Oknown}
+\end{align*}
+
+Note that the strategies are to by processed in a single canonical order on every step: the environment picks $\Ifree$, then $\Sin$ produces $\Iknown$, then $S_C$ produces $\Ofree$, then $\Sout$ produces $\Oknown$. Each party observes every earlier party's moves and nothing later.
+
+Our required system strategy for $\varphi$ given $\Sin, \Sout$ then has the signature 
+\[S_C: (2^{\mathcal{I} \cup \mathcal{O}})^* \times 2^{\mathcal{I}} \to 2^{\Ofree}\]
+
+
+\na[]{second parametor of $S(..., v_t)$ needs to be $v_t \cap $ with another set of variables that was not defined yet so it matches the strategy definition}
+Then, in order to properly define our problem, we first need the notion of \emph{agreement}. Let $\pi = v_0 v_1 \cdots v_n \in (2^{\mathcal{I} \cup \mathcal{O}})^+$ be a trace.
+For $S \in \{\Sin, \Sout, S_C\}$ and the corresponding variable set its responsible for $X\in\{\Iknown, \Oknown, \Ofree\}$, $\varphi$ \emph{agrees} with $S$ if $v_t\cap X = S(v_0\cdots v_{t-1}, v_t)$ for every step $t$.\footnote{We abuse notation by allowing ourselves to input a superset of variables to a function, and assume the intersection with the domain is implicit. i.e. let $i\in2^{\mathcal{I}}$, $\Sin(\varepsilon, v) = \Sin(\varepsilon, v \cap \Iknown)$}
+
+Then we can describe our problem as follows.
+
+\begin{definition}\label{def:probDef}
+Given an $\text{LTL}_f$ formula $\varphi$ over variables $\mathcal{I}$ and $\mathcal{O}$, and auxiliary strategies $\Sin, \Sout$, synthesize a strategy $S_C$ for $\varphi$ such that every trace that agrees with $\Sin, \Sout$ and $S_C$ satisfies $\varphi$.
+\end{definition}
+
+
+
+
+\subsection{Transducers}
+In problem definition we worked with strategies defined as pure functions. In the following sections we will require a regular representation of such. 
+
+A \emph{transducer} is a tuple $\tau=\{Q,\Sigma,\delta,\lambda,q_0\}$ that 'implements' a strategy over $\Sigma^* \to Image(\lambda)$. It is a DFA with an auxilary function $\lambda$ that is the 'output' of the function, while the input (being the history of inputs thus far) is stored by the state space.
+
+As our strategies are ordered in such a way that each needs to be able to 'see' only the variables that is allowed to it in the 'turn order', our $\lambda$ functions will take the shape of $$\lambda: Q \times \Sigma_{0} \to \Sigma_{1}$$ such that $\Sigma_{0}, \Sigma_{1} \subseteq \Sigma$, in such a way that it implements a strategy of the shape $$f: \Sigma^* \times \Sigma_{0} \to \Sigma_{1}$$
+
+The $\delta$ functions stay standard, as they need to track the entire state history, including variable values that arent visible when the $\lambda$ output function sets its values.
+
+\pagebreak
+
+For aligning synthesis with external information to transducers, we define the following transducers: 
+
+\begin{align*}
+    \Tin &= (Q_{in}, 2^{\mathcal{I} \cup \mathcal{O}}, \delta_{in}, \lambda_{in}, q_{in, 0}) \\
+    \delta_{in} &: Q_{in} \times 2^{\mathcal{I} \cup \mathcal{O}} \to Q_{in} , &
+    \lambda_{in} : Q_{in} \times 2^{\Ifree} \to 2^{\Iknown} \\
+    \Tout &= (Q_{out}, 2^{\mathcal{I} \cup \mathcal{O}}, \delta_{out}, \lambda_{out}, q_{out, 0}) \\
+    \delta_{out} &: Q_{out} \times 2^{\mathcal{I} \cup \mathcal{O}} \to Q_{out} , &
+    \lambda_{out} : Q_{out} \times 2^{\mathcal{I}\cup \Ofree} \to 2^{\Oknown} \\
+    C &= (Q_{C}, 2^{\mathcal{I} \cup \mathcal{O}}, \delta_{C}, \lambda_{C}, q_{C, 0}) \\
+    \delta_{C} &: Q_{C} \times 2^{\mathcal{I} \cup \mathcal{O}} \to Q_{C} , &
+    \lambda_{C} : Q_{C} \times 2^{\mathcal{I}} \to 2^{\Ofree} \\
+\end{align*}
+
+Now, our problem formulation is as follows:
+\begin{definition}\label{def:probDefTransducer}
+    Given an $\text{LTL}_f$ formula $\varphi$ over variables $\mathcal{I}$ and $\mathcal{O}$, and auxiliary transducers  $\Tin, \Tout$, synthesize a transducer $T_C$ for $\varphi$ such that every trace that agrees with the strategies that are defined by $\Tin, \Tout$ and $T_C$ satisfies $\varphi$.
+\end{definition}
+
+    
+\section{Method 1 - NFA product}\label{nfa}
+In which we construct the NFA for the formula (currently black-boxed as an algorithm \algname{LtlfToNfa}), compute the product of it with the two transducers (representing the 2 strategies for input and output knowledge), then determinize (\algname{NfaToDfa}) and solve the resulting game (\algname{SolveDfa}) to extract the controller strategy.
+
+Let the NFA for $\varphi$ be
+\begin{align*}
+    N &= (S_N, 2^{\mathcal{I} \cup \mathcal{O}}, \delta_N, s_{N,0}, F_N), &
+    \delta_N &: S_N \times 2^{\mathcal{I} \cup \mathcal{O}} \to 2^{S_N}.
+\end{align*}
+
+A letter $v$ is \emph{consistent} at transducer states $(q_{in}, q_{out})$ when its $\mathcal{V}$-variables are exactly what the two transducers output:
+\[
+    \cons(q_{in}, q_{out}, v) \;:=\;
+    \big(v \cap \Iknown = \lambda_{in}(q_{in}, v)\big)
+    \;\wedge\;
+    \big(v \cap \Oknown = \lambda_{out}(q_{out}, v)\big).
+\]
+
+The product is the NFA
+\[
+    P = (S_N \times Q_{in} \times Q_{out},\; 2^{\mathcal{I} \cup \mathcal{O}},\; \delta_{prod},\; (s_{N,0}, q_{in,0}, q_{out,0}),\; F_N \times Q_{in} \times Q_{out}),
+\]
+with
+\[
+    \delta_{prod}\big((s, q_{in}, q_{out}), v\big) =
+    \begin{cases}
+        \{(s', \delta_{in}(q_{in}, v), \delta_{out}(q_{out}, v)) : s' \in \delta_N(s, v)\}
+        & \text{if } \cons(q_{in}, q_{out}, v),\\[2pt]
+        \emptyset & \text{otherwise.}
+    \end{cases}
+\]
+% Explain the algorithms
+The algorithm is detailed in~\cref{alg:nfa_product}.
+
+\begin{theorem}
+The complexity of~\cref{alg:nfa_product} is exponential solely with respect to the size of the Goal formula, and is polynomial in the sizes of the transducers $\Tin, \Tout$.
+\end{theorem}
+
+\begin{proof}
+To be determined.
+\end{proof}
+
+\textbf{Note} The clean way to prove the above is the reachability invariant of the subset construction: because $\Tin$ and $\Tout$ are deterministic, every reachable subset of $P$ has the form $R \times \{q_{in}\} \times \{q_{out}\}$ for a single pair of transducer states, so the reachable DFA states are bounded by $2^{|S_N|} \cdot |Q_{in}| \cdot |Q_{out}|$ --- exponential in $\varphi$ but linear in each transducer.
+
+\begin{algorithm}[H]
+\caption{NFA Product}
+\label{alg:nfa_product}
+\begin{algorithmic}[1]
+\Require $\varphi$, $\Tin=(Q_{in}, q_{in,0}, \delta_{in}, \lambda_{in})$, $\Tout=(Q_{out}, q_{out,0}, \delta_{out}, \lambda_{out})$
+\Ensure $C$
+\Statex
+\Function{SyntNfaProduct}{$\varphi$, $\Tin$, $\Tout$}
+    \State $(S_N, \delta_N, s_{N,0}, F_N) \gets \algname{LtlfToNfa}(\varphi)$
+    \State $S_P \gets S_N \times Q_{in} \times Q_{out}$ \label{alg:nfa_product:states_def}
+    \State $F_P \gets F_N \times Q_{in} \times Q_{out}$\label{alg:nfa_product:final_def}
+    \State $\delta_{prod} \gets \text{undefined mapping}$\label{alg:nfa_product:trans_def}
+    % collapse the for loops
+    \For{\textbf{each} $s \in S_N$, $q_{out} \in Q_{out}$, $q_{in} \in Q_{in}$}
+        \If{$\cons(q_{in}, q_{out}, v)$} \label{alg:nfa_product:cons}
+            \State $\begin{aligned}[t]
+                \delta_{prod}(\langle s, q_{in}, q_{out}\rangle , v) &\gets \\
+                &\{\langle s', \delta_{in}(q_{in}, v), \delta_{out}(q_{out}, v)\rangle  : s' \in \delta_N(s, v)\}
+            \end{aligned}$                    
+        \EndIf
+    \EndFor
+    \State $P \gets (S_P, \delta_{prod}, \langle s_{N,0}, q_{in,0}, q_{out,0}\rangle , F_P)$
+    \State $D \gets \algname{NfaToDfa}(P)$ \label{alg:nfa_product:determinize}
+    \State $C \gets \algname{SolveDfa}(D)$ \label{alg:nfa_product:solve}
+    \State \Return $C$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+The algorithm works by constructing the product automaton explicitly (lines~\ref{alg:nfa_product:states_def},~\ref{alg:nfa_product:final_def}), while ignoring transitions that represent disagreements with the external knowledge (line~\ref{alg:nfa_product:cons}).
+The product is then determinized (line~\ref{alg:nfa_product:determinize}) and solved (line~\ref{alg:nfa_product:solve})
+
+
+\section{Method 2 - DFA product}\label{fulldfa}
+In which we construct the full DFA for the formula, compute the product of it with the two transducers, then solve the resulting game.
+
+Let the DFA for $\varphi$ be
+\begin{align*}
+    A &= (S_D, 2^{\mathcal{I} \cup \mathcal{O}}, \delta_D, s_{D,0}, F_D), &
+    \delta_D &: S_D \times 2^{\mathcal{I} \cup \mathcal{O}} \to S_D.
+\end{align*}
+
+The product is the DFA
+\[
+    P = (S_D \times Q_{in} \times Q_{out} \cup \{\bot\},\; 2^{\mathcal{I} \cup \mathcal{O}},\; \delta_{Dprod},\; (s_{D,0}, q_{in,0}, q_{out,0}),\; F_D \times Q_{in} \times Q_{out}),
+\]
+with
+\[
+    \delta_{Dprod}\big((s, q_{in}, q_{out}), v\big) =
+    \begin{cases}
+        (\delta_D(s, v), \delta_{in}(q_{in}, v), \delta_{out}(q_{out}, v))
+        & \text{if } \cons(q_{in}, q_{out}, v),\\[2pt]
+        \bot & \text{otherwise,}
+    \end{cases}
+\]
+where the sink self-loops, $\delta_{Dprod}(\bot, v) = \bot$ for every $v \in 2^{\mathcal{I} \cup \mathcal{O}}$.
+
+\textbf{Note} this will be a good comparison point with method 1, to see where the exponent is.
+
+\begin{algorithm}[H]
+\caption{DFA Product}
+\label{alg:dfa_product}
+\begin{algorithmic}[1]
+\Require $\varphi$, $\Tin=(Q_{in}, q_{in,0}, \delta_{in}, \lambda_{in})$, $\Tout=(Q_{out}, q_{out,0}, \delta_{out}, \lambda_{out})$
+\Ensure $C$
+\Statex
+\Function{SyntDfaProduct}{$\varphi$, $\Tin$, $\Tout$}
+    \State $(S_D, \delta_D, s_{D,0}, F_D) \gets \algname{LtlfToDfa}(\varphi)$
+    \State $S_P \gets (S_D \times Q_{in} \times Q_{out}) \cup \{\bot\}$ \label{alg:dfa_product:states}
+    \State $F_P \gets F_D \times Q_{in} \times Q_{out}$ \label{alg:dfa_product:final}
+    \State $\delta_{Dprod} \gets \text{undefined mapping}$
+    \For{\textbf{each} $s \in S_D, v \in 2^{\mathcal{I} \cup \mathcal{O}}, q_{out} \in Q_{out}, q_{in} \in Q_{in}$ }
+                    \If{$\cons(q_{in}, q_{out}, v)$} \label{alg:dfa_product:cons}
+                        \State $\delta_{Dprod}(\langle s, q_{in}, q_{out}\rangle, v) \gets \langle \delta_D(s, v), \delta_{in}(q_{in}, v), \delta_{out}(q_{out}, v)\rangle $
+                    \Else
+                        \State $\delta_{Dprod}(\langle s, q_{in}, q_{out}\rangle, v) \gets \bot$ \label{alg:dfa_product:non_cons}
+                    \EndIf
+    \EndFor
+    \State $\delta_{Dprod}(\bot, \cdot) \gets \bot$ \label{alg:dfa_product:self_loop}
+    \State $P \gets (S_P, \delta_{Dprod}, \langle s_{D,0}, q_{in,0}, q_{out,0}\rangle , F_P)$
+    \State $C \gets \algname{SolveDfa}(P)$ \label{alg:dfa_product:solve}
+    \State \Return $C$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+The algorithm works by constructing the product automaton explicitly (lines~\ref{alg:dfa_product:states},~\ref{alg:dfa_product:final}), while sending transitions that represent disagreements with the external knowledge to a failing sink (lines~\ref{alg:dfa_product:cons},~\ref{alg:dfa_product:non_cons},~\ref{alg:dfa_product:self_loop}).
+The product is then solved directly (line~\ref{alg:dfa_product:solve})
+
+\section{Method 3 - on-the-fly DFA-products}\label{otf}
+\na[inline]{As written, this is on-the-fly product construction without on-the-fly game solving. Should probably be amended so it also solves the game on-the-fly, otherwise this is missing a hanging fruit optimization.
+
+This likely requires adjusting the definitions for MTDFA usage.}
+
+The general idea is similar to~\cref{fulldfa} but the product DFA is constructed on the fly using formula progression. We write $[\psi]$ for the canonical representative of the formula $\psi$ after progression, so that semantically equal progressed formulae collapse to the same state.
+
+\begin{algorithm}[H]
+\caption{Forward Progression}
+\label{alg:fp}
+\begin{algorithmic}[1]
+\Require $\psi$, $w \in 2^{\mathcal{O} \cup \mathcal{I}}$
+\Ensure $(\psi', b)$ such that $\psi'$ is $\psi$ after $w$ and $b$ is whether or not $\psi$ is satisfied after $w$.
+\Statex
+\Function{FP}{$\psi$, $w$}
+    \State \na[inline]{TODO}
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Method 3.1 - on-the-fly DFA-product - no aggregation}\label{otfdfa}
+Similar to~\cref{fulldfa} but the product DFA is constructed on the fly using formula progression. Algorithm described in~\cref{alg:otfdfa_product}. The consistency filter is applied per letter: an inconsistent (or, for partial transducers, undefined) letter is simply skipped.
+
+% Collapse alg 4-6 to a single one that contains all the different ones
+\begin{algorithm}[H]
+\caption{On The Fly DFA Product}
+\label{alg:otfdfa_product}
+\begin{algorithmic}[1]
+\Require $\varphi$, $\Tin=(Q_{in}, q_{in,0}, \delta_{in}, \lambda_{in})$, $\Tout=(Q_{out}, q_{out,0}, \delta_{out}, \lambda_{out})$
+\Ensure $C$
+\Statex
+\Function{SyntOTFDfaProduct}{$\varphi$, $\Tin$, $\Tout$}
+    \State $S_P \gets \emptyset$
+    \State $F_P \gets \emptyset$
+    \State $\delta_{Dprod} \gets \text{undefined mapping}$
+    \State $stack \gets \{\langle[\varphi], q_{in,0}, q_{out,0}\rangle\}$ \label{alg:otfdfa_product:stack_def}
+    \While{$stack$ is non-empty}
+        \State $\langle[\psi], q_{in}, q_{out}\rangle \gets pop(stack)$
+        \For{\textbf{each} $v \in 2^{\mathcal{I} \cup \mathcal{O}}$}
+            \If{$\lnot\,\cons(q_{in}, q_{out}, v)$} \label{alg:otfdfa_product:uncons}
+                \State \textbf{continue}
+            \EndIf
+            \State $([\psi'], b) \gets \algname{FP}([\psi], v)$ \label{alg:otfdfa_product:fp}
+            \State $q_{in}' \gets \delta_{in}(q_{in}, v)$ \label{alg:otfdfa_product:in_succ}
+            \State $q_{out}' \gets \delta_{out}(q_{out}, v)$\label{alg:otfdfa_product:out_succ}
+            \State $\delta_{Dprod}(\langle[\psi], q_{in}, q_{out}\rangle, v) \gets \langle[\psi'], q_{in}', q_{out}'\rangle$
+            \State insert $\langle[\psi'], q_{in}', q_{out}'\rangle$ into $S_P$ \label{alg:otfdfa_product:states:insert}
+            \If{$b = \top$} \label{alg:otfdfa_product:final_insert}
+                \State insert $\langle[\psi'], q_{in}', q_{out}'\rangle$ into $F_P$
+            \EndIf
+            \State insert $\langle[\psi'], q_{in}', q_{out}'\rangle$ into $stack$ if not visited yet \label{alg:otfdfa_product:stack_insert}
+        \EndFor
+    \EndWhile
+    \State $P \gets (S_P, \delta_{Dprod}, \langle[\varphi], q_{in,0}, q_{out,0}\rangle, F_P)$
+    \State $C \gets \algname{SolveDfa}(P)$ \label{alg:otfdfa_product:solve}
+    \State \Return $C$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+The algorithm works by initializing a stack with the product initial state (line~\ref{alg:otfdfa_product:stack_def}), then adding successor of the top of the stack each iteration until no new ones can be found. Successors are found using forward progression (line~\ref{alg:otfdfa_product:fp}) and the transition functions of the knowledge transducer (lines~\ref{alg:otfdfa_product:in_succ},~\ref{alg:otfdfa_product:out_succ}), and classified as final by the return bit `b` (line~\ref{alg:otfdfa_product:final_insert}).
+The product is then solved directly (line~\ref{alg:otfdfa_product:solve}).
+
+\subsection{Method 3.2 - on-the-fly DFA product with aggregation}\label{otfagg}
+Same as~\cref{otfdfa} but aggregating `duplicate' states, constraining the size of the resulting `product' to that of the original DFA, while still sometimes leveraging some information. It can be seen that because of the deterministic nature of the DFA, this does not introduce any nondeterminism, however this does lose some knowledge each time an aggregation occurs. Probably worthwhile to compare when this is sufficient. Algorithm detailed in~\cref{alg:otfdfa_agg_product}.
+
+States, transitions, and the visited set are all keyed on the formula part $[\psi]$ alone (collapsing the transducer states), so the explored automaton cannot exceed the size of the original DFA.
+
+\begin{algorithm}[H]
+\caption{On The Fly Aggregated DFA Product}
+\label{alg:otfdfa_agg_product}
+\begin{algorithmic}[1]
+\Require $\varphi$, $\Tin=(Q_{in}, q_{in,0}, \delta_{in}, \lambda_{in})$, $\Tout=(Q_{out}, q_{out,0}, \delta_{out}, \lambda_{out})$
+\Ensure $C$
+\Statex
+\Function{SyntOTFDfaAggProduct}{$\varphi$, $\Tin$, $\Tout$}
+    \State $S_P \gets \emptyset$
+    \State $F_P \gets \emptyset$
+    \State $\delta_{Dprod} \gets \text{undefined mapping}$
+    \State $stack \gets \{\langle [\varphi], q_{in,0}, q_{out,0}\rangle\}$ \label{alg:otfdfa_agg_product:stack_def}
+    \While{$stack$ is non-empty} \label{alg:otfdfa_agg_product:loop}
+        \State $\langle \psi, q_{in}, q_{out}\rangle \gets pop(stack)$
+        \For{\textbf{each} $v \in 2^{\mathcal{I} \cup \mathcal{O}}$}
+            \If{$\lnot\,\cons(q_{in}, q_{out}, v)$}
+                \State \textbf{continue}
+            \EndIf
+            \State $(\psi', b) \gets \algname{FP}(\psi, v)$ \label{alg:otfdfa_agg_product:fp}
+            \State $q_{in}' \gets \delta_{in}(q_{in}, v)$ \label{alg:otfdfa_agg_product:in_succ}
+            \State $q_{out}' \gets \delta_{out}(q_{out}, v)$ \label{alg:otfdfa_agg_product:out_succ}
+            \State $\delta_{Dprod}([\psi], v) \gets [\psi']$ \Comment{transition keyed on the formula only}
+            \State insert $[\psi']$ into $S_P$
+            \If{$b = \top$}
+                \State insert $[\psi']$ into $F_P$ \label{alg:otfdfa_agg_product:final_insert}
+            \EndIf
+            \State insert $\langle [\psi'], q_{in}', q_{out}'\rangle$ into $stack$ if $[\psi']$ not visited yet
+        \EndFor
+    \EndWhile
+    \State $P \gets (S_P, \delta_{Dprod}, [\varphi], F_P)$
+    \State $C \gets \algname{SolveDfa}(P)$ \label{alg:otfdfa_agg_product:solve}
+    \State \Return $C$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+\na[inline]{I am least confident in this part than any other, because of the insertion to $F_P$ in line~\ref{alg:otfdfa_agg_product:final_insert}, being able to be overwritten. So should i remove it from it if b comes out false? Not certain}
+The algorithm works by initializing a stack with the initial state, being just the equivalent class of the formula (line~\ref{alg:otfdfa_agg_product:stack_def}), then adding the successors of the top of the stack each iteration until no new ones can be found. Successors are found using forward progression (line~\ref{alg:otfdfa_agg_product:fp}) and the transition functions of the knowledge transducer (lines~\ref{alg:otfdfa_agg_product:in_succ},~\ref{alg:otfdfa_agg_product:out_succ}) are used to filter impossible transitions, and classified as final by the return bit `b` (line~\ref{alg:otfdfa_agg_product:final_insert}).
+The resulting aggregated DFA is then solved directly (line~\ref{alg:otfdfa_agg_product:solve}).
+
+\subsection{Method 3.3 - Dynamic Aggregation}\label{dynamicagg}
+Similar to~\cref{otfagg}, but with some heuristics on when to aggregate, leveraging the whole of the external information until some limit is passed and then aggregating. Algorithm detailed in~\cref{alg:otfdfa_dyn_agg_product}.
+
+\begin{algorithm}[H]
+\caption{On The Fly Dynamically Aggregated DFA Product}
+\label{alg:otfdfa_dyn_agg_product}
+\begin{algorithmic}[1]
+\Require $\varphi$, $\Tin=(Q_{in}, q_{in,0}, \delta_{in}, \lambda_{in})$, $\Tout=(Q_{out}, q_{out,0}, \delta_{out}, \lambda_{out})$, $lim$
+\Ensure $C$
+\Statex
+\Function{SyntOTFDfaDynAggProduct}{$\varphi$, $\Tin$, $\Tout$, $lim$}
+    \State $S_P \gets \emptyset$
+    \State $F_P \gets \emptyset$
+    \State $\delta_{Dprod} \gets \text{undefined mapping}$
+    \State $stack \gets \{\langle [\varphi], q_{in,0}, q_{out,0}\rangle\}$
+    \While{$stack$ is non-empty}
+        \State $\langle [\psi], q_{in}, q_{out}\rangle \gets pop(stack)$
+        \For{\textbf{each} $v \in 2^{\mathcal{I} \cup \mathcal{O}}$}
+            \If{$\lnot\,\cons(q_{in}, q_{out}, v)$}
+                \State \textbf{continue}
+            \EndIf
+            \State $([\psi'], b) \gets \algname{FP}([\psi], v)$
+            \State $q_{in}' \gets \delta_{in}(q_{in}, v)$
+            \State $q_{out}' \gets \delta_{out}(q_{out}, v)$
+            \State $\delta_{Dprod}(\langle [\psi], q_{in}, q_{out}\rangle, v) \gets \langle [\psi'], q_{in}', q_{out}'\rangle$
+            \State insert $\langle [\psi'], q_{in}', q_{out}'\rangle$ into $S_P$
+            \If{$b = \top$}
+                \State insert $\langle [\psi'], q_{in}', q_{out}'\rangle$ into $F_P$
+            \EndIf
+            \State insert $([\psi'], q_{in}', q_{out}')$ into $stack$ if not visited yet
+            \If{$|S_P| > lim$} \label{alg:otfdfa_dyn_agg_product:lim_check}
+                \State Merge states with identical formula parts \label{alg:otfdfa_dyn_agg_product:merge}
+                \State goto \algname{SyntOTFDfaAggProduct} line~\ref{alg:otfdfa_agg_product:loop}
+            \EndIf
+        \EndFor
+    \EndWhile
+    \State $P \gets (S_P, \delta_{Dprod}, \langle [\varphi], q_{in,0}, q_{out,0}\rangle, F_P)$
+    \State $C \gets \algname{SolveDfa}(P)$
+    \State \Return $C$
+\EndFunction
+\end{algorithmic}
+\end{algorithm}
+
+The algorithm is a repeat of~\cref{alg:otfdfa_product}, but with the additional check in line~\ref{alg:otfdfa_dyn_agg_product:lim_check} that makes sure the limit is not surpassed, and if so merges the existing states (line~\ref{alg:otfdfa_dyn_agg_product:merge}) and proceeds as in~\cref{alg:otfdfa_agg_product}.
+
+% \section{Synthesizing the dependencies}
+% I had an idea, its quite unrefined, but it involves using synthesis to compute the external knowledge transducer from the domain/environment assumption/any other external knowledge base.
+
+% Say we have the formula $\Gamma$ as the external knowledge base over variables $I, O$, and a potential set of dependent input variables $D \subseteq I$. To verify that $D$ are dependent in $\Gamma$, we can attempt to synthesize $\Gamma$ with $D$ as the output variables, and count the number of models that satisfy $\Gamma$. If it is 1, $D$ are dependent, because there is a single strategy that decides their value. If it is 0, the domain is vacuous. If it is $> 1$ then $D$ are not dependent because more than one strategy for their values exists.
+
+% \paragraph{Note to self about pddl (just thought of this and i dont want to forget it} to 'create' dependencies in pddl, specifically the non deterministic domains, I probably need to 'determinize' the domain. That is, in slippery world, there are 2 reactions possible for movement - moving 1 step or 2 steps, chosen by the environment. The act of determinizing means adding an additional variable, a 'slipped' variable, that uniquely determines if the movement was 1 or 2 steps. Thus the column argument, that was in the nondeterministic case independent (because you cannot tell if a step will land in the 2nd or 3rd column due to nondeterminism), becomes dependent when you add the additional variable.
+% This might be less useful then what I thought was needed, my understanding was that the intention was to extract such variables automatically. This needs further thought.
+
+\end{document}
