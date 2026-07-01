@@ -51,5 +51,6 @@ language. Trigger them with a slash:
 | `/code-reviewer` | Spot/BDD + glossary + domain-invariant review (spawns theory review on semantic diffs) |
 | `/theory-review` | code↔math faithfulness &/or LaTeX soundness; may edit `main.tex` under `\cl` notes |
 | `/glossary` | maintain the 3-column glossary |
+| `/backlog` | capture personal "what to do next" items in `docs/BACKLOG.md` (no grilling) |
 
 See `.claude/skills/*/SKILL.md`.
