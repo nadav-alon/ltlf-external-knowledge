@@ -26,7 +26,8 @@ specific method), then pick the mode.
   stub, the aggregated-`F_P`-overwrite doubt, on-the-fly game solving, the
   line-84 parameter gap). Engage with these; do **not** re-flag them as novel
   discoveries.
-- The relevant `main.tex` algorithm/definition blocks.
+- The relevant `latex/main.tex` algorithm/definition blocks (the paper lives in
+  the `latex/` submodule mirroring Overleaf).
 
 ## Faithfulness mode (reference = math, subject = code)
 
@@ -46,6 +47,8 @@ Check the math is internally sound, independent of code:
 - Notation is used consistently with its definition (`cons`, `[psi]`, the four
   variable sets); an edit didn't break a downstream `\cref`ed claim.
 - Algorithms are correct (e.g. is the aggregated `F_P` insert really safe?).
+- Touched blocks conform to the **LaTeX writing conventions** (below) — report
+  any violation as a non-blocking **style** nit alongside the correctness verdicts.
 
 ## Verdicts
 
@@ -66,6 +69,20 @@ still annotate them with an adjacent `\cl`.
 
 When **spawned by `/code-reviewer`**: report verdicts and any proposed `\cl`
 patch back to the caller; do **not** commit LaTeX edits mid-review.
+
+## LaTeX writing conventions
+
+The house LaTeX style lives in the **`latex-style`** skill (single source: no
+`\paragraph`, macro-only notation, one sentence per source line). In review
+context, apply it as follows:
+
+- Report a violation as a non-blocking **style** nit — never a
+  `code-bug`/`doc-bug`/`underspecified` correctness verdict.
+- Flag violations **only on the blocks the diff touches**; never launch a
+  repo-wide reformat.
+- Follow the conventions in your own `\cl` edits.
+- Fixes obey the same `\cl`-only editing rule: flag + draft the edit, apply
+  reformatting only when the user asked.
 
 ## Definition of done
 

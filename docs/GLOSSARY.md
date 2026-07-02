@@ -69,9 +69,21 @@ the existing term or update this file via `/glossary` — do not let drift happe
 ### Transducer
 - **`main.tex`:** $\tau=(Q,\Sigma,\delta,\lambda,q_0)$ (§Transducers).
 - **Definition:** a DFA with a **lambda-split** output function
-  $\lambda:Q\times\Sigma_0\to\Sigma_1$ implementing a strategy.
+  $\lambda:Q\times\Sigma_0\to\Sigma_1$ implementing a strategy. Has **no**
+  acceptance condition (unlike the Goal automata).
 - **C++:** `Transducer` (abstract base).
 - **Do not call it:** Mealy machine, automaton (bare), FST.
+
+### Output-labeled transducer
+- **`main.tex`:** — (no separate symbol; a concrete realization of $\tau$, §Transducers).
+- **Definition:** the concrete `Transducer` whose $\delta$ reuses a
+  `spot::twa_graph` (used purely as a deterministic transition structure —
+  **acceptance ignored**) and whose $\lambda$ is stored as an explicit per-state
+  output relation, one BDD over $\Sigma_0\cup\Sigma_1$ per state.
+- **C++:** `OutputLabeledTransducer` (constructed from a `spot::twa_graph_ptr`,
+  the per-state `lambda` BDDs, and `sigma0_cube` / `sigma1_cube`).
+- **Do not call it:** BddTransducer, ExplicitTransducer, SpotTransducer, Mealy
+  machine, labeled DFA.
 
 ### Transition function (delta)
 - **`main.tex`:** $\delta:Q\times 2^{\mathcal{I}\cup\mathcal{O}}\to Q$.
@@ -81,14 +93,43 @@ the existing term or update this file via `/glossary` — do not let drift happe
 
 ### Output function (lambda)
 - **`main.tex`:** $\lambda:Q\times\Sigma_0\to\Sigma_1$ (the turn-order-restricted output).
-- **Definition:** what the transducer commits to, seeing only its allowed slice.
-- **C++:** `Transducer::lambda(q, visible)`.
+- **Definition:** what the transducer commits to; it is passed the **full letter**
+  $v$ and internally reads only its $\Sigma_0$ slice (abuse-of-notation,
+  `main.tex` footnote §87), returning a cube over $\Sigma_1$.
+- **C++:** `Transducer::lambda(q, v)`.
 - **Do not call it:** output (bare), emit, label.
+
+### Observed / produced slice (Σ₀ / Σ₁)
+- **`main.tex`:** $\Sigma_0,\Sigma_1\subseteq\Sigma$ (§Transducers §103); instantiated
+  per transducer in the align block (§112–120).
+- **Definition:** the cube of variables a transducer may **observe** ($\Sigma_0$)
+  versus the cube it **produces** ($\Sigma_1$); for $T_{in}$ this is
+  $(\mathcal{I}_{f},\,\mathcal{I}_{k})$, for $T_{out}$ it is
+  $(\mathcal{I}\cup\mathcal{O}_{f},\,\mathcal{O}_{k})$.
+- **C++:** `sigma0_cube` / `sigma1_cube` (`bdd` cubes; construction-time data of
+  `OutputLabeledTransducer`).
+- **Do not call it:** input/output mask, visible set (bare), domain/range.
+
+### Cube
+- **`main.tex`:** — (no symbol; a BuDDy/BDD representation primitive, not a domain object).
+- **Definition:** a `bdd` that is a conjunction of literals — geometrically a
+  subcube of the Boolean hypercube over $\mathcal{I}\cup\mathcal{O}$. It plays
+  **two distinct roles**, which is the whole reason to name it here:
+  - a **value cube** fixes variables to truth values (polarity matters); a
+    *full* value cube fixing every variable is a **letter** (see below);
+  - a **variable cube** (varset) is a positive-literal cube that only *names a
+    set of variables*, e.g. `sigma0_cube`, passed as the "which variables"
+    argument to `bdd_exist` / `bdd_restrict`.
+- **C++:** `bdd`; variable-cube members are suffixed `_cube` (`sigma0_cube`,
+  `sigma1_cube`). Prefer the name **letter** when it is a full value cube.
+- **Do not call it:** term, product, bitmask, mask; do not call a variable cube
+  a "valuation" (it carries no truth values).
 
 ### Letter
 - **`main.tex`:** $v\in 2^{\mathcal{I}\cup\mathcal{O}}$.
-- **Definition:** one full assignment of all variables at a step.
-- **C++:** `bdd v` (a cube over I∪O).
+- **Definition:** one full assignment of all variables at a step — i.e. a *full
+  value cube* (see Cube).
+- **C++:** `bdd v` (a full cube over I∪O).
 - **Do not call it:** symbol, event, valuation.
 
 ### NFA / DFA for the Goal
@@ -165,4 +206,10 @@ is seeded with them:
 - **On-the-fly game solving** — Method 3 builds the product on the fly but still
   solves at the end; the hanging-fruit on-the-fly *solving* is not done.
 - **Line-84 parameter gap** — the second argument of $S(\ldots,v_t)$ needs an
-  intersection with a not-yet-defined variable set to match the signatures.
+  intersection with a not-yet-defined variable set to match the signatures. This
+  is the $\Sigma_0$ slice `lambda` receives (see *Observed / produced slice*).
+- **Partial transducers** — `main.tex` introduces undefined letters only in §282
+  (Method 3.1); the planned `std::optional` return on `Transducer::delta` /
+  `::lambda` (`nullopt` = undefined) is **tentative** pending `/theory-review` of
+  whether partiality is well-defined for Methods 1–2 and consistent with the
+  $\bot$-sink (Method 2). See `docs/prd/concrete-transducer.md`.

@@ -7,7 +7,8 @@ description: Grill-me wrapper that interviews the user about a feature/method to
 
 Produce a **Product Requirements Document** for one feature/method, by
 interviewing the user grill-style, using the project's canonical vocabulary so
-the PRD hands cleanly to `/developer`.
+the PRD hands cleanly to `/developer`. The paper `main.tex` lives at
+**`latex/main.tex`** (git submodule → Overleaf).
 
 ## Procedure
 
@@ -15,8 +16,9 @@ the PRD hands cleanly to `/developer`.
    - Read `docs/GLOSSARY.md` in full — every term you use in questions and in
      the PRD must be the canonical one. If the feature needs a concept not yet
      in the glossary, note it and, at the end, tell the user to run `/glossary`.
-   - Read the relevant part of `main.tex` for the method/feature (e.g. the
-     algorithm block and its surrounding definitions).
+   - Read the relevant part of `latex/main.tex` (the paper, a submodule
+     mirroring Overleaf) for the method/feature (e.g. the algorithm block and
+     its surrounding definitions).
    - Skim `include/ltlf_ek/` for the interfaces the feature must fit
      (`Synthesis`, `Transducer`, `VariablePartition`, existing methods).
 

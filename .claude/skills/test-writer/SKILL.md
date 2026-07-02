@@ -7,7 +7,9 @@ description: Write GoogleTest unit tests for this LTLf-external-knowledge projec
 
 Framework: **GoogleTest** (fetched by CMake; tests in `tests/`, added to the
 `unit_tests` target in `CMakeLists.txt`). Priority: **small unit tests for most
-functions that sensibly have one**, backed by a few strong domain oracles.
+functions that sensibly have one**, backed by a few strong domain oracles. The
+theory reference `main.tex` lives at **`latex/main.tex`** (git submodule →
+Overleaf).
 
 ## Before writing
 

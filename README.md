@@ -35,7 +35,8 @@ include/ltlf_ek/   public headers (domain types + Synthesis interface)
 src/               implementations
 tests/             GoogleTest unit tests
 docs/GLOSSARY.md   ubiquitous language: math ↔ prose ↔ C++
-main.tex           the theory (source of reference, not word of god)
+latex/             the theory (git submodule → Overleaf); main.tex is the
+                   source of reference, not word of god
 ```
 
 ## Working in this repo (skills)

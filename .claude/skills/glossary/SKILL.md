@@ -6,14 +6,17 @@ description: Maintain the project's ubiquitous-language glossary (docs/GLOSSARY.
 # Glossary maintenance
 
 `docs/GLOSSARY.md` is the single source of truth for this project's vocabulary.
-Every domain concept has **one** canonical English term, **one** `main.tex`
-symbol, and **one** canonical C++ identifier. Your job is to keep those three in
+The paper itself lives at **`latex/main.tex`** (git submodule → Overleaf); every
+`main.tex` reference below means that file. Every domain concept has **one**
+canonical English term, **one** `main.tex` symbol, and **one** canonical C++
+identifier. Your job is to keep those three in
 sync and kill synonyms before they spread.
 
 ## When invoked
 
-1. **Read `docs/GLOSSARY.md` in full** and skim `main.tex` for the symbol(s) in
-   question. Never propose a term without checking what `main.tex` already calls it.
+1. **Read `docs/GLOSSARY.md` in full** and skim `latex/main.tex` (the paper, a
+   submodule mirroring Overleaf) for the symbol(s) in question. Never propose a
+   term without checking what `main.tex` already calls it.
 2. If the request is vague ("add a term for X"), **grill the user** one question
    at a time until the entry is unambiguous. Resolve, in order:
    - What does `main.tex` call it, and where is it defined (`\cref` label / section)?

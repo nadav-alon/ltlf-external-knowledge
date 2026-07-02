@@ -10,6 +10,9 @@ Implement C++ for this project. Architecture: **thin domain wrappers over Spot**
 non-standard pieces** (lambda-split `Transducer`, NFAs, product states). All five
 methods share `Synthesis::synthesize(phi, vars, t_in, t_out)`.
 
+The theory reference `main.tex` lives at **`latex/main.tex`** (git submodule →
+Overleaf).
+
 ## Before writing code
 
 1. **Read the PRD** for this feature in `docs/prd/` if one exists. If none
@@ -17,7 +20,8 @@ methods share `Synthesis::synthesize(phi, vars, t_in, t_out)`.
 2. **Read `docs/GLOSSARY.md`.** Names in code MUST match the C++ column. If a
    concept has no entry, you may not invent a name — stop and run `/glossary`
    (or tell the user to), then continue.
-3. **Read the relevant `main.tex` algorithm** and the existing interfaces in
+3. **Read the relevant `latex/main.tex` algorithm** (the paper, a submodule
+   mirroring Overleaf) and the existing interfaces in
    `include/ltlf_ek/`. Fit the existing `Synthesis` / `Transducer` shapes; do
    not fork parallel abstractions.
 
