@@ -39,6 +39,19 @@ prose you are **writing or touching**, and leave untouched blocks alone.
 - Only the `\cl{...}` note command marks Claude-authored content (green, "CL:").
   Never use `\na`, `\sz`, `\spc`, `\df`, and never impersonate the author. See
   `/theory-review` for the full editing-under-`\cl` rules.
+- **`\cl` placement — always on its own source line.** Never append a `\cl{...}`
+  to the end of a prose sentence, a display `\]`, or an `align`/`algorithm`
+  block. Put it on the next line, so the one-sentence-per-line diff stays clean
+  and the note is easy to move or delete. (A `\todo` may be typeset anywhere in
+  the source, so this is a source-hygiene rule, not a compile requirement.)
+- **`\cl` style — reach for `[inline]` unless the note is a short flag.** The
+  bare `\cl{...}` is a margin note; anything longer than a few words (multi-clause
+  reasoning, adjacent display math, `\cref`s) overflows the margin, so use
+  `\cl[inline]{...}` (renders as an in-text box; cf. the `\na[inline]` and
+  `\cl[inline]` notes already in `main.tex`). The optional first arg passes
+  straight through to `\todo`, so any other `todonotes` option (`[color=…]`,
+  `[size=…]`) is available when appropriate. Keep bare margin `\cl{}` only for a
+  terse one-line flag.
 - Local build verification is unreliable — see the project memory note; the paper
   compiles on Overleaf, so review `.tex` edits by reading, not by running
   `pdflatex`/`latexmk`.

@@ -67,6 +67,12 @@ You may edit `main.tex`, but **only** using the `\cl{...}` note command
 make substantive prose/definition edits only when the user asked you to, and
 still annotate them with an adjacent `\cl`.
 
+Format every `\cl` per the **`latex-style`** skill: put it **on its own source
+line** (never appended to a prose sentence, a display `\]`, or an
+`align`/`algorithm` block), and use **`\cl[inline]{...}`** for anything beyond a
+short one-line flag (multi-clause notes, adjacent math, `\cref`s) so it does not
+overflow the margin.
+
 When **spawned by `/code-reviewer`**: report verdicts and any proposed `\cl`
 patch back to the caller; do **not** commit LaTeX edits mid-review.
 
