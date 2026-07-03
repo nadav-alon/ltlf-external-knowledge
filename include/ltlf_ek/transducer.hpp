@@ -1,5 +1,7 @@
 #pragma once
 
+#include <optional>
+
 #include <bddx.h>
 #include <spot/twa/twagraph.hh>
 
@@ -15,6 +17,15 @@ namespace ltlf_ek {
 // which lets each party see only the variables allowed by the turn order.
 // This lambda-split shape has no native Spot equivalent, so we model it
 // explicitly.  See docs/GLOSSARY.md ("transducer", "lambda").
+//
+// Both delta and lambda are *partial* (main.tex §107, \cref{def:enabled}):
+// either may be undefined at an argument, signalled by `std::nullopt`.  A letter
+// is *enabled* at a pair of states iff delta and lambda are defined at it on
+// both transducers AND `consistent(...)` holds; a nullopt from delta OR lambda
+// makes the letter non-enabled, treated exactly like a consistency failure
+// (skipped in Methods 1/3, routed to the sink in Method 2).  The `enabled`
+// predicate therefore also guards delta: callers must only apply delta on a
+// letter that already passed the enabled test.
 class Transducer {
  public:
   virtual ~Transducer() = default;
@@ -22,12 +33,13 @@ class Transducer {
   virtual unsigned initial_state() const = 0;
 
   // delta(q, v): successor of q under the full letter v (a cube over I∪O).
-  virtual unsigned delta(unsigned q, bdd v) const = 0;
+  // nullopt = undefined (partial transducer, main.tex §107).
+  virtual std::optional<unsigned> delta(unsigned q, bdd v) const = 0;
 
-  // lambda(q, visible): the Sigma1-valued output committed at state q given the
-  // Sigma0 slice `visible` this transducer is allowed to observe.  Returns a
-  // cube over Sigma1.
-  virtual bdd lambda(unsigned q, bdd visible) const = 0;
+  // lambda(q, v): the Sigma1-valued output committed at state q.  Passed the
+  // *full* letter v (abuse-of-notation, main.tex §87); the implementation reads
+  // only its Sigma0 slice and returns a cube over Sigma1.  nullopt = undefined.
+  virtual std::optional<bdd> lambda(unsigned q, bdd v) const = 0;
 };
 
 }  // namespace ltlf_ek

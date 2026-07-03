@@ -195,3 +195,21 @@ class OutputLabeledTransducer final : public Transducer {
   and the corrected `lambda(q, v)` signature.
 - `/theory-review` run on the partiality treatment and the §85 gap.
 - `/code-reviewer` clean.
+
+## Developer comments / PRD disagreements
+
+Deviations made during implementation from what this PRD specified, with
+rationale. (Disagreements with the PRD live here, not in source comments;
+divergences from `main.tex` go to `/theory-review`.)
+
+- **2026-07-03 — `lambda` projection: illustrative snippet corrected.** The
+  "Interfaces & types" section sketches lambda evaluation as
+  `bdd_restrict(out_[q], v & sigma0_cube_)`. That is incorrect: `v` is a value
+  cube (a letter) and `sigma0_cube_` is a *variable* cube, so `v & sigma0_cube_`
+  conjoins the two and collapses to `bddfalse` whenever a Σ0 variable is *false*
+  in `v` (e.g. `¬a ∧ a`). Implemented instead as
+  `bdd_restrict(out_[q], bdd_exist(v, sigma1_cube_))` — strip Σ1 from the letter
+  and let `bdd_restrict` ignore the variables absent from `out_[q]`, which fixes
+  exactly Σ0 and leaves Σ1 free. Same intent, correct for all polarities; the
+  `bdd_exist(r, sigma0_cube_)` tail is kept as written. No theory impact
+  (`λ:Q×Σ0→Σ1` is unchanged).
