@@ -40,6 +40,14 @@ Overleaf).
   final-state classification via the progression bit, aggregation keyed on
   `[psi]` alone. If the code must diverge from `main.tex`, do **not** silently
   paper over it — surface it for `/theory-review`.
+- **PRD disagreements go in the PRD, not the code.** When the implementation
+  must deviate from the PRD (a wrong illustrative snippet, an over-constrained
+  type, a renamed field), record the deviation and its rationale in a
+  **"Developer comments / PRD disagreements"** section at the end of that
+  `docs/prd/` file — dated, one entry per deviation. Do **not** narrate the
+  disagreement in a source comment: code comments explain what the code does and
+  cite the `main.tex` symbol, they are not the place to argue with the spec.
+  (Divergences from `main.tex` *itself* still go to `/theory-review`, above.)
 - **Style:** match surrounding code (namespace `ltlf_ek`, `.hpp` headers with
   `#pragma once`, doc-comments that cite the `main.tex` symbol/algorithm). Keep
   black-boxes (`LtlfToDfa`, `SolveDfa`, `progress`) behind named wrappers so the
@@ -59,5 +67,7 @@ Overleaf).
 - Code compiles (`cmake --build build`).
 - Every new public domain identifier is in `docs/GLOSSARY.md`.
 - Any divergence from `main.tex` is flagged for `/theory-review`.
+- Any deviation from the PRD is recorded in that PRD's "Developer comments /
+  PRD disagreements" section — not narrated in code comments.
 - **Suggest next steps** (do not auto-run): `/test-writer` on the new functions,
   then `/code-review` (generic) and `/code-reviewer` (domain) before committing.

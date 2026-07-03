@@ -34,6 +34,12 @@ Review the current diff (or the files named by the user) for:
 4. **Interface conformance.** Each method implements
    `Synthesis::synthesize(phi, vars, t_in, t_out)` and returns a controller that
    would pass the verifier; shared black-boxes stay behind their named wrappers.
+5. **Comment hygiene / disagreement placement.** Flag "thinking out loud" or
+   spec-argument narration in source comments. A deviation from the **PRD**
+   belongs in that PRD's "Developer comments / PRD disagreements" section; a
+   divergence from **`main.tex`** goes to `/theory-review`. Code comments should
+   explain what the code does and cite the `main.tex` symbol — not litigate the
+   spec. When you flag such a comment, say where the note should move to.
 
 ## Spawn theory review — conditionally
 
