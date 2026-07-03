@@ -36,15 +36,6 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
     partial transducer) → run `/glossary` before/after.
   - Consider writing a **PRD via `/grill-prd`** since this feeds `/developer`.
 
-### Git integration
-- **Intent:** add git integration to the LaTeX **Overleaf** project specifically
-  (sync `main.tex` / the `latex/` submodule with Overleaf via its git bridge).
-- **Progress:** `latex/` submodule added (Overleaf git bridge); root `main.tex`
-  removed and its content ported in, so **`latex/main.tex` is now the single
-  source**; skills repointed. Left to do: commit the submodule pointer in the
-  parent repo, and settle the push-to-Overleaf sync workflow.
-- **Seeds for grilling:** _(tbd)_
-
 ## Later
 
 ### Infer lambda from transducer edge labels
@@ -69,4 +60,9 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Done
 
-_(nothing yet)_
+### Git integration (Overleaf sync)
+- **Intent:** sync `latex/main.tex` with Overleaf via its git bridge.
+- **Outcome:** `latex/` submodule tracks Overleaf's `main` (`branch = main`,
+  `update = rebase`); submodule pointer is committed in the parent (already was,
+  via `784c296`); two-way sync workflow documented in `docs/overleaf-sync.md` and
+  linked from the README.

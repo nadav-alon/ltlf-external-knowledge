@@ -36,7 +36,8 @@ src/               implementations
 tests/             GoogleTest unit tests
 docs/GLOSSARY.md   ubiquitous language: math ↔ prose ↔ C++
 latex/             the theory (git submodule → Overleaf); main.tex is the
-                   source of reference, not word of god
+                   source of reference, not word of god — see
+                   docs/overleaf-sync.md for the two-way sync workflow
 ```
 
 ## Working in this repo (skills)
