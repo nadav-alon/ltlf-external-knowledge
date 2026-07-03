@@ -21,7 +21,7 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
   an abstract base (`delta`, `lambda`, `initial_state`) with no concrete
   construction path and no external representation.
 - **Seeds for grilling:**
-  - **External format:** how does a user *supply* $T_{in}/T_{out}$ on the CLI?
+  - **External format:** how does a user *supply* $\Tin/\Tout$ on the CLI?
     Spot HOA file? explicit state/transition table? a small DSL? Reuse Spot's
     automaton parsers where possible (thin-wrapper principle).
   - **The lambda-split ($\lambda: Q\times\Sigma_0\to\Sigma_1$)** has no native

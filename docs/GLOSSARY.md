@@ -33,27 +33,27 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Do not call it:** in/out vars, signals.
 
 ### Governed variables (V)
-- **`main.tex`:** $\mathcal{V}\subseteq(\mathcal{I}\cup\mathcal{O})$, $\mathcal{V}=\mathcal{I}_{k}\cup\mathcal{O}_{k}$.
+- **`main.tex`:** $\mathcal{V}\subseteq(\mathcal{I}\cup\mathcal{O})$, $\mathcal{V}=\Iknown\cup\Oknown$.
 - **Definition:** the variables decided by external knowledge strategies.
 - **C++:** `VariablePartition::known()`.
 - **Do not call it:** external vars, dependent vars, known set (as a bare noun).
 
 ### Free inputs / Known inputs / Free outputs / Known outputs
-- **`main.tex`:** $\mathcal{I}_{f},\mathcal{I}_{k},\mathcal{O}_{f},\mathcal{O}_{k}$ (§Problem Definition align block).
+- **`main.tex`:** $\Ifree,\Iknown,\Ofree,\Oknown$ (§Problem Definition align block).
 - **Definition:** the four-way split — free = decided by env / controller,
   known = produced by an external strategy.
 - **C++:** `VariablePartition::input_free / input_known / output_free / output_known`.
 - **Do not call it:** unknown/uncontrolled (for free), fixed (for known).
 
 ### External knowledge strategy
-- **`main.tex`:** $S_{\mathit{Inp}},S_{\mathit{Out}}$ (input/output knowledge strategies).
+- **`main.tex`:** $\Sin,\Sout$ (input/output knowledge strategies).
 - **Definition:** pure functions producing the known variables from history.
 - **C++:** modeled as `Transducer` (their regular representation); the input one
   and output one are `t_in` / `t_out`.
 - **Do not call it:** oracle, helper, assumption.
 
 ### Controller (system strategy)
-- **`main.tex`:** $S_C$ / $T_C$, signature $\ldots\to 2^{\mathcal{O}_{f}}$ (Def. probDef / probDefTransducer).
+- **`main.tex`:** $S_C$ / $T_C$, signature $\ldots\to 2^{\Ofree}$ (Def. probDef / probDefTransducer).
 - **Definition:** the strategy we synthesize; produces the free outputs.
 - **C++:** `Controller`.
 - **Do not call it:** solution, policy, winning strategy.
@@ -103,9 +103,9 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **`main.tex`:** $\Sigma_0,\Sigma_1\subseteq\Sigma$ (§Transducers §103); instantiated
   per transducer in the align block (§112–120).
 - **Definition:** the cube of variables a transducer may **observe** ($\Sigma_0$)
-  versus the cube it **produces** ($\Sigma_1$); for $T_{in}$ this is
-  $(\mathcal{I}_{f},\,\mathcal{I}_{k})$, for $T_{out}$ it is
-  $(\mathcal{I}\cup\mathcal{O}_{f},\,\mathcal{O}_{k})$.
+  versus the cube it **produces** ($\Sigma_1$); for $\Tin$ this is
+  $(\Ifree,\,\Iknown)$, for $\Tout$ it is
+  $(\mathcal{I}\cup\Ofree,\,\Oknown)$.
 - **C++:** `sigma0_cube` / `sigma1_cube` (`bdd` cubes; construction-time data of
   `OutputLabeledTransducer`).
 - **Do not call it:** input/output mask, visible set (bare), domain/range.
@@ -141,8 +141,8 @@ the existing term or update this file via `/glossary` — do not let drift happe
 ## Algorithms
 
 ### Consistency (cons)
-- **`main.tex`:** $\mathrm{cons}(q_{in},q_{out},v)$ (Method 1) — the per-letter filter.
-- **Definition:** $v$'s V-variables are exactly what $T_{in},T_{out}$ output.
+- **`main.tex`:** $\cons(q_{in},q_{out},v)$ (Method 1) — the per-letter filter.
+- **Definition:** $v$'s V-variables are exactly what $\Tin,\Tout$ output.
 - **C++:** `consistent(t_in, q_in, t_out, q_out, v)`.
 - **Do not call it:** agrees, valid, matches, feasible.
 
@@ -209,7 +209,7 @@ is seeded with them:
 **Resolved (kept here so they are not re-flagged as novel):**
 
 - **Line-84 parameter gap** — *resolved.* `main.tex` §86 now names the missing
-  variable set as $\Sigma_0\in\{\mathcal{I}_{f},\ \mathcal{I}\cup\mathcal{O}_{f},\ \mathcal{I}\}$
+  variable set as $\Sigma_0\in\{\Ifree,\ \mathcal{I}\cup\Ofree,\ \mathcal{I}\}$
   and writes the intersection $v_t\cap\Sigma_0$; the code's `sigma0_cube`
   instantiates exactly that slice (see *Observed / produced slice*).
 - **Partial transducers** — *resolved.* Settled by `main.tex` §107–116 and the

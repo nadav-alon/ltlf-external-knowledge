@@ -41,16 +41,13 @@ the PRD hands cleanly to `/developer`. The paper `main.tex` lives at
 3. **Write the PRD** to `docs/prd/<kebab-feature-name>.md` using the template
    below. Use only glossary terms; reference `main.tex` by `\cref` label /
    algorithm name and the glossary C++ identifiers.
-   - **Math must render in Markdown/KaTeX** (same rule as `/glossary`). PRDs
-     under `docs/prd/` are previewed as Markdown, which does **not** know
-     `main.tex`'s `\newcommand` macros. Write the *expanded* LaTeX in any `$…$`:
-     e.g. `\mathcal{I}_{f}` not `\Ifree`, `\mathcal{I}_{k}` not `\Iknown`,
-     `\mathcal{O}_{f}` not `\Ofree`, `\mathcal{O}_{k}` not `\Oknown`,
-     `S_{\mathit{Inp}}`/`S_{\mathit{Out}}` not `\Sin`/`\Sout`,
-     `T_{\mathit{in}}`/`T_{\mathit{out}}` not `\Tin`/`\Tout`, `\mathrm{cons}` not
-     `\cons` — expand every `main.tex` macro. You may still *name* a `main.tex`
-     macro or `\cref` label in backticks as prose (e.g. `` `\cref{def:enabled}` ``),
-     but any standalone `$…$` must be KaTeX-renderable.
+   - **Use the `main.tex` macros directly in math — never hand-expand** (same
+     rule as `/glossary`). Write `$\Tin$`, `$\Ifree$`, `$\cons$`, … exactly as
+     the paper; do **not** expand them (`T_{\mathit{Inp}}`, `\mathcal{I}_{f}`,
+     `\mathrm{cons}`). The VS Code Markdown preview resolves them from the
+     generated `.vscode/settings.json` (`scripts/gen-md-macros.py`, kept in sync
+     by a pre-commit hook + CI). Only spell out notation that has no macro; name
+     a `\cref` label in backticks as prose.
 
 ## PRD template
 

@@ -1,0 +1,16 @@
+#!/bin/sh
+# Keep .vscode/settings.json (Markdown-preview KaTeX macros) in sync with the
+# paper's \newcommand notation in latex/main.tex.  See scripts/gen-md-macros.py.
+#
+# Fast path: this hook does nothing unless the staged changes actually touch the
+# latex submodule or the settings file, so ordinary commits pay only one
+# `git diff` + `grep` (~10ms) and never launch Python.
+
+if git diff --cached --name-only | grep -qE '^(latex|\.vscode/settings\.json)$'; then
+	if ! python3 scripts/gen-md-macros.py --check; then
+		echo >&2 "pre-commit: notation macros out of sync."
+		echo >&2 "  run: python3 scripts/gen-md-macros.py && git add .vscode/settings.json"
+		exit 1
+	fi
+fi
+exit 0

@@ -32,12 +32,15 @@ sync and kill synonyms before they spread.
 
 ## Rules
 
-- **Math must render in Markdown/KaTeX.** `docs/GLOSSARY.md` is previewed as
-  Markdown, which does **not** know `main.tex`'s `\newcommand` macros. Write the
-  *expanded* LaTeX in glossary math: e.g. `\mathcal{I}_{k}` not `\Iknown`,
-  `\mathcal{O}_{k}` not `\Oknown`, `S_{\mathit{Inp}}` not `\Sin`,
-  `\mathrm{cons}` not `\cons`. The `main.tex` column still *names* the macro in
-  backticks (prose), but any `$…$` math must be standalone KaTeX.
+- **Use the `main.tex` macros directly in math — never hand-expand.** Write
+  `$\Iknown$`, `$\Tin$`, `$\cons$` in glossary math exactly as the paper does,
+  *not* the expansion (`\mathcal{I}_{k}`, `T_{\mathit{Inp}}`, `\mathrm{cons}`).
+  The VS Code Markdown preview resolves these from `.vscode/settings.json`, which
+  `scripts/gen-md-macros.py` generates from `main.tex`'s `\newcommand`s (a
+  pre-commit hook + CI keep it in sync). Hand-expanding re-duplicates a macro
+  body that then silently drifts when the definition changes — so only spell out
+  notation that has *no* macro. (Caveat: GitHub's web view won't load the
+  workspace macros; VS Code is the reading surface.)
 - **Three columns are mandatory.** If a term has no `main.tex` symbol yet, say so
   explicitly (`— (no symbol; code-only)`) rather than leaving it blank.
 - **One canonical C++ name.** If you discover two names in code for one concept,
