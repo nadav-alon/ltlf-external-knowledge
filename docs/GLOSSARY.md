@@ -205,11 +205,17 @@ is seeded with them:
   same $[\psi']$ later returns $b=\bot$; unresolved whether to remove.
 - **On-the-fly game solving** — Method 3 builds the product on the fly but still
   solves at the end; the hanging-fruit on-the-fly *solving* is not done.
-- **Line-84 parameter gap** — the second argument of $S(\ldots,v_t)$ needs an
-  intersection with a not-yet-defined variable set to match the signatures. This
-  is the $\Sigma_0$ slice `lambda` receives (see *Observed / produced slice*).
-- **Partial transducers** — `main.tex` introduces undefined letters only in §282
-  (Method 3.1); the planned `std::optional` return on `Transducer::delta` /
-  `::lambda` (`nullopt` = undefined) is **tentative** pending `/theory-review` of
-  whether partiality is well-defined for Methods 1–2 and consistent with the
-  $\bot$-sink (Method 2). See `docs/prd/concrete-transducer.md`.
+
+**Resolved (kept here so they are not re-flagged as novel):**
+
+- **Line-84 parameter gap** — *resolved.* `main.tex` §86 now names the missing
+  variable set as $\Sigma_0\in\{\mathcal{I}_{f},\ \mathcal{I}\cup\mathcal{O}_{f},\ \mathcal{I}\}$
+  and writes the intersection $v_t\cap\Sigma_0$; the code's `sigma0_cube`
+  instantiates exactly that slice (see *Observed / produced slice*).
+- **Partial transducers** — *resolved.* Settled by `main.tex` §107–116 and the
+  *enabled* predicate (`\cref{def:enabled}`), valid for all methods. The
+  `std::optional` return on `Transducer::delta` / `::lambda` (`nullopt` =
+  undefined) is **final**, not tentative: a non-enabled letter is skipped
+  (Methods 1, 3) or routed to the $\bot$-sink (Method 2). The project commits to
+  the Case-A regime, so partial and total transducers are language-equivalent.
+  See `docs/prd/concrete-transducer.md`.
