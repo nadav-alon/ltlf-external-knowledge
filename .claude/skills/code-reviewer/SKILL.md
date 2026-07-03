@@ -67,3 +67,8 @@ Skip the spawn for build-system / test-harness / formatting-only diffs.
 
 - Domain review delivered; theory-reviewer spawned iff the diff was semantic.
 - No overlap with generic `/code-review`; no silent `main.tex` edits.
+- If a `docs/prd/` PRD backs the reviewed code, tick its **`code-review`** gate
+  with the ref **only when the review is clean** (must-fix findings resolved);
+  leave it unchecked while must-fixes are open. If you spawned the
+  theory-reviewer and it came back clean, tick **`theory-review`** too. Gate
+  vocabulary is defined in `/grill-prd`.

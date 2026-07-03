@@ -96,3 +96,8 @@ context, apply it as follows:
 - Doc problems come with a drafted `\cl` note / edit; code problems with a
   described fix.
 - Known open questions are engaged with, not rediscovered.
+- In **faithfulness mode**, if a `docs/prd/` PRD backs the reviewed code, tick
+  its **`theory-review`** gate with the ref **only when no `code-bug` remains**
+  (leave unchecked while any is open). When **spawned by `/code-reviewer`**,
+  don't tick it yourself — report the clean/not-clean verdict and let the caller
+  tick. Gate vocabulary is defined in `/grill-prd`.

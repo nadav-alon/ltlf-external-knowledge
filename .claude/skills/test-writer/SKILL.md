@@ -61,3 +61,6 @@ Overleaf).
 - New/changed functions have unit tests where sensible; the suite builds.
 - `ctest` is green (or failures are reported with output, not hidden).
 - Metamorphic / verifier oracles added or extended when a method changed.
+- If a `docs/prd/` PRD backs this feature, tick its **`tests`** gate with the
+  commit/PR ref (only once the suite is actually green). Gate vocabulary is
+  defined in `/grill-prd`.

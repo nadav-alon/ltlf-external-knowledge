@@ -62,10 +62,25 @@ Overleaf).
 - Stubs are fine, but a stub throws `std::logic_error("… not yet implemented")`
   or is clearly marked `TODO(developer)` — never a silent wrong answer.
 
+## Update the PRD status
+
+When the feature's code lands, edit its `docs/prd/` header:
+
+- Flip **`Status:`** `draft` → `implemented — <commit or PR ref>`.
+- Tick the **`glossary`** gate (with the ref) once every new domain identifier
+  is in `docs/GLOSSARY.md`. Leave `tests`, `code-review`, `theory-review`
+  unchecked — those are ticked by `/test-writer`, `/code-reviewer`,
+  `/theory-review` when they run. (Gate/status vocabulary is defined in
+  `/grill-prd`.)
+
+Do this in the same edit where you write the "Developer comments / PRD
+disagreements" entry — both are your bookkeeping on that file.
+
 ## Definition of done
 
 - Code compiles (`cmake --build build`).
 - Every new public domain identifier is in `docs/GLOSSARY.md`.
+- PRD `Status:` set to `implemented — <ref>` and the `glossary` gate ticked.
 - Any divergence from `main.tex` is flagged for `/theory-review`.
 - Any deviation from the PRD is recorded in that PRD's "Developer comments /
   PRD disagreements" section — not narrated in code comments.

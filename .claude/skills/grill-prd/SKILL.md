@@ -38,7 +38,13 @@ the PRD hands cleanly to `/developer`. The paper `main.tex` lives at
      resolve here (that's `/theory-review`).
    - **Definition of done** for the feature.
 
-3. **Write the PRD** to `docs/prd/<kebab-feature-name>.md` using the template
+3. **Check for a PRD this one supersedes.** Skim `docs/prd/` for an existing PRD
+   covering the same feature/method. If this PRD replaces or substantially
+   overlaps one, mark the **old** one `**Status:** superseded by <this-prd-name>`
+   and add a one-line pointer to it; reference the old one from this PRD's Goal.
+   Never delete the old file — supersession is a link, not a deletion.
+
+4. **Write the PRD** to `docs/prd/<kebab-feature-name>.md` using the template
    below. Use only glossary terms; reference `main.tex` by `\cref` label /
    algorithm name and the glossary C++ identifiers.
    - **Use the `main.tex` macros directly in math — never hand-expand** (same
@@ -49,13 +55,39 @@ the PRD hands cleanly to `/developer`. The paper `main.tex` lives at
      by a pre-commit hook + CI). Only spell out notation that has no macro; name
      a `\cref` label in backticks as prose.
 
+## Status & gates
+
+A PRD carries two orthogonal axes, both in its header block:
+
+- **`Status:`** — the *lifecycle* of the document (one value):
+  `draft` → `implemented — <commit/PR>` → `superseded by <prd-name>` /
+  `abandoned`. `draft` while being written or awaiting `/developer`;
+  `implemented` once code lands (set by `/developer`); `superseded`/`abandoned`
+  retire it. **Never delete an implemented or superseded PRD** — its dated
+  "Developer comments / PRD disagreements" are an archival decision record.
+
+- **`Gates:`** — a *checklist* of independent quality passes, each ticked by the
+  skill that performs it, each carrying a ref (commit/PR) so a stale pass is
+  visible (gate ref older than the code it covers → re-run). Exactly these four,
+  no more (don't add `verify`/`simplify` — those are actions, not durable
+  states): `glossary`, `tests`, `code-review`, `theory-review`.
+
+Emit every new PRD with `Status: draft` and all four gates unchecked.
+
 ## PRD template
 
 ```markdown
 # PRD: <feature>
 
-**Status:** draft · **main.tex ref:** <section / \cref / algorithm>
+**Status:** draft
 **Interface:** <e.g. implements Synthesis as DfaProduct>
+**main.tex ref:** <section / \cref / algorithm>
+
+**Gates:**
+- [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
+- [ ] tests           — unit + oracle coverage
+- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
+- [ ] theory-review   — code ↔ math faithfulness vs main.tex
 
 ## Goal
 <one paragraph: what capability, why>
@@ -82,9 +114,30 @@ the PRD hands cleanly to `/developer`. The paper `main.tex` lives at
 <compiles; tests; glossary updated; ...>
 ```
 
+## Self-review before handing off
+
+After writing, re-read the drafted PRD once against its own template as a
+standalone artifact — the reader will be `/developer`, who wasn't in the
+interview. Flag (don't silently fix) anything that would make it
+under-implementable:
+
+- Every template section present and non-empty; no `<placeholder>` left in.
+- Each stated invariant traces to a `main.tex` `\cref`/algorithm — no floating
+  "should" with no source.
+- Edge cases and test oracles are concrete enough for `/test-writer` to act on.
+- Every domain term used is in `docs/GLOSSARY.md` (or listed as a gap).
+- Interfaces name real types/signatures, not vague "some function".
+
+Report the gaps to the user; fix the cheap ones, leave genuine open questions
+for `/theory-review`. This is a read-through, not a second interview.
+
 ## Definition of done
 
-- `docs/prd/<feature>.md` written from the template, in ubiquitous language.
+- `docs/prd/<feature>.md` written from the template, in ubiquitous language,
+  with `Status: draft` and the four unchecked gates in the header.
+- Any PRD this supersedes is marked `superseded by …` and cross-linked (not
+  deleted).
+- Self-review pass done; gaps reported.
 - Any glossary gaps and touched theory questions are called out explicitly.
 - End by telling the user the PRD is ready for `/developer` (and `/glossary`
   first if terms are missing).
