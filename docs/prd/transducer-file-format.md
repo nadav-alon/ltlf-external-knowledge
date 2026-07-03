@@ -1,7 +1,14 @@
 # PRD: Transducer file format & parser
 
-**Status:** draft · **main.tex ref:** §Transducers (§98–128), `\cref{def:enabled}`, `\cref{def:probDefTransducer}`
+**Status:** draft
 **Interface:** free function `parse_transducer(...)` → `OutputLabeledTransducer` (concretises the `Transducer` base; consumed by `Synthesis::synthesize` as `t_in` / `t_out`)
+**main.tex ref:** §Transducers (§98–128), `\cref{def:enabled}`, `\cref{def:probDefTransducer}`
+
+**Gates:**
+- [ ] glossary        — new terms in `docs/GLOSSARY.md` C++ column
+- [ ] tests           — unit + oracle coverage per "Test oracles" below
+- [ ] code-review     — domain (`/code-reviewer`) + generic (`/code-review`)
+- [ ] theory-review   — code ↔ math faithfulness vs `main.tex`
 
 ## Goal
 

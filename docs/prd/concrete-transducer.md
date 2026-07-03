@@ -1,7 +1,14 @@
 # PRD: Concrete Transducer construction path
 
-**Status:** draft · **main.tex ref:** §Transducers (§98–126), `\cref{def:probDefTransducer}`
+**Status:** implemented — `2b45755`
 **Interface:** concretises the `Transducer` abstract base (`include/ltlf_ek/transducer.hpp`); consumed by `Synthesis::synthesize` as `t_in` / `t_out`
+**main.tex ref:** §Transducers (§98–126), `\cref{def:probDefTransducer}`
+
+**Gates:**
+- [x] glossary        — `OutputLabeledTransducer` entry (`2b45755`)
+- [x] tests           — `tests/output_labeled_transducer_test.cpp`, `tests/consistency_test.cpp` (`2b45755`)
+- [x] code-review     — reviewed clean at `2b45755` (no fix commits; code unchanged since)
+- [x] theory-review   — at `2b45755`; `\cl` notes on the transducer block: Mealy turn-order (`e4191d8`), `cons` (`987bd78`); "Partial transducers" resolved (`2378a0c`). Mealy turn-order flag remains open.
 
 ## Goal
 
