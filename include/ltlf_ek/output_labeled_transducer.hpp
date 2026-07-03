@@ -47,6 +47,13 @@ class OutputLabeledTransducer final : public Transducer {
   std::optional<unsigned> delta(unsigned q, bdd v) const override;
   std::optional<bdd> lambda(unsigned q, bdd v) const override;
 
+  // The observed / produced slices this transducer was built with
+  // (docs/GLOSSARY.md: "observed / produced slice").  Exposed so a consumer can
+  // build letters over the right variables and so parse_transducer's derivation
+  // can be checked against the align block.
+  bdd sigma0_cube() const { return sigma0_cube_; }
+  bdd sigma1_cube() const { return sigma1_cube_; }
+
  private:
   spot::twa_graph_ptr delta_dfa_;
   std::vector<bdd> lambda_by_state_;

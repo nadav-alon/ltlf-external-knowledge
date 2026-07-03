@@ -138,6 +138,37 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **C++:** `spot::twa_graph_ptr` (built via a `LtlfToNfa` / `LtlfToDfa` wrapper).
 - **Do not call it:** the graph, the machine.
 
+## Transducer I/O
+
+### Transducer file format (%%LAMBDA block)
+- **`main.tex`:** — (serialization of $\tau$, §Transducers; no math symbol).
+- **Definition:** one self-contained on-disk transducer: a Spot **HOA** automaton
+  for $\delta$ (acceptance ignored), then — after HOA's `--END--` — a **`%%LAMBDA`
+  block** giving $\lambda$ as one boolean formula per HOA state
+  (`state <n>: <formula>`, `false` = undefined there). $\Sigma_0/\Sigma_1$ are
+  **not** stored; they are derived from role + partition. See
+  `docs/prd/transducer-file-format.md`.
+- **C++:** the format read by `parse_transducer`; no dedicated type.
+- **Do not call it:** HOA transducer (bare), lambda file, `.hoa`.
+
+### Role
+- **`main.tex`:** — (the align-block choice of $\Sigma_0/\Sigma_1$, §122–128).
+- **Definition:** which external knowledge strategy a transducer file
+  materialises, selecting the observed/produced slices: `t_in` ⇒
+  $\Sigma_0=\Ifree,\Sigma_1=\Iknown$; `t_out` ⇒
+  $\Sigma_0=\mathcal{I}\cup\Ofree,\Sigma_1=\Oknown$.
+- **C++:** `enum class Role { t_in, t_out }`.
+- **Do not call it:** direction, kind, mode (mode is the reserved Mealy/Moore axis).
+
+### Parse a transducer
+- **`main.tex`:** — (no symbol; materialisation of $\tau$ from its file).
+- **Definition:** read one transducer file (HOA $\delta$ + `%%LAMBDA` $\lambda$)
+  on a shared `bdd_dict` and build the concrete `OutputLabeledTransducer`,
+  orienting $\lambda$ from `(partition, role)` and validating $\delta$
+  determinism, $\lambda$ functionality, AP scope, and state coverage.
+- **C++:** `parse_transducer(in, partition, role, dict)`.
+- **Do not call it:** load, read (bare), deserialize, from_hoa.
+
 ## Algorithms
 
 ### Consistency (cons)

@@ -23,6 +23,7 @@ add_library(ltlf_ek
   src/variables.cpp
   src/consistency.cpp
   src/output_labeled_transducer.cpp
+  src/transducer_io.cpp
   src/dfa_product.cpp
 )
 target_include_directories(ltlf_ek
@@ -46,6 +47,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/variables_test.cpp
     tests/consistency_test.cpp
     tests/output_labeled_transducer_test.cpp
+    tests/transducer_io_test.cpp
   )
   target_link_libraries(unit_tests PRIVATE ltlf_ek GTest::gtest_main)
 

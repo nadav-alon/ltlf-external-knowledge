@@ -1,14 +1,14 @@
 # PRD: Transducer file format & parser
 
-**Status:** draft
+**Status:** implemented — `src/transducer_io.cpp` + `include/ltlf_ek/transducer_io.hpp` (branch `master`, uncommitted)
 **Interface:** free function `parse_transducer(...)` → `OutputLabeledTransducer` (concretises the `Transducer` base; consumed by `Synthesis::synthesize` as `t_in` / `t_out`)
 **main.tex ref:** §Transducers (§98–128), `\cref{def:enabled}`, `\cref{def:probDefTransducer}`
 
 **Gates:**
-- [ ] glossary        — new terms in `docs/GLOSSARY.md` C++ column
-- [ ] tests           — unit + oracle coverage per "Test oracles" below
-- [ ] code-review     — domain (`/code-reviewer`) + generic (`/code-review`)
-- [ ] theory-review   — code ↔ math faithfulness vs `main.tex`
+- [x] glossary        — `parse_transducer`, `Role`, transducer file format added to `docs/GLOSSARY.md`
+- [x] tests           — `tests/transducer_io_test.cpp` (22 cases, `ctest` green; branch `master`, uncommitted)
+- [x] code-review     — `/code-reviewer` clean (2 non-blocking "consider"s); branch `master`, uncommitted. Generic `/code-review` still pending.
+- [x] theory-review   — code ↔ `main.tex` §98–133 faithful (Mealy/Moore already resolved by `\cl` at main.tex:133-134); branch `master`, uncommitted
 
 ## Goal
 
@@ -274,4 +274,51 @@ Deviations made during implementation from what this PRD specified, with
 rationale. (Disagreements with the PRD live here, not in source comments;
 divergences from `main.tex` go to `/theory-review`.)
 
-- _(none yet)_
+- **2026-07-03 — `OutputLabeledTransducer` gained `sigma0_cube()` / `sigma1_cube()`
+  accessors.** The PRD's "Orientation", "Derived-slice equality", and
+  "Abuse-of-notation property" test oracles all need to *observe* the slices the
+  parser derived, but the concrete-transducer class kept them private with no
+  getter. Added two trivial `const` accessors (no new glossary term — they
+  return the existing `sigma0_cube` / `sigma1_cube` domain data). Also useful to
+  the future front-end, which must know a transducer's slices to build letters.
+
+- **2026-07-03 — `%%LAMBDA` formulas parsed with `spot::parse_formula`, then
+  rejected if not `is_boolean()`.** The PRD names `spot::parse_formula` (which
+  accepts full LTL). Since $\lambda$ is a *boolean* relation (§103), a temporal
+  formula is meaningless and cannot become a BDD, so a post-parse
+  `formula::is_boolean()` guard rejects it with a clear diagnostic rather than
+  letting `formula_to_bdd` assert. Behaviourally a no-op on well-formed files.
+
+- **2026-07-03 — `/* … */` comments are stripped from the whole file before line
+  parsing.** The PRD's file-format example annotates *both* HOA edges and
+  `%%LAMBDA` entries with `/* … */`. Spot strips them inside the HOA body; the
+  `%%LAMBDA` block is ours, so the parser strips C-style block comments there too
+  (an unterminated comment is a parse error). Not stated in the PRD grammar but
+  implied by its own example.
+
+- **2026-07-03 — added a 5th parse-time validation: HOA-declared APs ⊆ I∪O.**
+  The PRD lists four validations and scopes the AP-scope check to $\lambda$
+  formulas only. `/code-review` found that a $\delta$ guard over an AP the HOA
+  declares but the partition does not cover (e.g. `AP: 3 "a" "k" "z"`) escapes
+  every check, yet leaves $\delta$ ill-defined on letters that leave that AP free
+  (`OutputLabeledTransducer::delta` would throw "non-deterministic" at runtime or
+  match spuriously). Since the PRD itself calls the partition "the closed
+  universe of APs", the parser now rejects any HOA-declared AP outside
+  $\mathcal{I}\cup\mathcal{O}$ up front. Consistent with the PRD's intent;
+  extends its validation list.
+
+- **2026-07-03 — `--END--` split is line-aware, not a raw substring search.**
+  `/code-review` noted a literal `text.find("--END--")` can match inside an HOA
+  block comment or a quoted AP name and truncate the automaton. The split now
+  matches the first line whose trimmed content is exactly `--END--` (the HOA
+  convention), so a decoy inside a comment/string no longer splits the file
+  early. Behaviourally a no-op on well-formed files.
+
+- **2026-07-03 — functional-$\lambda$ check is per-Sigma1-variable, not a
+  duplicated-variable relation.** Rather than encode $\forall\Sigma_1,\Sigma_1'.
+  (R\wedge R')\to\Sigma_1{=}\Sigma_1'$, the check verifies for each $\Sigma_1$
+  variable $x$ that no $\Sigma_0$ observation admits both $x{=}1$ and $x{=}0$
+  (`bdd_exist(R\wedge x,\Sigma_1) \wedge bdd_exist(R\wedge\neg x,\Sigma_1) =
+  \bot`). This is equivalent (a differing completion differs in some variable)
+  and costs $O(|\Sigma_1|)$ BDD ops per state instead of doubling the variable
+  set.
