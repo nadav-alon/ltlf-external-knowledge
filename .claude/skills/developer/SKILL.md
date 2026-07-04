@@ -5,6 +5,23 @@ description: Implement a synthesis method or feature for this LTLf-external-know
 
 # Developer
 
+## Delegation guard (read first)
+
+Implementation is meant to run on the **`developer` agent (Sonnet)** — cheaper,
+and it keeps the bulk tool-output (file reads, compile logs) out of the main
+Opus context — not inline on the main session.
+
+- **If you were spawned as the `developer` agent** (your agent prompt told you to
+  execute directly): this guard does not apply — skip it and go to *Before
+  writing code*.
+- **Otherwise you are the main session:** spawn the `developer` agent
+  (`subagent_type: developer`) to run this skill on the requested scope, relay
+  its result to the user, and **stop**. Do **not** implement inline. This holds
+  even when the user typed `/developer` directly — the slash command always ends
+  up on Sonnet via the agent.
+
+---
+
 Implement C++ for this project. Architecture: **thin domain wrappers over Spot**
 (`spot::twa_graph`, `spot::formula`, `bdd` letters) with **custom types for the
 non-standard pieces** (lambda-split `Transducer`, NFAs, product states). All five

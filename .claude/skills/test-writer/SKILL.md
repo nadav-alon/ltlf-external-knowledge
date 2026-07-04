@@ -5,6 +5,23 @@ description: Write GoogleTest unit tests for this LTLf-external-knowledge projec
 
 # Test writer
 
+## Delegation guard (read first)
+
+Test-writing is meant to run on the **`test-writer` agent (Sonnet)** — cheaper,
+and it keeps the bulk tool-output (file reads, `ctest` logs) out of the main
+Opus context — not inline on the main session.
+
+- **If you were spawned as the `test-writer` agent** (your agent prompt told you
+  to execute directly): this guard does not apply — skip it and go to *Before
+  writing*.
+- **Otherwise you are the main session:** spawn the `test-writer` agent
+  (`subagent_type: test-writer`) to run this skill on the requested scope, relay
+  its result to the user, and **stop**. Do **not** write tests inline. This holds
+  even when the user typed `/test-writer` directly — the slash command always
+  ends up on Sonnet via the agent.
+
+---
+
 Framework: **GoogleTest** (fetched by CMake; tests in `tests/`, added to the
 `unit_tests` target in `CMakeLists.txt`). Priority: **small unit tests for most
 functions that sensibly have one**, backed by a few strong domain oracles. The
