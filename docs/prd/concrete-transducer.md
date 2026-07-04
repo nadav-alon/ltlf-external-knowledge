@@ -220,3 +220,11 @@ divergences from `main.tex` go to `/theory-review`.)
   exactly Σ0 and leaves Σ1 free. Same intent, correct for all polarities; the
   `bdd_exist(r, sigma0_cube_)` tail is kept as written. No theory impact
   (`λ:Q×Σ0→Σ1` is unchanged).
+- **2026-07-04 — nondeterminism detected at call time, not construction.** The
+  "Edge cases" section calls a nondeterministic twa "a construction error",
+  suggesting the constructor should reject it. The constructor cannot check
+  determinism without enumerating all letters, so the violation is detected
+  lazily: `delta(q, v)` throws `std::runtime_error` at the first letter
+  satisfying two guards (`src/output_labeled_transducer.cpp:40`). Tests pin
+  this call-time behaviour
+  (`DeltaThrowsRuntimeErrorOnNondeterministicTransitionStructure`).
