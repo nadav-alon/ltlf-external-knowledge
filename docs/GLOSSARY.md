@@ -100,15 +100,19 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Do not call it:** output (bare), emit, label.
 
 ### Observed / produced slice (Σ₀ / Σ₁)
-- **`main.tex`:** $\Sigma_0,\Sigma_1\subseteq\Sigma$ (§Transducers §103); instantiated
-  per transducer in the align block (§112–120).
+- **`main.tex`:** $\Sigma_0,\Sigma_1\subseteq\Sigma$ (§Transducers §105); instantiated
+  per transducer in the align block (§124–133).
 - **Definition:** the cube of variables a transducer may **observe** ($\Sigma_0$)
   versus the cube it **produces** ($\Sigma_1$); for $\Tin$ this is
   $(\Ifree,\,\Iknown)$, for $\Tout$ it is
   $(\mathcal{I}\cup\Ofree,\,\Oknown)$.
-- **C++:** `sigma0_cube` / `sigma1_cube` (`bdd` cubes; construction-time data of
-  `OutputLabeledTransducer`).
-- **Do not call it:** input/output mask, visible set (bare), domain/range.
+- **C++:** as `bdd` cubes, `sigma0_cube` / `sigma1_cube` (construction-time data
+  of `OutputLabeledTransducer`); as variable-**name** sets, the `SigmaSlices`
+  members `sigma0` / `sigma1` (`std::set<std::string>`), derived from
+  `(partition, role)` by `sigma_slices` (see *Role*) — the same slice in
+  `bdd`-free form, e.g. to build the cubes or a trivial transducer.
+- **Do not call it:** input/output mask, visible set (bare), domain/range; for
+  the name-set form, not `SliceNames` (the former file-private struct).
 
 ### Cube
 - **`main.tex`:** — (no symbol; a BuDDy/BDD representation primitive, not a domain object).
@@ -153,13 +157,16 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Do not call it:** HOA transducer (bare), lambda file, `.hoa`.
 
 ### Role
-- **`main.tex`:** — (the align-block choice of $\Sigma_0/\Sigma_1$, §122–128).
+- **`main.tex`:** — (the align-block choice of $\Sigma_0/\Sigma_1$, §124–133).
 - **Definition:** which external knowledge strategy a transducer file
   materialises, selecting the observed/produced slices: `t_in` ⇒
   $\Sigma_0=\Ifree,\Sigma_1=\Iknown$; `t_out` ⇒
   $\Sigma_0=\mathcal{I}\cup\Ofree,\Sigma_1=\Oknown$.
-- **C++:** `enum class Role { t_in, t_out }`.
-- **Do not call it:** direction, kind, mode (mode is the reserved Mealy/Moore axis).
+- **C++:** `enum class Role { t_in, t_out }`; the `(partition, role)` ⇒
+  $(\Sigma_0,\Sigma_1)$ derivation is `sigma_slices(partition, role)` returning
+  `SigmaSlices` (see *Observed / produced slice*).
+- **Do not call it:** direction, kind, mode (mode is the reserved Mealy/Moore
+  axis); for the derivation, not `derive_slices` (the former file-private name).
 
 ### Parse a transducer
 - **`main.tex`:** — (no symbol; materialisation of $\tau$ from its file).

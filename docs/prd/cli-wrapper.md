@@ -1,14 +1,19 @@
 # PRD: CLI wrapper (`ltlf-ek-synth`)
 
-**Status:** draft
+**Status:** implemented — branch `master`, uncommitted (`src/ltlf_ek_synth.cpp`, `src/cli.cpp`, `include/ltlf_ek/cli.hpp`)
 **Interface:** new executable target `ltlf-ek-synth` (not a `Synthesis` method); wraps the `Synthesis` interface + `parse_transducer` + `VariablePartition`
 **main.tex ref:** no dedicated algorithm — the CLI drives §Problem Definition (the $\mathcal{I}/\mathcal{O}/\mathcal{V}$ split, $\Tin,\Tout,T_C$) and Method 2 (`alg:dfa_product`) through `Synthesis::synthesize`
 
 **Gates:**
-- [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
-- [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] glossary        — /glossary (2026-07-05): `sigma_slices`/`SigmaSlices` (the observed/produced slice in name-set form + its `(partition, role)` derivation) folded into docs/GLOSSARY.md "Observed / produced slice" + "Role" C++ columns; align-block §-refs corrected to §124–133 (glossary + `transducer_io.hpp` + `transducer-file-format.md`). `parse_partition_file`/`trivial_transducer`/`make_synthesis_method` confirmed plumbing (no entry).
+- [x] tests           — `tests/cli_test.cpp` (24 cases: `parse_partition_file`,
+  `trivial_transducer`, `make_synthesis_method`) + `tests/ltlf_ek_synth_test.cpp`
+  (25 subprocess cases: golden HOA, verdict codes, exit-code matrix, known-
+  transducer path, cross-check vs direct `DfaProduct::synthesize`, empty-O) +
+  3 direct `sigma_slices` cases added to `tests/transducer_io_test.cpp`; 118
+  tests total, `ctest` green (branch `master`, uncommitted)
+- [x] code-review     — generic /code-review (high, 2026-07-05) clean modulo one optional cleanup (redundant `ap_registrar` in `src/ltlf_ek_synth.cpp`, `DfaProduct::synthesize` already registers I∪O); domain /code-reviewer (2026-07-05) clean after the glossary fix above; no broken invariants / Spot-idiom hazards.
+- [x] theory-review   — theory-reviewer (2026-07-05, faithfulness mode) clean: `sigma_slices` orientation matches the align block (`latex/main.tex:124–133`) and `trivial_transducer`'s empty-Σ1 `consistent`-satisfaction (lambda=bddtrue = empty commitment) is faithful; no code-bug/doc-bug. One optional `underspecified` `\cl` note on the degenerate empty-known-set case surfaced, not applied.
 
 ## Goal
 Give the project a command-line front end so a user can run a synthesis method
@@ -212,3 +217,36 @@ through without altering the semantics.
   a domain term (expected: none).
 - The **Verifier** (for `--model-check`) is logged in `docs/BACKLOG.md` as a
   separate feature to `/grill-prd`.
+
+## Developer comments / PRD disagreements
+
+**2026-07-05:**
+
+- **File layout differs from the "proposed home".** The PRD suggested
+  `include/ltlf_ek/cli.hpp` / `src/cli/…` (the trailing `/…` reads as a
+  directory). Implemented flat instead: `include/ltlf_ek/cli.hpp` +
+  `src/cli.cpp` hold the three library-level, unit-testable pieces
+  (`parse_partition_file`, `trivial_transducer`, `make_synthesis_method`), and
+  `int main` lives in its own `src/ltlf_ek_synth.cpp` (argv parsing +
+  orchestration only, not linked into `unit_tests`). This matches every other
+  header/`.cpp` pair in the tree (`transducer_io.hpp`/`.cpp`, etc.) rather than
+  introducing the project's first subdirectory under `src/`. `/test-writer`
+  should add `tests/cli_test.cpp` for the three library-level functions and
+  drive the built `ltlf-ek-synth` binary as a subprocess for the end-to-end
+  oracles.
+- **`transducer_io.hpp`/`.cpp` touched as a supporting refactor, not a
+  behaviour change.** `trivial_transducer` needs the exact same
+  role+partition -> (Sigma0, Sigma1) derivation `parse_transducer` already
+  computes (the align block, main.tex §122-128). Rather than re-deriving it in
+  `src/cli.cpp` (risking the two definitions drifting apart), the previously
+  file-private `derive_slices`/`SliceNames` in `src/transducer_io.cpp` were
+  promoted to a public `sigma_slices`/`SigmaSlices` in
+  `include/ltlf_ek/transducer_io.hpp`, with identical logic — `parse_transducer`
+  itself is behaviourally unchanged (all 22 existing `transducer_io_test.cpp`
+  cases still pass). Flagging here since it touches an already-`implemented`
+  PRD (`docs/prd/transducer-file-format.md`); no gate there needs reopening
+  since no behaviour changed, only a private helper became a public one.
+- **`--model-check` short-circuits before method dispatch.** When both
+  `--model-check` and an unwired method flag (e.g. `--nfa-product`) are given,
+  the CLI reports the model-check deferral, not "method not yet implemented" —
+  an arbitrary but harmless priority the PRD left unspecified.

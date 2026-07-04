@@ -1,6 +1,8 @@
 #pragma once
 
 #include <istream>
+#include <set>
+#include <string>
 
 #include <spot/twa/bdddict.hh>
 
@@ -11,10 +13,21 @@ namespace ltlf_ek {
 
 // Which external knowledge strategy a transducer file materialises --- it
 // selects the align-block columns that give the observed/produced slices
-// (main.tex §122-128).  See docs/GLOSSARY.md ("role").
+// (main.tex §124-133).  See docs/GLOSSARY.md ("role").
 //   t_in  --- Sigma0 = Ifree,        Sigma1 = Iknown.
 //   t_out --- Sigma0 = I ∪ Ofree,    Sigma1 = Oknown.
 enum class Role { t_in, t_out };
+
+// Observed (Sigma0) and produced (Sigma1) variable names for (partition, role),
+// per the align block (main.tex §124-133, docs/GLOSSARY.md "Role", "Observed /
+// produced slice").  Exposed so callers other than parse_transducer (e.g. the
+// CLI's trivial-transducer factory, docs/prd/cli-wrapper.md) can derive the
+// same slices without duplicating the align-block logic.
+struct SigmaSlices {
+  std::set<std::string> sigma0;
+  std::set<std::string> sigma1;
+};
+SigmaSlices sigma_slices(const VariablePartition& partition, Role role);
 
 // Materialise one transducer from its external file representation: a Spot HOA
 // automaton for delta, then --- after HOA's `--END--` --- a `%%LAMBDA` block

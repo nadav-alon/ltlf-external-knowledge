@@ -27,10 +27,15 @@ add_library(ltlf_ek
   src/ltlf_to_dfa.cpp
   src/solve_dfa.cpp
   src/dfa_product.cpp
+  src/cli.cpp
 )
 target_include_directories(ltlf_ek
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
 target_link_libraries(ltlf_ek PUBLIC PkgConfig::SPOT)
+
+# --- ltlf-ek-synth: CLI front end (docs/prd/cli-wrapper.md) ---
+add_executable(ltlf-ek-synth src/ltlf_ek_synth.cpp)
+target_link_libraries(ltlf-ek-synth PRIVATE ltlf_ek)
 
 # --- tests ---
 option(LTLF_EK_BUILD_TESTS "Build unit tests" ON)
@@ -52,8 +57,16 @@ if(LTLF_EK_BUILD_TESTS)
     tests/transducer_io_test.cpp
     tests/ltlf_to_dfa_test.cpp
     tests/dfa_product_test.cpp
+    tests/cli_test.cpp
+    tests/ltlf_ek_synth_test.cpp
   )
   target_link_libraries(unit_tests PRIVATE ltlf_ek GTest::gtest_main)
+  # tests/ltlf_ek_synth_test.cpp drives the built ltlf-ek-synth binary as a
+  # subprocess (docs/prd/cli-wrapper.md "Test oracles"); it needs the binary
+  # built first and its path baked in.
+  add_dependencies(unit_tests ltlf-ek-synth)
+  target_compile_definitions(unit_tests PRIVATE
+    "LTLF_EK_SYNTH_BINARY=\"$<TARGET_FILE:ltlf-ek-synth>\"")
 
   include(GoogleTest)
   gtest_discover_tests(unit_tests)

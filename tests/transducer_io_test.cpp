@@ -25,6 +25,8 @@ using ltlf_ek::consistent;
 using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::parse_transducer;
 using ltlf_ek::Role;
+using ltlf_ek::sigma_slices;
+using ltlf_ek::SigmaSlices;
 using ltlf_ek::VariablePartition;
 
 // The PRD's running example: 2 states over I∪O = {a, k}.
@@ -71,6 +73,34 @@ bdd LetterAK(const spot::twa_graph_ptr& probe, bool a, bool k) {
 VariablePartition InFreeKnown() {
   return VariablePartition::split(/*inputs=*/{"a", "k"}, /*outputs=*/{},
                                   /*governed=*/{"k"});
+}
+
+// ---------------------------------------------------------------------------
+// sigma_slices --- the (partition, role) -> (Sigma0, Sigma1) derivation,
+// promoted to public so callers other than parse_transducer (the CLI's
+// trivial_transducer, docs/prd/cli-wrapper.md) can reuse it directly.
+// ---------------------------------------------------------------------------
+
+TEST(SigmaSlicesDirect, TInIsIfreeAndIknown) {
+  // Ifree = {a}, Iknown = {k}.
+  const SigmaSlices s = sigma_slices(InFreeKnown(), Role::t_in);
+  EXPECT_EQ(s.sigma0, (std::set<std::string>{"a"}));
+  EXPECT_EQ(s.sigma1, (std::set<std::string>{"k"}));
+}
+
+TEST(SigmaSlicesDirect, TOutIsIUnionOfreeAndOknown) {
+  // I = {a, k}, Ofree = {x}, Oknown = {y}.
+  const VariablePartition part =
+      VariablePartition::split({"a", "k"}, {"x", "y"}, /*governed=*/{"y"});
+  const SigmaSlices s = sigma_slices(part, Role::t_out);
+  EXPECT_EQ(s.sigma0, (std::set<std::string>{"a", "k", "x"}));
+  EXPECT_EQ(s.sigma1, (std::set<std::string>{"y"}));
+}
+
+TEST(SigmaSlicesDirect, EmptyKnownSetGivesEmptySigma1) {
+  const VariablePartition part = VariablePartition::split({"a"}, {}, {});
+  const SigmaSlices s = sigma_slices(part, Role::t_in);
+  EXPECT_TRUE(s.sigma1.empty());
 }
 
 // ---------------------------------------------------------------------------

@@ -67,7 +67,7 @@ changes the math; it is a serialization of the already-specified object.
 3. **$\Sigma_0/\Sigma_1$ are derived, and they *orient* $\lambda$.** A $\lambda$
    entry such as `a <-> k` is a **symmetric relation**; the file alone cannot say
    which variable is observed vs produced. Orientation comes from the cubes
-   derived from **role + partition** (the paper's align block, §122–128):
+   derived from **role + partition** (the paper's align block, §124–133):
    - `Role::t_in`  → $\Sigma_0=\Ifree$, $\Sigma_1=\Iknown$
    - `Role::t_out` → $\Sigma_0=\mathcal{I}\cup\Ofree$, $\Sigma_1=\Oknown$
 

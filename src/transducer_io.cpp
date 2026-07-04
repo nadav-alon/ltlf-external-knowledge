@@ -52,31 +52,6 @@ std::string strip_block_comments(const std::string& s) {
   return out;
 }
 
-// Observed (Sigma0) and produced (Sigma1) variable names for (partition, role),
-// per the align block (main.tex §122-128).  Sigma1 --- the *known* vars --- is
-// mode-invariant; Sigma0 is the Mealy observed slice.  A future Moore mode would
-// shrink Sigma0 here without touching the file format (see the PRD's mode note).
-struct SliceNames {
-  std::set<std::string> sigma0;
-  std::set<std::string> sigma1;
-};
-
-SliceNames derive_slices(const VariablePartition& p, Role role) {
-  SliceNames s;
-  switch (role) {
-    case Role::t_in:  // Sigma0 = Ifree, Sigma1 = Iknown.
-      s.sigma0 = p.input_free;
-      s.sigma1 = p.input_known;
-      break;
-    case Role::t_out:  // Sigma0 = I ∪ Ofree, Sigma1 = Oknown.
-      s.sigma0 = p.inputs();
-      s.sigma0.insert(p.output_free.begin(), p.output_free.end());
-      s.sigma1 = p.output_known;
-      break;
-  }
-  return s;
-}
-
 // Split the file at HOA's terminator: the first line whose content is exactly
 // `--END--`.  Everything up to and including that line is the delta automaton
 // (Spot parses it, then stops); the remainder is our %%LAMBDA block.  Matching a
@@ -113,6 +88,25 @@ bdd cube_of(const std::set<std::string>& names,
 }
 
 }  // namespace
+
+// Sigma1 --- the *known* vars --- is mode-invariant; Sigma0 is the Mealy
+// observed slice.  A future Moore mode would shrink Sigma0 here without
+// touching the file format (see the PRD's mode note).
+SigmaSlices sigma_slices(const VariablePartition& p, Role role) {
+  SigmaSlices s;
+  switch (role) {
+    case Role::t_in:  // Sigma0 = Ifree, Sigma1 = Iknown.
+      s.sigma0 = p.input_free;
+      s.sigma1 = p.input_known;
+      break;
+    case Role::t_out:  // Sigma0 = I ∪ Ofree, Sigma1 = Oknown.
+      s.sigma0 = p.inputs();
+      s.sigma0.insert(p.output_free.begin(), p.output_free.end());
+      s.sigma1 = p.output_known;
+      break;
+  }
+  return s;
+}
 
 OutputLabeledTransducer parse_transducer(std::istream& in,
                                          const VariablePartition& partition,
@@ -157,7 +151,7 @@ OutputLabeledTransducer parse_transducer(std::istream& in,
           "' outside I∪O (the partition is the closed universe of APs)");
 
   // --- Sigma0/Sigma1 derived from (partition, role); they orient lambda ---
-  const SliceNames slices = derive_slices(partition, role);
+  const SigmaSlices slices = sigma_slices(partition, role);
   const bdd sigma0_cube = cube_of(slices.sigma0, aut);
   const bdd sigma1_cube = cube_of(slices.sigma1, aut);
   std::set<std::string> scope = slices.sigma0;
