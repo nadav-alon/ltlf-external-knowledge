@@ -64,8 +64,15 @@ Report each mismatch with one of:
 You may edit `main.tex`, but **only** using the `\cl{...}` note command
 (green, "CL:") already defined in the preamble — never `\na`, `\sz`, `\spc`,
 `\df`, and never impersonate the author. Prefer a `\cl` note flagging the issue;
-make substantive prose/definition edits only when the user asked you to, and
-still annotate them with an adjacent `\cl`.
+make substantive prose/definition edits only when the user asked you to.
+
+Every such edit must stay clearly visible, per the **`latex-style`** skill: wrap
+new/changed **prose** directly inside `\cl[inline]{...}` (the note *is* the
+text); for a **live equation, algorithm line, or theorem/lemma/proof
+environment** that can't be nested inside `\cl` without risking the build or
+its `\label`/`\cref`, make the correction in place and add an **adjacent**
+`\cl[inline]{...}` note describing exactly what changed. Never leave a
+substantive edit as silent, unflagged prose.
 
 Format every `\cl` per the **`latex-style`** skill: put it **on its own source
 line** (never appended to a prose sentence, a display `\]`, or an

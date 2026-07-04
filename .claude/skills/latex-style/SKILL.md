@@ -39,6 +39,33 @@ prose you are **writing or touching**, and leave untouched blocks alone.
 - Only the `\cl{...}` note command marks Claude-authored content (green, "CL:").
   Never use `\na`, `\sz`, `\spc`, `\df`, and never impersonate the author. See
   `/theory-review` for the full editing-under-`\cl` rules.
+- **Every Claude-authored edit to `main.tex` must be clearly visible so the
+  author can find and rewrite it in their own words later.** How that's
+  achieved depends on what's being edited:
+  - **Flowing prose** (a new/changed sentence, paragraph, or margin remark) —
+    wrap the actual text itself inside `\cl[inline]{...}`. Don't write it as
+    plain body prose with a note merely sitting nearby; the note *is* the text.
+  - **Content that must stay live/compiled** — a display equation, an
+    `algorithm`/`algorithmic` line, or a `theorem`/`lemma`/`definition`/`proof`
+    environment — do **not** nest it inside `\cl{...}`: that risks breaking
+    compilation and can silently detach `\label`/`\cref` numbering from real
+    content. Instead make the correction/addition in place, and add an
+    immediately adjacent `\cl[inline]{...}` note (right after the equation,
+    algorithm, or environment) describing exactly what changed or was added.
+    If the edit is one line/step inside a bigger block (an `algorithmic` line,
+    one clause of a multi-line `align`, one line of a proof) and the note
+    can't sit right next to it without breaking the block, give **that
+    specific line** a `\label{...}` (reuse the existing label-per-line
+    convention already used in these `algorithm` blocks) and have the `\cl`
+    note point at it with `line~\ref{...}` / `\cref{...}`, instead of
+    describing the location in prose.
+  - A pure reformat that changes no wording (e.g. splitting one sentence
+    across lines per rule 3, or removing a `\paragraph`) needs no new `\cl` —
+    nothing new is being authored.
+  - A human syncing from Overleaf may edit or delete a passage that started
+    under `\cl`; once they've rewritten it in their own words, don't
+    re-wrap it — check the current text and blame before assuming it's still
+    Claude's.
 - **`\cl` placement — always on its own source line.** Never append a `\cl{...}`
   to the end of a prose sentence, a display `\]`, or an `align`/`algorithm`
   block. Put it on the next line, so the one-sentence-per-line diff stays clean
