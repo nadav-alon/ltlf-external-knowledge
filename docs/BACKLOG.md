@@ -76,6 +76,11 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
   agreeing with $\Tin,\Tout,T_C$ satisfies $\varphi$**. Reusable by every method.
   Deferred during Method-2 `/test-writer` — realizability is currently
   cross-checked only via Spot's monolithic baseline.
+- **Also blocks the CLI `--model-check`:** `docs/prd/cli-wrapper.md` wires the
+  `--model-check` flag but leaves it erroring "not yet implemented" pending this
+  verifier. Give it its own `/grill-prd` (`Verifier`), then re-run `/developer`
+  on the CLI to un-defer the flag. Heed the seed below — the naive
+  $T_C\cap\Tin\cap\Tout\cap\neg\varphi$-empty check is *not* the right property.
 - **Seeds for grilling:**
   - A naive language-inclusion intersection ($T_C\cap\Tin\cap\Tout\cap\neg\varphi$
     empty?) is **wrong**: LTLf lets the system *stop* at any accepting state, so
