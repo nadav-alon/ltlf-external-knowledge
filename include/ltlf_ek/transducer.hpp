@@ -3,6 +3,7 @@
 #include <optional>
 
 #include <bddx.h>
+#include <spot/twa/bdddict.hh>
 #include <spot/twa/twagraph.hh>
 
 namespace ltlf_ek {
@@ -31,6 +32,14 @@ class Transducer {
   virtual ~Transducer() = default;
 
   virtual unsigned initial_state() const = 0;
+
+  // The shared spot::bdd_dict this transducer's delta guards and lambda cubes
+  // live on.  Every product / consistency computation must be carried out on one
+  // dict (see the precondition in consistency.hpp / output_labeled_transducer.hpp)
+  // --- exposed here so a Synthesis method can build its Goal DFA on the same
+  // dict as T_in, T_out.  This is BuDDy/Spot infrastructure, not a domain
+  // concept, hence no glossary entry.
+  virtual spot::bdd_dict_ptr dict() const = 0;
 
   // delta(q, v): successor of q under the full letter v (a cube over I∪O).
   // nullopt = undefined (partial transducer, main.tex §107).

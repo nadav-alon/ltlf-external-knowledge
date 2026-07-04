@@ -24,6 +24,10 @@ unsigned OutputLabeledTransducer::initial_state() const {
   return delta_dfa_->get_init_state_number();
 }
 
+spot::bdd_dict_ptr OutputLabeledTransducer::dict() const {
+  return delta_dfa_->get_dict();
+}
+
 std::optional<unsigned> OutputLabeledTransducer::delta(unsigned q, bdd v) const {
   // Navigate the twa purely as a transition structure (acceptance ignored).
   // v is a full letter (minterm), so it satisfies guard `e.cond` exactly when

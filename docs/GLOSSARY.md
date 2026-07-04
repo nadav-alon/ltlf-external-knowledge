@@ -135,7 +135,8 @@ the existing term or update this file via `/glossary` — do not let drift happe
 ### NFA / DFA for the Goal
 - **`main.tex`:** $N$ (Method 1), $A$ (Method 2); `LtlfToNfa` / `LtlfToDfa`.
 - **Definition:** the automaton recognizing the models of $\varphi$.
-- **C++:** `spot::twa_graph_ptr` (built via a `LtlfToNfa` / `LtlfToDfa` wrapper).
+- **C++:** `spot::twa_graph_ptr` (the automaton *object*; the DFA is built by
+  `ltlf_to_dfa` — see *Goal DFA construction* below).
 - **Do not call it:** the graph, the machine.
 
 ## Transducer I/O
@@ -170,6 +171,20 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Do not call it:** load, read (bare), deserialize, from_hoa.
 
 ## Algorithms
+
+### Goal DFA construction (LtlfToDfa)
+- **`main.tex`:** `LtlfToDfa`$(\varphi)$ (Method 2, `alg:dfa_product`);
+  black-boxed algorithm, no math symbol beyond the automaton $A$ it returns.
+- **Definition:** build the deterministic finite automaton $A$ for the Goal
+  formula $\varphi$; a thin wrapper over Spot (`ltlf_to_mtdfa` then
+  `mtdfa::as_twa()`) that carries finiteness in acceptance marks — **no extra
+  AP** — so the alphabet stays $2^{\mathcal{I}\cup\mathcal{O}}$. Built on the
+  transducers' shared `bdd_dict`.
+- **C++:** `ltlf_to_dfa(phi, dict)` — returns the `spot::twa_graph_ptr` (see
+  *NFA / DFA for the Goal*). The Method-1 NFA route (`LtlfToNfa`, `NfaToDfa`)
+  is not yet named — future, when Method 1 lands.
+- **Do not call it:** to_dfa, ltlf2dfa (that is Spot's own header/primitive),
+  build_dfa, translate.
 
 ### Consistency (cons)
 - **`main.tex`:** $\cons(q_{in},q_{out},v)$ (Method 1) — the per-letter filter.
@@ -210,6 +225,21 @@ the existing term or update this file via `/glossary` — do not let drift happe
   the original DFA but **loses knowledge** (may be incomplete).
 - **C++:** `aggregate(...)`.
 - **Do not call it:** minimization, dedup, quotient.
+
+### Game solving (SolveDfa)
+- **`main.tex`:** `SolveDfa`$(P)$ (Methods 1 & 2, `alg:nfa_product:solve`
+  / `alg:dfa_product:solve`); black-boxed, returns the controller $C$.
+- **Definition:** solve the product game $P$ — the system tries to reach $F_P$ —
+  and extract the `Controller`, or report unrealizable; a thin wrapper over
+  Spot's synthesis pipeline (`set_synthesis_outputs` → `split_2step` →
+  `solve_game` → `solved_game_to_mealy`). The $\Ofree$ variables are the
+  synthesis outputs; the arena input partition ($\Ifree$ vs full $\mathcal{I}$)
+  is a deferred `/theory-review` question (tracked in
+  `docs/prd/dfa-product.md`).
+- **C++:** `solve_dfa(product, vars)` → `std::optional<Controller>` (`nullopt` =
+  unrealizable).
+- **Do not call it:** solve (bare), `solve_game` (that is Spot's primitive, not
+  our wrapper), synthesize (that is the `Synthesis` method), realize.
 
 ## The five methods
 

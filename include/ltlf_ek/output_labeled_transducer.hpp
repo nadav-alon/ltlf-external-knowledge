@@ -44,6 +44,7 @@ class OutputLabeledTransducer final : public Transducer {
                           bdd sigma1_cube);
 
   unsigned initial_state() const override;
+  spot::bdd_dict_ptr dict() const override;
   std::optional<unsigned> delta(unsigned q, bdd v) const override;
   std::optional<bdd> lambda(unsigned q, bdd v) const override;
 

@@ -53,6 +53,40 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
   - Where does the (WF) check live if `lambda` becomes derived — an assertion in
     the concrete class?
 
+### Symbolic DFA-product construction (skip the minterm loop)
+- **Intent:** the Method-2 `DfaProduct` (spec'd in `docs/prd/dfa-product.md`)
+  builds the product by enumerating full letters $v\in2^{\mathcal{I}\cup\mathcal{O}}$
+  and grouping them into guarded edges — faithful to `alg:dfa_product` but
+  **exponential in $|\mathcal{I}\cup\mathcal{O}|$** by design (the deliberate
+  baseline cost). Later, replace the minterm loop with **symbolic BDD-guard
+  algebra**: compute successors and the $\cons$ filter directly on edge-guard
+  BDDs, never materialising individual letters.
+- **Seeds for grilling:**
+  - Needs a **symbolic `cons`** — the current `consistent(...)` is per-full-letter
+    only; a whole-region version must be reconciled with the math.
+  - This is essentially the Method-3 (on-the-fly) construction style — decide
+    whether it lives as a `DfaProduct` optimisation or belongs only to
+    `OtfDfaProduct`.
+  - Measure first (see benchmarking below): only worth it if the letter loop is
+    the actual bottleneck vs `SolveDfa`.
+
+### Trace-level controller verifier oracle
+- **Intent:** build the linchpin correctness oracle from `docs/prd/dfa-product.md`
+  (oracle #2): for a synthesized `Controller` $T_C$, check that **every trace
+  agreeing with $\Tin,\Tout,T_C$ satisfies $\varphi$**. Reusable by every method.
+  Deferred during Method-2 `/test-writer` — realizability is currently
+  cross-checked only via Spot's monolithic baseline.
+- **Seeds for grilling:**
+  - A naive language-inclusion intersection ($T_C\cap\Tin\cap\Tout\cap\neg\varphi$
+    empty?) is **wrong**: LTLf lets the system *stop* at any accepting state, so
+    the real property is **reachability under adversarial env**, not inclusion of
+    all prefixes.
+  - Risk: a correct verifier essentially re-derives the game — how to keep it
+    **independent** of `solve_dfa` so it's a genuine oracle (e.g. plain graph
+    reachability on the $T_C\times A_\varphi$ composition vs re-solving)?
+  - Mealy turn order + non-empty traces + weak-`X` all bite here (see
+    `docs/prd/dfa-product.md` developer comments).
+
 ### Benchmarking / evaluation
 - **Intent:** address the eventual benchmarking needed to assess the methods —
   automaton construction times, synthesis times, controller size, etc.
