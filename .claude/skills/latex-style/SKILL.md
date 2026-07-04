@@ -82,3 +82,11 @@ prose you are **writing or touching**, and leave untouched blocks alone.
 - Local build verification is unreliable — see the project memory note; the paper
   compiles on Overleaf, so review `.tex` edits by reading, not by running
   `pdflatex`/`latexmk`.
+- **Don't use `algpseudocode` keyword macros (`\For`, `\While`, `\If`, `\State`,
+  `\Function`, `\Ensure`, `\Require`, …) outside an `algorithmic` environment.**
+  They rely on that environment's internal counters/formatting and render as
+  garbage elsewhere — including inside a `\cl`/`\na` note in running prose
+  (e.g. `\For` alone produced "for h doeader" instead of "for-loop"). When a
+  note needs to refer to a loop/step by its keyword, spell it as plain text or
+  `\texttt{for}`/`\texttt{while}` and point at the real line via its `\label`
+  instead of re-invoking the macro.
