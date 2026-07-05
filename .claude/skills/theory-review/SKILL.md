@@ -10,6 +10,19 @@ classified, and a *doc* problem is fixed in the doc (never by silently changing
 code behaviour). This skill is the single source of truth for theory review; the
 `theory-reviewer` agent is just a wrapper that runs it.
 
+## Scope & spawn discipline (read first)
+
+- **Stay on the diff; don't re-derive what's settled.** Review the blocks the
+  diff touches, not the whole paper. The known open questions (below) are
+  *seeded* — engage with them, do **not** re-flag them as novel discoveries or
+  re-prove them from scratch. A conclusion the PRD or a prior review already
+  reached is an input, not something to re-establish before you can use it.
+- **When spawning this skill** (main session or `/code-reviewer`): keep the
+  prompt tight — name the diff/method and defer to this skill, which the agent
+  reads. Do **not** restate these steps back at the agent; echoing "check X,
+  verify Y" reopens settled questions and burns tokens on re-derivation. State
+  only what's authoritative and what the target is.
+
 ## Mode — auto-select by the diff/scope
 
 - Diff touches **only `main.tex`** → **soundness mode**.

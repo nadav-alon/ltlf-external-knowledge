@@ -19,6 +19,12 @@ Opus context — not inline on the main session.
   its result to the user, and **stop**. Do **not** implement inline. This holds
   even when the user typed `/developer` directly — the slash command always ends
   up on Sonnet via the agent.
+  - **Keep the spawn prompt tight.** Name the PRD and the concrete deltas to
+    implement, then defer to this skill — the agent already reads it. Do **not**
+    restate the skill's steps/checklists back at the agent: echoing "verify X,
+    consider Y" reopens settled questions and invites the agent to re-derive
+    (burning tokens). State what's authoritative and what's out of scope; let the
+    skill supply the rest.
 
 ---
 
@@ -41,6 +47,25 @@ Overleaf).
    mirroring Overleaf) and the existing interfaces in
    `include/ltlf_ek/`. Fit the existing `Synthesis` / `Transducer` shapes; do
    not fork parallel abstractions.
+
+## Stay in scope — don't re-derive what's settled
+
+- **Trust the PRD's authoritative values.** Golden values, expected verdicts,
+  witness rows, corrected formula strings, and API/Spot idioms the PRD presents
+  as already established — especially anything it marks **"Verified"** — are
+  inputs to **encode**, not claims to re-check. Do **not** re-run binaries,
+  re-derive tables, or re-prove witnesses by hand before encoding them. If a value
+  later fails to reproduce, that is a signal to flag (the oracle's standing rule),
+  not a licence to re-verify everything up front.
+- **Let the test target do its own runtime verification.** Where the suite itself
+  exercises something at runtime (subprocess oracles like `RunEkSynth` /
+  `RunLtlfsynt`, cross-method metamorphic checks, the monolithic baseline), your
+  job is to **write** the check, not to pre-run it manually first.
+- **Don't do other skills' jobs.** `main.tex` edits, theory reconciliation, full
+  re-verification of an existing corpus, glossary authoring, and test authoring
+  belong to `/theory-review`, `/glossary`, and `/test-writer`. When the PRD flags
+  an item for one of those, note it in your final report and move on — do not
+  perform it inline.
 
 ## While writing
 

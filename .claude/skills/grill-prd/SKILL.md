@@ -31,6 +31,17 @@ the PRD hands cleanly to `/developer`. The paper `main.tex` lives at
      black-boxes (`LtlfToDfa`, `SolveDfa`, `progress`) — implement now or stub?
    - **Semantics to preserve**: the exact invariants from `main.tex` (e.g. the
      `cons` filter, the ⊥ sink for Method 2, aggregation-loses-knowledge).
+   - **Novel mechanisms — grill to the code.** When the feature introduces an
+     algorithm/mechanism **not lifted verbatim from `main.tex`** (a bespoke
+     guard, check, driver, encoding), a sketch-level pseudocode block is **not
+     enough** — it leaves load-bearing decisions for `/developer` to *discover*
+     at implementation time (the exact iteration bounds and their boundary
+     behaviour, the return/result type, what counts as pass vs fail, how
+     don't-cares/empty/degenerate inputs are handled, determinism/seed). Flag any
+     such mechanism during the interview and drill each of these until the PRD
+     pins them down, or explicitly records the decision as deferred-to-developer
+     with a rationale. A rule of thumb: if the developer would have to *run it to
+     find out* how it should behave, the PRD is underspecified.
    - **Edge cases**: partial/undefined transducers, empty alphabet, unrealizable.
    - **Oracles**: how will `/test-writer` know it's correct? (unit fixtures,
      cross-method equivalence, controller verifier, monolithic baseline).
@@ -127,6 +138,12 @@ under-implementable:
 - Edge cases and test oracles are concrete enough for `/test-writer` to act on.
 - Every domain term used is in `docs/GLOSSARY.md` (or listed as a gap).
 - Interfaces name real types/signatures, not vague "some function".
+- **Any bespoke algorithm/mechanism** (not lifted from `main.tex`) is specified
+  past sketch level: iteration bounds and their boundary behaviour, result type,
+  pass/fail condition, don't-care/empty/degenerate handling, and determinism are
+  all pinned (or explicitly deferred with rationale). If the developer would have
+  to run it to learn how it should behave, that's an under-implementable gap —
+  flag it and grill it out before handoff, don't ship it to `/developer`.
 
 Report the gaps to the user; fix the cheap ones, leave genuine open questions
 for `/theory-review`. This is a read-through, not a second interview.

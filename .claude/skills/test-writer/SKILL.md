@@ -19,6 +19,12 @@ Opus context — not inline on the main session.
   its result to the user, and **stop**. Do **not** write tests inline. This holds
   even when the user typed `/test-writer` directly — the slash command always
   ends up on Sonnet via the agent.
+  - **Keep the spawn prompt tight.** Name the target functions/PRD and defer to
+    this skill — the agent already reads it. Do **not** restate the skill's
+    oracle layers/rules back at the agent: echoing "verify X, consider Y" reopens
+    settled questions and invites re-derivation (burning tokens). State what's
+    authoritative (the PRD's "Test oracles", any given golden values) and what's
+    out of scope; let the skill supply the rest.
 
 ---
 
@@ -32,6 +38,23 @@ Overleaf).
 
 - Read `docs/GLOSSARY.md` (use canonical names in test names and comments) and
   the code under test. Read the PRD's "Test oracles" section if present.
+
+## Stay in scope — don't re-derive what's settled
+
+- **Trust the PRD's authoritative values.** Golden values, expected verdicts, and
+  oracle rows the PRD provides — especially anything marked **"Verified"** — are
+  the *expected* values to **encode into assertions**, not claims to re-establish
+  by hand first. Compute an expected value yourself only where the PRD leaves one
+  open. If a supposedly-settled value fails to reproduce, that is a signal to
+  report (the standing "investigate, don't adjust" rule), not a licence to
+  re-verify the whole corpus up front.
+- **Write the check; let it run.** Your job is to *author* the test that exercises
+  the binaries/oracles at runtime (`RunEkSynth` / `RunLtlfsynt`, cross-method,
+  monolithic) — not to pre-run them manually before writing the assertion.
+- **Don't do other skills' jobs.** An unclear "correct" value is a
+  `/theory-review` question (already noted below), production-code changes are
+  `/developer`, glossary authoring is `/glossary`. Flag such items in your report;
+  do not perform them inline.
 
 ## The oracle layers (use the cheapest that establishes truth)
 
