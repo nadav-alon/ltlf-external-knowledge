@@ -202,15 +202,10 @@ the existing term or update this file via `/glossary` — do not let drift happe
 ### Product
 - **`main.tex`:** $P$ (Methods 1 & 2); states $S\times Q_{in}\times Q_{out}$.
 - **Definition:** the Goal automaton crossed with both knowledge transducers,
-  keeping only consistent transitions (Method 2 sends the rest to $\bot$).
+  keeping only consistent transitions (a non-consistent letter is skipped, as in
+  all methods — `\cref{def:enabled}`).
 - **C++:** `ProductState` / the `*Product` synthesis classes.
 - **Do not call it:** composition, join, cross.
-
-### Sink (⊥)
-- **`main.tex`:** $\bot$, the self-looping failing state (Method 2).
-- **Definition:** absorbing non-accepting state for inconsistent letters.
-- **C++:** `kSink`.
-- **Do not call it:** dead state, trap, reject.
 
 ### Forward progression
 - **`main.tex`:** `FP`$(\psi,w)$ returning $(\psi',b)$ (Alg. Forward Progression).
@@ -284,6 +279,6 @@ is seeded with them:
   *enabled* predicate (`\cref{def:enabled}`), valid for all methods. The
   `std::optional` return on `Transducer::delta` / `::lambda` (`nullopt` =
   undefined) is **final**, not tentative: a non-enabled letter is skipped
-  (Methods 1, 3) or routed to the $\bot$-sink (Method 2). The project commits to
+  (all methods, `\cref{def:enabled}`). The project commits to
   the Case-A regime, so partial and total transducers are language-equivalent.
   See `docs/prd/concrete-transducer.md`.

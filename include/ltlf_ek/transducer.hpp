@@ -24,9 +24,9 @@ namespace ltlf_ek {
 // is *enabled* at a pair of states iff delta and lambda are defined at it on
 // both transducers AND `consistent(...)` holds; a nullopt from delta OR lambda
 // makes the letter non-enabled, treated exactly like a consistency failure
-// (skipped in Methods 1/3, routed to the sink in Method 2).  The `enabled`
-// predicate therefore also guards delta: callers must only apply delta on a
-// letter that already passed the enabled test.
+// (skipped, as in Methods 1/3).  The `enabled` predicate therefore also guards
+// delta: callers must only apply delta on a letter that already passed the
+// enabled test.
 class Transducer {
  public:
   virtual ~Transducer() = default;

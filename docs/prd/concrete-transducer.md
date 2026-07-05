@@ -70,11 +70,11 @@ scope** (a later PRD).
 6. **Partiality / the `enabled` predicate (§Transducers, `\cref{def:enabled}`).**
    A letter `v` is **enabled** at `(q_in, q_out)` iff `delta_in`, `lambda_in`,
    `delta_out`, `lambda_out` are all **defined** at `v` **and** `cons` holds.
-   Non-enabled letters are skipped (Methods 1, 3.1) or routed to `⊥` (Method 2).
+   Non-enabled letters are skipped (all methods; `\cref{def:enabled}`).
    Key consequences for the impl:
    - `enabled` **subsumes `cons`**: a `nullopt` from `delta` *or* `lambda`
      already makes the letter non-enabled — treat it exactly like a `cons`
-     failure (skip / `kSink`). No separate "undefined" branch needed beyond the
+     failure (skip). No separate "undefined" branch needed beyond the
      `optional` check.
    - `enabled` **guards `delta`**: `delta_in`/`delta_out` may only be applied on
      letters that passed the enabled test. The current call sites test `cons`
@@ -109,7 +109,7 @@ class Transducer {
     `lambda(q, v)` takes the full letter; the impl reads only $\Sigma_0$ and
     returns only $\Sigma_1$. `t_in`/`t_out` stay interchangeable at the interface.
   - **Partiality via `std::optional`** (final; backed by `\cref{def:enabled}`).
-    `nullopt` on `delta` *or* `lambda` = non-enabled letter ⇒ skip / `kSink`.
+    `nullopt` on `delta` *or* `lambda` = non-enabled letter ⇒ skip.
 
 **Concrete impl (new, e.g. `output_labeled_transducer.hpp/.cpp`):**
 
@@ -139,11 +139,12 @@ class OutputLabeledTransducer final : public Transducer {
 - **Black-boxes:** none needed. `LtlfToDfa`, `SolveDfa`, `progress` are unrelated
   to this PRD; do not touch.
 - **Callers to update for the `optional` signature:** `consistency.hpp` /
-  `consistent(...)` and `dfa_product.cpp` (route `nullopt` to `kSink`).
+  `consistent(...)` and `dfa_product.cpp` (skip `nullopt` letters).
 
 ## Edge cases
 
-- **Partial delta / lambda:** `nullopt`. OTF methods skip; `DfaProduct` → `kSink`.
+- **Partial delta / lambda:** `nullopt`. All methods skip (`DfaProduct` included,
+  since `docs/prd/drop-method2-sink.md`).
 - **Non-deterministic or incomplete twa passed to the factory:** the wrapper
   assumes deterministic $\delta$; multiple satisfied guards is a construction
   error, zero satisfied guards is `nullopt` (partiality). Decide assert vs error.

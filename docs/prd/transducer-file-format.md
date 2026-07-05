@@ -250,7 +250,7 @@ OutputLabeledTransducer parse_transducer(std::istream& in,
   would relax (behind the same future mode flag). No change now.
 - **Partiality / `enabled` — RESOLVED** (`\cref{def:enabled}`, Case-A). The file
   format signals partiality via missing edges / `false` entries; nothing new
-  open. (The $\bot$-sink-vs-skip lemma `\cref{lem:sink_skip}` predates this PRD.)
+  open.
 
 ## Definition of done
 

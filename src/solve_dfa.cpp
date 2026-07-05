@@ -1,7 +1,6 @@
 #include "ltlf_ek/solve_dfa.hpp"
 
 #include <set>
-#include <stdexcept>
 #include <string>
 
 #include <bddx.h>
@@ -28,23 +27,15 @@ std::optional<Controller> solve_dfa(const spot::twa_graph_ptr& product,
   const spot::bdd_dict_ptr dict = product->get_dict();
 
   // Ofree = synthesis outputs (system); Iknown ∪ Oknown = the pinned governed
-  // variables projected out of the arena (lem:sink_skip / §fulldfa \cl note).
+  // variables projected out of the arena (§fulldfa \cl note).
   const bdd ofree_cube = cube_of(vars.output_free, product);
   const bdd known_cube = cube_of(vars.known(), product);
 
-  // The product builder records kSink here; without it solve_dfa cannot drop the
-  // ⊥-edges and would silently re-admit the sink into the arena, so fail loudly.
-  const unsigned* sink = product->get_named_prop<unsigned>(kSinkProperty);
-  if (!sink)
-    throw std::invalid_argument(
-        "solve_dfa: product is missing the \"" + std::string(kSinkProperty) +
-        "\" named property (the kSink state index recorded by the DfaProduct "
-        "product construction)");
-
   // Rebuild the product as the free-only game arena: project the pinned Iknown,
-  // Oknown out of every guard, drop the kSink transitions (unreachable in real
-  // play, lem:sink_skip), and turn the F_P-reachability objective into a Büchi
-  // one by making every final state an absorbing accepting self-loop.
+  // Oknown out of every guard, and turn the F_P-reachability objective into a
+  // Büchi one by making every final state an absorbing accepting self-loop.
+  // Non-cons letters were already skipped by the product builder (def:enabled),
+  // so there are no sink transitions to drop here.
   spot::twa_graph_ptr game = spot::make_twa_graph(dict);
   // The arena's alphabet is the free variables only; everything not an output
   // (i.e. Ifree) is an environment input for split_2step.
@@ -67,12 +58,7 @@ std::optional<Controller> solve_dfa(const spot::twa_graph_ptr& product,
       game->new_edge(st, st, bddtrue, kFinal);
       continue;
     }
-    if (st == *sink) {
-      game->new_edge(st, st, bddtrue, kNone);  // kept, but unreachable in play.
-      continue;
-    }
     for (const auto& e : product->out(st)) {
-      if (e.dst == *sink) continue;  // drop non-cons -> sink (lem:sink_skip).
       const bdd guard = bdd_exist(e.cond, known_cube);
       if (guard != bddfalse) game->new_edge(st, e.dst, guard, kNone);
     }

@@ -1,15 +1,15 @@
 # PRD: Drop the ⊥-sink from Method 2 (DFA product)
 
-**Status:** draft
+**Status:** implemented — `src/dfa_product.cpp` + `src/solve_dfa.cpp` (+ headers `dfa_product.hpp`, `solve_dfa.hpp`, `transducer.hpp`) + `tests/dfa_product_test.cpp` (branch `master`, uncommitted)
 **Interface:** revises `DfaProduct` + `solve_dfa` (no signature change); removes the `kSinkProperty` plumbing contract
 **main.tex ref:** §`fulldfa` (Method 2), Algorithm `alg:dfa_product`; deletes `lem:sink_skip`
 **Revises:** `docs/prd/dfa-product.md` (implemented Method-2 PRD) — sink sections only; the rest stands
 
 **Gates:**
-- [ ] glossary        — remove the "Sink (⊥)" entry + de-sink the "Product" and "Partial transducers" notes
-- [ ] tests           — delete the sink-contract test; behavioural suite stays green (it is the oracle)
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — main.tex de-sinking of §`fulldfa`, `alg:dfa_product`, and deletion of `lem:sink_skip`
+- [x] glossary        — "Sink (⊥)" entry deleted; "Product" + "Partial transducers" notes de-sinked (now point to `\cref{def:enabled}`) (ref: `docs/GLOSSARY.md`, 2026-07-05)
+- [x] tests           — sink-contract test deleted, suite green (163/163, one pre-existing DISABLED_ excluded-class test unaffected); `/test-writer` added two replacement tests covering the sink-free skip contract directly (`tests/dfa_product_test.cpp`, uncommitted at review time)
+- [x] code-review     — domain (/code-reviewer): no must-fix, invariants/glossary/interface clean; generic (/code-review, high): no findings (removed-behavior audit confirms the sink-free arena is identical modulo the unreachable sink) (2026-07-05, branch `master` uncommitted)
+- [x] theory-review   — main.tex de-sinking of §`fulldfa`, `alg:dfa_product`, and deletion of `lem:sink_skip` (ref: `latex/main.tex` §`fulldfa` Patches 1-8, 2026-07-05)
 
 ## Goal
 
@@ -194,3 +194,73 @@ These are the author's own theory; `/theory-review` should not re-derive them.
 - `latex/main.tex` de-sinked and `lem:sink_skip` deleted via `/theory-review`
   (separate pass; not `/developer`).
 - This PRD's four gates ticked with refs.
+
+## Developer comments / PRD disagreements
+
+- 2026-07-05: `/developer` completed the **code + tests** slice only:
+  `src/dfa_product.cpp` (drop `kSink` state/self-loop/`set_named_prop`; the
+  per-letter loop now `continue`s on a non-enabled letter instead of routing to
+  `dst = kSink`), `src/solve_dfa.cpp` (drop the `kSinkProperty` lookup/throw and
+  the `st == *sink` / `e.dst == *sink` branches), `include/ltlf_ek/solve_dfa.hpp`
+  (delete `kSinkProperty` + de-sink the doc comment), `include/ltlf_ek/dfa_product.hpp`
+  and `include/ltlf_ek/transducer.hpp` (de-sink prose), and
+  `tests/dfa_product_test.cpp` (delete `SolveDfa.ThrowsWhenProductLacksSinkProperty`,
+  de-sink the file-header comment). Build is green; the full suite
+  (161/161, including `EmptyKnowledgeMatchesMonolithicBaseline` and
+  `KnowledgeTurnsUnrealizableIntoRealizable`) passes unchanged, confirming the
+  refactor is behaviour-preserving as predicted. `grep -rn 'kSink\|ltlf-ek-sink'`
+  over `include/ src/ tests/` returns nothing; a broader `grep -i sink` sweep
+  turns up only unrelated prose (Spot's own DFA-completion sink in
+  `ltlf_to_dfa.cpp`/`ltlf_to_dfa_test.cpp`, and this PRD's own new comment about
+  "no sink transitions to drop").
+- **Deliberately not done here** (left for the other named gates, per the
+  `/developer` skill's own scope — glossary/doc-wide edits are `/glossary`'s
+  job, not `/developer`'s, and no new domain identifier was added to warrant
+  ticking that gate from this skill): `docs/GLOSSARY.md`'s "Sink (⊥)" entry and
+  the "Product"/"Partial transducers" de-sinking; `docs/prd/dfa-product.md`'s
+  "Revised by" pointer; the `lem:sink_skip` cross-reference cleanup in
+  `docs/prd/concrete-transducer.md`, `docs/prd/transducer-file-format.md`, and
+  `docs/walkthroughs/concrete-transducer.md`; and all of `latex/main.tex`
+  (owned by `/theory-review`). These remain open items under this PRD's
+  `glossary` and `theory-review` gates.
+- 2026-07-05: `/test-writer` confirmed the deleted sink-contract test guarded a
+  plumbing contract, not a behaviour, and added two direct replacements to
+  `tests/dfa_product_test.cpp`: `DfaProduct.PartialKnownTransducerDeltaSkipsUndefinedLetters`
+  (a `t_in` whose delta is undefined on `o=false`, with V = ∅ so `consistent`
+  is trivially true — isolating DfaProduct's own `!d_in` skip branch from the
+  lambda/cons half already covered elsewhere; shows `!o` flips
+  realizable→unrealizable while `o` stays realizable, i.e. the skip is
+  letter-specific, not a global failure) and
+  `SolveDfa.SolvesAnArbitraryProductWithoutAnyNamedProperty` (the exact fixture
+  the deleted throw-test used, now asserting no throw and the correct
+  unrealizable verdict). No further gap found: the existing
+  `EmptyKnowledgeMatchesMonolithicBaseline` / `KnowledgeTurnsUnrealizableIntoRealizable`
+  / `ltlfsynt_oracle_test.cpp` corpus (Tables A-D use partial-delta-adjacent but
+  actually-total transducers) already covers the consistency/lambda half of
+  `def:enabled`; cross-method metamorphic equivalence does not yet apply since
+  Methods 1/3 are unimplemented. Full suite green: 163/163 (one pre-existing
+  `DISABLED_` excluded-class test unaffected, per design). `grep -rn
+  'kSink\|ltlf-ek-sink'` over `include/ src/ tests/` still clean (one prose hit
+  in the new test's own comment, referencing the deleted property by name).
+  Ticked the `tests` gate.
+- 2026-07-05: `/theory-review` (faithfulness mode) verified the code is faithful
+  to the intended de-sinked math — the per-letter `continue` in
+  `src/dfa_product.cpp:117-119` is the exact complement of `def:enabled`, and
+  `src/solve_dfa.cpp:34-65` realizes the surviving free-arena projection note.
+  The sink-vs-skip equivalence is **sound**: with the governed variables pinned
+  to the transducer outputs, every realized letter is `cons` by construction, so
+  `$\bot$` is unreachable and its deletion removes one unreachable, non-`$F_P$`,
+  absorbing state and nothing else (the 161/161→163/163 unchanged verdicts are
+  the behavioural witness). Applied the main.tex de-sink (Patches 1-8):
+  `def:enabled` line-171 sink clause de-sinked; the Product definition and
+  `$\delta_{Dprod}$` (dropped `$\cup\{\bot\}$`, the `$\bot$`-branch, and the
+  self-loop sentence); deleted `lem:sink_skip` + proof + the `\na[inline]{Rewrite}`
+  marker + the two sink-dependent `\cl` notes; de-anchored the surviving free-arena
+  `\cl` note; and de-sinked `alg:dfa_product` (state set, `\Else…⊥` branch, self-
+  loop line, closing prose). All edits are `\cl`-noted, one sentence per source
+  line, macro-only notation. No dangling `\ref`/`\cref` remain — both
+  `\cref{lem:sink_skip}` sites and the `:non_cons` / `:self_loop` label refs are
+  gone. Not compiled locally (Overleaf-only); verified by reading. The
+  theory-review gate is now ticked. Beyond the PRD's itemized edit list, the
+  de-sink also had to fix `def:enabled` (main.tex line 171), which still said
+  Method 2 "routed to the sink `$\bot$`."

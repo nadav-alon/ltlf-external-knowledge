@@ -15,8 +15,8 @@
 #include "ltlf_ek/variables.hpp"
 
 // End-to-end fixtures for DfaProduct (docs/GLOSSARY.md: "DFA product", Method 2).
-// synthesize builds A = LtlfToDfa(phi), the product with T_in, T_out routing
-// non-cons letters to the sink, and solves the game --- returning a Controller
+// synthesize builds A = LtlfToDfa(phi), the product with T_in, T_out skipping
+// non-cons letters, and solves the game --- returning a Controller
 // (realizable) or nullopt (unrealizable).
 namespace {
 
@@ -228,10 +228,60 @@ TEST(DfaProduct, ThrowsWhenTransducersDoNotShareOneDict) {
                std::invalid_argument);
 }
 
-// solve_dfa relies on the kSinkProperty (recorded by the product builder) to
-// drop the ⊥-edges; a product missing it would silently re-admit the sink, so
-// solve_dfa must fail loudly rather than return a wrong verdict.
-TEST(SolveDfa, ThrowsWhenProductLacksSinkProperty) {
+// --- Skip, not sink (docs/prd/drop-method2-sink.md) -------------------------
+//
+// A non-enabled letter now contributes no product transition at all (the
+// Methods 1/3 filter, def:enabled) instead of being routed to the deleted
+// bot-sink.  These two tests replace the coverage lost by deleting
+// SolveDfa.ThrowsWhenProductLacksSinkProperty: one exercises DfaProduct's own
+// delta-undefined skip, the other exercises solve_dfa's new sink-free,
+// property-free contract directly.
+
+// V = ∅ here, so consistent() is trivially true for every letter regardless
+// of lambda (v ∩ ∅ = lambda(...) over an empty slice) --- this isolates
+// DfaProduct's own `!d_in` skip (the delta-definedness half of def:enabled)
+// from the lambda/cons half already covered by consistency_test.cpp and by
+// KnowledgeTurnsUnrealizableIntoRealizable.
+TEST(DfaProduct, PartialKnownTransducerDeltaSkipsUndefinedLetters) {
+  auto dict = spot::make_bdd_dict();
+  auto vars = VariablePartition::split({"i"}, {"o"}, /*governed=*/{});
+  auto t_out = Trivial(dict);
+
+  // Baseline: with a totally-defined t_in, "!o" is realizable by symmetry
+  // with RealizableWhenSystemControlsTheOutput's phi="o" (the system sets
+  // o=false at the one step).
+  {
+    auto t_in = Trivial(dict);
+    EXPECT_TRUE(Realizable("!o", vars, t_in, t_out));
+  }
+
+  // t_in's delta is defined ONLY when o holds (undefined, i.e. no outgoing
+  // edge, when o is false).  Every o=false letter is therefore skipped ---
+  // contributing no product transition, not routed anywhere --- so the only
+  // move the game ever offers is o=true, and "!o" flips to unrealizable.
+  {
+    auto g = spot::make_twa_graph(dict);
+    g->register_ap("i");
+    const int ov = g->register_ap("o");
+    g->new_states(1);
+    g->set_init_state(0);
+    g->new_edge(0, 0, bdd_ithvar(ov));  // no edge when o is false.
+    OutputLabeledTransducer t_in_partial(g, {bddtrue}, /*sigma0=*/bddtrue,
+                                         /*sigma1=*/bddtrue);
+    EXPECT_FALSE(Realizable("!o", vars, t_in_partial, t_out));
+    // "o" only ever needs the o=true letter, which is always defined here, so
+    // it stays realizable --- confirming the skip is letter-specific, not a
+    // wholesale failure of the partial transducer.
+    EXPECT_TRUE(Realizable("o", vars, t_in_partial, t_out));
+  }
+}
+
+// Mirrors the deleted SolveDfa.ThrowsWhenProductLacksSinkProperty fixture
+// exactly (no "ltlf-ek-sink" named property is set, since it no longer
+// exists): that missing property used to be an error contract; solve_dfa now
+// has no Method-2-specific plumbing at all, so the identical product must
+// simply solve --- never accepting, so unrealizable, but not a throw.
+TEST(SolveDfa, SolvesAnArbitraryProductWithoutAnyNamedProperty) {
   auto dict = spot::make_bdd_dict();
   auto product = spot::make_twa_graph(dict);
   product->register_ap("i");
@@ -240,9 +290,11 @@ TEST(SolveDfa, ThrowsWhenProductLacksSinkProperty) {
   product->prop_state_acc(true);
   product->new_states(1);
   product->set_init_state(0);
-  product->new_edge(0, 0, bddtrue, {});  // no ltlf-ek-sink named property set.
+  product->new_edge(0, 0, bddtrue, {});  // never accepting.
   auto vars = VariablePartition::split({"i"}, {"o"}, {});
-  EXPECT_THROW(ltlf_ek::solve_dfa(product, vars), std::invalid_argument);
+  std::optional<Controller> result;
+  EXPECT_NO_THROW(result = ltlf_ek::solve_dfa(product, vars));
+  EXPECT_FALSE(result.has_value());
 }
 
 }  // namespace

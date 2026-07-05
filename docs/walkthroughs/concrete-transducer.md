@@ -47,10 +47,11 @@ Spec: `docs/prd/concrete-transducer.md` · Implemented at `2b45755`
   `d_in && d_out && consistent(...)` on `:125` *is* `def:enabled`. `delta` may
   be *called* on any letter (total C++ function); the **dereference** `*d_in`
   happens only inside the guarded branch — the fix for the pre-`optional`
-  latent bug (shared by main.tex pseudocode, `\cl`-flagged). Non-enabled →
-  `kSink` (⊥, `:137`; built non-accepting with a `bddtrue` self-loop at
-  `:87-88`). Method 1/3 will *skip* instead — same `nullopt`, per-method
-  policy. For total transducers the conjunction degrades to plain `cons`.
+  latent bug (shared by main.tex pseudocode, `\cl`-flagged). A non-enabled
+  letter is *skipped* (contributes no product transition) — the same filter
+  Methods 1/3 use; `dfa_product.cpp` no longer routes it to a sink (de-sinked
+  per `docs/prd/drop-method2-sink.md`). For total transducers the conjunction
+  degrades to plain `cons`.
 
 ## Tests
 

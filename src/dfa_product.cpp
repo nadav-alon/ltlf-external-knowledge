@@ -20,8 +20,7 @@
 namespace ltlf_ek {
 namespace {
 
-// ProductState = <s, q_in, q_out> --- glossary "Product".  The sink ⊥ is not a
-// ProductState; it is a reserved twa_graph state index (kSink).
+// ProductState = <s, q_in, q_out> --- glossary "Product".
 using ProductState = std::tuple<unsigned, unsigned, unsigned>;
 
 // delta_D(s, v): navigate the (complete, deterministic) Goal DFA as a plain
@@ -73,20 +72,14 @@ std::optional<Controller> DfaProduct::synthesize(const spot::formula& phi,
   // --- LtlfToDfa: A on the shared dict (accepting states = F_D). ---
   const spot::twa_graph_ptr dfa = ltlf_to_dfa(phi, dict);
 
-  // --- Product P: explicit twa_graph over ProductState ∪ {kSink} (state-based
-  //     Büchi, accepting = F_P), matching alg:dfa_product line-for-line. ---
+  // --- Product P: explicit twa_graph over ProductState (state-based Büchi,
+  //     accepting = F_P), matching alg:dfa_product line-for-line. ---
   spot::twa_graph_ptr product = spot::make_twa_graph(dict);
   std::vector<int> io_vars;
   io_vars.reserve(universe.size());
   for (const auto& n : universe) io_vars.push_back(product->register_ap(n));
   product->set_buchi();
   product->prop_state_acc(true);
-
-  // kSink: reserved, non-accepting, self-loops on every letter
-  // (alg:dfa_product:self_loop).  Recorded so solve_dfa can drop it.
-  const unsigned kSink = product->new_state();
-  product->new_edge(kSink, kSink, bddtrue, {});
-  product->set_named_prop(kSinkProperty, new unsigned(kSink));
 
   const std::vector<bdd> letters = all_letters(io_vars);
   const spot::acc_cond::mark_t kFinalMark = {0};
@@ -118,23 +111,22 @@ std::optional<Controller> DfaProduct::synthesize(const spot::formula& phi,
     for (const bdd& v : letters) {
       // A letter is *enabled* iff delta_in, delta_out are defined and cons holds
       // (def:enabled; consistent() covers the lambda-definedness half).  Only
-      // dereference delta after the enabled test --- never before.
+      // dereference delta after the enabled test --- never before.  A
+      // non-enabled letter is skipped (contributes no product transition), the
+      // same filter Methods 1/3 already use.
       const std::optional<unsigned> d_in = t_in.delta(q_in, v);
       const std::optional<unsigned> d_out = t_out.delta(q_out, v);
+      if (!d_in || !d_out || !consistent(t_in, q_in, t_out, q_out, v)) continue;
+      const ProductState next{dfa_delta(dfa, s, v), *d_in, *d_out};
       unsigned dst;
-      if (d_in && d_out && consistent(t_in, q_in, t_out, q_out, v)) {
-        const ProductState next{dfa_delta(dfa, s, v), *d_in, *d_out};
-        auto it = index.find(next);
-        if (it == index.end()) {
-          const unsigned ni = product->new_state();
-          index.emplace(next, ni);
-          worklist.push(next);
-          dst = ni;
-        } else {
-          dst = it->second;
-        }
+      auto it = index.find(next);
+      if (it == index.end()) {
+        const unsigned ni = product->new_state();
+        index.emplace(next, ni);
+        worklist.push(next);
+        dst = ni;
       } else {
-        dst = kSink;  // non-enabled letter -> ⊥ (alg:dfa_product:non_cons).
+        dst = it->second;
       }
       guards[dst] |= v;  // bdd default-constructs to bddfalse.
     }
