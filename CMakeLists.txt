@@ -37,6 +37,12 @@ target_link_libraries(ltlf_ek PUBLIC PkgConfig::SPOT)
 add_executable(ltlf-ek-synth src/ltlf_ek_synth.cpp)
 target_link_libraries(ltlf-ek-synth PRIVATE ltlf_ek)
 
+# --- ltlfsynt (Spot's own CLI synthesizer) ---
+# Located for tests/ltlfsynt_oracle_test.cpp's external realizability oracle
+# (docs/prd/ltlfsynt-oracle.md).  Optional: a clean box without Spot's CLI
+# tools still builds and tests green (that suite GTEST_SKIP()s instead).
+find_program(LTLFSYNT_EXECUTABLE ltlfsynt)
+
 # --- tests ---
 option(LTLF_EK_BUILD_TESTS "Build unit tests" ON)
 if(LTLF_EK_BUILD_TESTS)
@@ -59,6 +65,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/dfa_product_test.cpp
     tests/cli_test.cpp
     tests/ltlf_ek_synth_test.cpp
+    tests/ltlfsynt_oracle_test.cpp
   )
   target_link_libraries(unit_tests PRIVATE ltlf_ek GTest::gtest_main)
   # tests/ltlf_ek_synth_test.cpp drives the built ltlf-ek-synth binary as a
@@ -67,6 +74,14 @@ if(LTLF_EK_BUILD_TESTS)
   add_dependencies(unit_tests ltlf-ek-synth)
   target_compile_definitions(unit_tests PRIVATE
     "LTLF_EK_SYNTH_BINARY=\"$<TARGET_FILE:ltlf-ek-synth>\"")
+  # tests/ltlfsynt_oracle_test.cpp drives Spot's own ltlfsynt binary as a
+  # subprocess (docs/prd/ltlfsynt-oracle.md); LTLFSYNT_BIN (runtime env)
+  # overrides this compile-time path, and the suite GTEST_SKIP()s when
+  # neither resolves to a runnable binary.
+  if(LTLFSYNT_EXECUTABLE)
+    target_compile_definitions(unit_tests PRIVATE
+      "LTLFSYNT_BINARY=\"${LTLFSYNT_EXECUTABLE}\"")
+  endif()
 
   include(GoogleTest)
   gtest_discover_tests(unit_tests)

@@ -12,7 +12,16 @@ justify the assumption reduction; the method under test is Method 2
 
 **Gates:**
 - [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
-- [ ] tests           — unit + oracle coverage
+- [x] tests           — `tests/ltlfsynt_oracle_test.cpp` (163 cases: Tables
+  A-D known-input corpus, parameterized, 26 rows incl. every ✅-flip
+  load-bearing guard; Table E empty-knowledge corpus, parameterized, 14 rows
+  incl. the two Mealy-only payoff rows; 2 empty-`Ofree` edge-case smoke tests;
+  2 AP-naming guards; 1 `DISABLED_` excluded-class divergence witness, not
+  counted as a passing agreement) + CMake `find_program(LTLFSYNT_EXECUTABLE
+  ltlfsynt)` / `LTLFSYNT_BINARY` define / `LTLFSYNT_BIN` env override /
+  `GTEST_SKIP()` wiring; every corpus row independently re-verified by hand
+  against both binaries before encoding; `ctest` green (162/163 run, 1
+  disabled by design); branch `master`, uncommitted.
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex
 
