@@ -1,6 +1,7 @@
 # PRD: DfaProduct (Method 2 — DFA product)
 
 **Status:** implemented — `src/dfa_product.cpp` + `src/ltlf_to_dfa.cpp` + `src/solve_dfa.cpp` (+ headers, `Transducer::dict()`) (branch `master`, uncommitted)
+**Revised by:** `docs/prd/drop-method2-sink.md` — the ⊥-sink / `kSink` / `kSinkProperty` and `lem:sink_skip` were a later accretion and are being removed (Method 2 is a *direct* DFA product, not a *total* one). The sink bullets below (Goal `$P=A\times Q_{in}\times Q_{out}\cup\{\bot\}$`, §"Sink", the `lem:sink_skip` gate notes) are **superseded** there; the rest of this PRD stands.
 **Interface:** implements `Synthesis` as `DfaProduct`; adds the shared black-box helpers `ltlf_to_dfa` (`LtlfToDfa`) and `solve_dfa` (`SolveDfa`)
 **main.tex ref:** §`fulldfa` (Method 2), Algorithm `alg:dfa_product` ("DFA Product"); relies on `def:enabled`, `lem:sink_skip`, `def:probDef`/`def:probDefTransducer`
 
