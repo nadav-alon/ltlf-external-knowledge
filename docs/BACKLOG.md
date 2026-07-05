@@ -80,6 +80,41 @@ and unblocks the live `--model-check` flag._
 
 ## Later
 
+### Prove the monolithic reduction $\psi_{in}\!\rightarrow\!(\varphi \land \psi_{out})$
+- **Intent:** prove that synthesis with external information
+  (`main.tex` `def:probDefTransducer`) is **equirealizable** with plain
+  $\text{LTL}_f$ synthesis of $\psi_{in} \rightarrow (\varphi \land \psi_{out})$
+  over the same partition — $\Iknown$ exposed as environment inputs, $\Oknown$
+  kept as system outputs — where $\psi_{in},\psi_{out}$ are the $\text{LTL}_f$
+  languages of the traces produced by $\Tin,\Tout$. Currently only a **conjecture**
+  (added as a `\cl` note right after `def:probDefTransducer` in `main.tex`,
+  2026-07-05). The known-**input** half ($\Tout$ absent, $\psi_{out}=\top$) is
+  already cross-checked externally against Spot's `ltlfsynt`
+  (`docs/prd/ltlfsynt-oracle.md`); this item is the *theory* generalising and
+  proving the whole thing, incl. the known-output guarantee half.
+- **Why:** it is the correctness backbone of the external `ltlfsynt` oracle and
+  would justify a monolithic baseline for *every* method — but it is **not yet a
+  theorem**, and the oracle already found a divergence witness (below), so the
+  proof must also carve out the exact sound fragment.
+- **Seeds for grilling:**
+  - The two knowledge halves are **asymmetric**: $\Tin$ is an **assumption**
+    (implication antecedent, constrains environment-chosen $\Iknown$), $\Tout$ is
+    a **guarantee** (conjunct, constrains system-chosen $\Oknown$). The proof must
+    respect Mealy turn order (`main.tex` §86) for both.
+  - **Soundness boundary (must be characterised, not hand-waved):** the oracle
+    verified a divergence on $\text{X[!]}(a \rightarrow \text{X[!]}\,k)$ under a
+    delay $\Tin$ — EK says REALIZABLE (total strategy + system-controlled
+    continuation), the reduction says UNREALIZABLE (`docs/prd/ltlfsynt-oracle.md`
+    *Excluded class*). Conjectured culprit: a **strong-`X` continuation
+    obligation on an $\Iknown$ variable under nesting**. Is there a crisp
+    syntactic sound fragment (e.g. "$\psi_{in}$ pure safety **and** $\varphi$
+    places no strong-`X` obligation on $\Iknown$ under nesting")?
+  - Interacts with the **non-empty-trace / empty-word** convention (`1` rejects
+    the empty word) and **system-controlled termination** — both bite exactly at
+    the continuation boundary where the witness diverges.
+  - Relates to the deferred known-**output** $\Tout$ oracle already logged for
+    `docs/prd/ltlfsynt-oracle.md`; proving this subsumes it.
+
 ### Infer lambda from transducer edge labels
 - **Intent:** stop storing $\lambda$ as independent state and instead read it off
   $\delta$'s (surviving) edge labels — the $\Sigma_1$-projection of the enabled

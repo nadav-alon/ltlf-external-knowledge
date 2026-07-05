@@ -6,6 +6,8 @@
     "\\Oknown": "\\mathcal{O}_{k}",
     "\\Tin": "T_{\\mathit{Inp}}",
     "\\Tout": "T_{\\mathit{Out}}",
+    "\\psiin": "\\psi_{\\mathit{Inp}}",
+    "\\psiout": "\\psi_{\\mathit{Out}}",
     "\\Sin": "S_{\\mathit{Inp}}",
     "\\Sout": "S_{\\mathit{Out}}",
     "\\cons": "\\mathrm{cons}"
