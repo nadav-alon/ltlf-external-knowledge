@@ -114,6 +114,19 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Do not call it:** input/output mask, visible set (bare), domain/range; for
   the name-set form, not `SliceNames` (the former file-private struct).
 
+### Produced-trace language
+- **`main.tex`:** $\psiin,\psiout$ (conjecture note after `\cref{def:probDefTransducer}`, `main.tex:133`).
+- **Definition:** the $\text{LTL}_f$ language of the traces a transducer
+  produces — $\psiin$ for $\Tin$, $\psiout$ for $\Tout$; it is what the
+  monolithic conjecture (`main.tex:133`) feeds in as the assumption (for $\Tin$)
+  or guarantee (for $\Tout$) pinning a strategy's governed variables.
+- **C++:** — (no dedicated type; a hand-authored `spot::formula`/string per
+  oracle fixture, e.g. `psi_in` in `tests/ltlfsynt_oracle_test.cpp`). **Not**
+  auto-derived from the transducer — that would defeat oracle independence
+  (see *Faithfulness guard*).
+- **Do not call it:** the assumption / the guarantee (those name its *role* in
+  the reduction, not the language), trace set, transducer language (bare).
+
 ### Cube
 - **`main.tex`:** — (no symbol; a BuDDy/BDD representation primitive, not a domain object).
 - **Definition:** a `bdd` that is a conjunction of literals — geometrically a
@@ -254,6 +267,23 @@ the existing term or update this file via `/glossary` — do not let drift happe
 | Dynamic aggregation | Method 3.3 (§dynamicagg) | `OtfDynAggProduct` |
 
 Common interface: `Synthesis::synthesize(phi, vars, t_in, t_out)`.
+
+## Testing & oracles
+
+### Faithfulness guard
+- **`main.tex`:** — (no symbol; test-only, `docs/prd/oracle-faithfulness-guard.md`).
+- **Definition:** a mechanical, author-blind-spot-independent cross-check that an
+  oracle fixture's produced-trace language $\psiin$ and its $\Tin$ **file** denote
+  the same language, by driving the two artifacts the author already wrote against
+  each other — the transducer's run engine (`parse_transducer`) versus $\psiin$'s
+  finite-$\text{LTL}_f$ membership (`ltlf_to_dfa`) — never a third hand-labeled
+  trace (which would inherit the author's blind spot). Fails iff $\psiin$ is too
+  **strong** (rejects a trace $\Tin$ produced) or too **weak** (accepts a
+  single-bit $\Iknown$ mutation of one).
+- **C++:** `run_faithfulness_guard(transducer_src, psi_in, partition)` →
+  `GuardResult` (test-local, anonymous namespace in
+  `tests/ltlfsynt_oracle_test.cpp`; not a library API).
+- **Do not call it:** faithfulness check/test (bare), oracle guard, sanity check.
 
 ---
 

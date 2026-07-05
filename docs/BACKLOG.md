@@ -94,24 +94,30 @@ and unblocks the live `--model-check` flag._
   proving the whole thing, incl. the known-output guarantee half.
 - **Why:** it is the correctness backbone of the external `ltlfsynt` oracle and
   would justify a monolithic baseline for *every* method — but it is **not yet a
-  theorem**, and the oracle already found a divergence witness (below), so the
-  proof must also carve out the exact sound fragment.
+  theorem**. The oracle's one-time divergence witness (below) turned out to be a
+  fixture bug, not a counterexample, so the proof is not blocked on carving out
+  an exception; it is a clean conjecture to attack directly.
 - **Seeds for grilling:**
   - The two knowledge halves are **asymmetric**: $\Tin$ is an **assumption**
     (implication antecedent, constrains environment-chosen $\Iknown$), $\Tout$ is
     a **guarantee** (conjunct, constrains system-chosen $\Oknown$). The proof must
     respect Mealy turn order (`main.tex` §86) for both.
-  - **Soundness boundary (must be characterised, not hand-waved):** the oracle
-    verified a divergence on $\text{X[!]}(a \rightarrow \text{X[!]}\,k)$ under a
-    delay $\Tin$ — EK says REALIZABLE (total strategy + system-controlled
-    continuation), the reduction says UNREALIZABLE (`docs/prd/ltlfsynt-oracle.md`
-    *Excluded class*). Conjectured culprit: a **strong-`X` continuation
-    obligation on an $\Iknown$ variable under nesting**. Is there a crisp
-    syntactic sound fragment (e.g. "$\psi_{in}$ pure safety **and** $\varphi$
-    places no strong-`X` obligation on $\Iknown$ under nesting")?
+  - **Divergence witness retired (2026-07-05, `docs/prd/oracle-faithfulness-
+    guard.md`).** A delay-$\Tin$ witness, $\text{X[!]}(a \rightarrow
+    \text{X[!]}\,k)$, once looked like a soundness-boundary counterexample (EK
+    REALIZABLE, reduction UNREALIZABLE). It was a $\psi_{in}\leftrightarrow$
+    transducer **mis-encoding** (the hand-authored $\psi_{in}$ was
+    copy-from-step-1, not delay); with the corrected delay $\psi_{in}$
+    (`(!k) & G(a -> X k) & G(!a -> X !k)`) the same pair **agrees** (both
+    REALIZABLE). There is currently **no known divergence witness** for the
+    conjecture, and no known sound-fragment carve-out is needed. A mechanical
+    **faithfulness guard** now cross-checks every corpus $(\Tin,\psi_{in})$ pair
+    against itself so this class of drift cannot recur silently
+    (`tests/ltlfsynt_oracle_test.cpp`).
   - Interacts with the **non-empty-trace / empty-word** convention (`1` rejects
     the empty word) and **system-controlled termination** — both bite exactly at
-    the continuation boundary where the witness diverges.
+    trace-continuation boundaries, so any future divergence candidate should be
+    checked against these first.
   - Relates to the deferred known-**output** $\Tout$ oracle already logged for
     `docs/prd/ltlfsynt-oracle.md`; proving this subsumes it.
 

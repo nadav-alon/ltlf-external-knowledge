@@ -318,39 +318,59 @@ guard is asserted (bare verdict differs); no table is all-R. `/test-writer` may
 add rows, but **only** ones re-verified against both tools (see the excluded
 class next).
 
-### Excluded class — a genuine divergence witness (do NOT add these)
-`ltlf-ek-synth` and `ltlfsynt` **disagree** on formulas that nest a **strong-`X`
-continuation obligation on the known input** under an implication/temporal
-operator. Verified witness, delay $\Tin$:
+### Excluded class — retired (was a fixture mis-encoding, not a divergence)
+> **Retired by `docs/prd/oracle-faithfulness-guard.md` (2026-07-05, implemented
+> `tests/ltlfsynt_oracle_test.cpp`).** There is no excluded class: the apparent
+> divergence below was a $\psi_{in}\leftrightarrow$transducer **mis-encoding**,
+> not a soundness boundary of the reduction.
 
-- $\varphi = \text{X[!]}(a \rightarrow \text{X[!]}\,k)$ → `ltlf-ek-synth` = **R**,
-  `ltlfsynt` (`psi_in -> phi`) = **U**.
+The delay $\Tin$ fixture's $\psi_{in}$ was hand-authored as
+`(!k) & G(X(k <-> a))`, read at the time as "$k_t=a_{t-1}$" (delay). It in fact
+encodes $k_t\leftrightarrow a_t$ for $t\ge1$ — **copy-from-step-1** — a different
+language from the delay transducer it was paired with. Feeding that wrong
+$\psi_{in}$ into the reduction produced a witness that looked like a genuine
+divergence:
 
-Diagnosis (base termination-control probes without any assumption — `X[!] o`,
-`X[!](a -> X[!] o)`, `X[!] X[!] a`, … — **all agree**, so this is *not* a base
-Mealy-semantics gap): the EK problem is **REALIZABLE** because the system
-controls termination and the transducer is **total**, so the system continues and
-the strategy supplies $k$; but the **assumption reduction** cannot reproduce
-"total strategy across a system-chosen continuation" — as an implication
-antecedent, $\psi_{in}$ is dischargeable exactly at the continuation boundary,
-which flips the verdict. This is a **soundness boundary of the reduction**, not a
-`DfaProduct` bug. `/test-writer` must **not** encode this class; if a *new* fixture
-disagrees, treat it as: (a) inside this excluded class → drop with a comment, or
-(b) outside it → escalate as a candidate `DfaProduct` bug. See *Open theory
-questions*.
+- $\varphi = \text{X[!]}(a \rightarrow \text{X[!]}\,k)$, delay $\Tin$,
+  `ltlf-ek-synth` = **R**, `ltlfsynt` (`psi_in -> phi`) with the **old**
+  copy-from-step-1 string = **U**.
+
+With the corrected delay $\psi_{in}=$
+`(!k) & G(a -> X k) & G(!a -> X !k)` (pure safety, weak `X` in the guarded
+form, $k_t=a_{t-1}$, $k_0=\bot$), the **same** $\varphi$ against the **same**
+delay $\Tin$ agrees (`ltlf-ek-synth`=**R**, reduction=**R**), and remains
+load-bearing (bare $\varphi$=**U**) — see
+`tests/ltlfsynt_oracle_test.cpp:DelayCorrectedPsiInAgreesLoadBearingWithBarePhi`.
+Two things had briefly obscured this: (i) the "strong-`X` $\psi_{in}$ flips it
+back to REALIZABLE" observation floated at the time was **vacuous** —
+`(!k) & G(X[!](k<->a))` is **UNSAT** in $\text{LTL}_f$ (a `G(X[!]…)` cannot hold
+at a finite trace's last position), so that "fix" was realizable only because its
+antecedent was unsatisfiable; (ii) with the corrected $\psi_{in}$ the corpus
+contains **no** genuine divergence, so there was never a reduction-soundness
+boundary to characterize here — the bug was entirely in the fixture. The
+**faithfulness guard** (`docs/prd/oracle-faithfulness-guard.md`) now
+mechanically cross-checks every $(\Tin,\psi_{in})$ pair against itself
+precisely so this class of drift cannot recur silently; see its meta-oracle
+(`FaithfulnessGuardMetaOracle.FiresOnOldCopyFromStepOnePsiInDelayPairing`),
+which confirms the guard fires on exactly this old, buggy pairing.
 
 ## Open theory questions touched
-- **Soundness boundary of the assumption reduction (divergence witness).** The
-  reduction $\psi_{in}\!\rightarrow\!\varphi$ is verified sound across the whole
-  corpus above but **diverges** on $\text{X[!]}(a \rightarrow \text{X[!]}\,k)$
-  (delay $\Tin$): EK says REALIZABLE (total strategy + system-controlled
-  continuation), the reduction says UNREALIZABLE (§*Excluded class*). Is there a
-  crisp syntactic characterization of the sound class — e.g. "$\psi_{in}$ pure
-  safety **and** $\varphi$ places no strong-`X` obligation on a $\Iknown$ variable
-  under nesting"? `/theory-review` should confirm the exclusion is principled (the
-  reduction is *provably* unsound there) rather than a `DfaProduct` defect, and
-  ideally state the sound fragment so the corpus rule is more than "re-verify each
-  new row". This is the load-bearing safety rail for the oracle.
+- **Soundness boundary of the assumption reduction — retired, was a fixture
+  bug.** An earlier revision of this PRD reported a **divergence** on
+  $\text{X[!]}(a \rightarrow \text{X[!]}\,k)$ under the delay $\Tin$ (EK
+  REALIZABLE, reduction UNREALIZABLE) and treated it as a soundness boundary of
+  the reduction requiring a syntactic sound-fragment characterization. That
+  diagnosis was wrong: the divergence traced to a hand-authored $\psi_{in}$ that
+  mis-encoded the delay transducer's language as copy-from-step-1
+  (`docs/prd/oracle-faithfulness-guard.md`; corrected fixture in
+  `tests/ltlfsynt_oracle_test.cpp`). With the corrected $\psi_{in}$ the same
+  formula/transducer pair **agrees** (both REALIZABLE, still load-bearing) — see
+  §*Excluded class* above. There is currently **no known divergence witness** in
+  the corpus, so there is nothing to characterize a sound fragment *for* yet; if
+  a future fixture surfaces a genuine disagreement (ruled out by the
+  faithfulness guard on that fixture's own $(\Tin,\psi_{in})$ pair), *then* this
+  question should be reopened. Until then this is not the oracle's load-bearing
+  safety rail — the faithfulness guard is.
 - **Empty-word / non-empty-trace convention alignment.** Our $\text{LTL}_f$
   rejects the empty word (`1` rejects it; glossary/memory
   "ltlf-weak-x-and-termination-semantics"). Both tools use Spot's $\text{LTL}_f$
