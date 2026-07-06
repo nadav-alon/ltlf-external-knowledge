@@ -11,6 +11,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <set>
 #include <sstream>
@@ -18,6 +19,7 @@
 #include <string>
 #include <vector>
 
+#include <bddx.h>
 #include <spot/tl/formula.hh>
 #include <spot/tl/parse.hh>
 #include <spot/twa/bdddict.hh>
@@ -29,6 +31,7 @@
 #include "ltlf_ek/synthesis.hpp"
 #include "ltlf_ek/transducer_io.hpp"
 #include "ltlf_ek/variables.hpp"
+#include "ltlf_ek/verify_controller.hpp"
 
 namespace {
 
@@ -37,6 +40,7 @@ using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::Role;
 using ltlf_ek::Synthesis;
 using ltlf_ek::VariablePartition;
+using ltlf_ek::Witness;
 
 // The five method flags this CLI recognises (docs/GLOSSARY.md "The five
 // methods"); only "dfa-product" is wired (ltlf_ek::make_synthesis_method).
@@ -61,6 +65,7 @@ struct CliArgs {
   std::optional<std::string> known_input_transducer;
   std::optional<std::string> known_output_transducer;
   bool model_check = false;
+  std::optional<std::string> controller;  // --controller F (Role::t_c file).
   bool realizable = false;
 };
 
@@ -108,6 +113,8 @@ CliArgs ParseArgs(int argc, char** argv) {
       args.known_output_transducer = need_value();
     } else if (f.name == "model-check") {
       args.model_check = true;
+    } else if (f.name == "controller") {
+      args.controller = need_value();
     } else if (f.name == "realizable") {
       args.realizable = true;
     } else {
@@ -196,6 +203,45 @@ OutputLabeledTransducer BuildTransducer(
   return ltlf_ek::parse_transducer(in, partition, role, dict);
 }
 
+// One agreeing letter, printed as its positive-literal AP set (e.g. "{a,c}")
+// --- a --model-check-only presentation choice, not a domain format (PRD
+// "CLI --model-check wiring" leaves the exact witness text unspecified).
+std::string FormatLetter(bdd v, const std::vector<std::string>& aps,
+                         const spot::twa_graph_ptr& registrar) {
+  std::string s = "{";
+  bool first = true;
+  for (const auto& ap : aps) {
+    if ((v & bdd_ithvar(registrar->register_ap(ap))) == bddfalse) continue;
+    if (!first) s += ",";
+    s += ap;
+    first = false;
+  }
+  s += "}";
+  return s;
+}
+
+// Print a counterexample lasso (docs/GLOSSARY.md "Controller verifier"):
+// the prefix letters, then the repeating cycle letters (empty => dead-end).
+void PrintWitness(std::ostream& os, const Witness& w,
+                  const VariablePartition& partition,
+                  const spot::twa_graph_ptr& registrar) {
+  // Materialize inputs() into a local first: it returns a fresh set by value,
+  // so `inputs().begin()`/`inputs().end()` would be iterators into two
+  // distinct temporaries (a mismatched range -> UB / infinite loop).
+  const std::set<std::string> ins = partition.inputs();
+  const std::set<std::string> outs = partition.outputs();
+  std::vector<std::string> aps(ins.begin(), ins.end());
+  aps.insert(aps.end(), outs.begin(), outs.end());
+  std::sort(aps.begin(), aps.end());
+
+  os << "prefix:";
+  for (const bdd& v : w.prefix) os << " " << FormatLetter(v, aps, registrar);
+  os << "\n";
+  os << "cycle:";
+  for (const bdd& v : w.cycle) os << " " << FormatLetter(v, aps, registrar);
+  os << "\n";
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -212,20 +258,6 @@ int main(int argc, char** argv) {
     const VariablePartition partition = BuildPartition(args);
     ValidateKnownTransducerFlags(partition, args);
 
-    if (args.model_check) {
-      std::cerr << "model-check not yet implemented (see Verifier backlog "
-                   "item)\n";
-      return 1;
-    }
-
-    std::unique_ptr<Synthesis> method;
-    try {
-      method = ltlf_ek::make_synthesis_method(args.method_flags.front());
-    } catch (const std::logic_error& e) {
-      std::cerr << e.what() << "\n";
-      return 1;
-    }
-
     spot::formula phi;
     try {
       phi = spot::parse_formula(*args.formula);
@@ -233,11 +265,12 @@ int main(int argc, char** argv) {
       throw UsageError(std::string("could not parse --formula: ") + e.what());
     }
 
-    // One shared bdd_dict for phi's DFA and both transducers (PRD "Behaviour"
-    // #1).  Keep a scratch registrar graph alive for the whole run so every
-    // I∪O AP is registered on the dict up front, even one absent from phi and
-    // from both transducers (PRD "Edge cases": "Partition AP absent from phi
-    // and from both transducers").
+    // One shared bdd_dict for phi's DFA, both transducers, and (--model-check)
+    // T_C (PRD "Behaviour" #1, docs/prd/controller-verifier.md "bdd_dict
+    // discipline").  Keep a scratch registrar graph alive for the whole run so
+    // every I∪O AP is registered on the dict up front, even one absent from
+    // phi and from both transducers (PRD "Edge cases": "Partition AP absent
+    // from phi and from both transducers").
     const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
     const spot::twa_graph_ptr ap_registrar = spot::make_twa_graph(dict);
     for (const auto& ap : partition.inputs()) ap_registrar->register_ap(ap);
@@ -247,6 +280,59 @@ int main(int argc, char** argv) {
         args.known_input_transducer, partition, Role::t_in, dict);
     const OutputLabeledTransducer t_out = BuildTransducer(
         args.known_output_transducer, partition, Role::t_out, dict);
+
+    if (args.model_check) {
+      // --controller F: check a given artifact --- short-circuits before
+      // method dispatch (docs/prd/controller-verifier.md "CLI --model-check
+      // wiring"), so an unwired --<method> is never even constructed here.
+      std::optional<OutputLabeledTransducer> file_t_c;
+      const ltlf_ek::Transducer* t_c = nullptr;
+      if (args.controller) {
+        std::ifstream in = OpenOrThrow(*args.controller, "--controller");
+        file_t_c = ltlf_ek::parse_transducer(in, partition, Role::t_c, dict);
+        t_c = &*file_t_c;
+      } else {
+        // Self-check: --controller omitted, so the method must synthesize a
+        // controller first.
+        std::unique_ptr<Synthesis> method;
+        try {
+          method = ltlf_ek::make_synthesis_method(args.method_flags.front());
+        } catch (const std::logic_error& e) {
+          std::cerr << e.what() << "\n";
+          return 1;
+        }
+        const std::optional<Controller> result =
+            method->synthesize(phi, partition, t_in, t_out);
+        // No controller to model-check when the spec is unrealizable: report
+        // it with the standard unrealizable verdict (stderr / exit 20) rather
+        // than dereferencing an empty optional.  (The PRD's CLI sketch used
+        // `.value()` and left this path unspecified.)
+        if (!result) {
+          std::cerr << "UNREALIZABLE\n";
+          return 20;
+        }
+        file_t_c = ltlf_ek::controller_as_transducer(*result, partition);
+        t_c = &*file_t_c;
+      }
+
+      const ltlf_ek::VerifyResult r =
+          ltlf_ek::verify_controller(phi, partition, t_in, t_out, *t_c);
+      if (r.ok) {
+        std::cout << "SAFE\n";
+        return 0;
+      }
+      std::cout << "UNSAFE\n";
+      PrintWitness(std::cout, *r.counterexample, partition, ap_registrar);
+      return 20;
+    }
+
+    std::unique_ptr<Synthesis> method;
+    try {
+      method = ltlf_ek::make_synthesis_method(args.method_flags.front());
+    } catch (const std::logic_error& e) {
+      std::cerr << e.what() << "\n";
+      return 1;
+    }
 
     const std::optional<Controller> result =
         method->synthesize(phi, partition, t_in, t_out);

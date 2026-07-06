@@ -85,6 +85,19 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Do not call it:** BddTransducer, ExplicitTransducer, SpotTransducer, Mealy
   machine, labeled DFA.
 
+### Controller-as-transducer view
+- **`main.tex`:** — (no symbol; `\cref{def:probDefTransducer}` §129 already calls
+  $T_C$ a transducer, but this *materialisation* is code-only).
+- **Definition:** materialise a synthesized `Controller`'s strategy graph as a
+  `Role::t_c` `OutputLabeledTransducer` ($\Sigma_0=\mathcal{I},\Sigma_1=\Ofree$):
+  $\lambda_C$ is read off the Mealy strategy edges (the $\Ofree$ slice of the
+  matched edge guard), $\delta_C$ off the edge destinations — the same "delta via
+  edges, output derived" idiom `OutputLabeledTransducer` uses. Lets the controller
+  be consumed uniformly wherever a `Transducer` is expected (e.g. the *Controller
+  verifier* product).
+- **C++:** `controller_as_transducer(controller, vars)` → `OutputLabeledTransducer`.
+- **Do not call it:** to_transducer, as_transducer (bare), wrap, lift.
+
 ### Transition function (delta)
 - **`main.tex`:** $\delta:Q\times 2^{\mathcal{I}\cup\mathcal{O}}\to Q$.
 - **Definition:** successor over the *full* letter; tracks full state history.
@@ -105,7 +118,8 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Definition:** the cube of variables a transducer may **observe** ($\Sigma_0$)
   versus the cube it **produces** ($\Sigma_1$); for $\Tin$ this is
   $(\Ifree,\,\Iknown)$, for $\Tout$ it is
-  $(\mathcal{I}\cup\Ofree,\,\Oknown)$.
+  $(\mathcal{I}\cup\Ofree,\,\Oknown)$, and for the controller $T_C$ it is
+  $(\mathcal{I},\,\Ofree)$ (see *Role* `t_c`).
 - **C++:** as `bdd` cubes, `sigma0_cube` / `sigma1_cube` (construction-time data
   of `OutputLabeledTransducer`); as variable-**name** sets, the `SigmaSlices`
   members `sigma0` / `sigma1` (`std::set<std::string>`), derived from
@@ -171,11 +185,15 @@ the existing term or update this file via `/glossary` — do not let drift happe
 
 ### Role
 - **`main.tex`:** — (the align-block choice of $\Sigma_0/\Sigma_1$, §124–133).
-- **Definition:** which external knowledge strategy a transducer file
-  materialises, selecting the observed/produced slices: `t_in` ⇒
-  $\Sigma_0=\Ifree,\Sigma_1=\Iknown$; `t_out` ⇒
-  $\Sigma_0=\mathcal{I}\cup\Ofree,\Sigma_1=\Oknown$.
-- **C++:** `enum class Role { t_in, t_out }`; the `(partition, role)` ⇒
+- **Definition:** which strategy a transducer represents, selecting its
+  observed/produced slices: `t_in` ⇒ $\Sigma_0=\Ifree,\Sigma_1=\Iknown$; `t_out`
+  ⇒ $\Sigma_0=\mathcal{I}\cup\Ofree,\Sigma_1=\Oknown$; `t_c` ⇒
+  $\Sigma_0=\mathcal{I},\Sigma_1=\Ofree$ — the **controller** row of the align
+  block (`main.tex:125`, $\lambda_C:Q_C\times2^{\mathcal I}\to2^{\Ofree}$). Unlike
+  `t_in`/`t_out` (external knowledge from a file), a `t_c` transducer is usually
+  the synthesized `Controller` viewed as a transducer (see *Controller-as-transducer
+  view*), or a controller read from a `--controller` file.
+- **C++:** `enum class Role { t_in, t_out, t_c }`; the `(partition, role)` ⇒
   $(\Sigma_0,\Sigma_1)$ derivation is `sigma_slices(partition, role)` returning
   `SigmaSlices` (see *Observed / produced slice*).
 - **Do not call it:** direction, kind, mode (mode is the reserved Mealy/Moore
@@ -285,6 +303,26 @@ Common interface: `Synthesis::synthesize(phi, vars, t_in, t_out)`.
   `tests/ltlfsynt_oracle_test.cpp`; not a library API).
 - **Do not call it:** faithfulness check/test (bare), oracle guard, sanity check.
 
+### Controller verifier
+- **`main.tex`:** — (no symbol; decides the `\cref{def:probDefTransducer}`
+  postcondition, §129–131; `docs/prd/controller-verifier.md`).
+- **Definition:** the internal linchpin oracle — given $\varphi,\Tin,\Tout$ and a
+  synthesized controller $T_C$, decide whether **every trace agreeing with
+  $\Tin,\Tout,T_C$ satisfies $\varphi$** (`\cref{def:probDefTransducer}`). Built
+  **directly on agreement**, not on the monolithic conjecture (`main.tex:133`);
+  checks **reachability of $F_\varphi$ under adversarial env** (a one-player
+  $\nu$-fixpoint on the $A_\varphi\times\Tin\times\Tout\times T_C$ product, since
+  $T_C$ is fixed), *not* language inclusion. Reuses `ltlf_to_dfa` + `consistent`
+  but **never** `solve_dfa`/`solve_game`, so it stays independent of the method it
+  audits.
+- **C++:** `verify_controller(phi, vars, t_in, t_out, t_c)` (and a `Controller`
+  overload) → `VerifyResult { bool ok; std::optional<Witness> counterexample; }`;
+  `Witness { std::vector<bdd> prefix; std::vector<bdd> cycle; }` is the
+  counterexample lasso (empty `cycle` ⇒ a $\neg F_\varphi$ dead-end).
+- **Do not call it:** model checker / model_check (bare — that is the *CLI flag*
+  `--model-check`, not the function), checker, validator, `agrees` (that is the
+  per-trace strategy-agreement predicate).
+
 ---
 
 ## Open theory questions (tracked, do not re-flag as novel)
@@ -298,6 +336,13 @@ is seeded with them:
   same $[\psi']$ later returns $b=\bot$; unresolved whether to remove.
 - **On-the-fly game solving** — Method 3 builds the product on the fly but still
   solves at the end; the hanging-fruit on-the-fly *solving* is not done.
+- **Trace-termination semantics** (`main.tex:96` `\na`) — `def:probDef` quantifies
+  over "every trace that agrees" without saying who ends the trace. Both
+  `solve_dfa` and the *Controller verifier* commit to the mainstream
+  **system-controlled-termination reachability** reading (De Giacomo–Vardi). They
+  **must** share it, or "every `solve_dfa` controller verifies" fails for a
+  semantic, not a bug, reason — flagged for `/theory-review`
+  (`docs/prd/controller-verifier.md`).
 
 **Resolved (kept here so they are not re-flagged as novel):**
 

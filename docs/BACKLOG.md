@@ -11,55 +11,53 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Priority order within this section: #1 → #3. Rationale (grilled 2026-07-05):
-get an **external, independent** check in first (anything we write ourselves can
-be wrong the same way the code is), then round it out with the internal verifier;
-the verifier outranks the $\Tout$ extension because it's reusable by every method
-and unblocks the live `--model-check` flag._
+_Priority order within this section: #1 → #2. Rationale (grilled 2026-07-05):
+the external, independent `ltlfsynt` oracle is now **banked** (shipped in
+`745b3d7`), so round it out with the internal verifier next; the verifier
+outranks the $\Tout$ extension because it's reusable by every method and unblocks
+the live `--model-check` flag._
 
-### Implement the `ltlfsynt` external oracle (known-**input** $\Tin$) — **#1**
-- **PRD:** `docs/prd/ltlfsynt-oracle.md` (draft, ready for `/developer` +
-  `/test-writer`). **Not yet implemented** — verified 2026-07-05: no
-  `tests/ltlfsynt_oracle_test.cpp`, no CMake `find_program(ltlfsynt)` /
-  `LTLFSYNT_BINARY` wiring, and **no test invokes the external `ltlfsynt`
-  binary**. (`tests/ltlf_ek_synth_test.cpp` drives the known-input *CLI* path —
-  e.g. `KnownInputTransducerTurnsUnrealizableIntoRealizable` — but that shares
-  our code and is *not* the independent cross-check.)
-- **Intent:** highest priority. An external, independent realizability oracle:
-  cross-check the built `ltlf-ek-synth` against Spot's `ltlfsynt` on the
-  equirealizable `psi_in -> phi` reduction. All deps are present (CLI
-  `--known-input-transducer`, the `%%LAMBDA` format in `src/transducer_io.cpp`,
-  and `ltlfsynt` on PATH), and the corpus is pre-verified in the PRD — so this is
-  a pure test-only addition with zero production risk.
-- **Seeds for grilling:** mostly mechanical (encode Tables A–E, wire CMake
-  `find_program` + `GTEST_SKIP`, env override `LTLFSYNT_BIN`). Respect the
-  **excluded-class divergence witness** — do *not* encode it as a passing
-  agreement.
+### Trace-level controller verifier oracle — **#1** (promoted from Later)
+- **PRD:** `docs/prd/controller-verifier.md` (draft, grilled 2026-07-05, ready
+  for `/glossary` → `/developer` + `/test-writer`). The internal linchpin
+  correctness oracle from `docs/prd/dfa-product.md` (oracle #2): for a synthesized
+  `Controller` $T_C$, check **every trace agreeing with $\Tin,\Tout,T_C$ satisfies
+  $\varphi$**. Reusable by every method.
+- **Decisions locked in the grill:** built **directly on
+  `def:probDefTransducer`**, *not* on the monolithic conjecture (which the
+  external `ltlfsynt` oracle already exercises — a conjecture-based verifier would
+  duplicate it, not complement it). Property = **reachability of $F_\varphi$ under
+  adversarial env** (one-player $\nu$-fixpoint, since $T_C$ is fixed), *not*
+  language inclusion. Independent of `solve_dfa`: reuse only `ltlf_to_dfa` +
+  `consistent`, hand-roll the product + attractor. $T_C$ materialized as a
+  transducer via new `Role::t_c` ($\Sigma_0=\mathcal I,\Sigma_1=\Ofree$). Returns
+  a verdict + counterexample lasso. **Includes** the CLI `--model-check` wiring
+  (`--controller <file>` as a `Role::t_c` transducer, else self-check).
+- **Still open (for the skills downstream):** `/glossary` must land `Role::t_c`,
+  `controller_as_transducer`, `verify_controller`/`VerifyResult`/`Witness` before
+  `/developer`. `/theory-review` must confirm the verifier and `solve_dfa` share
+  one termination semantics (`main.tex:96` `\na`) — else oracle #2's positive
+  check fails for a semantic, not a bug, reason.
+- **Smoke test fixed (2026-07-06).** Two regressions found + fixed in the CLI
+  wiring (library `verify_controller` itself was correct):
+  1. **Unrealizable self-check crashed** (`bad optional access`, exit 1):
+     `ltlf_ek_synth.cpp` called `.value()` on the `nullopt` `synthesize` result.
+     Now guarded → prints `UNREALIZABLE`, exit 20 (the PRD's CLI sketch used
+     `.value()` and left the nullopt path unspecified).
+  2. **`UNSAFE`-witness printing hung forever**: `PrintWitness` built its AP
+     vector from `partition.inputs().begin()` / `partition.inputs().end()` —
+     `inputs()` returns a `std::set` **by value**, so the two iterators were into
+     distinct destroyed temporaries (mismatched-range UB → infinite loop).
+     Materialize `inputs()` to a local first.
+  Also removed leftover `DEBUG` prints from `verify_controller.cpp` and updated
+  two stale CLI tests (`ModelCheck*ExitsOne` → the shipped SAFE/short-circuit
+  contract). All six smoke cases pass (SAFE `X[!]o`, `UNREALIZABLE` self-check,
+  malformed `--controller` exit 2, wrong-controller `UNSAFE`+lasso exit 20,
+  correct file/self-check SAFE); full `unit_tests` suite green (169/169).
+  **Next:** `/test-writer` for the six PRD oracle groups, then `/code-reviewer`
+  + `/theory-review`; then flip PRD `Status:` / tick gates.
 
-### Trace-level controller verifier oracle — **#2** (promoted from Later)
-- **Intent:** the internal linchpin correctness oracle from
-  `docs/prd/dfa-product.md` (oracle #2): for a synthesized `Controller` $T_C$,
-  check that **every trace agreeing with $\Tin,\Tout,T_C$ satisfies $\varphi$**.
-  Reusable by every method. Rounds out the external oracle (#1) with a self-test
-  once an independent check is banked. Needs its own `/grill-prd` (`Verifier`)
-  first.
-- **Also blocks the CLI `--model-check`:** `docs/prd/cli-wrapper.md` wires the
-  `--model-check` flag but leaves it erroring "not yet implemented" pending this
-  verifier. After the PRD, re-run `/developer` on the CLI to un-defer the flag.
-  Heed the seed below — the naive
-  $T_C\cap\Tin\cap\Tout\cap\neg\varphi$-empty check is *not* the right property.
-- **Seeds for grilling:**
-  - A naive language-inclusion intersection ($T_C\cap\Tin\cap\Tout\cap\neg\varphi$
-    empty?) is **wrong**: LTLf lets the system *stop* at any accepting state, so
-    the real property is **reachability under adversarial env**, not inclusion of
-    all prefixes.
-  - Risk: a correct verifier essentially re-derives the game — how to keep it
-    **independent** of `solve_dfa` so it's a genuine oracle (e.g. plain graph
-    reachability on the $T_C\times A_\varphi$ composition vs re-solving)?
-  - Mealy turn order + non-empty traces + weak-`X` all bite here (see
-    `docs/prd/dfa-product.md` developer comments).
-
-### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **#3**
+### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **#2**
 - **PRD:** the known-**input** ($\Tin$) half is spec'd in
   `docs/prd/ltlfsynt-oracle.md` (ready for `/developer` + `/test-writer`). This
   item is the $\Tout$ follow-up it explicitly deferred.
@@ -121,6 +119,22 @@ and unblocks the live `--model-check` flag._
   - Relates to the deferred known-**output** $\Tout$ oracle already logged for
     `docs/prd/ltlfsynt-oracle.md`; proving this subsumes it.
 
+### Harden `verify_controller` Witness bdd lifetime (non-blocking, from code-review 2026-07-06)
+- **Intent:** the throwaway letter `registrar` `twa_graph` inside
+  `verify_controller` is the sole owner of the AP registrations backing the
+  `bdd` letters that escape into the returned `Witness`. It is destroyed on
+  return, so those vars stay valid only because every *current* caller
+  independently keeps $\mathcal I\cup\mathcal O$ registered (the CLI's
+  `ap_registrar` lives the whole run; the tests hold the transducers). A library
+  caller with a partition AP registered by neither $\varphi$ nor $\Tin/\Tout/T_C$
+  could observe a corrupted witness letter after a later `register_ap`.
+- **Why:** latent, not a live bug (no shipped call site triggers it) — but a
+  fragile coupling worth removing.
+- **Seeds for grilling:** either document a caller precondition on
+  `verify_controller` ("keep $\mathcal I\cup\mathcal O$ registered for the
+  `Witness`'s lifetime"), or build the letters without a throwaway graph so the
+  registration lifetime $\ge$ the returned `Witness`.
+
 ### Infer lambda from transducer edge labels
 - **Intent:** stop storing $\lambda$ as independent state and instead read it off
   $\delta$'s (surviving) edge labels — the $\Sigma_1$-projection of the enabled
@@ -159,6 +173,18 @@ and unblocks the live `--model-check` flag._
 - **Seeds for grilling:** _(tbd)_
 
 ## Done
+
+### Implement the `ltlfsynt` external oracle (known-**input** $\Tin$)
+- **Intent:** an external, independent realizability oracle — cross-check the
+  built `ltlf-ek-synth` against Spot's `ltlfsynt` on the equirealizable
+  `psi_in -> phi` reduction.
+- **Outcome:** shipped (`745b3d7`). `tests/ltlfsynt_oracle_test.cpp` drives the
+  external `ltlfsynt` binary as a subprocess; CMake wires
+  `find_program(LTLFSYNT_EXECUTABLE)` + `LTLFSYNT_BINARY` with `GTEST_SKIP` on a
+  box without Spot's CLI (env override `LTLFSYNT_BIN`). PRD:
+  `docs/prd/ltlfsynt-oracle.md`. A faithfulness guard (`6fc2b34`) also
+  cross-checks each corpus $(\Tin,\psi_{in})$ pair against itself. The
+  known-**output** $\Tout$ half remains open (now Now/next #2).
 
 ### Sharpen the Transducer definition, signature & input API
 - **Intent:** firm up the `Transducer` abstraction — its definition, C++

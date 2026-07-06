@@ -27,6 +27,7 @@ add_library(ltlf_ek
   src/ltlf_to_dfa.cpp
   src/solve_dfa.cpp
   src/dfa_product.cpp
+  src/verify_controller.cpp
   src/cli.cpp
 )
 target_include_directories(ltlf_ek
@@ -63,6 +64,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/transducer_io_test.cpp
     tests/ltlf_to_dfa_test.cpp
     tests/dfa_product_test.cpp
+    tests/verify_controller_test.cpp
     tests/cli_test.cpp
     tests/ltlf_ek_synth_test.cpp
     tests/ltlfsynt_oracle_test.cpp

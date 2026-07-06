@@ -103,6 +103,17 @@ TEST(SigmaSlicesDirect, EmptyKnownSetGivesEmptySigma1) {
   EXPECT_TRUE(s.sigma1.empty());
 }
 
+// Role::t_c (docs/prd/controller-verifier.md, main.tex:125): Sigma0 = I,
+// Sigma1 = Ofree --- the controller's own align-block row.
+TEST(SigmaSlicesDirect, TCIsIAndOfree) {
+  // I = {a, k}, Ofree = {x}, Oknown = {y}.
+  const VariablePartition part =
+      VariablePartition::split({"a", "k"}, {"x", "y"}, /*governed=*/{"y"});
+  const SigmaSlices s = sigma_slices(part, Role::t_c);
+  EXPECT_EQ(s.sigma0, (std::set<std::string>{"a", "k"}));
+  EXPECT_EQ(s.sigma1, (std::set<std::string>{"x"}));
+}
+
 // ---------------------------------------------------------------------------
 // Round-trip / unit fixture.
 // ---------------------------------------------------------------------------
@@ -150,6 +161,21 @@ TEST(ParseTransducer, LambdaFalseEntryIsNullopt) {
   // s1: false ⇒ lambda undefined everywhere (partial lambda).
   EXPECT_EQ(t.lambda(1, LetterAK(probe, /*a=*/true, /*k=*/true)), std::nullopt);
   EXPECT_EQ(t.lambda(1, LetterAK(probe, /*a=*/false, /*k=*/false)), std::nullopt);
+}
+
+// parse_transducer wired to Role::t_c (docs/prd/controller-verifier.md): a =
+// input, k = output-free --- Sigma0 = I = {a}, Sigma1 = Ofree = {k}.
+TEST(ParseTransducer, RoleTcSigma0IsInputsSigma1IsOutputFree) {
+  auto dict = spot::make_bdd_dict();
+  auto probe = spot::make_twa_graph(dict);
+  auto part = VariablePartition::split(/*inputs=*/{"a"}, /*outputs=*/{"k"},
+                                       /*governed=*/{});
+  auto t = Parse(kExample, part, Role::t_c, dict);
+  EXPECT_EQ(t.sigma0_cube(), VarBdd(probe, "a"));
+  EXPECT_EQ(t.sigma1_cube(), VarBdd(probe, "k"));
+  // state 0: a <-> k --- lambda_C commits Ofree k := a (main.tex:125).
+  EXPECT_EQ(t.lambda(0, LetterAK(probe, /*a=*/true, /*k=*/false)),
+            std::optional<bdd>(VarBdd(probe, "k")));
 }
 
 // ---------------------------------------------------------------------------

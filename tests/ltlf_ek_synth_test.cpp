@@ -18,6 +18,7 @@
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/synthesis.hpp"
 #include "ltlf_ek/variables.hpp"
+#include "ltlf_ek/verify_controller.hpp"
 
 #ifndef LTLF_EK_SYNTH_BINARY
 #error "LTLF_EK_SYNTH_BINARY must be defined by CMake (see CMakeLists.txt)"
@@ -267,24 +268,121 @@ TEST(LtlfEkSynthExitCodes, UnwiredMethodFlagExitsOne) {
   EXPECT_NE(r.stderr_text.find("not yet implemented"), std::string::npos);
 }
 
-TEST(LtlfEkSynthExitCodes, ModelCheckFlagExitsOne) {
+// --model-check self-check (no --controller): the wired method synthesizes a
+// controller for the trivially-realizable goal, then verify_controller reports
+// SAFE / exit 0 (docs/prd/controller-verifier.md "CLI --model-check wiring";
+// the old exit-1 deferral is retired now that the flag is implemented).
+TEST(LtlfEkSynthExitCodes, ModelCheckSelfCheckOfRealizableGoalIsSafe) {
   const CliResult r = RunCli({"--dfa-product", "--model-check",
                               "--formula=1", "--inputs", "i", "--outputs",
                               "o"});
-  EXPECT_EQ(r.exit_code, 1);
-  EXPECT_NE(r.stderr_text.find("model-check"), std::string::npos);
+  EXPECT_EQ(r.exit_code, 0);
+  EXPECT_NE(r.stdout_text.find("SAFE"), std::string::npos);
 }
 
-// PRD "Developer comments": --model-check short-circuits before method
-// dispatch, so it reports the deferral even when paired with an unwired
-// method flag, not "method not yet implemented".
-TEST(LtlfEkSynthExitCodes, ModelCheckTakesPriorityOverUnwiredMethod) {
-  const CliResult r = RunCli({"--nfa-product", "--model-check",
-                              "--formula=1", "--inputs", "i", "--outputs",
+// --model-check with an explicit --controller short-circuits before method
+// dispatch (docs/prd/controller-verifier.md "CLI --model-check wiring"): the
+// unwired --nfa-product is never even constructed, so no "not yet implemented"
+// deferral is emitted and the given artifact is verified directly (SAFE here).
+TEST(LtlfEkSynthExitCodes, ModelCheckControllerShortCircuitsUnwiredMethod) {
+  // Role::t_c artifact (Sigma0 = I = {i}, Sigma1 = Ofree = {o}): a total
+  // controller for the trivially-true goal `1` (any non-empty trace stops).
+  ScopedTempFile controller(
+      "HOA: v1\n"
+      "States: 1\n"
+      "Start: 0\n"
+      "AP: 2 \"i\" \"o\"\n"
+      "acc-name: all\n"
+      "Acceptance: 0 t\n"
+      "--BODY--\n"
+      "State: 0\n"
+      "  [t] 0\n"
+      "--END--\n"
+      "\n"
+      "%%LAMBDA\n"
+      "state 0: o\n");
+  const CliResult r = RunCli({"--nfa-product", "--model-check", "--controller",
+                              controller.path(), "--formula=1", "--inputs", "i",
+                              "--outputs", "o"});
+  EXPECT_EQ(r.exit_code, 0);
+  EXPECT_NE(r.stdout_text.find("SAFE"), std::string::npos);
+  EXPECT_EQ(r.stderr_text.find("not yet implemented"), std::string::npos);
+}
+
+// --- Oracle #6 extensions (docs/prd/controller-verifier.md "Test oracles"):
+// SAFE self-check agreeing with the library; a hand-broken UNSAFE
+// --controller artifact + witness; a malformed --controller file. ---------
+
+// Self-check SAFE verdict must agree with calling the library
+// verify_controller directly on the same DfaProduct-synthesized controller
+// (extends CliVerdictMatchesDirectDfaProductAcrossFormulas to --model-check).
+bool DirectSelfCheckSafe(const std::string& phi) {
+  auto dict = spot::make_bdd_dict();
+  const VariablePartition part =
+      VariablePartition::split({"i"}, {"o"}, /*governed=*/{});
+  const OutputLabeledTransducer t_in =
+      trivial_transducer(part, Role::t_in, dict);
+  const OutputLabeledTransducer t_out =
+      trivial_transducer(part, Role::t_out, dict);
+  DfaProduct method;
+  const auto controller =
+      method.synthesize(spot::parse_formula(phi), part, t_in, t_out);
+  if (!controller) return false;
+  return ltlf_ek::verify_controller(spot::parse_formula(phi), part, t_in,
+                                    t_out, *controller)
+      .ok;
+}
+
+TEST(LtlfEkSynth, ModelCheckSelfCheckSafeVerdictAgreesWithLibrary) {
+  const std::vector<std::string> phis = {"G(i -> o)", "o", "X[!] o"};
+  for (const auto& phi : phis) {
+    SCOPED_TRACE(phi);
+    const CliResult r = RunCli({"--dfa-product", "--model-check",
+                                "--formula=" + phi, "--inputs", "i",
+                                "--outputs", "o"});
+    ASSERT_EQ(r.exit_code, 0) << r.stderr_text;
+    EXPECT_NE(r.stdout_text.find("SAFE"), std::string::npos);
+    EXPECT_TRUE(DirectSelfCheckSafe(phi));
+  }
+}
+
+// A --controller artifact that always drives o false can never satisfy
+// F(o) --- UNSAFE, exit 20, with a printed witness (docs/prd/
+// controller-verifier.md "CLI --model-check wiring"; the always-false o
+// %%LAMBDA fixture was verified this session as a valid UNSAFE lasso case).
+TEST(LtlfEkSynthExitCodes, ModelCheckHandBrokenControllerIsUnsafeWithWitness) {
+  const ScopedTempFile controller(
+      "HOA: v1\n"
+      "States: 1\n"
+      "Start: 0\n"
+      "AP: 1 \"o\"\n"
+      "acc-name: all\n"
+      "Acceptance: 0 t\n"
+      "--BODY--\n"
+      "State: 0\n"
+      "  [t] 0\n"
+      "--END--\n"
+      "\n"
+      "%%LAMBDA\n"
+      "state 0: !o\n");
+  const CliResult r = RunCli({"--nfa-product", "--model-check", "--controller",
+                              controller.path(), "--formula=F(o)", "--outputs",
                               "o"});
-  EXPECT_EQ(r.exit_code, 1);
-  EXPECT_NE(r.stderr_text.find("model-check"), std::string::npos);
-  EXPECT_EQ(r.stderr_text.find("nfa-product"), std::string::npos);
+  EXPECT_EQ(r.exit_code, 20);
+  EXPECT_NE(r.stdout_text.find("UNSAFE"), std::string::npos);
+  EXPECT_NE(r.stdout_text.find("prefix:"), std::string::npos);
+  EXPECT_NE(r.stdout_text.find("cycle:"), std::string::npos);
+}
+
+// A --controller file that fails to parse (Role::t_c) is a usage error
+// (PRD "CLI --model-check wiring": "--controller file that fails to parse ->
+// usage class, exit 2"), mirroring MalformedTransducerFileIsUsageError.
+TEST(LtlfEkSynthExitCodes, ModelCheckMalformedControllerFileIsUsageError) {
+  const ScopedTempFile bad_controller("not a valid automaton\n--END--\n");
+  const CliResult r = RunCli({"--dfa-product", "--model-check", "--controller",
+                              bad_controller.path(), "--formula=1", "--inputs",
+                              "i", "--outputs", "o"});
+  EXPECT_EQ(r.exit_code, 2);
 }
 
 // ---------------------------------------------------------------------------

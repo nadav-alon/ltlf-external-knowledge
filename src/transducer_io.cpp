@@ -104,6 +104,10 @@ SigmaSlices sigma_slices(const VariablePartition& p, Role role) {
       s.sigma0.insert(p.output_free.begin(), p.output_free.end());
       s.sigma1 = p.output_known;
       break;
+    case Role::t_c:  // Sigma0 = I, Sigma1 = Ofree (main.tex:125).
+      s.sigma0 = p.inputs();
+      s.sigma1 = p.output_free;
+      break;
   }
   return s;
 }
