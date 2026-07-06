@@ -10,6 +10,14 @@
 // find_program(LTLFSYNT_EXECUTABLE) + the LTLFSYNT_BIN env override), so a
 // clean CI box without Spot's CLI tools is a no-op, not a failure.
 
+// Pre-2.13 op::strong_X opt-in (docs/prd/generated-corpus-oracle.md "Formula
+// generation"): must precede the *first* transitive inclusion of
+// <spot/tl/formula.hh> below (e.g. via <spot/tl/parse.hh>), hence this file's
+// very first lines.  Since Spot 2.13 strong_X is unconditionally part of the
+// public op enum and this define is a no-op there, but it is kept for
+// portability to Spot [2.9, 2.13).
+#define SPOT_USES_STRONG_X 1
+
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -25,8 +33,13 @@
 #include <unistd.h>
 
 #include <gtest/gtest.h>
+#include <spot/misc/optionmap.hh>
+#include <spot/tl/defaultenv.hh>
 #include <spot/tl/parse.hh>
+#include <spot/tl/randomltl.hh>
 #include <spot/twa/bdddict.hh>
+#include <spot/twaalgos/complete.hh>
+#include <spot/twaalgos/isdet.hh>
 
 #include "ltlf_ek/ltlf_to_dfa.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
@@ -853,6 +866,190 @@ TEST(FaithfulnessGuardMetaOracle, FiresOnOldCopyFromStepOnePsiInDelayPairing) {
   EXPECT_FALSE(result.ok)
       << "faithfulness guard failed to fire on the known-bad delay / "
          "G(X(k<->a)) (copy-from-step-1) pairing -- the guard is a no-op";
+}
+
+// ---------------------------------------------------------------------------
+// Generated corpus (docs/prd/generated-corpus-oracle.md): a fixed-seed
+// formula / partition generator, graded by the suite's self-labeling
+// oracles instead of a hand-authored expected value -- the oracle *is* the
+// label.  Landed in phases (PRD "Implementation phases"); this is
+// **Phase 1** only: the corpus scaffold plus the ltlf_to_dfa structural
+// free-rider (determinism + completeness).  GeneratedCase carries no t_in
+// field yet -- Phase 2 adds the random-Tin data and the metamorphic
+// round-trip body; Phase 3 adds the ltlfsynt differential.  All test-local,
+// no production C++.
+// ---------------------------------------------------------------------------
+
+constexpr unsigned kCorpusSeed = 20260706;     // fixed seed (deterministic).
+constexpr std::size_t kCorpusCaseCount = 256;  // corpus size (tunable).
+
+// Tree-size cap before mandatory trivial simplifications (PRD "Formula
+// generation"): kept small (<=~8-10 nodes) so ltlf_to_dfa / ltlfsynt stay
+// tractable, while nesting depth >=3 is still reachable.
+constexpr int kCorpusTreeSizeMin = 1;
+constexpr int kCorpusTreeSizeMax = 10;
+
+// X[!] injection probability (PRD "Formula generation"): the fraction of
+// weak-X (op::X) nodes rewritten to strong-X (op::strong_X) after
+// generation -- randltl only emits weak X by default, and X[!] is the
+// operator that stresses the system-controlled-termination /
+// weak-X-at-final-position region (memory
+// "ltlf-weak-x-and-termination-semantics").
+constexpr double kCorpusStrongXProbability = 0.30;
+
+// Probability that a given input AP is marked Iknown when building a random
+// partition (PRD "Partition generation": "a random subset of the inputs is
+// marked Iknown, may be empty"); a plain per-element coin flip -- the PRD
+// does not pin this exact probability, only that the subset may be empty.
+constexpr double kCorpusIknownProbability = 0.5;
+
+// GeneratedCase (PRD "Interfaces & types", Phase 1 shape): no t_in field
+// yet -- Phase 2 extends this once the random-Tin builder and the
+// metamorphic round-trip land.
+struct GeneratedCase {
+  spot::formula phi;
+  VariablePartition partition;
+};
+
+// strengthen_next (PRD "Formula generation"): recursively rewrite every
+// op::X node in `f` to op::strong_X (X[!]) with probability
+// kCorpusStrongXProbability, drawn from `rng` so the rewrite is seeded and
+// reproducible.  Both ltlf-ek-synth and ltlfsynt accept weak X and X[!], so
+// this only shifts the generated distribution, never an encoding hazard.
+// Uses spot::formula::map (bottom-up: children are rewritten first, so a
+// nested X[X a] can independently promote either/both occurrences).
+spot::formula strengthen_next(spot::formula f, std::mt19937& rng) {
+  spot::formula mapped = f.map(
+      [&](spot::formula child) { return strengthen_next(child, rng); });
+  std::bernoulli_distribution flip(kCorpusStrongXProbability);
+  if (mapped.is(spot::op::X) && flip(rng))
+    return spot::formula::unop(spot::op::strong_X, mapped[0]);
+  return mapped;
+}
+
+// random_partition (PRD "Partition generation"): draws |I| in [1,5],
+// |O| in [0,5] (0 hits the empty-Ofree edge case), fresh AP names
+// p0, p1, ... up to |I \cup O|, and marks a random subset of the inputs
+// Iknown (may be empty = degenerate empty-knowledge).  Oknown = empty
+// always in v1 (Tout stays trivial, PRD "Partition generation").
+VariablePartition random_partition(std::mt19937& rng) {
+  std::uniform_int_distribution<int> input_count(1, 5);
+  std::uniform_int_distribution<int> output_count(0, 5);
+  const int n_inputs = input_count(rng);
+  const int n_outputs = output_count(rng);
+
+  std::set<std::string> inputs, outputs;
+  int next_id = 0;
+  for (int i = 0; i < n_inputs; ++i)
+    inputs.insert("p" + std::to_string(next_id++));
+  for (int i = 0; i < n_outputs; ++i)
+    outputs.insert("p" + std::to_string(next_id++));
+
+  std::bernoulli_distribution is_known(kCorpusIknownProbability);
+  std::set<std::string> governed;
+  for (const std::string& name : inputs)
+    if (is_known(rng)) governed.insert(name);
+
+  return VariablePartition::split(inputs, outputs, governed);
+}
+
+// randltlgenerator wrapper (PRD "Formula generation"): thin wrapper over
+// Spot's own spot::randltlgenerator (the class backing the `randltl`
+// binary; not hand-rolled).  APs come from `partition`'s exact I \cup O
+// set, not randltl's default p0..., so every generated phi's APs are a
+// subset of I \cup O by construction (partition-first generation) -- no
+// separate AP-scope guard is needed for generated cases.  Operator palette
+// restricted to the LTLf-safe set (U, R, W, F, G, X, !, &, |, ->, <->):
+// xor and M (strong release) are disabled via priorities; strongX stays at
+// its library default of 0 -- X[!] is injected afterwards by
+// strengthen_next, not by randltl itself.
+spot::formula generate_random_formula(const VariablePartition& partition,
+                                      std::mt19937& rng) {
+  std::set<std::string> ap_names = partition.inputs();
+  for (const std::string& name : partition.outputs()) ap_names.insert(name);
+
+  spot::atomic_prop_set aprops;
+  for (const std::string& name : ap_names)
+    aprops.insert(spot::default_environment::instance().require(name));
+
+  spot::option_map opts;
+  opts.set("output", spot::randltlgenerator::LTL);
+  opts.set("tree_size_min", kCorpusTreeSizeMin);
+  opts.set("tree_size_max", kCorpusTreeSizeMax);
+  opts.set("seed", static_cast<int>(rng()));
+
+  // parse_options (called by the randltlgenerator ctor) needs a mutable
+  // char* buffer (it strtok()s in place), not a string literal.
+  std::string priorities_str = "xor=0,M=0";
+  std::vector<char> priorities(priorities_str.begin(), priorities_str.end());
+  priorities.push_back('\0');
+
+  spot::randltlgenerator rg(aprops, opts, priorities.data());
+  const spot::formula phi = rg.next();
+  if (!phi)
+    throw std::runtime_error(
+        "generate_random_formula: randltlgenerator produced no formula");
+  return phi;
+}
+
+// BuildGeneratedCorpus (PRD "Determinism / seeding"): one seeded
+// std::mt19937(kCorpusSeed), no reserved draw slots (PRD "Implementation
+// phases" cross-phase seed note -- deliberate: Phase 2 will insert its own
+// draw here and shift the stream, an accepted trade, not a bug to "fix").
+// Emits kCorpusCaseCount cases partition-first, so every phi's APs are
+// in-partition by construction.
+std::vector<GeneratedCase> BuildGeneratedCorpus() {
+  std::mt19937 rng(kCorpusSeed);
+  std::vector<GeneratedCase> corpus;
+  corpus.reserve(kCorpusCaseCount);
+  for (std::size_t i = 0; i < kCorpusCaseCount; ++i) {
+    VariablePartition partition = random_partition(rng);
+    spot::formula phi =
+        strengthen_next(generate_random_formula(partition, rng), rng);
+    corpus.push_back({phi, std::move(partition)});
+  }
+  return corpus;
+}
+
+// Renders a VariablePartition's four sets for SCOPED_TRACE (PRD "Behaviour"
+// #1: "SCOPED_TRACE printing the offending phi + partition + case index").
+std::string DescribeGeneratedPartition(const VariablePartition& p) {
+  auto describe_set = [](const std::set<std::string>& s) {
+    std::string out;
+    for (const std::string& name : s) out += name + " ";
+    return out;
+  };
+  std::ostringstream os;
+  os << "input_free={" << describe_set(p.input_free) << "} "
+     << "input_known={" << describe_set(p.input_known) << "} "
+     << "output_free={" << describe_set(p.output_free) << "} "
+     << "output_known={" << describe_set(p.output_known) << "}";
+  return os.str();
+}
+
+// Structural free-rider (PRD "ltlf_to_dfa structural check", Phase 1's
+// green checkpoint): for every generated phi, ltlf_to_dfa(phi) must be
+// deterministic and complete (ltlf_to_dfa calls spot::complete_here, so
+// completeness must hold) -- a pure library property, no external tool, no
+// hand-labeled expected value.  This kills the "ltlf_to_dfa asserted on one
+// formula" blind spot (PRD "Goal") at zero oracle cost.  Never gated on
+// ltlfsynt: a plain TEST, not under LtlfsyntOracleTest, so it runs even
+// where ltlfsynt is absent.
+TEST(GeneratedCorpus, LtlfToDfaStructural) {
+  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus();
+  for (std::size_t i = 0; i < corpus.size(); ++i) {
+    const GeneratedCase& c = corpus[i];
+    std::ostringstream phi_os;
+    phi_os << c.phi;
+    SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
+                 ", partition=" + DescribeGeneratedPartition(c.partition));
+    const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+    const spot::twa_graph_ptr dfa = ltlf_to_dfa(c.phi, dict);
+    EXPECT_TRUE(spot::is_deterministic(dfa))
+        << "ltlf_to_dfa returned a non-deterministic automaton";
+    EXPECT_TRUE(spot::is_complete(dfa))
+        << "ltlf_to_dfa returned an incomplete automaton";
+  }
 }
 
 }  // namespace
