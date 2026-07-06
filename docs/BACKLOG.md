@@ -129,6 +129,30 @@ the live `--model-check` flag._
   - Subsumes/relates to the known-**output** $\Tout$ oracle (Now/next #2): a
     co-generated $\Tout$ family would extend this to the guarantee half.
 
+### Generated $\Tout$ / $\Oknown$ in the generated corpus (generated corpus v2)
+- **PRD:** extends `docs/prd/generated-corpus-oracle.md` (v1 fully implemented,
+  all 3 phases). v1 fixes $\Oknown=\emptyset$ and $\Tout$ = `trivial_transducer`
+  always — the generator never exercises a non-trivial known-output strategy.
+- **Intent:** extend the corpus generator to draw a random $\Oknown$ split and a
+  random known-output transducer $\Tout$ (the guarantee/system-side half), so the
+  metamorphic round-trip and differential cover known-output cases too.
+- **Seeds for grilling:**
+  - The co-generation constraint from the $(\Tin,\psi_{in})$ item applies here for
+    a known-output *differential* ($\psi_{out}$ as a guarantee conjunct); pairs
+    with the known-output $\Tout$ oracle (Now/next #2).
+  - $\Tout$ observes $\mathcal I\cup\Ofree$ of the same step — the random-$\Tout$
+    builder needs $\Sigma_0=\mathcal I\cup\Ofree,\Sigma_1=\Oknown$, not the
+    $\Tin$ shape.
+
+### Formula shrinking on generated-corpus failure (generated corpus v2)
+- **PRD:** extends `docs/prd/generated-corpus-oracle.md`. v1 has **no shrinking**:
+  a failing case prints its `(phi, partition, index)` for manual reproduction, but
+  the offending $\varphi$ is whatever size the generator emitted (≤~10 nodes).
+- **Intent:** on a differential/metamorphic failure, shrink $\varphi$ (and maybe
+  the partition / $\Tin$) to a minimal still-failing witness before reporting, so a
+  surfaced `DfaProduct`/semantics bug lands as a small reproducer.
+- **Seeds for grilling:** _(tbd)_
+
 ### Prove the monolithic reduction $\psi_{in}\!\rightarrow\!(\varphi \land \psi_{out})$
 - **Intent:** prove that synthesis with external information
   (`main.tex` `def:probDefTransducer`) is **equirealizable** with plain

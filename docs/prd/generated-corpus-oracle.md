@@ -1,10 +1,13 @@
 # PRD: fixed-seed generated-corpus differential + metamorphic test harness
 
-**Status:** partially implemented — Phase 1 landed (corpus scaffold +
-`ltlf_to_dfa` structural free-rider, `tests/ltlfsynt_oracle_test.cpp`
-`GeneratedCorpus.LtlfToDfaStructural`, green over 256 cases). Phase 2 (random
-$\Tin$ + metamorphic round-trip) and Phase 3 (differential + timeout
-plumbing) are not yet started.
+**Status:** implemented — Phase 1 (corpus scaffold + `ltlf_to_dfa` structural
+free-rider), Phase 2 (random $\Tin$ + metamorphic round-trip), and Phase 3
+(differential + timeout plumbing) all landed. `tests/ltlfsynt_oracle_test.cpp`
+`GeneratedCorpus.LtlfToDfaStructural` and `GeneratedCorpus.MetamorphicRoundTrip`
+are green over 256 cases with no `ltlfsynt` dependency;
+`LtlfsyntOracleTest.GeneratedCorpusDifferential` is green over the
+$\mathcal{V}=\emptyset$, width-$\le3$ subset with `ltlfsynt` present (189/189
+`ctest` overall).
 **Interface:** extends the existing GoogleTest suite
 `tests/ltlfsynt_oracle_test.cpp` (no production C++). Adds a seeded random-formula
 / random-partition / random-$\Tin$ generator and two new test bodies that grade a
@@ -19,9 +22,13 @@ must satisfy these); the controller postcondition `\cref{def:probDefTransducer}`
 $\Sigma_0=\mathcal{I}$ of $S_C$ (`main.tex` §86).
 
 **Gates:**
-- [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
+- [x] glossary        — no new domain identifier; testing-methodology prose note
+      added to docs/GLOSSARY.md "Testing & oracles" (generated corpus + differential
+      / metamorphic round-trip), no C++ column domain entry (per PRD Glossary note)
 - [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
+- [x] code-review     — domain (/code-reviewer) + generic (/code-review) clean on
+      working tree (Phase 1 `010cca9` + uncommitted P2/P3); only non-blocking
+      cleanups (3× corpus rebuild, dead `WIFSIGNALED` arm, comment hygiene)
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex
 
 ## Goal
@@ -458,3 +465,64 @@ Both are tunable constants/strings, not domain semantics, so neither
 warranted a PRD amendment. `#define SPOT_USES_STRONG_X 1` is a no-op on the
 installed Spot version (unconditionally >= 2.13, `strong_X` already public)
 but was still added, verbatim as pinned, for portability.
+
+**2026-07-06 (Phase 2 landing).** No disagreements; one implementation
+choice the PRD left to `/developer`'s call ("exact shape is `/developer`'s
+call"), recorded here for traceability:
+
+- **`GeneratedCase` grew a `t_in` field holding the built
+  `OutputLabeledTransducer` directly** (not a separate rng-spec struct), each
+  built on its own private `spot::bdd_dict` at corpus-build time — mirrors
+  the structural test's existing per-case-dict idiom, and lets the
+  metamorphic body replay `synthesize`/`verify_controller` with zero rebuild
+  logic (`t_out` is derived at test time via `trivial_transducer(partition,
+  Role::t_out, c.t_in.dict())`, sharing that same dict as
+  `DfaProduct::synthesize` requires).
+- `random_tin` reuses the file's existing `all_letters_over` helper (already
+  defined above, for the faithfulness guard) to enumerate $\Ifree$ letters,
+  rather than duplicating an enumerator — a plain reuse, not a semantic
+  choice.
+
+**Green checkpoint reached:** `ctest` green, 188/188, including both
+`GeneratedCorpus.LtlfToDfaStructural` and
+`GeneratedCorpus.MetamorphicRoundTrip` (256 cases each), no `ltlfsynt`
+dependency. Phase 3 (differential + timeout plumbing) not yet started.
+
+**2026-07-06 (Phase 3 landing).** No disagreements; the PRD's pinned CLI
+forms, timeout/skip semantics, and verdict contract were encoded as
+specified. Two mechanical points worth recording:
+
+- **`RunSubprocess` extension is two trailing defaulted parameters on the
+  existing function** (`std::optional<unsigned> timeout_secs = std::nullopt,
+  bool* timed_out = nullptr`), not a separate overload — this is what makes
+  "existing callers untouched by the default" hold trivially (same function,
+  same signature prefix, no call site edited). `RunEkSynth` and
+  `LtlfsyntOracleTest::RunLtlfsynt` grew the identical two trailing defaulted
+  parameters (forwarding to `RunSubprocess`) so the differential body could
+  thread the timeout through the two thin per-binary wrappers rather than
+  bypassing them to call `RunSubprocess` directly — the PRD's "Extend
+  `RunSubprocess`" bullet implied this forwarding but didn't spell it out; a
+  plain mechanical consequence, not a semantic choice.
+- **`JoinCsv` helper** added for the differential's `--inputs`/`--outputs`
+  (ek-synth) and `--ins=`/`--outs=` (ltlfsynt) arguments, joining a
+  `VariablePartition` set with commas (`src/ltlf_ek_synth.cpp`'s `SplitCsv`
+  counterpart). When `output_free` is empty the `--outputs`/`--outs=` flag is
+  omitted entirely (mirrors the existing `EmptyOutputsAcceptedByBothTools*`
+  tests) rather than passed as an empty string; `input_free` is never empty
+  for the $\mathcal{V}=\emptyset$ subset (input_known empty + $|\mathcal{I}|
+  \ge 1$ by `random_partition`'s draw range forces at least one free input),
+  so no analogous omission is needed there.
+
+No new domain identifier was introduced (`kCorpusSubprocessTimeoutSecs`, the
+`RunSubprocess`/`RunEkSynth`/`RunLtlfsynt` timeout parameters, `JoinCsv`, and
+`GeneratedCorpusDifferential` are all test-local plumbing, per this PRD's own
+glossary note), so the glossary gate is left for `/glossary` to confirm per
+the Definition of done, not ticked here.
+
+**Green checkpoint reached:** `cmake --build build -j` clean;
+`ctest --test-dir build` green, 189/189, including
+`LtlfsyntOracleTest.GeneratedCorpusDifferential` (real `ltlfsynt` present at
+build-configure time, `LTLFSYNT_EXECUTABLE` resolved) agreeing with
+`ltlf-ek-synth` on every non-timed-out case in the generated
+$\mathcal{V}=\emptyset$, width-$\le3$ subset; both Phase 1/2 library bodies
+unaffected. All three phases of this PRD are now landed.

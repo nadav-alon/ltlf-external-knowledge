@@ -41,10 +41,13 @@
 #include <spot/twaalgos/complete.hh>
 #include <spot/twaalgos/isdet.hh>
 
+#include "ltlf_ek/cli.hpp"
+#include "ltlf_ek/dfa_product.hpp"
 #include "ltlf_ek/ltlf_to_dfa.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/transducer_io.hpp"
 #include "ltlf_ek/variables.hpp"
+#include "ltlf_ek/verify_controller.hpp"
 
 #ifndef LTLF_EK_SYNTH_BINARY
 #error "LTLF_EK_SYNTH_BINARY must be defined by CMake (see CMakeLists.txt)"
@@ -53,11 +56,15 @@
 namespace {
 
 using ltlf_ek::collect_aps;
+using ltlf_ek::Controller;
+using ltlf_ek::DfaProduct;
 using ltlf_ek::ltlf_to_dfa;
 using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::parse_transducer;
 using ltlf_ek::Role;
+using ltlf_ek::trivial_transducer;
 using ltlf_ek::VariablePartition;
+using ltlf_ek::verify_controller;
 
 // ---------------------------------------------------------------------------
 // Subprocess harness (mirrors tests/ltlf_ek_synth_test.cpp's RunCli /
@@ -109,10 +116,20 @@ class ScopedTempFile {
 
 // Runs `binary` with `args` via a POSIX shell (so each stream can be
 // redirected to its own temp file), returning its exit code, stdout, stderr.
+// Optional-timeout extension (docs/prd/generated-corpus-oracle.md "Subprocess
+// timeout"): when `timeout_secs` is set, the command is prefixed with
+// coreutils `timeout <N>s ` and a wall-clock kill maps to `*timed_out` (exit
+// 124 from `timeout`, or a signalled child) -- otherwise `*timed_out` (if
+// non-null) is left false.  Both are defaulted (nullopt / nullptr), so every
+// existing call site is untouched by this extension.
 CliResult RunSubprocess(const std::string& binary,
-                        const std::vector<std::string>& args) {
+                        const std::vector<std::string>& args,
+                        std::optional<unsigned> timeout_secs = std::nullopt,
+                        bool* timed_out = nullptr) {
+  if (timed_out) *timed_out = false;
   ScopedTempFile out_capture, err_capture;
   std::ostringstream cmd;
+  if (timeout_secs) cmd << "timeout " << *timeout_secs << "s ";
   cmd << ShellQuote(binary);
   for (const auto& a : args) cmd << " " << ShellQuote(a);
   cmd << " >" << ShellQuote(out_capture.path()) << " 2>"
@@ -121,6 +138,9 @@ CliResult RunSubprocess(const std::string& binary,
 
   CliResult result;
   result.exit_code = WIFEXITED(rc) ? WEXITSTATUS(rc) : -1;
+  if (timeout_secs && timed_out &&
+      ((WIFEXITED(rc) && WEXITSTATUS(rc) == 124) || WIFSIGNALED(rc)))
+    *timed_out = true;
   std::ifstream out_in(out_capture.path());
   std::ostringstream out_ss;
   out_ss << out_in.rdbuf();
@@ -132,8 +152,10 @@ CliResult RunSubprocess(const std::string& binary,
   return result;
 }
 
-CliResult RunEkSynth(const std::vector<std::string>& args) {
-  return RunSubprocess(LTLF_EK_SYNTH_BINARY, args);
+CliResult RunEkSynth(const std::vector<std::string>& args,
+                     std::optional<unsigned> timeout_secs = std::nullopt,
+                     bool* timed_out = nullptr) {
+  return RunSubprocess(LTLF_EK_SYNTH_BINARY, args, timeout_secs, timed_out);
 }
 
 // ---------------------------------------------------------------------------
@@ -210,8 +232,10 @@ class LtlfsyntOracleTest : public ::testing::Test {
                       "skipping the external oracle";
   }
 
-  CliResult RunLtlfsynt(const std::vector<std::string>& args) {
-    return RunSubprocess(ltlfsynt_binary_, args);
+  CliResult RunLtlfsynt(const std::vector<std::string>& args,
+                        std::optional<unsigned> timeout_secs = std::nullopt,
+                        bool* timed_out = nullptr) {
+    return RunSubprocess(ltlfsynt_binary_, args, timeout_secs, timed_out);
   }
 
  private:
@@ -872,16 +896,22 @@ TEST(FaithfulnessGuardMetaOracle, FiresOnOldCopyFromStepOnePsiInDelayPairing) {
 // Generated corpus (docs/prd/generated-corpus-oracle.md): a fixed-seed
 // formula / partition generator, graded by the suite's self-labeling
 // oracles instead of a hand-authored expected value -- the oracle *is* the
-// label.  Landed in phases (PRD "Implementation phases"); this is
-// **Phase 1** only: the corpus scaffold plus the ltlf_to_dfa structural
-// free-rider (determinism + completeness).  GeneratedCase carries no t_in
-// field yet -- Phase 2 adds the random-Tin data and the metamorphic
-// round-trip body; Phase 3 adds the ltlfsynt differential.  All test-local,
-// no production C++.
+// label.  Landed in phases (PRD "Implementation phases"); Phase 1 landed the
+// corpus scaffold plus the ltlf_to_dfa structural free-rider (determinism +
+// completeness); Phase 2 grew GeneratedCase to also carry the built random
+// Tin and added the synthesize->verify_controller metamorphic round-trip.
+// This is **Phase 3**: adds the ltlfsynt differential (gated, V=empty,
+// width<=3 subset) plus the RunSubprocess optional-timeout plumbing it needs.
+// All test-local, no production C++.
 // ---------------------------------------------------------------------------
 
 constexpr unsigned kCorpusSeed = 20260706;     // fixed seed (deterministic).
 constexpr std::size_t kCorpusCaseCount = 256;  // corpus size (tunable).
+
+// Wall-clock timeout for each differential subprocess (PRD "Subprocess
+// timeout"): with the ≤3 differential width cap timeouts should be rare, but
+// a slow ltlfsynt is a skip, never a test failure.
+constexpr unsigned kCorpusSubprocessTimeoutSecs = 10;
 
 // Tree-size cap before mandatory trivial simplifications (PRD "Formula
 // generation"): kept small (<=~8-10 nodes) so ltlf_to_dfa / ltlfsynt stay
@@ -903,12 +933,15 @@ constexpr double kCorpusStrongXProbability = 0.30;
 // does not pin this exact probability, only that the subset may be empty.
 constexpr double kCorpusIknownProbability = 0.5;
 
-// GeneratedCase (PRD "Interfaces & types", Phase 1 shape): no t_in field
-// yet -- Phase 2 extends this once the random-Tin builder and the
-// metamorphic round-trip land.
+// GeneratedCase (PRD "Interfaces & types", Phase 2 shape): now also carries
+// the built random Tin, on its own private bdd_dict (one dict per case, like
+// the structural test's per-case dict) so the metamorphic body can replay
+// synthesize/verify_controller on the identical (phi, partition, t_in)
+// without rebuilding anything.
 struct GeneratedCase {
   spot::formula phi;
   VariablePartition partition;
+  OutputLabeledTransducer t_in;
 };
 
 // strengthen_next (PRD "Formula generation"): recursively rewrite every
@@ -992,12 +1025,70 @@ spot::formula generate_random_formula(const VariablePartition& partition,
   return phi;
 }
 
+// random_tin (PRD "Random Tin generation"): an in-memory OutputLabeledTransducer
+// built directly on `dict`, deterministic + total by construction (the
+// committed Case-A regime, \cref{def:enabled}) -- no validity check needed
+// afterward.  Role t_in => Sigma0 = Ifree, Sigma1 = Iknown (glossary "Role").
+// Degenerate empty-Iknown case: trivial_transducer instead of a random table
+// (PRD "Edge cases" "Empty Iknown").
+OutputLabeledTransducer random_tin(const VariablePartition& partition,
+                                   std::mt19937& rng,
+                                   const spot::bdd_dict_ptr& dict) {
+  if (partition.input_known.empty())
+    return trivial_transducer(partition, Role::t_in, dict);
+
+  auto g = spot::make_twa_graph(dict);
+  // Register every I \cup O AP on this dict (PRD pseudocode), even the ones
+  // delta/lambda never look at (Ofree, Oknown) -- ltlf_to_dfa/synthesize will
+  // register phi's own APs on this same dict later, by name.
+  std::vector<int> ifree_vars, iknown_vars;
+  for (const std::string& n : partition.input_free)
+    ifree_vars.push_back(g->register_ap(n));
+  for (const std::string& n : partition.input_known)
+    iknown_vars.push_back(g->register_ap(n));
+  for (const std::string& n : partition.output_free) g->register_ap(n);
+  for (const std::string& n : partition.output_known) g->register_ap(n);
+
+  std::uniform_int_distribution<int> state_count(1, 3);
+  const int n = state_count(rng);
+  g->new_states(n);
+  g->set_init_state(0);
+
+  const std::vector<bdd> ifree_letters = all_letters_over(ifree_vars);
+  std::uniform_int_distribution<int> dst_dist(0, n - 1);
+  std::bernoulli_distribution bit(0.5);
+  std::vector<bdd> lambda_by_state(n, bddfalse);
+  for (int q = 0; q < n; ++q) {
+    bdd lambda_q = bddfalse;
+    for (const bdd& ifree_cube : ifree_letters) {
+      // delta: one edge per Ifree-cube -- mutually exclusive, exhaustive
+      // guards, so delta is deterministic + total over Ifree.
+      g->new_edge(q, dst_dist(rng), ifree_cube);
+      // lambda: a full Iknown assignment OR'd in per Ifree-cube, so
+      // lambda(q, .) is a total function Ifree -> 2^Iknown.
+      bdd iknown_cube = bddtrue;
+      for (int x : iknown_vars) iknown_cube &= bit(rng) ? bdd_ithvar(x) : bdd_nithvar(x);
+      lambda_q |= ifree_cube & iknown_cube;
+    }
+    lambda_by_state[q] = lambda_q;
+  }
+
+  bdd sigma0_cube = bddtrue;
+  for (int x : ifree_vars) sigma0_cube &= bdd_ithvar(x);
+  bdd sigma1_cube = bddtrue;
+  for (int x : iknown_vars) sigma1_cube &= bdd_ithvar(x);
+  return OutputLabeledTransducer(g, std::move(lambda_by_state), sigma0_cube,
+                                 sigma1_cube);
+}
+
 // BuildGeneratedCorpus (PRD "Determinism / seeding"): one seeded
 // std::mt19937(kCorpusSeed), no reserved draw slots (PRD "Implementation
-// phases" cross-phase seed note -- deliberate: Phase 2 will insert its own
-// draw here and shift the stream, an accepted trade, not a bug to "fix").
-// Emits kCorpusCaseCount cases partition-first, so every phi's APs are
-// in-partition by construction.
+// phases" cross-phase seed note -- deliberate: this Phase 2 draw inserts
+// here and shifts the single stream relative to the Phase-1-only tree, an
+// accepted trade, not a bug to "fix"; reproducibility is a property of the
+// final landed tree).  Emits kCorpusCaseCount cases partition-first, so
+// every phi's APs are in-partition by construction; each case's random Tin
+// is built on its own private bdd_dict.
 std::vector<GeneratedCase> BuildGeneratedCorpus() {
   std::mt19937 rng(kCorpusSeed);
   std::vector<GeneratedCase> corpus;
@@ -1006,7 +1097,9 @@ std::vector<GeneratedCase> BuildGeneratedCorpus() {
     VariablePartition partition = random_partition(rng);
     spot::formula phi =
         strengthen_next(generate_random_formula(partition, rng), rng);
-    corpus.push_back({phi, std::move(partition)});
+    const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+    OutputLabeledTransducer t_in = random_tin(partition, rng, dict);
+    corpus.push_back({phi, std::move(partition), std::move(t_in)});
   }
   return corpus;
 }
@@ -1050,6 +1143,127 @@ TEST(GeneratedCorpus, LtlfToDfaStructural) {
     EXPECT_TRUE(spot::is_complete(dfa))
         << "ltlf_to_dfa returned an incomplete automaton";
   }
+}
+
+// Metamorphic round-trip (PRD "Test oracles" #1, Phase 2's green checkpoint):
+// for every generated case, if DfaProduct::synthesize returns a Controller,
+// verify_controller on that same (phi, Tin, trivial Tout, T_C) must be `ok`
+// -- the standing "every solve_dfa controller verifies" invariant
+// (docs/prd/controller-verifier.md), now exercised on generated phi AND
+// generated Tin.  Unrealizable cases (synthesize returns nullopt) assert
+// nothing further -- one-directional by design (PRD "Edge cases"
+// "Unrealizable generated case").  Never gated on ltlfsynt: a plain TEST,
+// not under LtlfsyntOracleTest, so it runs even where ltlfsynt is absent.
+TEST(GeneratedCorpus, MetamorphicRoundTrip) {
+  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus();
+  for (std::size_t i = 0; i < corpus.size(); ++i) {
+    const GeneratedCase& c = corpus[i];
+    std::ostringstream phi_os;
+    phi_os << c.phi;
+    SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
+                 ", partition=" + DescribeGeneratedPartition(c.partition));
+
+    const OutputLabeledTransducer t_out =
+        trivial_transducer(c.partition, Role::t_out, c.t_in.dict());
+    DfaProduct method;
+    const std::optional<Controller> controller =
+        method.synthesize(c.phi, c.partition, c.t_in, t_out);
+    if (!controller.has_value())
+      continue;  // unrealizable: no controller to verify (one-directional).
+
+    EXPECT_TRUE(verify_controller(c.phi, c.partition, c.t_in, t_out,
+                                  *controller)
+                    .ok)
+        << "metamorphic round-trip failed: synthesize returned a controller "
+           "that verify_controller rejects";
+  }
+}
+
+// Comma-joins an AP-name set for --inputs/--outputs (ek-synth) or the
+// --ins=/--outs= form (ltlfsynt) -- both parse a plain comma-separated list
+// (src/ltlf_ek_synth.cpp SplitCsv).
+std::string JoinCsv(const std::set<std::string>& names) {
+  std::string out;
+  for (const std::string& name : names) {
+    if (!out.empty()) out += ",";
+    out += name;
+  }
+  return out;
+}
+
+// Differential (PRD "Test oracles" #2, Phase 3's green checkpoint): over the
+// V = empty (all-free partition, psi_in = top) subset of the generated corpus
+// whose width |I union O| <= 3 (PRD "Partition generation" "Differential
+// width cap"), ltlf-ek-synth and `ltlfsynt --semantics=Mealy` must agree on
+// the bare-phi REALIZABLE/UNREALIZABLE verdict -- no assumption reduction, so
+// no load-bearing guard (that concept only applies when psi_in != top).
+// Random Tin is never fed here: this body only reads phi/partition off the
+// generated case, matching the PRD's "differential body needs only phi +
+// partition". Gated on ltlfsynt via LtlfsyntOracleTest (GTEST_SKIPs cleanly
+// when it is absent, per "Edge cases").
+TEST_F(LtlfsyntOracleTest, GeneratedCorpusDifferential) {
+  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus();
+  std::size_t skipped = 0;
+  for (std::size_t i = 0; i < corpus.size(); ++i) {
+    const GeneratedCase& c = corpus[i];
+    // V = empty subset only: an all-free partition (PRD "Behaviour",
+    // differential item).
+    if (!c.partition.input_known.empty() || !c.partition.output_known.empty())
+      continue;
+    // Differential width cap (PRD "Partition generation"): |I union O| <= 3.
+    const std::size_t width =
+        c.partition.input_free.size() + c.partition.output_free.size();
+    if (width > 3) continue;
+
+    std::ostringstream phi_os;
+    phi_os << c.phi;
+    const std::string phi_str = phi_os.str();
+    SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_str +
+                 ", partition=" + DescribeGeneratedPartition(c.partition));
+
+    std::vector<std::string> ek_args = {
+        "--dfa-product", "--formula=" + phi_str, "--inputs",
+        JoinCsv(c.partition.input_free)};
+    if (!c.partition.output_free.empty()) {
+      ek_args.push_back("--outputs");
+      ek_args.push_back(JoinCsv(c.partition.output_free));
+    }
+    ek_args.push_back("--realizable");
+
+    std::vector<std::string> synt_args = {"--ins=" +
+                                          JoinCsv(c.partition.input_free)};
+    if (!c.partition.output_free.empty())
+      synt_args.push_back("--outs=" + JoinCsv(c.partition.output_free));
+    synt_args.push_back("--semantics=Mealy");
+    synt_args.push_back("--realizability");
+    synt_args.push_back("-f");
+    synt_args.push_back(phi_str);
+
+    bool ek_timed_out = false;
+    const CliResult ek =
+        RunEkSynth(ek_args, kCorpusSubprocessTimeoutSecs, &ek_timed_out);
+    if (ek_timed_out) {
+      ++skipped;
+      continue;  // a slow subprocess is a skip, never a test failure.
+    }
+    bool synt_timed_out = false;
+    const CliResult synt =
+        RunLtlfsynt(synt_args, kCorpusSubprocessTimeoutSecs, &synt_timed_out);
+    if (synt_timed_out) {
+      ++skipped;
+      continue;
+    }
+
+    // ParseEkSynthVerdict/ParseLtlfsyntVerdict ADD_FAILURE loudly (with
+    // captured stderr) on any exit code/output outside the known verdict
+    // contract, so a parse/usage error can never masquerade as a verdict.
+    const Verdict ek_verdict = ParseEkSynthVerdict(ek);
+    const Verdict synt_verdict = ParseLtlfsyntVerdict(synt);
+    EXPECT_EQ(IsRealizable(ek_verdict), IsRealizable(synt_verdict))
+        << "generated-corpus differential disagreement for phi=" << phi_str
+        << ", partition=" << DescribeGeneratedPartition(c.partition);
+  }
+  RecordProperty("differential_skipped", static_cast<int>(skipped));
 }
 
 }  // namespace

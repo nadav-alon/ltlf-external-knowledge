@@ -323,6 +323,30 @@ Common interface: `Synthesis::synthesize(phi, vars, t_in, t_out)`.
   `--model-check`, not the function), checker, validator, `agrees` (that is the
   per-trace strategy-agreement predicate).
 
+### Generated corpus & its grading modes (differential / metamorphic round-trip)
+- **`main.tex`:** — (no symbol; test-only harness, `docs/prd/generated-corpus-oracle.md`).
+- **Definition:** *prose note, not a domain entry* — these are **generic testing
+  methodology** terms (industry-standard differential / metamorphic testing), not
+  project domain concepts, so they carry no canonical C++ *domain* identifier;
+  pinned here only to fix the spelling and stop synonym drift. A **generated
+  corpus** is the fixed-seed list of `(phi, partition, Tin)` cases the generator
+  emits; it is graded by two **self-labeling** modes — the **differential** (the
+  built `ltlf-ek-synth` vs Spot's `ltlfsynt` must agree on the verdict) and the
+  **metamorphic round-trip** (`synthesize`$\to$`verify_controller` must accept the
+  controller it produced) — plus the `ltlf_to_dfa` structural free-rider
+  (determinism + completeness). The oracle *is* the label; there is no
+  hand-authored expected value.
+- **C++:** test-local (anonymous namespace in `tests/ltlfsynt_oracle_test.cpp`),
+  **not** a library API: `BuildGeneratedCorpus()` / `GeneratedCase`, the
+  generators (`generate_random_formula`, `strengthen_next`, `random_partition`,
+  `random_tin`), and the three `GeneratedCorpus.*` / `GeneratedCorpusDifferential`
+  test bodies. No canonical domain type — like the *Faithfulness guard*, it names
+  a test artifact, not a `main.tex` concept.
+- **Do not call it:** fuzzing / property test (bare — it is seeded + self-labeling,
+  not shrinking random), golden corpus (there is no golden expected value),
+  round-trip test (bare), differential test (bare — pair the noun with *oracle* /
+  *round-trip* as above).
+
 ---
 
 ## Open theory questions (tracked, do not re-flag as novel)
