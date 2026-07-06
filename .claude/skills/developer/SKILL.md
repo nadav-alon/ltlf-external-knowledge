@@ -40,6 +40,11 @@ Overleaf).
 
 1. **Read the PRD** for this feature in `docs/prd/` if one exists. If none
    exists and the task is non-trivial, recommend `/grill-prd` first.
+   - **If the PRD has an *Implementation phases* section, do one phase per
+     session** — the phase named in your scope, or the earliest not-yet-landed
+     one. The phases exist to cap per-session agent cost; do **not** implement
+     several phases (or the whole PRD) in a single spawn. Land your phase to its
+     green checkpoint, report which phase is done and which is next, and stop.
 2. **Read `docs/GLOSSARY.md`.** Names in code MUST match the C++ column. If a
    concept has no entry, you may not invent a name — stop and run `/glossary`
    (or tell the user to), then continue.
@@ -73,6 +78,18 @@ Overleaf).
   hand-roll what Spot lacks (the lambda-split output, NFA-as-domain-type, product
   bookkeeping). Prefer `spot::twa_graph_ptr`, `bdd` cubes for letters, the shared
   `spot::bdd_dict`.
+- **Don't spelunk library source for signatures — write and let the compiler
+  answer.** Repeated `grep`/search over Spot (or the project's own headers)
+  hunting for exact function/constructor spellings is a top token sink. If the PRD
+  pins an API (header + call form, e.g. `spot::is_complete` /
+  `randltlgenerator` / the `SPOT_USES_STRONG_X` opt-in), that spelling is
+  **authoritative — encode it, don't verify it by search.** For a project type
+  (`VariablePartition::split`, `ltlf_to_dfa`, `trivial_transducer`) read its
+  header in `include/ltlf_ek/` **once**, then move on. For a genuinely-unknown
+  Spot signature, check its header **once**; if still unclear, write your best
+  call and let `cmake --build` correct you — the build loop (already piped to a
+  log, below) is cheaper than exhaustive source reading. Prefer writing code over
+  reading Spot internals.
 - **Glossary discipline (enforced).** Every new public identifier naming a domain
   concept must already be in `docs/GLOSSARY.md` under the C++ column, spelled
   exactly. Never introduce a synonym on the "Do not call it" list. New concept →
@@ -100,6 +117,13 @@ Overleaf).
 ## Build & self-check
 
 - Build with `cmake --build build -j` (configure `cmake -S . -B build` if needed).
+- **Keep build output out of your context.** A raw `cmake --build` dump (Spot/
+  CMake noise, warnings) is re-read on every subsequent turn and dominates the
+  token bill. Pipe it to a log and surface only what you need:
+  `cmake --build build -j > /tmp/ek_build.log 2>&1 && echo OK || tail -40 /tmp/ek_build.log`.
+  On success you read one line; on failure you read only the tail. Do **not**
+  `cat` the whole log, and do not re-run a clean build just to re-see output you
+  already have — `grep -n error /tmp/ek_build.log` instead.
 - The tree must **compile** before you're done. Do not leave it red.
 - Stubs are fine, but a stub throws `std::logic_error("… not yet implemented")`
   or is clearly marked `TODO(developer)` — never a silent wrong answer.

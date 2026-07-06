@@ -27,6 +27,16 @@ the PRD hands cleanly to `/developer`. The paper `main.tex` lives at
    before moving on. Cover at least:
    - **Scope**: which `main.tex` algorithm/section, and which parts are in vs
      out of this PRD.
+   - **Phasing (for large features).** `/developer` runs on a cold Sonnet agent
+     whose token cost scales with turns × context; a PRD big enough to push one
+     spawn past ~40 turns / a large accumulated context is cheaper implemented as
+     **several phases done in separate sessions**. When the feature is that big,
+     grill out a phase breakdown: each phase must be **independently landable** —
+     it compiles green, has its own testable checkpoint, and leaves the tree in a
+     valid state (later phases may stub what they don't yet need). Order phases so
+     each builds on the last (types/interfaces → core algorithm → edge cases /
+     aggregation → CLI wiring, as fits). A small, self-contained feature needs no
+     phasing — don't invent phases where one session suffices.
    - **Interface fit**: does it implement `Synthesis`? new base types? reused
      black-boxes (`LtlfToDfa`, `SolveDfa`, `progress`) — implement now or stub?
    - **Semantics to preserve**: the exact invariants from `main.tex` (e.g. the
@@ -112,6 +122,13 @@ Emit every new PRD with `Status: draft` and all four gates unchecked.
 ## Interfaces & types
 <signatures to add/implement; black-boxes to stub vs implement>
 
+## Implementation phases
+<Omit this section entirely for a small feature that fits one /developer session.
+For a large PRD, list ordered phases, each a separate implementation session:
+- **Phase N — <name>**: what lands, and its green checkpoint (compiles; which
+  tests/oracles pass). Note what it may stub for a later phase.
+Each phase must leave the tree compiling and independently testable.>
+
 ## Edge cases
 <partial transducers, unrealizable, empty sets, sink, aggregation asymmetry, ...>
 
@@ -144,6 +161,10 @@ under-implementable:
   all pinned (or explicitly deferred with rationale). If the developer would have
   to run it to learn how it should behave, that's an under-implementable gap —
   flag it and grill it out before handoff, don't ship it to `/developer`.
+- **If phased:** each phase is independently landable (green checkpoint, tree
+  compiles) and the phases together cover the whole PRD with no orphaned work.
+  If the whole feature comfortably fits one session, there should be **no**
+  phases section — don't over-split.
 
 Report the gaps to the user; fix the cheap ones, leave genuine open questions
 for `/theory-review`. This is a read-through, not a second interview.
@@ -154,6 +175,8 @@ for `/theory-review`. This is a read-through, not a second interview.
   with `Status: draft` and the four unchecked gates in the header.
 - Any PRD this supersedes is marked `superseded by …` and cross-linked (not
   deleted).
+- For a large feature, an **Implementation phases** section splits it into
+  independently landable, separately-sessioned phases (omitted for a small one).
 - Self-review pass done; gaps reported.
 - Any glossary gaps and touched theory questions are called out explicitly.
 - End by telling the user the PRD is ready for `/developer` (and `/glossary`

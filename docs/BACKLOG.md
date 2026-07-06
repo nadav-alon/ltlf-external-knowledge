@@ -78,6 +78,57 @@ the live `--model-check` flag._
 
 ## Later
 
+### Co-generated $(\Tin,\psi_{in})$ family → known-knowledge differential (generated corpus v2)
+- **PRD:** extends `docs/prd/generated-corpus-oracle.md` (v1 draft, grilled
+  2026-07-06). v1 grades a fixed-seed generated corpus with two **self-labeling**
+  oracles — the empty-knowledge `ltlfsynt` differential and the
+  `synthesize`$\to$`verify_controller` metamorphic round-trip (incl. a **free-form
+  random $\Tin$**). This item closes v1's one acknowledged gap.
+- **The gap (from the v1 PRD "Open theory questions"):** on generated
+  **known-knowledge** cases the metamorphic oracle is **one-directional** — it
+  catches a wrongly-*realizable* controller (it verifies the $T_C$ `synthesize`
+  returned) but **not** a wrongly-*unrealizable* verdict (no controller to verify,
+  and no $\psi_{in}$ to feed `ltlfsynt`). The empty-knowledge differential covers
+  the wrongly-unrealizable direction only for $\mathcal V=\emptyset$.
+- **Why the obvious fixes don't work (settled in the grill, don't re-litigate):**
+  the differential needs **both** a $\Tin$ file (for `ltlf-ek-synth`) **and** a
+  $\psi_{in}$ string (for `ltlfsynt`), denoting the **same** language. Neither
+  free-form direction gives that: **transducer→$\psi_{in}$** fails because a
+  free-form table $\delta$ can be a modular counter (regular but **not** star-free
+  ⇒ no LTLf $\psi_{in}$ exists; LTLf ⊊ regular); **random-$\psi_{in}$→transducer**
+  fails because a random LTLf formula is usually **not a strategy** (non-functional:
+  two $\Iknown$ for one history; or non-total: it constrains the env's *free*
+  inputs).
+- **The approach that works — co-generation from a bounded-memory source:** draw
+  from the `const / copy / delay / window-boolean` family, where $\Iknown_t$ is a
+  **total boolean function of a fixed window** $\ifree_t\ldots\ifree_{t-d}$. Such a
+  function is *simultaneously* (a) a finite **deterministic total** transducer
+  (state = last $d$ $\Ifree$-values — build the table directly) and (b) a **direct
+  LTLf** formula (`G`-guarded safety over the window, star-free by construction).
+  Emit **both** from one drawn parameter set `(which iknown, window depth d,
+  boolean fn)` ⇒ provably equal, so no mis-encoding. Feeds a **third** test body: a
+  known-knowledge differential (`ek-synth` vs `ltlfsynt` on
+  $\psi_{in}\!\rightarrow\!\varphi$, load-bearing guard), giving **bidirectional**
+  known-knowledge coverage. Complementary to v1's free-form table (which keeps its
+  broader counter/parity-capable one-directional metamorphic coverage), not a
+  replacement.
+- **Seeds for grilling:**
+  - **The weak-X trap still bites.** The original delay-fixture bug *was* a
+    $\psi_{in}$ mis-encoding in exactly this family (weak-`X`-at-final-position vs
+    `X[!]`). Co-generation must emit the corrected guarded-weak-`X` safety shape
+    (like `kPsiInDelayCorrected` = `(!k) & G(a -> X k) & G(!a -> X !k)`), **not**
+    `X[!]`.
+  - **It feeds the faithfulness guard, doesn't retire it.** Run every co-generated
+    pair through `run_faithfulness_guard` as a cheap library-only self-check — a
+    co-generation bug is exactly what it catches.
+  - **Middle path, if the family feels too narrow:** generate free-form random
+    $\psi_{in}$, then **filter** — `ltlf_to_dfa`, accept only if it encodes a total
+    deterministic $\Iknown$-function, extract the transducer from that DFA. Covers
+    more $\psi_{in}$ shapes but adds a functionality check + rejection sampling +
+    DFA→transducer extraction. Heavier; weigh vs the bounded-memory family.
+  - Subsumes/relates to the known-**output** $\Tout$ oracle (Now/next #2): a
+    co-generated $\Tout$ family would extend this to the guarantee half.
+
 ### Prove the monolithic reduction $\psi_{in}\!\rightarrow\!(\varphi \land \psi_{out})$
 - **Intent:** prove that synthesis with external information
   (`main.tex` `def:probDefTransducer`) is **equirealizable** with plain

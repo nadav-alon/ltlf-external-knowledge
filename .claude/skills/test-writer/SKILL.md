@@ -80,21 +80,63 @@ Overleaf).
    instances — it is a broad sanity check, not the main oracle, and treat a
    mismatch as "investigate", since the encoding itself can be wrong.
 
+## Push the oracles past trivial inputs
+
+The oracle *architecture* above is strong; its recurring weakness is being fed a
+thin, hand-picked corpus (2–3 operators, ≤3 APs, nesting depth ≤2, always a
+1-input/1-output or `a/k/o` partition). A bug that only surfaces on a deeper
+formula or a wider partition passes every such case. When adding or changing a
+method, push each oracle along the axes it is blind to:
+
+- **Formula shape.** Nesting depth ≥3; mixed `U`/`R`/`W`/`F`/`G`/`X[!]`; several
+  free inputs and several outputs, not just `i,o`. Include formulas that force a
+  larger goal DFA (deep `X[!]` chains) so `ltlf_to_dfa`'s determinism/
+  completeness is checked on more than one operator.
+- **Mealy-sensitivity.** Formulas whose verdict depends on reading the *current*
+  input and on the weak-X-at-final-position convention (`o <-> X i`, guarded
+  `G(a -> X k)`) — the region the Moore monolithic baseline cannot cover (memory
+  `ltlf-weak-x-and-termination-semantics`).
+- **Knowledge flips.** More than one `(phi, T_in)` pair where knowledge flips the
+  verdict, across *different* T_in shapes (const, copy, delay, partial). The
+  external-knowledge thesis rests on these — one example is not coverage.
+- **Partition shape.** Multiple known inputs, exercised `Oknown`, empty `Ofree`,
+  larger |I∪O|.
+
+**Prefer generated corpora over hand-picking.** The differential and metamorphic
+oracles supply their own ground truth (`ltlf-ek-synth` vs `ltlfsynt`,
+`synthesize` → `verify_controller`), so a **fixed-seed** random-formula /
+random-partition generator piped through them finds these bugs at near-zero cost
+per case and needs **no** hand-labeled expected value — the oracle is the label.
+This does not conflict with "trust the PRD's golden values" (those stay the
+labels for unit fixtures) or "small over sprawling" (one generator loop, not a
+hundred hand-written cases). Keep the seed fixed so any failure reproduces, and
+print the offending formula/partition on failure.
+
 ## Rules
 
 - **Small over sprawling.** Prefer many tiny tests to a few giant ones. A test
   name should read like a sentence about one behaviour.
 - Add every new test file to the `unit_tests` target in `CMakeLists.txt`.
-- Cover edge cases from the PRD: partial/undefined transducers, unrealizable,
-  empty variable sets, the ⊥ sink, aggregation knowledge-loss.
+- Cover edge cases from the PRD: partial/undefined transducers (non-enabled
+  letters are *skipped*, not routed to a sink — see `drop-method2-sink.md` and
+  `dfa_product_test`'s skip-not-sink fixtures), unrealizable, empty variable
+  sets, aggregation knowledge-loss.
 - Do **not** assert behaviour that contradicts `main.tex`; if a "correct" value
   is unclear, that's a `/theory-review` question, not a guessed assertion.
 
 ## Build & run
 
-- `cmake --build build -j && ctest --test-dir build --output-on-failure`.
-- Report results honestly. If tests fail, show the failure; if you stubbed an
-  oracle you couldn't complete, say so.
+- **Keep build/ctest output out of your context.** `--output-on-failure` dumps
+  every failing test's full stdout, and that dump is then re-read on every later
+  turn — the single biggest driver of this agent's token cost. Route verbose
+  output to a log and read only failures:
+  - Build: `cmake --build build -j > /tmp/ek_build.log 2>&1 && echo OK || tail -40 /tmp/ek_build.log`.
+  - Test: `ctest --test-dir build --output-on-failure > /tmp/ek_test.log 2>&1; grep -nE "FAILED|failed|Failed" /tmp/ek_test.log | head -40 || echo "all passed"`.
+    Only when a specific test fails, pull *just that test's* block from the log —
+    do not `cat` the whole thing, and do not re-run the full suite to re-see
+    output you already captured.
+- Report results honestly. If tests fail, show the failure (the relevant lines,
+  not the whole log); if you stubbed an oracle you couldn't complete, say so.
 
 ## Definition of done
 
