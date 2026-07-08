@@ -3,7 +3,6 @@
 #include <cstddef>
 #include <map>
 #include <optional>
-#include <queue>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -15,8 +14,8 @@
 #include <spot/twa/twagraph.hh>
 #include <spot/twaalgos/synthesis.hh>
 
-#include "ltlf_ek/consistency.hpp"
 #include "ltlf_ek/ltlf_to_dfa.hpp"
+#include "ltlf_ek/product.hpp"
 #include "ltlf_ek/transducer_io.hpp"
 
 // docs/prd/controller-verifier.md "Behaviour / semantics": a one-player (env)
@@ -28,62 +27,10 @@ namespace ltlf_ek {
 namespace {
 
 // ProductState = <s_phi, q_in, q_out, q_c> --- A_phi x T_in x T_out x T_C.
+// Shadows ltlf_ek::ProductState (product.hpp) for every unqualified use below
+// (StateInfo / compute_bad / extract_witness) --- only build_verifier_graph
+// needs the shared struct type, so it fully-qualifies it there.
 using ProductState = std::tuple<unsigned, unsigned, unsigned, unsigned>;
-
-// delta_phi(s, v): navigate the (complete, per ltlf_to_dfa) Goal DFA as a
-// plain transition structure --- acceptance ignored, same idiom as
-// OutputLabeledTransducer::delta / DfaProduct's dfa_delta.  Unlike
-// DfaProduct's helper, an unmatched letter returns nullopt rather than
-// throwing: agree()'s "delta_phi ... defined at v" conjunct is a legitimate
-// non-agreement here, not an internal-invariant violation.
-std::optional<unsigned> dfa_delta(const spot::twa_graph_ptr& dfa, unsigned s,
-                                  bdd v) {
-  for (const auto& e : dfa->out(s))
-    if ((v & e.cond) != bddfalse) return e.dst;
-  return std::nullopt;
-}
-
-// Every full letter v in 2^{I∪O}, ordered so the first n_ifree bits of the
-// enumeration index k encode exactly the Ifree assignment (io_vars lists the
-// Ifree variables first) --- the same accepted-baseline enumeration cost as
-// DfaProduct::all_letters, chosen here so grouping-by-Ifree is a cheap bitmask
-// rather than an extra bdd_exist per letter.
-std::vector<bdd> all_letters(const std::vector<int>& io_vars) {
-  const std::size_t n = io_vars.size();
-  std::vector<bdd> letters;
-  letters.reserve(std::size_t{1} << n);
-  for (std::size_t k = 0; k < (std::size_t{1} << n); ++k) {
-    bdd v = bddtrue;
-    for (std::size_t i = 0; i < n; ++i)
-      v &= (k >> i & 1) ? bdd_ithvar(io_vars[i]) : bdd_nithvar(io_vars[i]);
-    letters.push_back(v);
-  }
-  return letters;
-}
-
-// agree(s, v) --- docs/prd/controller-verifier.md:
-//   cons(t_in, q_in, t_out, q_out, v)
-//   ∧ (v ∩ Ofree = lambda_c(q_c, v ∩ I))
-//   ∧ delta_phi, delta_in, delta_out, delta_c all defined at v.
-// Returns the resulting product successor iff v agrees at s, else nullopt.
-std::optional<ProductState> agreeing_successor(
-    const spot::twa_graph_ptr& dfa, const Transducer& t_in,
-    const Transducer& t_out, const Transducer& t_c, const ProductState& s,
-    bdd v) {
-  const auto [s_phi, q_in, q_out, q_c] = s;
-  if (!consistent(t_in, q_in, t_out, q_out, v)) return std::nullopt;
-
-  const std::optional<bdd> lambda_c = t_c.lambda(q_c, v);
-  if (!lambda_c || (v & *lambda_c) == bddfalse) return std::nullopt;
-
-  const std::optional<unsigned> d_phi = dfa_delta(dfa, s_phi, v);
-  const std::optional<unsigned> d_in = t_in.delta(q_in, v);
-  const std::optional<unsigned> d_out = t_out.delta(q_out, v);
-  const std::optional<unsigned> d_c = t_c.delta(q_c, v);
-  if (!d_phi || !d_in || !d_out || !d_c) return std::nullopt;
-
-  return ProductState{*d_phi, *d_in, *d_out, *d_c};
-}
 
 // One product state's outgoing structure: Acc(s), whether some Ifree has no
 // agreeing letter (hasDeadEnd), and --- indexed by the Ifree combo's
@@ -94,51 +41,56 @@ struct StateInfo {
   std::vector<std::optional<std::pair<bdd, ProductState>>> edges;
 };
 
-// Build the reachable product A_phi x T_in x T_out x T_C by brute-force full-
-// letter enumeration at each state (docs/prd/controller-verifier.md
-// "Product-letter enumeration": accepted DfaProduct-parity baseline cost).
-std::map<ProductState, StateInfo> build_product(
+// Reshaping bridge onto the shared core (include/ltlf_ek/product.hpp,
+// docs/prd/transducer-product.md "verify_controller" consumer note): drives
+// ltlf_ek::build_product over A_phi x T_in x T_out x T_c
+// (goal_must_be_complete = false --- a goal miss is a legitimate
+// non-agreement here, not DfaProduct's completeness invariant) and rebuilds
+// this file's tuple-keyed StateInfo graph from the returned neutral map.
+// io_vars must list Ifree first (n_ifree of them) so a letters-index's low
+// bits are exactly the Ifree combo, matching StateInfo::edges' bucketing.
+std::map<ProductState, StateInfo> build_verifier_graph(
     const spot::twa_graph_ptr& dfa, const Transducer& t_in,
     const Transducer& t_out, const Transducer& t_c,
-    const std::vector<bdd>& letters, std::size_t n_ifree,
-    const ProductState& init) {
-  std::map<ProductState, StateInfo> graph;
-  std::queue<ProductState> worklist;
-
-  auto discover = [&](const ProductState& s) {
-    if (graph.emplace(s, StateInfo{}).second) worklist.push(s);
-  };
-  discover(init);
+    const std::vector<int>& io_vars, std::size_t n_ifree) {
+  const std::vector<bdd> letters = ltlf_ek::all_letters(io_vars);
+  const std::vector<const Transducer*> taus{&t_in, &t_out, &t_c};
+  const ltlf_ek::ProductState init{
+      dfa->get_init_state_number(),
+      {t_in.initial_state(), t_out.initial_state(), t_c.initial_state()}};
+  const std::map<ltlf_ek::ProductState, ltlf_ek::ProductNode> graph =
+      ltlf_ek::build_product(dfa, taus, init, letters,
+                             /*goal_must_be_complete=*/false);
 
   const std::size_t n_ifree_combos = std::size_t{1} << n_ifree;
   const std::size_t ifree_mask = n_ifree_combos - 1;
 
-  while (!worklist.empty()) {
-    const ProductState cur = worklist.front();
-    worklist.pop();
-
+  std::map<ProductState, StateInfo> result;
+  for (const auto& [state, node] : graph) {
+    const ProductState key{state.goal, state.taus[0], state.taus[1],
+                           state.taus[2]};
     StateInfo info;
-    info.acc = dfa->state_is_accepting(std::get<0>(cur));
+    info.acc = node.acc;
     info.edges.assign(n_ifree_combos, std::nullopt);
 
-    for (std::size_t k = 0; k < letters.size(); ++k) {
-      const std::optional<ProductState> succ =
-          agreeing_successor(dfa, t_in, t_out, t_c, cur, letters[k]);
-      if (!succ) continue;
-      discover(*succ);
-      const std::size_t ifree_idx = k & ifree_mask;
+    for (const auto& [idx, succ] : node.edges) {
+      const std::size_t ifree_idx = idx & ifree_mask;
       // Determinism of lambda_in/lambda_c/lambda_out (docs/prd/
       // controller-verifier.md) means at most one letter agrees per Ifree
-      // combo; keep the first found if that invariant were ever violated.
-      if (!info.edges[ifree_idx]) info.edges[ifree_idx] = {letters[k], *succ};
+      // combo; build_product appends edges in ascending letters-index order,
+      // so keeping the first found reproduces the pre-migration tie-break.
+      if (!info.edges[ifree_idx])
+        info.edges[ifree_idx] = {
+            letters[idx],
+            ProductState{succ.goal, succ.taus[0], succ.taus[1], succ.taus[2]}};
     }
 
     for (const auto& e : info.edges)
       if (!e) { info.has_dead_end = true; break; }
 
-    graph[cur] = std::move(info);
+    result.emplace(key, std::move(info));
   }
-  return graph;
+  return result;
 }
 
 // Bad = nuY. { s : ¬Acc(s) ∧ (hasDeadEnd(s) ∨ ∃ Ifree whose agreeing
@@ -240,13 +192,16 @@ VerifyResult verify_controller(const spot::formula& phi,
   for (const auto& n : vars.input_known) io_vars.push_back(registrar->register_ap(n));
   for (const auto& n : vars.output_free) io_vars.push_back(registrar->register_ap(n));
   for (const auto& n : vars.output_known) io_vars.push_back(registrar->register_ap(n));
-  const std::vector<bdd> letters = all_letters(io_vars);
 
-  const ProductState init{dfa->get_init_state_number(), t_in.initial_state(),
-                          t_out.initial_state(), t_c.initial_state()};
-  const std::map<ProductState, StateInfo> graph =
-      build_product(dfa, t_in, t_out, t_c, letters, n_ifree, init);
-  const std::set<ProductState> bad = compute_bad(graph);
+  // std::tuple<unsigned,unsigned,unsigned,unsigned> spelled out (not the bare
+  // ProductState name) --- this call site sits outside the anonymous
+  // namespace above, where that name is ambiguous with ltlf_ek::ProductState
+  // (product.hpp), unlike inside the anonymous namespace where it shadows it.
+  const std::tuple<unsigned, unsigned, unsigned, unsigned> init{
+      dfa->get_init_state_number(), t_in.initial_state(),
+      t_out.initial_state(), t_c.initial_state()};
+  const auto graph = build_verifier_graph(dfa, t_in, t_out, t_c, io_vars, n_ifree);
+  const auto bad = compute_bad(graph);
 
   // --- Non-empty-trace / virtual-start split (docs/prd/
   //     controller-verifier.md): correct(T_C) iff the virtual start has no

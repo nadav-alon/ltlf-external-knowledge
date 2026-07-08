@@ -1,14 +1,14 @@
 # PRD: Reusable transducer product (Goal automaton × N transducers)
 
-**Status:** draft
+**Status:** implemented — 57aab06 (Phase 1) + Phase 2 (this commit)
 **Interface:** new `product.hpp` core — `agreeing_successor` (lazy per-letter step) + `build_product` (eager driver → neutral map); consumed by `DfaProduct::synthesize` and `verify_controller`
 **main.tex ref:** `alg:dfa_product` (Method 2 product), $\cons$ = `\cref{def:consistency}` (with its partiality note); the 4-way verifier product is code-only (`docs/prd/controller-verifier.md`)
 
 **Gates:**
 - [x] glossary        — new terms in docs/GLOSSARY.md C++ column
 - [x] tests           — unit + oracle coverage (Phase 1: see Developer comments below)
-- [x] code-review     — domain (/code-reviewer) + generic (/code-review), Phase 1 working tree; citation doc-bugs fixed
-- [x] theory-review   — Phase 1 clean (no code-bug); faithful to def:consistency + alg:dfa_product
+- [x] code-review     — Phase 2 (verify_controller migration): domain + generic clean
+- [x] theory-review   — Phase 2 clean (no code-bug); filter equivalence + def:probDefTransducer preserved
 
 ## Goal
 The product-of-Goal-automaton-with-transducers construction is currently
@@ -320,3 +320,54 @@ oracles" unit fixtures for the three new functions, per the PRD:
   product (untouched), the generated-corpus/differential/metamorphic oracles
   (already green, not extended), `DfaProduct`-specific tests (unchanged).
 - `tests` gate ticked above. `code-review` and `theory-review` remain open.
+
+**2026-07-08 — Phase 2 landed (`src/verify_controller.cpp` migration), one
+naming deviation.** Implemented as specified:
+- Deleted the file's local `dfa_delta`, `all_letters`, `agreeing_successor`,
+  and local `build_product` — all superseded by `include/ltlf_ek/product.hpp`.
+- Added a reshaping helper, named `build_verifier_graph` per the PRD's
+  recommendation (**not** a local `build_product`, to avoid shadowing
+  `ltlf_ek::build_product` with different semantics). It calls
+  `ltlf_ek::build_product(dfa, {&t_in, &t_out, &t_c}, init, letters,
+  goal_must_be_complete=false)` with `io_vars` Ifree-first (unchanged AP
+  registration order) and reshapes the returned
+  `map<ltlf_ek::ProductState, ltlf_ek::ProductNode>` into the file's
+  tuple-keyed `map<ProductState, StateInfo>`: `acc` copied, each edge bucketed
+  at `idx & ifree_mask` with keep-first tie-break (reproduces the old
+  ordering, since `build_product`'s BFS appends edges in ascending
+  `letters`-index order), `has_dead_end` = any Ifree combo with no edge.
+- **Deviation from the PRD's shadowing note:** the PRD says the local
+  `using ProductState = std::tuple<...>` (nested anonymous namespace) "must
+  keep shadowing `ltlf_ek::ProductState` for the unqualified uses in
+  `StateInfo`/`compute_bad`/`extract_witness`." That shadowing does hold
+  *inside* the anonymous namespace (unqualified lookup finds the inner
+  `using` first and never considers the outer `ltlf_ek::ProductState`
+  struct). It does **not** hold in `verify_controller`'s own body: that
+  function lives directly in `namespace ltlf_ek`, and an anonymous
+  namespace's members are injected into the enclosing namespace as if by a
+  `using`-directive, so an unqualified `ProductState` there is genuinely
+  **ambiguous** between the tuple alias and the `product.hpp` struct (a hard
+  compile error, not a silent wrong pick). Fixed by spelling
+  `std::tuple<unsigned, unsigned, unsigned, unsigned>` explicitly for the
+  local `init` in `verify_controller`, and `auto` for the `graph`/`bad`
+  locals there — `build_verifier_graph`/`compute_bad`'s return types are
+  unaffected since those functions are still defined (and their signatures
+  resolved) inside the anonymous namespace where the shadow is unambiguous.
+  Behaviour is unchanged; this is purely a lookup-visibility fix the PRD's
+  phrasing didn't anticipate.
+- Left the hand-rolled validation preamble (AP-⊆-I∪O, shared-`bdd_dict`)
+  untouched per the locked decision in the plan (`jaunty-coalescing-dijkstra.md`):
+  do not swap in `validate_product_inputs` for Phase 2, zero message drift.
+  `compute_bad`, `extract_witness`, the virtual-start / non-empty-trace
+  split, and `controller_as_transducer` are byte-for-byte unchanged.
+- **Green checkpoint met:** `cmake --build build -j` compiles clean; full
+  `ctest` is **199/199** passing, no expected value moved (verifier unit
+  tests, controller-verifier oracle, and the metamorphic
+  `synthesize`→`verify_controller` round-trip are the behaviour-preservation
+  proof).
+- `code-review` and `theory-review` gates reset to `[ ]` above (Phase 2's
+  semantic change to `verify_controller` needs its own pass). Not committed —
+  left for review first.
+- Out of scope, left for follow-up: new tests for `build_verifier_graph`
+  (`/test-writer`), the repo-wide dangling-`def:enabled` citation sweep, any
+  `main.tex` change.
