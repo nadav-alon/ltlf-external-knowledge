@@ -9,6 +9,7 @@
 
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/product.hpp"
+#include "ltlf_ek/variables.hpp"
 
 // Unit fixtures for agreeing_successor(...) and build_product(...)
 // (docs/prd/transducer-product.md Phase 1; docs/GLOSSARY.md "Product",
@@ -17,16 +18,18 @@
 // expected ProductState / acc / edge is hand-computed here, not re-derived
 // from another oracle --- this is the primary net for the refactor's new
 // atoms; DfaProduct.* in dfa_product_test.cpp is the metamorphic cross-check
-// that build_product reproduces the old arena.
+// that build_product reproduces the old arena.  LetterAlphabet gets its own
+// TEST group below (docs/prd/architecture-cleanup.md "Test oracles" #2).
 namespace {
 
 using ltlf_ek::agreeing_successor;
-using ltlf_ek::all_letters;
 using ltlf_ek::build_product;
+using ltlf_ek::LetterAlphabet;
 using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::ProductNode;
 using ltlf_ek::ProductState;
 using ltlf_ek::Transducer;
+using ltlf_ek::VariablePartition;
 
 const spot::acc_cond::mark_t kAcc = {0};
 const spot::acc_cond::mark_t kNoAcc = {};
@@ -43,6 +46,19 @@ Vars MakeVars() {
   const int iv = probe->register_ap("i");
   const int ov = probe->register_ap("o");
   return {dict, iv, ov};
+}
+
+// I = {i} free, O = {o} free, V = empty --- input_free/output_free block
+// order matches MakeVars' (iv, ov) registration order 1:1, so a LetterAlphabet
+// built from it on the same dict enumerates letters LSB-first as (i, o), the
+// same order the fixtures below already hand-trace.
+VariablePartition IoFreeVars() { return VariablePartition::split({"i"}, {"o"}, {}); }
+
+// A LetterAlphabet for `IoFreeVars()` registered on `v`'s own dict (register_ap
+// is idempotent, so this reuses v.iv / v.ov rather than allocating new ones).
+LetterAlphabet MakeAlphabet(const Vars& v) {
+  auto registrar = spot::make_twa_graph(v.dict);
+  return LetterAlphabet(IoFreeVars(), registrar);
 }
 
 bdd Letter(const Vars& v, bool i, bool o) {
@@ -218,7 +234,7 @@ TEST(AgreeingSuccessor, GoalMissReturnsNulloptWhenGoalNeedNotBeComplete) {
 
 // A tiny fixed product (TwoStateGoal x {TrivialTransducer, OKnownTransducer}):
 // hand-traced reachable-state set, each node's acc, and each node's edges.
-// all_letters({iv, ov}) enumerates 2^{i,o} LSB-first in (i, o) order:
+// MakeAlphabet(v) enumerates 2^{i,o} LSB-first in (i, o) order:
 //   idx0 = i=F,o=F   idx1 = i=T,o=F   idx2 = i=F,o=T   idx3 = i=T,o=T.
 TEST(BuildProduct, ReachableStatesAccAndEdgesOnTinyFixedProduct) {
   auto v = MakeVars();
@@ -227,11 +243,11 @@ TEST(BuildProduct, ReachableStatesAccAndEdgesOnTinyFixedProduct) {
   auto t_out = OKnownTransducer(v);
   const std::vector<const Transducer*> taus{&t_in, &t_out};
   const ProductState init{0, {0, 0}};
-  const std::vector<bdd> letters = all_letters({v.iv, v.ov});
-  ASSERT_EQ(letters.size(), 4u);
+  const LetterAlphabet alphabet = MakeAlphabet(v);
+  ASSERT_EQ(alphabet.size(), 4u);
 
   const std::map<ProductState, ProductNode> graph =
-      build_product(goal, taus, init, letters, /*goal_must_be_complete=*/true);
+      build_product(goal, taus, init, alphabet, /*goal_must_be_complete=*/true);
 
   // From init, only the two o=true letters (idx 2, idx 3) are enabled ---
   // t_out's state 0 commits o:=true --- and both land on the same successor
@@ -271,10 +287,10 @@ TEST(BuildProduct, EmptyTausProductIsTheGoalAutomatonAlone) {
   auto goal = TwoStateGoal(v);
   const std::vector<const Transducer*> taus;  // empty.
   const ProductState init{0, {}};
-  const std::vector<bdd> letters = all_letters({v.iv, v.ov});
+  const LetterAlphabet alphabet = MakeAlphabet(v);
 
   const std::map<ProductState, ProductNode> graph =
-      build_product(goal, taus, init, letters, /*goal_must_be_complete=*/true);
+      build_product(goal, taus, init, alphabet, /*goal_must_be_complete=*/true);
 
   const ProductState reached{1, {}};
   ASSERT_EQ(graph.size(), 2u);
@@ -287,6 +303,99 @@ TEST(BuildProduct, EmptyTausProductIsTheGoalAutomatonAlone) {
   const ProductNode& n1 = graph.at(reached);
   ASSERT_EQ(n1.edges.size(), 4u);  // the accepting sink self-loops on every letter.
   for (const auto& [idx, succ] : n1.edges) EXPECT_EQ(succ, reached);
+}
+
+// --- LetterAlphabet (docs/prd/architecture-cleanup.md "Test oracles" #2) ---
+
+TEST(LetterAlphabet, SizeIsTwoToThePowerOfUniverseSize) {
+  auto dict = spot::make_bdd_dict();
+  auto registrar = spot::make_twa_graph(dict);
+  // |universe| = 4: i0, i1 free, o0 known (governed), o1 free.
+  auto vars = VariablePartition::split({"i0", "i1"}, {"o0", "o1"}, {"o0"});
+  const LetterAlphabet alphabet(vars, registrar);
+  EXPECT_EQ(alphabet.size(), 16u);
+  EXPECT_EQ(alphabet.size(), alphabet.letters().size());
+}
+
+TEST(LetterAlphabet, LettersArePairwiseDisjointAndCoverBddtrue) {
+  auto dict = spot::make_bdd_dict();
+  auto registrar = spot::make_twa_graph(dict);
+  const LetterAlphabet alphabet(IoFreeVars(), registrar);
+  bdd union_all = bddfalse;
+  for (std::size_t k = 0; k < alphabet.size(); ++k) {
+    for (std::size_t j = k + 1; j < alphabet.size(); ++j)
+      EXPECT_EQ(alphabet.letters()[k] & alphabet.letters()[j], bddfalse)
+          << "letters " << k << " and " << j;
+    union_all |= alphabet.letters()[k];
+  }
+  EXPECT_EQ(union_all, bddtrue);
+}
+
+TEST(LetterAlphabet, LsbFirstOrderingLetterZeroIsAllNegativeCube) {
+  auto dict = spot::make_bdd_dict();
+  auto registrar = spot::make_twa_graph(dict);
+  const LetterAlphabet alphabet(IoFreeVars(), registrar);
+  ASSERT_EQ(alphabet.size(), 4u);
+  // Ifree-first block order (input_free, output_free here, V empty): i is
+  // registered before o, so letter 0 (all bits 0) is the all-negative cube
+  // over (i, o) --- the same order the hand-traced BuildProduct fixtures
+  // above assume.
+  const int iv = registrar->register_ap("i");
+  const int ov = registrar->register_ap("o");
+  EXPECT_EQ(alphabet.letters()[0], bdd_nithvar(iv) & bdd_nithvar(ov));
+}
+
+TEST(LetterAlphabet, IfreeIndexAgainstHandComputedTwoVarExample) {
+  auto dict = spot::make_bdd_dict();
+  auto registrar = spot::make_twa_graph(dict);
+  // Ifree = {i0, i1} (2 vars, low bits), Ofree = {o} (1 var, high bit): io_vars
+  // = [i0, i1, o] --- ifree_index masks off the top (o) bit.
+  auto vars = VariablePartition::split({"i0", "i1"}, {"o"}, {});
+  const LetterAlphabet alphabet(vars, registrar);
+  ASSERT_EQ(alphabet.n_ifree_combos(), 4u);
+  ASSERT_EQ(alphabet.size(), 8u);
+  for (std::size_t idx = 0; idx < alphabet.size(); ++idx)
+    EXPECT_EQ(alphabet.ifree_index(idx), idx % 4)
+        << "idx=" << idx;
+}
+
+TEST(LetterAlphabet, EmptyUniverseYieldsSingleBddtrueLetter) {
+  auto dict = spot::make_bdd_dict();
+  auto registrar = spot::make_twa_graph(dict);
+  const LetterAlphabet alphabet(VariablePartition{}, registrar);
+  ASSERT_EQ(alphabet.size(), 1u);
+  EXPECT_EQ(alphabet.letters()[0], bddtrue);
+  EXPECT_EQ(alphabet.n_ifree_combos(), 1u);
+  EXPECT_EQ(alphabet.ifree_index(0), 0u);
+}
+
+TEST(LetterAlphabet, EmptyIfreeYieldsSingleIfreeCombo) {
+  auto dict = spot::make_bdd_dict();
+  auto registrar = spot::make_twa_graph(dict);
+  // i is governed (Iknown, not Ifree): input_free is empty even though I
+  // itself is not.
+  auto vars = VariablePartition::split({"i"}, {"o"}, /*governed=*/{"i"});
+  const LetterAlphabet alphabet(vars, registrar);
+  ASSERT_EQ(alphabet.n_ifree_combos(), 1u);
+  for (std::size_t idx = 0; idx < alphabet.size(); ++idx)
+    EXPECT_EQ(alphabet.ifree_index(idx), 0u) << "idx=" << idx;
+}
+
+TEST(LetterAlphabet, IdempotentRegistrationYieldsIdenticalLetters) {
+  auto vars = IoFreeVars();
+  auto dict = spot::make_bdd_dict();
+  auto registrar = spot::make_twa_graph(dict);
+
+  const LetterAlphabet first(vars, registrar);
+  // Re-construct on the SAME already-registered dict: register_ap must be a
+  // no-op for APs it already owns, so the second alphabet's letters are
+  // bit-for-bit identical to the first's, not a fresh (possibly differently
+  // numbered) enumeration.
+  const LetterAlphabet again(vars, registrar);
+
+  ASSERT_EQ(first.size(), again.size());
+  for (std::size_t k = 0; k < first.size(); ++k)
+    EXPECT_EQ(first.letters()[k], again.letters()[k]) << "letter " << k;
 }
 
 }  // namespace

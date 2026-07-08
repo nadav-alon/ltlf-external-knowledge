@@ -1,8 +1,6 @@
 #include "ltlf_ek/dfa_product.hpp"
 
 #include <map>
-#include <set>
-#include <string>
 #include <vector>
 
 #include <bddx.h>
@@ -30,25 +28,19 @@ std::optional<Controller> DfaProduct::synthesize(const spot::formula& phi,
   const spot::twa_graph_ptr dfa = ltlf_to_dfa(phi, dict);
 
   // --- Product P (alg:dfa_product) via the shared build_product core. ---
-  std::set<std::string> universe = vars.inputs();
-  const std::set<std::string> outs = vars.outputs();
-  universe.insert(outs.begin(), outs.end());
-
   spot::twa_graph_ptr product = spot::make_twa_graph(dict);
-  std::vector<int> io_vars;
-  io_vars.reserve(universe.size());
-  for (const auto& n : universe) io_vars.push_back(product->register_ap(n));
+  const LetterAlphabet alphabet(vars, product);
   product->set_buchi();
   product->prop_state_acc(true);
 
-  const std::vector<bdd> letters = all_letters(io_vars);
+  const std::vector<bdd>& letters = alphabet.letters();
   const spot::acc_cond::mark_t kFinalMark = {0};
   const spot::acc_cond::mark_t kNoMark = {};
 
   const ProductState init{dfa->get_init_state_number(),
                           {t_in.initial_state(), t_out.initial_state()}};
   const std::map<ProductState, ProductNode> graph =
-      build_product(dfa, taus, init, letters, /*goal_must_be_complete=*/true);
+      build_product(dfa, taus, init, alphabet, /*goal_must_be_complete=*/true);
 
   // --- Materialize: one twa_graph state per reachable ProductState, one
   //     guarded edge per destination (group-by-dst: guard |= letters[idx]).

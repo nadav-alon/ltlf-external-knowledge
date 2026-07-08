@@ -5,18 +5,15 @@
 #include <optional>
 #include <set>
 #include <stdexcept>
-#include <string>
-#include <tuple>
 #include <utility>
 #include <vector>
 
 #include <bddx.h>
 #include <spot/twa/twagraph.hh>
-#include <spot/twaalgos/synthesis.hh>
 
 #include "ltlf_ek/ltlf_to_dfa.hpp"
 #include "ltlf_ek/product.hpp"
-#include "ltlf_ek/transducer_io.hpp"
+#include "ltlf_ek/synthesis.hpp"
 
 // docs/prd/controller-verifier.md "Behaviour / semantics": a one-player (env)
 // reachability/safety fixpoint on A_phi x T_in x T_out x T_C, since T_C is
@@ -25,12 +22,6 @@
 // extraction are all hand-rolled here.
 namespace ltlf_ek {
 namespace {
-
-// ProductState = <s_phi, q_in, q_out, q_c> --- A_phi x T_in x T_out x T_C.
-// Shadows ltlf_ek::ProductState (product.hpp) for every unqualified use below
-// (StateInfo / compute_bad / extract_witness) --- only build_verifier_graph
-// needs the shared struct type, so it fully-qualifies it there.
-using ProductState = std::tuple<unsigned, unsigned, unsigned, unsigned>;
 
 // One product state's outgoing structure: Acc(s), whether some Ifree has no
 // agreeing letter (hasDeadEnd), and --- indexed by the Ifree combo's
@@ -46,49 +37,42 @@ struct StateInfo {
 // ltlf_ek::build_product over A_phi x T_in x T_out x T_c
 // (goal_must_be_complete = false --- a goal miss is a legitimate
 // non-agreement here, not DfaProduct's completeness invariant) and rebuilds
-// this file's tuple-keyed StateInfo graph from the returned neutral map.
-// io_vars must list Ifree first (n_ifree of them) so a letters-index's low
-// bits are exactly the Ifree combo, matching StateInfo::edges' bucketing.
+// this file's ifree-bucketed StateInfo graph from the returned neutral map,
+// keyed on the shared ltlf_ek::ProductState throughout (no local reshaping).
 std::map<ProductState, StateInfo> build_verifier_graph(
     const spot::twa_graph_ptr& dfa, const Transducer& t_in,
     const Transducer& t_out, const Transducer& t_c,
-    const std::vector<int>& io_vars, std::size_t n_ifree) {
-  const std::vector<bdd> letters = ltlf_ek::all_letters(io_vars);
+    const LetterAlphabet& alphabet) {
   const std::vector<const Transducer*> taus{&t_in, &t_out, &t_c};
-  const ltlf_ek::ProductState init{
+  const ProductState init{
       dfa->get_init_state_number(),
       {t_in.initial_state(), t_out.initial_state(), t_c.initial_state()}};
-  const std::map<ltlf_ek::ProductState, ltlf_ek::ProductNode> graph =
-      ltlf_ek::build_product(dfa, taus, init, letters,
-                             /*goal_must_be_complete=*/false);
+  const std::map<ProductState, ProductNode> graph =
+      build_product(dfa, taus, init, alphabet,
+                    /*goal_must_be_complete=*/false);
 
-  const std::size_t n_ifree_combos = std::size_t{1} << n_ifree;
-  const std::size_t ifree_mask = n_ifree_combos - 1;
+  const std::size_t n_ifree_combos = alphabet.n_ifree_combos();
 
   std::map<ProductState, StateInfo> result;
   for (const auto& [state, node] : graph) {
-    const ProductState key{state.goal, state.taus[0], state.taus[1],
-                           state.taus[2]};
     StateInfo info;
     info.acc = node.acc;
     info.edges.assign(n_ifree_combos, std::nullopt);
 
     for (const auto& [idx, succ] : node.edges) {
-      const std::size_t ifree_idx = idx & ifree_mask;
+      const std::size_t ifree_idx = alphabet.ifree_index(idx);
       // Determinism of lambda_in/lambda_c/lambda_out (docs/prd/
       // controller-verifier.md) means at most one letter agrees per Ifree
       // combo; build_product appends edges in ascending letters-index order,
-      // so keeping the first found reproduces the pre-migration tie-break.
+      // so keeping the first found fixes the tie-break deterministically.
       if (!info.edges[ifree_idx])
-        info.edges[ifree_idx] = {
-            letters[idx],
-            ProductState{succ.goal, succ.taus[0], succ.taus[1], succ.taus[2]}};
+        info.edges[ifree_idx] = {alphabet.letters()[idx], succ};
     }
 
     for (const auto& e : info.edges)
       if (!e) { info.has_dead_end = true; break; }
 
-    result.emplace(key, std::move(info));
+    result.emplace(state, std::move(info));
   }
   return result;
 }
@@ -165,42 +149,23 @@ VerifyResult verify_controller(const spot::formula& phi,
                                const Transducer& t_in, const Transducer& t_out,
                                const Transducer& t_c) {
   // --- Validation (same policy as DfaProduct::synthesize). ---
-  std::set<std::string> universe = vars.inputs();
-  const std::set<std::string> outs = vars.outputs();
-  universe.insert(outs.begin(), outs.end());
-  for (const auto& ap : collect_aps(phi))
-    if (!universe.count(ap))
-      throw std::invalid_argument(
-          "verify_controller: formula AP '" + ap +
-          "' outside I∪O (the partition is the closed universe of APs)");
+  const std::vector<const Transducer*> taus{&t_in, &t_out, &t_c};
+  validate_product_inputs(phi, vars, taus);
 
   const spot::bdd_dict_ptr dict = t_in.dict();
-  if (t_out.dict() != dict || t_c.dict() != dict)
-    throw std::invalid_argument(
-        "verify_controller: T_in, T_out and T_C must share one bdd_dict");
 
   // --- A_phi on the shared dict (accepting states = F_phi). ---
   const spot::twa_graph_ptr dfa = ltlf_to_dfa(phi, dict);
 
-  // --- Full-letter alphabet, Ifree variables enumerated first (see
-  //     all_letters) so an enumeration index's low bits are the Ifree combo.
+  // --- Full-letter alphabet, Ifree-first (see LetterAlphabet) so a letter's
+  //     enumeration index's low bits are the Ifree combo.
   spot::twa_graph_ptr registrar = spot::make_twa_graph(dict);
-  std::vector<int> io_vars;
-  io_vars.reserve(universe.size());
-  for (const auto& n : vars.input_free) io_vars.push_back(registrar->register_ap(n));
-  const std::size_t n_ifree = io_vars.size();
-  for (const auto& n : vars.input_known) io_vars.push_back(registrar->register_ap(n));
-  for (const auto& n : vars.output_free) io_vars.push_back(registrar->register_ap(n));
-  for (const auto& n : vars.output_known) io_vars.push_back(registrar->register_ap(n));
+  const LetterAlphabet alphabet(vars, registrar);
 
-  // std::tuple<unsigned,unsigned,unsigned,unsigned> spelled out (not the bare
-  // ProductState name) --- this call site sits outside the anonymous
-  // namespace above, where that name is ambiguous with ltlf_ek::ProductState
-  // (product.hpp), unlike inside the anonymous namespace where it shadows it.
-  const std::tuple<unsigned, unsigned, unsigned, unsigned> init{
-      dfa->get_init_state_number(), t_in.initial_state(),
-      t_out.initial_state(), t_c.initial_state()};
-  const auto graph = build_verifier_graph(dfa, t_in, t_out, t_c, io_vars, n_ifree);
+  const ProductState init{
+      dfa->get_init_state_number(),
+      {t_in.initial_state(), t_out.initial_state(), t_c.initial_state()}};
+  const auto graph = build_verifier_graph(dfa, t_in, t_out, t_c, alphabet);
   const auto bad = compute_bad(graph);
 
   // --- Non-empty-trace / virtual-start split (docs/prd/
@@ -224,42 +189,6 @@ VerifyResult verify_controller(const spot::formula& phi,
                                const Controller& controller) {
   const OutputLabeledTransducer t_c = controller_as_transducer(controller, vars);
   return verify_controller(phi, vars, t_in, t_out, t_c);
-}
-
-OutputLabeledTransducer controller_as_transducer(const Controller& controller,
-                                                 const VariablePartition& vars) {
-  // controller.strategy (solved_game_to_mealy) is a SPLIT/alternating arena
-  // --- an env-player node's out-edges are guarded by Ifree alone, leading to
-  // a sys-player node whose out-edges are guarded by Ofree alone (Spot's
-  // "state-player" named property; confirmed by unsplit_2step's own
-  // precondition).  unsplit_2step collapses each Ifree-then-Ofree hop into
-  // one edge guarded by their conjunction ("ins&outs", synthesis.hh), leaving
-  // only the (real) Q_C states --- exactly the one-edge-per-transition shape
-  // OutputLabeledTransducer expects.
-  const spot::twa_graph_ptr g = spot::unsplit_2step(controller.strategy);
-
-  const SigmaSlices slices = sigma_slices(vars, Role::t_c);
-  bdd sigma0_cube = bddtrue;
-  for (const auto& n : slices.sigma0) sigma0_cube &= bdd_ithvar(g->register_ap(n));
-  bdd sigma1_cube = bddtrue;
-  for (const auto& n : slices.sigma1) sigma1_cube &= bdd_ithvar(g->register_ap(n));
-
-  // lambda_C(q, ...) --- the union of q's out-edge guards is already the
-  // relation over Ifree x Ofree the Mealy strategy commits to at q (the
-  // "delta via edges, output derived" idiom, docs/GLOSSARY.md
-  // "Controller-as-transducer view"); a state with no out-edges commits to
-  // bddfalse (undefined lambda_C there, mirrored by an equally undefined
-  // delta_C --- see OutputLabeledTransducer::delta/::lambda).
-  const unsigned n_states = g->num_states();
-  std::vector<bdd> lambda_by_state(n_states, bddfalse);
-  for (unsigned q = 0; q < n_states; ++q) {
-    bdd out = bddfalse;
-    for (const auto& e : g->out(q)) out |= e.cond;
-    lambda_by_state[q] = out;
-  }
-
-  return OutputLabeledTransducer(g, std::move(lambda_by_state), sigma0_cube,
-                                 sigma1_cube);
 }
 
 }  // namespace ltlf_ek

@@ -29,6 +29,7 @@ add_library(ltlf_ek
   src/solve_dfa.cpp
   src/product.cpp
   src/dfa_product.cpp
+  src/synthesis.cpp
   src/verify_controller.cpp
   src/cli.cpp
 )
