@@ -1,26 +1,13 @@
 #include "ltlf_ek/solve_dfa.hpp"
 
-#include <set>
-#include <string>
-
 #include <bddx.h>
 #include <spot/twa/twagraph.hh>
 #include <spot/twaalgos/game.hh>
 #include <spot/twaalgos/synthesis.hh>
 
+#include "ltlf_ek/detail/util.hpp"
+
 namespace ltlf_ek {
-namespace {
-
-// Positive-literal variable cube of `names`, resolved on the product's dict
-// (register_ap is idempotent: an already-declared AP keeps its variable).
-bdd cube_of(const std::set<std::string>& names,
-            const spot::twa_graph_ptr& aut) {
-  bdd cube = bddtrue;
-  for (const auto& n : names) cube &= bdd_ithvar(aut->register_ap(n));
-  return cube;
-}
-
-}  // namespace
 
 std::optional<Controller> solve_dfa(const spot::twa_graph_ptr& product,
                                     const VariablePartition& vars) {
@@ -28,8 +15,8 @@ std::optional<Controller> solve_dfa(const spot::twa_graph_ptr& product,
 
   // Ofree = synthesis outputs (system); Iknown ∪ Oknown = the pinned governed
   // variables projected out of the arena (§fulldfa \cl note).
-  const bdd ofree_cube = cube_of(vars.output_free, product);
-  const bdd known_cube = cube_of(vars.known(), product);
+  const bdd ofree_cube = detail::cube_of(vars.output_free, product);
+  const bdd known_cube = detail::cube_of(vars.known(), product);
 
   // Rebuild the product as the free-only game arena: project the pinned Iknown,
   // Oknown out of every guard, and turn the F_P-reachability objective into a

@@ -27,6 +27,7 @@
 #include <spot/twaalgos/hoa.hh>
 
 #include "ltlf_ek/cli.hpp"
+#include "ltlf_ek/detail/util.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/synthesis.hpp"
 #include "ltlf_ek/transducer_io.hpp"
@@ -131,10 +132,8 @@ std::set<std::string> SplitCsv(const std::string& csv) {
   std::istringstream ss(csv);
   std::string tok;
   while (std::getline(ss, tok, ',')) {
-    const std::size_t a = tok.find_first_not_of(" \t");
-    if (a == std::string::npos) continue;
-    const std::size_t b = tok.find_last_not_of(" \t");
-    out.insert(tok.substr(a, b - a + 1));
+    const std::string trimmed = ltlf_ek::detail::trim(tok);
+    if (!trimmed.empty()) out.insert(trimmed);
   }
   return out;
 }
@@ -242,6 +241,18 @@ void PrintWitness(std::ostream& os, const Witness& w,
   os << "\n";
 }
 
+// Construct the method named by `flag`, printing and swallowing an unwired
+// method's std::logic_error so both call sites in main() can react to a null
+// return with the shared exit-1 "not yet implemented" handling.
+std::unique_ptr<Synthesis> BuildMethodOrNull(const std::string& flag) {
+  try {
+    return ltlf_ek::make_synthesis_method(flag);
+  } catch (const std::logic_error& e) {
+    std::cerr << e.what() << "\n";
+    return nullptr;
+  }
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -294,13 +305,9 @@ int main(int argc, char** argv) {
       } else {
         // Self-check: --controller omitted, so the method must synthesize a
         // controller first.
-        std::unique_ptr<Synthesis> method;
-        try {
-          method = ltlf_ek::make_synthesis_method(args.method_flags.front());
-        } catch (const std::logic_error& e) {
-          std::cerr << e.what() << "\n";
-          return 1;
-        }
+        std::unique_ptr<Synthesis> method =
+            BuildMethodOrNull(args.method_flags.front());
+        if (!method) return 1;
         const std::optional<Controller> result =
             method->synthesize(phi, partition, t_in, t_out);
         // No controller to model-check when the spec is unrealizable: report
@@ -326,13 +333,9 @@ int main(int argc, char** argv) {
       return 20;
     }
 
-    std::unique_ptr<Synthesis> method;
-    try {
-      method = ltlf_ek::make_synthesis_method(args.method_flags.front());
-    } catch (const std::logic_error& e) {
-      std::cerr << e.what() << "\n";
-      return 1;
-    }
+    std::unique_ptr<Synthesis> method =
+        BuildMethodOrNull(args.method_flags.front());
+    if (!method) return 1;
 
     const std::optional<Controller> result =
         method->synthesize(phi, partition, t_in, t_out);

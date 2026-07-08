@@ -5,22 +5,10 @@
 #include <stdexcept>
 #include <string>
 
-#include <bddx.h>
-#include <spot/twa/twagraph.hh>
-
+#include "ltlf_ek/detail/util.hpp"
 #include "ltlf_ek/dfa_product.hpp"
 
 namespace ltlf_ek {
-namespace {
-
-std::string trim(const std::string& s) {
-  const std::size_t a = s.find_first_not_of(" \t\r\n");
-  if (a == std::string::npos) return "";
-  const std::size_t b = s.find_last_not_of(" \t\r\n");
-  return s.substr(a, b - a + 1);
-}
-
-}  // namespace
 
 VariablePartition parse_partition_file(std::istream& in) {
   // The four recognised keys, one line each; value = space-separated AP names.
@@ -35,8 +23,8 @@ VariablePartition parse_partition_file(std::istream& in) {
   std::string line;
   while (std::getline(in, line)) {
     const std::size_t hash = line.find('#');
-    const std::string content =
-        trim(hash == std::string::npos ? line : line.substr(0, hash));
+    const std::string content = detail::trim(
+        hash == std::string::npos ? line : line.substr(0, hash));
     if (content.empty()) continue;
 
     const std::size_t colon = content.find(':');
@@ -44,8 +32,8 @@ VariablePartition parse_partition_file(std::istream& in) {
       throw std::invalid_argument(
           "parse_partition_file: malformed line (expected 'key: values'): " +
           content);
-    const std::string key = trim(content.substr(0, colon));
-    const std::string value = trim(content.substr(colon + 1));
+    const std::string key = detail::trim(content.substr(0, colon));
+    const std::string value = detail::trim(content.substr(colon + 1));
 
     std::set<std::string>* target = nullptr;
     if (key == kInputFree)
@@ -86,29 +74,6 @@ VariablePartition parse_partition_file(std::istream& in) {
             "' listed in more than one set (partition must be disjoint)");
 
   return p;
-}
-
-OutputLabeledTransducer trivial_transducer(const VariablePartition& partition,
-                                           Role role,
-                                           const spot::bdd_dict_ptr& dict) {
-  const SigmaSlices slices = sigma_slices(partition, role);
-  if (!slices.sigma1.empty())
-    throw std::invalid_argument(
-        "trivial_transducer: only valid when the role's known set is empty "
-        "(t_in: Iknown, t_out: Oknown) --- supply a transducer file instead");
-
-  auto g = spot::make_twa_graph(dict);
-  bdd sigma0_cube = bddtrue;
-  for (const auto& n : slices.sigma0) sigma0_cube &= bdd_ithvar(g->register_ap(n));
-  bdd sigma1_cube = bddtrue;
-  for (const auto& n : slices.sigma1) sigma1_cube &= bdd_ithvar(g->register_ap(n));
-
-  g->new_states(1);
-  g->set_init_state(0);
-  g->new_edge(0, 0, bddtrue);  // delta self-loops on every letter.
-  // lambda commits the empty cube (bddtrue): with Sigma1 = ∅ there is nothing
-  // to commit to, so `consistent` (v & bddtrue != bddfalse) is trivially true.
-  return OutputLabeledTransducer(g, {bddtrue}, sigma0_cube, sigma1_cube);
 }
 
 std::unique_ptr<Synthesis> make_synthesis_method(

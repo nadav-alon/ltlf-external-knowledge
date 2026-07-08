@@ -14,6 +14,8 @@
 #include <spot/twa/formula2bdd.hh>
 #include <spot/twaalgos/isdet.hh>
 
+#include "ltlf_ek/detail/util.hpp"
+
 namespace ltlf_ek {
 namespace {
 
@@ -21,13 +23,6 @@ std::string slurp(std::istream& in) {
   std::ostringstream ss;
   ss << in.rdbuf();
   return ss.str();
-}
-
-std::string trim(const std::string& s) {
-  const std::size_t a = s.find_first_not_of(" \t\r\n");
-  if (a == std::string::npos) return "";
-  const std::size_t b = s.find_last_not_of(" \t\r\n");
-  return s.substr(a, b - a + 1);
 }
 
 // Replace each C-style /* ... */ comment with a single space (the file format
@@ -67,7 +62,7 @@ HoaSplit split_at_hoa_end(const std::string& text) {
   for (;;) {
     const std::size_t eol = text.find('\n', pos);
     const std::size_t line_end = (eol == std::string::npos) ? text.size() : eol;
-    if (trim(text.substr(pos, line_end - pos)) == "--END--")
+    if (detail::trim(text.substr(pos, line_end - pos)) == "--END--")
       return {text.substr(0, line_end),
               eol == std::string::npos ? "" : text.substr(eol + 1)};
     if (eol == std::string::npos)
@@ -75,16 +70,6 @@ HoaSplit split_at_hoa_end(const std::string& text) {
           "parse_transducer: missing HOA --END-- terminator");
     pos = eol + 1;
   }
-}
-
-// Positive-literal variable cube of `names`, registering each on the shared dict
-// via the automaton (idempotent; a name already declared in the HOA AP header
-// keeps its variable, an unused Sigma1 name is registered here so it still binds).
-bdd cube_of(const std::set<std::string>& names,
-            const spot::twa_graph_ptr& aut) {
-  bdd cube = bddtrue;
-  for (const auto& n : names) cube &= bdd_ithvar(aut->register_ap(n));
-  return cube;
 }
 
 }  // namespace
@@ -122,9 +107,7 @@ OutputLabeledTransducer parse_transducer(std::istream& in,
   // lie in I∪O, so delta reads only variables in the alphabet Sigma=2^{I∪O}.  A
   // guard over a stray AP would otherwise escape every other check and make
   // delta ill-defined on letters that leave that AP free.
-  std::set<std::string> universe = partition.inputs();
-  const std::set<std::string> outs = partition.outputs();
-  universe.insert(outs.begin(), outs.end());
+  const std::set<std::string> universe = partition.universe();
   for (const spot::formula& ap : aut->ap())
     if (!universe.count(ap.ap_name()))
       throw std::invalid_argument(
@@ -133,8 +116,8 @@ OutputLabeledTransducer parse_transducer(std::istream& in,
 
   // --- Sigma0/Sigma1 derived from (partition, role); they orient lambda ---
   const SigmaSlices slices = sigma_slices(partition, role);
-  const bdd sigma0_cube = cube_of(slices.sigma0, aut);
-  const bdd sigma1_cube = cube_of(slices.sigma1, aut);
+  const bdd sigma0_cube = detail::cube_of(slices.sigma0, aut);
+  const bdd sigma1_cube = detail::cube_of(slices.sigma1, aut);
   std::set<std::string> scope = slices.sigma0;
   scope.insert(slices.sigma1.begin(), slices.sigma1.end());
 
@@ -147,7 +130,7 @@ OutputLabeledTransducer parse_transducer(std::istream& in,
   std::string line;
   bool saw_header = false;
   while (std::getline(ls, line)) {
-    const std::string t = trim(line);
+    const std::string t = detail::trim(line);
     if (t.empty()) continue;
     if (!saw_header) {
       if (t != "%%LAMBDA")
@@ -168,7 +151,7 @@ OutputLabeledTransducer parse_transducer(std::istream& in,
           "parse_transducer: malformed %%LAMBDA entry: " + t);
     std::string formula_text;
     std::getline(ts, formula_text);
-    formula_text = trim(formula_text);
+    formula_text = detail::trim(formula_text);
     if (formula_text.empty())
       throw std::invalid_argument(
           "parse_transducer: empty lambda formula for state " +

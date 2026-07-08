@@ -270,8 +270,7 @@ TEST(LtlfEkSynthExitCodes, UnwiredMethodFlagExitsOne) {
 
 // --model-check self-check (no --controller): the wired method synthesizes a
 // controller for the trivially-realizable goal, then verify_controller reports
-// SAFE / exit 0 (docs/prd/controller-verifier.md "CLI --model-check wiring";
-// the old exit-1 deferral is retired now that the flag is implemented).
+// SAFE / exit 0 (docs/prd/controller-verifier.md "CLI --model-check wiring").
 TEST(LtlfEkSynthExitCodes, ModelCheckSelfCheckOfRealizableGoalIsSafe) {
   const CliResult r = RunCli({"--dfa-product", "--model-check",
                               "--formula=1", "--inputs", "i", "--outputs",

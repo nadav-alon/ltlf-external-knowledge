@@ -4,9 +4,12 @@
 #include <vector>
 
 #include <bddx.h>
+#include <spot/twa/bdddict.hh>
 #include <spot/twa/twagraph.hh>
 
+#include "ltlf_ek/role.hpp"
 #include "ltlf_ek/transducer.hpp"
+#include "ltlf_ek/variables.hpp"
 
 namespace ltlf_ek {
 
@@ -61,5 +64,21 @@ class OutputLabeledTransducer final : public Transducer {
   bdd sigma0_cube_;
   bdd sigma1_cube_;
 };
+
+// A single-state transducer whose delta self-loops on every letter and whose
+// lambda commits the empty cube, so `consistent` (docs/GLOSSARY.md) is
+// trivially satisfied against it regardless of the letter --- a general
+// transducer factory, not CLI plumbing (though the CLI is one caller, see
+// docs/prd/cli-wrapper.md "Behaviour" #4: substituted when a known set is
+// empty and no transducer file was supplied).
+//
+// Built on `dict` with role-correct Sigma0/Sigma1 (the same orientation
+// `parse_transducer` would derive, see `sigma_slices`).  Only valid when the
+// role's *produced* slice (Sigma1 --- Iknown for t_in, Oknown for t_out) is
+// empty; throws std::invalid_argument otherwise, since a non-empty known set
+// must be committed to something specific, not trivially "anything goes".
+OutputLabeledTransducer trivial_transducer(const VariablePartition& partition,
+                                           Role role,
+                                           const spot::bdd_dict_ptr& dict);
 
 }  // namespace ltlf_ek

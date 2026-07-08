@@ -13,14 +13,16 @@
 #include "ltlf_ek/consistency.hpp"
 #include "ltlf_ek/dfa_product.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
+#include "ltlf_ek/role.hpp"
 #include "ltlf_ek/synthesis.hpp"
-#include "ltlf_ek/transducer_io.hpp"
 #include "ltlf_ek/variables.hpp"
 
-// Unit fixtures for the three library-level pieces of the CLI wrapper
-// (docs/prd/cli-wrapper.md "Interfaces & types"): parse_partition_file,
-// trivial_transducer, make_synthesis_method.  End-to-end / subprocess
-// coverage of the ltlf-ek-synth binary lives in tests/ltlf_ek_synth_test.cpp.
+// Unit fixtures for cli.hpp's own library-level pieces (docs/prd/cli-wrapper.md
+// "Interfaces & types"): parse_partition_file, make_synthesis_method.  Also
+// covers trivial_transducer (include/ltlf_ek/output_labeled_transducer.hpp),
+// the general transducer factory the CLI substitutes when a known set is empty
+// and no transducer file was supplied.  End-to-end / subprocess coverage of the
+// ltlf-ek-synth binary lives in tests/ltlf_ek_synth_test.cpp.
 namespace {
 
 using ltlf_ek::consistent;

@@ -3,6 +3,8 @@
 #include <stdexcept>
 #include <utility>
 
+#include "ltlf_ek/detail/util.hpp"
+
 namespace ltlf_ek {
 
 OutputLabeledTransducer::OutputLabeledTransducer(spot::twa_graph_ptr delta_dfa,
@@ -62,6 +64,27 @@ std::optional<bdd> OutputLabeledTransducer::lambda(unsigned q, bdd v) const {
   if (r == bddfalse)
     return std::nullopt;  // this observation has no committed completion.
   return bdd_exist(r, sigma0_cube_);  // keep only Sigma1.
+}
+
+OutputLabeledTransducer trivial_transducer(const VariablePartition& partition,
+                                           Role role,
+                                           const spot::bdd_dict_ptr& dict) {
+  const SigmaSlices slices = sigma_slices(partition, role);
+  if (!slices.sigma1.empty())
+    throw std::invalid_argument(
+        "trivial_transducer: only valid when the role's known set is empty "
+        "(t_in: Iknown, t_out: Oknown) --- supply a transducer file instead");
+
+  auto g = spot::make_twa_graph(dict);
+  const bdd sigma0_cube = detail::cube_of(slices.sigma0, g);
+  const bdd sigma1_cube = detail::cube_of(slices.sigma1, g);
+
+  g->new_states(1);
+  g->set_init_state(0);
+  g->new_edge(0, 0, bddtrue);  // delta self-loops on every letter.
+  // lambda commits the empty cube (bddtrue): with Sigma1 = ∅ there is nothing
+  // to commit to, so `consistent` (v & bddtrue != bddfalse) is trivially true.
+  return OutputLabeledTransducer(g, {bddtrue}, sigma0_cube, sigma1_cube);
 }
 
 }  // namespace ltlf_ek

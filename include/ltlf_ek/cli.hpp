@@ -4,11 +4,7 @@
 #include <memory>
 #include <string>
 
-#include <spot/twa/bdddict.hh>
-
-#include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/synthesis.hpp"
-#include "ltlf_ek/transducer_io.hpp"
 #include "ltlf_ek/variables.hpp"
 
 // Library-level building blocks for the `ltlf-ek-synth` executable
@@ -36,22 +32,6 @@ namespace ltlf_ek {
 // key repeated across lines, or an AP name listed in more than one of the four
 // sets (the partition-disjointness invariant).
 VariablePartition parse_partition_file(std::istream& in);
-
-// The Trivial transducer substituted when a known set is empty and no
-// transducer file was supplied for it (docs/prd/cli-wrapper.md "Behaviour" #4):
-// a single state, delta self-loops on every letter, lambda commits the empty
-// cube --- so `consistent` is trivially satisfied.  Mirrors the `Trivial` test
-// helper in tests/dfa_product_test.cpp, generalised to be Role-aware so it can
-// stand in for either T_in or T_out alone (not just the fully-free V=∅ case).
-//
-// Built on `dict` with role-correct Sigma0/Sigma1 (the same orientation
-// `parse_transducer` would derive, see `sigma_slices`).  Only valid when the
-// role's *produced* slice (Sigma1 --- Iknown for t_in, Oknown for t_out) is
-// empty; throws std::invalid_argument otherwise, since a non-empty known set
-// must be committed to something specific, not trivially "anything goes".
-OutputLabeledTransducer trivial_transducer(const VariablePartition& partition,
-                                           Role role,
-                                           const spot::bdd_dict_ptr& dict);
 
 // Construct the Synthesis method named by a CLI method flag with its leading
 // `--` stripped, e.g. "dfa-product" (docs/GLOSSARY.md "The five methods").
