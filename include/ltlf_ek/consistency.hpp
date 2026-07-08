@@ -36,8 +36,8 @@ namespace ltlf_ek {
 // partiality note).  Sigma1-agnostic, same reasoning as `consistent` below.
 bool emits(const Transducer& t, unsigned q, bdd v);
 
-// consistent is now exactly emits(t_in, q_in, v) && emits(t_out, q_out, v) ---
-// same def:consistency concept, same signature, no behaviour change;
+// consistent is exactly emits(t_in, q_in, v) && emits(t_out, q_out, v) ---
+// def:consistency as the conjunction of its two per-transducer emits atoms;
 // delta-definedness stays the caller's concern.
 bool consistent(const Transducer& t_in, unsigned q_in, const Transducer& t_out,
                 unsigned q_out, bdd v);
