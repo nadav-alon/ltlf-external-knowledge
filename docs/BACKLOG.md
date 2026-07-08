@@ -144,6 +144,34 @@ the live `--model-check` flag._
     builder needs $\Sigma_0=\mathcal I\cup\Ofree,\Sigma_1=\Oknown$, not the
     $\Tin$ shape.
 
+### Intense "soak" mode for the generated corpus (run sparingly)
+- **PRD:** operational extension of `docs/prd/generated-corpus-oracle.md` (v1 fully
+  implemented). The default corpus (256 cases, one `kCorpusSeed`, tree-size ≤10,
+  differential width ≤3) runs in well under a second — deliberately tuned for the
+  fast `ctest` gate. This item adds an opt-in heavy configuration to run
+  occasionally (nightly / pre-release), not on every build.
+- **Intent:** make the tunable knobs env-overridable (no recompile) so a soak run
+  can crank them, and add a **seed sweep** so breadth no longer rests on a single
+  256-case draw. Knobs: `kCorpusCaseCount`, `kCorpusTreeSizeMax`, the partition
+  width ranges, the differential width cap (currently the hardcoded `3` literal),
+  and `kCorpusSubprocessTimeoutSecs`. Default path stays byte-for-byte unchanged
+  (defaults substituted when env unset), so the fast gate and the landed tree's
+  reproducibility are untouched.
+- **Seeds for grilling:**
+  - The three bodies scale differently: the two **library** bodies (structural +
+    metamorphic) are in-process/self-labeling → crank case count freely; the
+    **differential** is the one that genuinely needs "sparingly" (raising its width
+    cap past 3 is where `ltlfsynt` blows up and the skip counter moves).
+  - **Seed sweep is the highest-value axis** — 50 seeds × 256 gives new
+    formula/partition/Tin shapes, catching the "unlucky single seed" blind spot
+    that bumping case count on one seed does not.
+  - Reproducibility: once the seed is swept, `SCOPED_TRACE` must also print the
+    **seed** (not just `(phi, partition, index)`) so a soak failure stays
+    re-runnable.
+  - Metamorphic's `random_tin` pays `2^|Ifree|` (enumerates every Ifree cube), so
+    widening the partition ranges has a steeper in-process cost than tree size —
+    weigh which axis buys more coverage per second.
+
 ### Formula shrinking on generated-corpus failure (generated corpus v2)
 - **PRD:** extends `docs/prd/generated-corpus-oracle.md`. v1 has **no shrinking**:
   a failing case prints its `(phi, partition, index)` for manual reproduction, but
