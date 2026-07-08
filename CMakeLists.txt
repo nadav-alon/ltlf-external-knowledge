@@ -26,6 +26,7 @@ add_library(ltlf_ek
   src/transducer_io.cpp
   src/ltlf_to_dfa.cpp
   src/solve_dfa.cpp
+  src/product.cpp
   src/dfa_product.cpp
   src/verify_controller.cpp
   src/cli.cpp
@@ -63,6 +64,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/output_labeled_transducer_test.cpp
     tests/transducer_io_test.cpp
     tests/ltlf_to_dfa_test.cpp
+    tests/product_test.cpp
     tests/dfa_product_test.cpp
     tests/verify_controller_test.cpp
     tests/cli_test.cpp

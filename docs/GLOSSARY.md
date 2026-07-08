@@ -225,17 +225,41 @@ the existing term or update this file via `/glossary` — do not let drift happe
   build_dfa, translate.
 
 ### Consistency (cons)
-- **`main.tex`:** $\cons(q_{in},q_{out},v)$ (Method 1) — the per-letter filter.
+- **`main.tex`:** $\cons(q_{in},q_{out},v)$ (`\cref{def:consistency}`, §203) — the per-letter filter.
 - **Definition:** $v$'s V-variables are exactly what $\Tin,\Tout$ output.
-- **C++:** `consistent(t_in, q_in, t_out, q_out, v)`.
+- **C++:** `consistent(t_in, q_in, t_out, q_out, v)` — the two-transducer
+  conjunction `emits(t_in, q_in, v) && emits(t_out, q_out, v)` (see *Output
+  agreement*); same §203 concept, delegating the λ-agreement to `emits`.
 - **Do not call it:** agrees, valid, matches, feasible.
 
+### Output agreement (emits)
+- **`main.tex`:** — (no symbol; code-only) — one conjunct of $\cons$
+  (`\cref{def:consistency}`, §203), applied per transducer.
+- **Definition:** a full letter $v$ *agrees with* one transducer $\tau$'s
+  committed output at state $q$: $\tau$'s $\lambda$ is defined at $(q,v)$ **and**
+  $v$ lies in the $\Sigma_1$ cube it commits to (`(v & lambda) != bddfalse`).
+  This is the $\Sigma_1$-agnostic λ-agreement atom — neutral about which
+  $\Sigma_1$: $V$ for $\Tin/\Tout$, $\Ofree$ for $T_C$, so on $T_C$ it is **not**
+  $\cons$ (since $\Ofree\notin V$). δ-definedness is **not** part of `emits` (the
+  caller reads it off the successor), matching $\cons$'s λ-only shape.
+- **C++:** `emits(t, q, v)` (`consistency.hpp`); $\cons$ is
+  `emits(t_in,…) && emits(t_out,…)`, and the *Product* filter is
+  `all_of(taus, emits)`. See `docs/prd/transducer-product.md`.
+- **Do not call it:** agrees (that is per-trace *Agreement*), consistent /
+  consistent_with (that is the two-transducer $\cons$), commits, produces (that
+  is the *Produced-trace language*), matches.
+
 ### Product
-- **`main.tex`:** $P$ (Methods 1 & 2); states $S\times Q_{in}\times Q_{out}$.
+- **`main.tex`:** $P$ (Methods 1 & 2); states $S\times Q_{in}\times Q_{out}$
+  (generalized in code to $S\times Q_1\times\cdots\times Q_n$).
 - **Definition:** the Goal automaton crossed with both knowledge transducers,
   keeping only consistent transitions (a non-consistent letter is skipped, as in
-  all methods — `\cref{def:enabled}`).
-- **C++:** `ProductState` / the `*Product` synthesis classes.
+  all methods — `\cref{def:consistency}`, §203; partiality note §211).
+- **C++:** `ProductState` (a struct — `unsigned goal` + `std::vector<unsigned>
+  taus` — generalized to N transducers), the reusable `agreeing_successor`
+  (lazy per-letter step) and `build_product` (eager driver → neutral map) in
+  `product.hpp`, plus the `*Product` synthesis classes. See
+  `docs/prd/transducer-product.md`.
 - **Do not call it:** composition, join, cross.
 
 ### Forward progression
