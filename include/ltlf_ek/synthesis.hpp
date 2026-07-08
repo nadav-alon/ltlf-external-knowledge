@@ -5,6 +5,7 @@
 #include <spot/tl/formula.hh>
 #include <spot/twa/twagraph.hh>
 
+#include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/transducer.hpp"
 #include "ltlf_ek/variables.hpp"
 
@@ -12,10 +13,11 @@ namespace ltlf_ek {
 
 // The synthesized controller T_C: a transducer with
 //   lambda_C : Q × 2^{I} -> 2^{\Ofree}
-// (main.tex, def:probDefTransducer).  Skeleton holds the strategy DFA; the
-// lambda_C output map is filled in as methods are implemented.
-class Controller final {
- public:
+// (main.tex, def:probDefTransducer).  Holds only the strategy DFA (delta_C,
+// state history); lambda_C is materialized on demand by
+// controller_as_transducer, below --- a plain struct: one public member, no
+// invariants to enforce.
+struct Controller {
   spot::twa_graph_ptr strategy;  // delta_C (state history)
 };
 
@@ -33,5 +35,14 @@ class Synthesis {
                                                const Transducer& t_in,
                                                const Transducer& t_out) = 0;
 };
+
+// Materialize a synthesized Controller's strategy graph as a Role::t_c
+// OutputLabeledTransducer: Sigma0 = I, Sigma1 = Ofree (main.tex:125,
+// docs/GLOSSARY.md "Controller-as-transducer view").  lambda_C is read off
+// the Mealy strategy edges (the union of a state's out-edge guards, already
+// a relation over Ifree x Ofree); delta_C off the edge destinations --- the
+// same "delta via edges, output derived" idiom OutputLabeledTransducer uses.
+OutputLabeledTransducer controller_as_transducer(const Controller& controller,
+                                                 const VariablePartition& vars);
 
 }  // namespace ltlf_ek

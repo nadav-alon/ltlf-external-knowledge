@@ -6,7 +6,6 @@
 #include <bddx.h>
 #include <spot/tl/formula.hh>
 
-#include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/synthesis.hpp"
 #include "ltlf_ek/transducer.hpp"
 #include "ltlf_ek/variables.hpp"
@@ -22,7 +21,11 @@ struct Witness {
 };
 
 struct VerifyResult {
-  bool ok;                               // true iff T_C solves def:probDefTransducer.
+  // True iff T_C solves def:probDefTransducer.  Deliberately redundant with
+  // counterexample.has_value() (ok == !counterexample.has_value() always
+  // holds) --- kept as an explicit verdict field so callers never have to
+  // infer the verdict from optional-emptiness.
+  bool ok;
   std::optional<Witness> counterexample;  // set iff !ok.
 };
 
@@ -47,14 +50,5 @@ VerifyResult verify_controller(const spot::formula& phi,
                                const VariablePartition& vars,
                                const Transducer& t_in, const Transducer& t_out,
                                const Controller& controller);
-
-// Materialize a synthesized Controller's strategy graph as a Role::t_c
-// OutputLabeledTransducer: Sigma0 = I, Sigma1 = Ofree (main.tex:125,
-// docs/GLOSSARY.md "Controller-as-transducer view").  lambda_C is read off
-// the Mealy strategy edges (the union of a state's out-edge guards, already
-// a relation over Ifree x Ofree); delta_C off the edge destinations --- the
-// same "delta via edges, output derived" idiom OutputLabeledTransducer uses.
-OutputLabeledTransducer controller_as_transducer(const Controller& controller,
-                                                 const VariablePartition& vars);
 
 }  // namespace ltlf_ek

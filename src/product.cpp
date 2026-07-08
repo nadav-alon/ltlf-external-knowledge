@@ -1,5 +1,6 @@
 #include "ltlf_ek/product.hpp"
 
+#include <cassert>
 #include <cstddef>
 #include <queue>
 #include <set>
@@ -9,6 +10,28 @@
 #include "ltlf_ek/consistency.hpp"
 
 namespace ltlf_ek {
+
+namespace {
+
+// Every full letter v in 2^{io_vars} over io_vars, LSB-first in io_vars
+// order --- the accepted exponential \Sigma of alg:dfa_product (symbolic
+// build deferred).  File-local: LetterAlphabet owns the ordering, so callers
+// go through it, never this helper directly (absorbs the former public
+// all_letters, docs/prd/architecture-cleanup.md).
+std::vector<bdd> all_letters(const std::vector<int>& io_vars) {
+  const std::size_t n = io_vars.size();
+  std::vector<bdd> letters;
+  letters.reserve(std::size_t{1} << n);
+  for (std::size_t k = 0; k < (std::size_t{1} << n); ++k) {
+    bdd v = bddtrue;
+    for (std::size_t i = 0; i < n; ++i)
+      v &= (k >> i & 1) ? bdd_ithvar(io_vars[i]) : bdd_nithvar(io_vars[i]);
+    letters.push_back(v);
+  }
+  return letters;
+}
+
+}  // namespace
 
 bool operator<(const ProductState& a, const ProductState& b) {
   if (a.goal != b.goal) return a.goal < b.goal;
@@ -26,17 +49,25 @@ std::optional<unsigned> goal_delta(const spot::twa_graph_ptr& goal, unsigned s,
   return std::nullopt;
 }
 
-std::vector<bdd> all_letters(const std::vector<int>& io_vars) {
-  const std::size_t n = io_vars.size();
-  std::vector<bdd> letters;
-  letters.reserve(std::size_t{1} << n);
-  for (std::size_t k = 0; k < (std::size_t{1} << n); ++k) {
-    bdd v = bddtrue;
-    for (std::size_t i = 0; i < n; ++i)
-      v &= (k >> i & 1) ? bdd_ithvar(io_vars[i]) : bdd_nithvar(io_vars[i]);
-    letters.push_back(v);
-  }
-  return letters;
+LetterAlphabet::LetterAlphabet(const VariablePartition& vars,
+                               const spot::twa_graph_ptr& registrar) {
+  std::vector<int> io_vars;
+  io_vars.reserve(vars.universe().size());
+  for (const auto& n : vars.input_free)
+    io_vars.push_back(registrar->register_ap(n));
+  n_ifree_ = io_vars.size();
+  for (const auto& n : vars.input_known)
+    io_vars.push_back(registrar->register_ap(n));
+  for (const auto& n : vars.output_free)
+    io_vars.push_back(registrar->register_ap(n));
+  for (const auto& n : vars.output_known)
+    io_vars.push_back(registrar->register_ap(n));
+  letters_ = all_letters(io_vars);
+}
+
+std::size_t LetterAlphabet::ifree_index(std::size_t idx) const {
+  assert(idx < size());
+  return idx & (n_ifree_combos() - 1);
 }
 
 std::optional<ProductState> agreeing_successor(
@@ -57,8 +88,8 @@ std::optional<ProductState> agreeing_successor(
   }
 
   // Goal edge is consulted ONLY after the transducer filter passes, so the
-  // throw fires exactly where DfaProduct's old dfa_delta did (enabled
-  // letters only).
+  // throw fires only on letters the transducer filter has already found
+  // enabled, matching DfaProduct's completeness invariant.
   const std::optional<unsigned> g = goal_delta(goal, state.goal, v);
   if (!g) {
     if (goal_must_be_complete)
@@ -73,13 +104,14 @@ std::optional<ProductState> agreeing_successor(
 std::map<ProductState, ProductNode> build_product(
     const spot::twa_graph_ptr& goal,
     const std::vector<const Transducer*>& taus, const ProductState& init,
-    const std::vector<bdd>& letters, bool goal_must_be_complete) {
+    const LetterAlphabet& alphabet, bool goal_must_be_complete) {
   std::map<ProductState, ProductNode> graph;
   std::queue<ProductState> worklist;
 
   graph.emplace(init, ProductNode{goal->state_is_accepting(init.goal), {}});
   worklist.push(init);
 
+  const std::vector<bdd>& letters = alphabet.letters();
   while (!worklist.empty()) {
     const ProductState cur = worklist.front();
     worklist.pop();
@@ -105,9 +137,7 @@ std::map<ProductState, ProductNode> build_product(
 void validate_product_inputs(const spot::formula& phi,
                              const VariablePartition& vars,
                              const std::vector<const Transducer*>& taus) {
-  std::set<std::string> universe = vars.inputs();
-  const std::set<std::string> outs = vars.outputs();
-  universe.insert(outs.begin(), outs.end());
+  const std::set<std::string> universe = vars.universe();
   for (const auto& ap : collect_aps(phi))
     if (!universe.count(ap))
       throw std::invalid_argument(
