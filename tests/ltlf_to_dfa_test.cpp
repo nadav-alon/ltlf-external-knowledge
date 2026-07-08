@@ -8,6 +8,7 @@
 #include <spot/twaalgos/isdet.hh>
 
 #include "ltlf_ek/ltlf_to_dfa.hpp"
+#include "support/fixtures.hpp"
 
 // Unit fixtures for ltlf_to_dfa (docs/GLOSSARY.md: "Goal DFA construction
 // (LtlfToDfa)").  The wrapper must yield the deterministic, complete DFA A for
@@ -16,8 +17,7 @@
 namespace {
 
 using ltlf_ek::ltlf_to_dfa;
-
-spot::formula Phi(const std::string& s) { return spot::parse_formula(s); }
+using ltlf_ek::test_support::Phi;
 
 std::set<std::string> ap_names(const spot::twa_graph_ptr& dfa) {
   std::set<std::string> names;
