@@ -11,8 +11,11 @@
 
 #include "ltlf_ek/dfa_product.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
+#include "ltlf_ek/role.hpp"
 #include "ltlf_ek/solve_dfa.hpp"
 #include "ltlf_ek/variables.hpp"
+
+#include "support/fixtures.hpp"
 
 // End-to-end fixtures for DfaProduct (docs/GLOSSARY.md: "DFA product", Method 2).
 // synthesize builds A = LtlfToDfa(phi), the product with T_in, T_out skipping
@@ -26,32 +29,16 @@ using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::Transducer;
 using ltlf_ek::VariablePartition;
 
-spot::formula Phi(const std::string& s) { return spot::parse_formula(s); }
+using ltlf_ek::test_support::Phi;
+using ltlf_ek::test_support::TinAlwaysI;
 
-// The empty-knowledge (empty V) transducer over {i, o}: single state, delta
-// self-loops, lambda commits the empty cube --- so cons is trivially true.
+// The empty-knowledge (empty V) transducer over {i, o}: the library factory
+// with Role::t_out gives Sigma0 = {i, o}, Sigma1 = ∅ --- single state, delta
+// self-loops, lambda commits the empty cube, so cons is trivially true.
 OutputLabeledTransducer Trivial(const spot::bdd_dict_ptr& dict) {
-  auto g = spot::make_twa_graph(dict);
-  g->register_ap("i");
-  g->register_ap("o");
-  g->new_states(1);
-  g->set_init_state(0);
-  g->new_edge(0, 0, bddtrue);
-  return OutputLabeledTransducer(g, {bddtrue}, /*sigma0=*/bddtrue,
-                                 /*sigma1=*/bddtrue);
-}
-
-// An input-knowledge transducer committing G(i) (always i): Sigma0 = Ifree = ∅,
-// Sigma1 = Iknown = {i}, lambda = i at its single state.
-OutputLabeledTransducer TinAlwaysI(const spot::bdd_dict_ptr& dict) {
-  auto g = spot::make_twa_graph(dict);
-  int iv = g->register_ap("i");
-  g->register_ap("o");
-  g->new_states(1);
-  g->set_init_state(0);
-  g->new_edge(0, 0, bddtrue);
-  return OutputLabeledTransducer(g, {bdd_ithvar(iv)}, /*sigma0=*/bddtrue,
-                                 /*sigma1=*/bdd_ithvar(iv));
+  return ltlf_ek::trivial_transducer(
+      VariablePartition::split({"i"}, {"o"}, /*governed=*/{}),
+      ltlf_ek::Role::t_out, dict);
 }
 
 bool Realizable(const std::string& phi, const VariablePartition& vars,

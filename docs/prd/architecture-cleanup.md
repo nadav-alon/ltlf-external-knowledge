@@ -1,6 +1,6 @@
 # PRD: Architecture cleanup (post-accretion refactor)
 
-**Status:** draft
+**Status:** implemented — e6cbc06 (Phase 0) + worktree merges 3726ec4 (A) / 083ee65 (B) / c159779 (C) + this commit (post-merge micro-pass)
 **Interface:** cross-cutting refactor — no new `Synthesis` method; adds `LetterAlphabet` + `VariablePartition::universe()` (public), `detail/util.hpp` (internal), `role.hpp` (relocation), `tests/support/fixtures.hpp` (test-only); relocates `controller_as_transducer` and `trivial_transducer`
 **main.tex ref:** no dedicated algorithm — this PRD moves code, it does not change semantics. The invariants preserved are the alphabet $\Sigma=2^{\mathcal{I}\cup\mathcal{O}}$ (§Transducers), the align-block slices (§124–133), $\cons$ = `\cref{def:consistency}` (with its §211 partiality note), `\cref{def:enabled}`, and the `\cref{def:probDefTransducer}` postcondition — all exactly as already implemented.
 
@@ -367,3 +367,41 @@ check.
   Status intentionally left at `draft`: Worktrees A/B/C (product core, I/O +
   CLI, tests + residual comments) are out of scope for this session and
   remain to land before this PRD is `implemented`.
+
+- **2026-07-08 — Worktrees A/B/C landed concurrently and merged** (A `3726ec4`,
+  B `083ee65`, C `c159779`; both merges conflict-free — the territory manifest
+  held). All three ran the full suite green independently; the merged tree
+  passed 207/207 (200 pre-existing + 7 new `LetterAlphabet` tests).
+  Per-worktree notes, recorded here by the coordinator since concurrent
+  sessions could not edit this shared file:
+  - **A (product core):** no deviations. `LetterAlphabet` implemented exactly
+    per spec; `all_letters` is now file-local to `src/product.cpp`;
+    `verify_controller.cpp` keys on the shared `ProductState` and calls
+    `validate_product_inputs`; `controller_as_transducer` lives in
+    `synthesis.hpp`/`src/synthesis.cpp`. One clarifying choice: the
+    "empty $\Ifree$" oracle got two distinct fixtures (empty universe vs.
+    non-empty universe with all inputs governed), since the PRD's edge cases
+    treat them as distinct. `dfa_product_test.cpp` /
+    `verify_controller_test.cpp` passed unmodified against the new
+    signatures — no golden value shifted (the Edge-cases BDD-numbering risk
+    did not materialize).
+  - **B (I/O + CLI):** no deviations. Two ride-along fixes worth recording:
+    `cli.hpp` had a latent header-hygiene gap (used `Synthesis` without
+    including `synthesis.hpp`) — fixed; and the `TrivialTransducer` TEST
+    blocks were deliberately left in `tests/cli_test.cpp` (they compile and
+    pass against the relocated factory; physically moving them to
+    `output_labeled_transducer_test.cpp` is optional follow-up, not done).
+  - **C (tests + comments):** no deviations. The comment tense sweep found
+    exactly the one instance the PRD named (`consistency.hpp`) and nothing
+    else in its territory.
+- **2026-07-08 — Post-merge micro-pass** (coordinator, this commit):
+  `tests/verify_controller_test.cpp` (`Phi`/`IoFreeVars`/`TinAlwaysI`/
+  `ConstantOutputTc`), `tests/dfa_product_test.cpp` (`Phi`/`TinAlwaysI`), and
+  `tests/product_test.cpp` (`IoFreeVars`) migrated onto
+  `tests/support/fixtures.hpp`; `dfa_product_test.cpp`'s `Trivial(dict)`
+  became a one-line delegation to `ltlf_ek::trivial_transducer` (Role::t_out
+  gives the identical Σ-slices, AP registration order, and delta/lambda).
+  Suite 207/207 after the pass. All Definition-of-done grep gates verified
+  clean: single `cube_of`/`trim` definitions (in `detail/util.hpp`), no
+  hand-built universes, no `using ProductState = std::tuple`, `all_letters`
+  absent from public headers, one canonical `Phi`.

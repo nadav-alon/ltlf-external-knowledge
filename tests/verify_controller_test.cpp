@@ -21,6 +21,8 @@
 #include "ltlf_ek/variables.hpp"
 #include "ltlf_ek/verify_controller.hpp"
 
+#include "support/fixtures.hpp"
+
 // Test oracles for verify_controller / controller_as_transducer
 // (docs/prd/controller-verifier.md "Test oracles" #1-#5; #6, the CLI
 // end-to-end oracle, lives in tests/ltlf_ek_synth_test.cpp instead since it
@@ -46,38 +48,14 @@ using ltlf_ek::verify_controller;
 using ltlf_ek::VerifyResult;
 using ltlf_ek::Witness;
 
-spot::formula Phi(const std::string& s) { return spot::parse_formula(s); }
-
-// The shared running partition for most fixtures below: I = {i} free,
-// O = {o} free, V = ∅ --- mirrors tests/dfa_product_test.cpp's convention.
-VariablePartition IoFreeVars() {
-  return VariablePartition::split({"i"}, {"o"}, /*governed=*/{});
-}
-
-// An input-knowledge transducer committing G(i) (always i): Sigma0 = Ifree =
-// ∅, Sigma1 = Iknown = {i}, lambda = i at its single state.  Mirrors
-// tests/dfa_product_test.cpp's TinAlwaysI (duplicated locally: that helper is
-// file-local to dfa_product_test.cpp).
-OutputLabeledTransducer TinAlwaysI(const spot::bdd_dict_ptr& dict) {
-  auto g = spot::make_twa_graph(dict);
-  int iv = g->register_ap("i");
-  g->register_ap("o");
-  g->new_states(1);
-  g->set_init_state(0);
-  g->new_edge(0, 0, bddtrue);
-  return OutputLabeledTransducer(g, {bdd_ithvar(iv)}, /*sigma0=*/bddtrue,
-                                 /*sigma1=*/bdd_ithvar(iv));
-}
-
-// A single-state, totally-defined Role::t_c controller (Sigma0 = I, Sigma1 =
-// Ofree) that commits a fixed output cube at every step, regardless of the
-// input --- the building block for the ok/lasso pair (oracles #1, #3):
-// flipping `out` between `o` and `!o` turns the good controller into its
-// mutated (lambda-flip) twin, on the SAME delta graph.
-OutputLabeledTransducer ConstantOutputTc(const spot::twa_graph_ptr& g, bdd out,
-                                        bdd sigma0_cube, bdd sigma1_cube) {
-  return OutputLabeledTransducer(g, {out}, sigma0_cube, sigma1_cube);
-}
+// Shared fixtures (tests/support/fixtures.hpp): Phi, IoFreeVars, TinAlwaysI,
+// ConstantOutputTc.  The ok/lasso pairs below flip ConstantOutputTc's `out`
+// between `o` and `!o` to turn the good controller into its mutated
+// (lambda-flip) twin, on the SAME delta graph (oracles #1, #3).
+using ltlf_ek::test_support::ConstantOutputTc;
+using ltlf_ek::test_support::IoFreeVars;
+using ltlf_ek::test_support::Phi;
+using ltlf_ek::test_support::TinAlwaysI;
 
 // ---------------------------------------------------------------------------
 // Oracle #1: unit fixtures with a known verdict and known witness *shape*.

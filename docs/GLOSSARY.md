@@ -40,7 +40,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   registered. This is the *variable* set; the set of *letters* over it is the
   **Letter alphabet** below.
 - **C++:** `VariablePartition::universe()` (= `inputs()` ∪ `outputs()`;
-  lands with `docs/prd/architecture-cleanup.md` Phase 0, replacing the four
+  introduced by `docs/prd/architecture-cleanup.md`, replacing the four
   hand-built `universe` locals).
 - **Do not call it:** all APs, AP set (bare), vocabulary, alphabet (that is
   the letter set $2^{\mathcal{I}\cup\mathcal{O}}$, not the variable set).
@@ -188,9 +188,9 @@ the existing term or update this file via `/glossary` — do not let drift happe
   former `io_vars`-ordering comment-contract between the *Product* core and
   the *Controller verifier*.
 - **C++:** `LetterAlphabet` (`product.hpp`; consumed by `build_product`,
-  whose `ProductNode` edges index into `letters()`). Lands with
-  `docs/prd/architecture-cleanup.md` (Worktree A), absorbing the free
-  function `all_letters`.
+  whose `ProductNode` edges index into `letters()`). Introduced by
+  `docs/prd/architecture-cleanup.md`, absorbing the former free function
+  `all_letters` (now file-local to `src/product.cpp`).
 - **Do not call it:** `all_letters` (the absorbed free function),
   alphabet (bare), Letters, LetterEnumeration, letter set, Sigma (bare —
   that is the math symbol, not the C++ type).

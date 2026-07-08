@@ -11,6 +11,8 @@
 #include "ltlf_ek/product.hpp"
 #include "ltlf_ek/variables.hpp"
 
+#include "support/fixtures.hpp"
+
 // Unit fixtures for agreeing_successor(...) and build_product(...)
 // (docs/prd/transducer-product.md Phase 1; docs/GLOSSARY.md "Product",
 // generalized ProductState<goal, taus...>).  The Goal DFA and transducers
@@ -52,7 +54,7 @@ Vars MakeVars() {
 // order matches MakeVars' (iv, ov) registration order 1:1, so a LetterAlphabet
 // built from it on the same dict enumerates letters LSB-first as (i, o), the
 // same order the fixtures below already hand-trace.
-VariablePartition IoFreeVars() { return VariablePartition::split({"i"}, {"o"}, {}); }
+using ltlf_ek::test_support::IoFreeVars;
 
 // A LetterAlphabet for `IoFreeVars()` registered on `v`'s own dict (register_ap
 // is idempotent, so this reuses v.iv / v.ov rather than allocating new ones).
