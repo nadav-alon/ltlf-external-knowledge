@@ -57,6 +57,10 @@ std::set<std::string> VariablePartition::outputs() const {
   return set_union(output_free, output_known);
 }
 
+std::set<std::string> VariablePartition::universe() const {
+  return set_union(inputs(), outputs());
+}
+
 std::set<std::string> collect_aps(const spot::formula& f) {
   std::set<std::string> names;
   spot::atomic_prop_set aps;

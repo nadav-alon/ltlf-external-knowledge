@@ -24,6 +24,7 @@ add_library(ltlf_ek
   src/consistency.cpp
   src/output_labeled_transducer.cpp
   src/transducer_io.cpp
+  src/role.cpp
   src/ltlf_to_dfa.cpp
   src/solve_dfa.cpp
   src/product.cpp

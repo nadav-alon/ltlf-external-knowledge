@@ -32,6 +32,19 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **C++:** `VariablePartition::inputs()` / `::outputs()`.
 - **Do not call it:** in/out vars, signals.
 
+### Closed universe of APs
+- **`main.tex`:** $\mathcal{I}\cup\mathcal{O}$ (§Problem Definition; no dedicated macro).
+- **Definition:** the set every atomic proposition must lie in — an AP of
+  $\varphi$, of a transducer file's HOA header, or of a `%%LAMBDA` formula
+  outside it is a validation error (`std::invalid_argument`), never silently
+  registered. This is the *variable* set; the set of *letters* over it is the
+  **Letter alphabet** below.
+- **C++:** `VariablePartition::universe()` (= `inputs()` ∪ `outputs()`;
+  lands with `docs/prd/architecture-cleanup.md` Phase 0, replacing the four
+  hand-built `universe` locals).
+- **Do not call it:** all APs, AP set (bare), vocabulary, alphabet (that is
+  the letter set $2^{\mathcal{I}\cup\mathcal{O}}$, not the variable set).
+
 ### Governed variables (V)
 - **`main.tex`:** $\mathcal{V}\subseteq(\mathcal{I}\cup\mathcal{O})$, $\mathcal{V}=\Iknown\cup\Oknown$.
 - **Definition:** the variables decided by external knowledge strategies.
@@ -162,6 +175,25 @@ the existing term or update this file via `/glossary` — do not let drift happe
   value cube* (see Cube).
 - **C++:** `bdd v` (a full cube over I∪O).
 - **Do not call it:** symbol, event, valuation.
+
+### Letter alphabet
+- **`main.tex`:** $\Sigma$, with $\Sigma=2^{\mathcal{I}\cup\mathcal{O}}$
+  (§Transducers §105); the enumeration / index structure is code-only.
+- **Definition:** the full-letter alphabet materialised as an explicitly
+  enumerated vector of letters, LSB-first over a **fixed $\Ifree$-first
+  variable order** ($\Ifree$, $\Iknown$, $\Ofree$, $\Oknown$; lexicographic
+  within each block), so a letter index's low bits are exactly its $\Ifree$
+  combination (`ifree_index(idx)`). The AP registration order is the class's
+  own invariant, not a caller obligation — this is the type that replaces the
+  former `io_vars`-ordering comment-contract between the *Product* core and
+  the *Controller verifier*.
+- **C++:** `LetterAlphabet` (`product.hpp`; consumed by `build_product`,
+  whose `ProductNode` edges index into `letters()`). Lands with
+  `docs/prd/architecture-cleanup.md` (Worktree A), absorbing the free
+  function `all_letters`.
+- **Do not call it:** `all_letters` (the absorbed free function),
+  alphabet (bare), Letters, LetterEnumeration, letter set, Sigma (bare —
+  that is the math symbol, not the C++ type).
 
 ### NFA / DFA for the Goal
 - **`main.tex`:** $N$ (Method 1), $A$ (Method 2); `LtlfToNfa` / `LtlfToDfa`.

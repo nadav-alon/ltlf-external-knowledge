@@ -29,6 +29,16 @@ TEST(VariablePartition, SplitByGovernedSet) {
   EXPECT_EQ(p.outputs(), outputs);
 }
 
+TEST(VariablePartition, UniverseIsInputsUnionOutputs) {
+  const StrSet inputs{"i0", "i1"};
+  const StrSet outputs{"o0", "o1"};
+  const StrSet governed{"i1", "o1"};  // V = \Iknown ∪ \Oknown
+
+  const auto p = VariablePartition::split(inputs, outputs, governed);
+
+  EXPECT_EQ(p.universe(), (StrSet{"i0", "i1", "o0", "o1"}));
+}
+
 TEST(CollectAps, ReturnsFormulaAtomicPropositions) {
   auto pf = spot::parse_infix_psl("G(i0 -> F o0)");
   ASSERT_FALSE(pf.format_errors(std::cerr));

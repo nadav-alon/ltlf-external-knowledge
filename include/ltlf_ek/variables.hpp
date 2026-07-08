@@ -22,6 +22,10 @@ struct VariablePartition {
   std::set<std::string> known() const;    // V   = \Iknown ∪ \Oknown
   std::set<std::string> inputs() const;   // \mathcal{I}
   std::set<std::string> outputs() const;  // \mathcal{O}
+  // Closed universe of APs (docs/GLOSSARY.md): \mathcal{I} ∪ \mathcal{O},
+  // the set every AP (of phi, of a transducer file, of a lambda formula)
+  // must lie in.
+  std::set<std::string> universe() const;
 
   // Split the full input/output sets by the externally-governed subset
   // `governed` (= V). Anything in `governed` becomes *known*, the rest *free*.
