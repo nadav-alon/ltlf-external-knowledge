@@ -6,9 +6,9 @@
 
 **Gates:**
 - [x] glossary        — /glossary (2026-07-08): *Closed universe of APs* (`VariablePartition::universe()`) and *Letter alphabet* (`LetterAlphabet`, `all_letters` retired to its "Do not call it" line) landed in docs/GLOSSARY.md ahead of implementation (deliberate — the glossary drives /developer naming); existing *Product* / *Role* / *Observed-produced slice* / *Controller-as-transducer view* entries checked, no file references go stale under this PRD's relocations. Branch `master`, uncommitted.
-- [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] tests           — unit + oracle coverage (2026-07-09): full suite 207/207 green (200 pre-existing + 7 new `LetterAlphabet` tests + `universe()` test); metamorphic round-trip and `ltlfsynt` differential oracles green, no golden shifted.
+- [x] code-review     — domain (/code-reviewer, 2026-07-09): clean, no must-fix. Grep gates clean (single `cube_of`/`trim` in `detail/util.hpp`, no `using ProductState = std::tuple`, `all_letters` file-local to `product.cpp`, no hand-built universe outside `universe()`). Glossary carries *Closed universe of APs* + *Letter alphabet*. `LetterAlphabet` (empty-universe ⇒ `{bddtrue}`, empty-Ifree ⇒ `ifree_index≡0`) and the `verify_controller` migration onto `validate_product_inputs` + shared `ProductState` verified faithful; verifier stays independent of `solve_dfa`/`solve_game`.
+- [x] theory-review   — code ↔ math faithfulness vs main.tex (2026-07-09): satisfied by diff inspection, no spawn needed — the $\cons$/`\cref{def:enabled}` filter (`agreeing_successor` body, `emits`, `consistent`) is byte-identical modulo comments and the `letters`→`alphabet.letters()` type-threading; `consistency.hpp` edit is the named history-relative-comment sweep. Semantics-preserving as claimed.
 
 ## Goal
 

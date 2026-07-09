@@ -11,53 +11,13 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Priority order within this section: #1 → #2. Rationale (grilled 2026-07-05):
-the external, independent `ltlfsynt` oracle is now **banked** (shipped in
-`745b3d7`), so round it out with the internal verifier next; the verifier
-outranks the $\Tout$ extension because it's reusable by every method and unblocks
-the live `--model-check` flag._
+_Priority order within this section: #1. Rationale (grilled 2026-07-05, updated
+2026-07-08): the internal controller verifier is now **banked** (shipped in
+`81a4cf4`, migrated onto the shared product core, all four PRD gates clean), so
+the known-**output** $\Tout$ oracle rounds out the external `ltlfsynt`
+cross-check next._
 
-### Trace-level controller verifier oracle — **#1** (promoted from Later)
-- **PRD:** `docs/prd/controller-verifier.md` (draft, grilled 2026-07-05, ready
-  for `/glossary` → `/developer` + `/test-writer`). The internal linchpin
-  correctness oracle from `docs/prd/dfa-product.md` (oracle #2): for a synthesized
-  `Controller` $T_C$, check **every trace agreeing with $\Tin,\Tout,T_C$ satisfies
-  $\varphi$**. Reusable by every method.
-- **Decisions locked in the grill:** built **directly on
-  `def:probDefTransducer`**, *not* on the monolithic conjecture (which the
-  external `ltlfsynt` oracle already exercises — a conjecture-based verifier would
-  duplicate it, not complement it). Property = **reachability of $F_\varphi$ under
-  adversarial env** (one-player $\nu$-fixpoint, since $T_C$ is fixed), *not*
-  language inclusion. Independent of `solve_dfa`: reuse only `ltlf_to_dfa` +
-  `consistent`, hand-roll the product + attractor. $T_C$ materialized as a
-  transducer via new `Role::t_c` ($\Sigma_0=\mathcal I,\Sigma_1=\Ofree$). Returns
-  a verdict + counterexample lasso. **Includes** the CLI `--model-check` wiring
-  (`--controller <file>` as a `Role::t_c` transducer, else self-check).
-- **Still open (for the skills downstream):** `/glossary` must land `Role::t_c`,
-  `controller_as_transducer`, `verify_controller`/`VerifyResult`/`Witness` before
-  `/developer`. `/theory-review` must confirm the verifier and `solve_dfa` share
-  one termination semantics (`main.tex:96` `\na`) — else oracle #2's positive
-  check fails for a semantic, not a bug, reason.
-- **Smoke test fixed (2026-07-06).** Two regressions found + fixed in the CLI
-  wiring (library `verify_controller` itself was correct):
-  1. **Unrealizable self-check crashed** (`bad optional access`, exit 1):
-     `ltlf_ek_synth.cpp` called `.value()` on the `nullopt` `synthesize` result.
-     Now guarded → prints `UNREALIZABLE`, exit 20 (the PRD's CLI sketch used
-     `.value()` and left the nullopt path unspecified).
-  2. **`UNSAFE`-witness printing hung forever**: `PrintWitness` built its AP
-     vector from `partition.inputs().begin()` / `partition.inputs().end()` —
-     `inputs()` returns a `std::set` **by value**, so the two iterators were into
-     distinct destroyed temporaries (mismatched-range UB → infinite loop).
-     Materialize `inputs()` to a local first.
-  Also removed leftover `DEBUG` prints from `verify_controller.cpp` and updated
-  two stale CLI tests (`ModelCheck*ExitsOne` → the shipped SAFE/short-circuit
-  contract). All six smoke cases pass (SAFE `X[!]o`, `UNREALIZABLE` self-check,
-  malformed `--controller` exit 2, wrong-controller `UNSAFE`+lasso exit 20,
-  correct file/self-check SAFE); full `unit_tests` suite green (169/169).
-  **Next:** `/test-writer` for the six PRD oracle groups, then `/code-reviewer`
-  + `/theory-review`; then flip PRD `Status:` / tick gates.
-
-### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **#2**
+### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **#1** (promoted from #2)
 - **PRD:** the known-**input** ($\Tin$) half is spec'd in
   `docs/prd/ltlfsynt-oracle.md` (ready for `/developer` + `/test-writer`). This
   item is the $\Tout$ follow-up it explicitly deferred.
@@ -276,6 +236,20 @@ the live `--model-check` flag._
 - **Seeds for grilling:** _(tbd)_
 
 ## Done
+
+### Trace-level controller verifier oracle
+- **Intent:** the internal linchpin correctness oracle — for a synthesized
+  `Controller` $T_C$, check **every trace agreeing with $\Tin,\Tout,T_C$ satisfies
+  $\varphi$** (reachability of $F_\varphi$ under adversarial env, built directly on
+  `def:probDefTransducer`). Reusable by every method; unblocks `--model-check`.
+- **Outcome:** shipped. `verify_controller` + `Role::t_c` +
+  `controller_as_transducer` + `VerifyResult`/`Witness` landed (`81a4cf4`), then
+  migrated onto the shared product core (`f5f53e7`) and cleaned post-merge
+  (`6c2950b`). All four PRD gates clean — glossary, tests (`verify_controller_test.cpp`,
+  12 cases across oracles #1–#6; suite green 186/186), `/code-reviewer` + generic
+  `/code-review` both clean, `/theory-review` code↔math faithful. PRD
+  `docs/prd/controller-verifier.md` `Status: implemented`. One non-blocking
+  residue (Witness bdd lifetime) tracked separately under **Later**.
 
 ### Implement the `ltlfsynt` external oracle (known-**input** $\Tin$)
 - **Intent:** an external, independent realizability oracle — cross-check the
