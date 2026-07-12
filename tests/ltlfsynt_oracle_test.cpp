@@ -21,6 +21,9 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <cstdint>
+#include <limits>
+#include <memory>
 #include <optional>
 #include <random>
 #include <set>
@@ -933,6 +936,104 @@ constexpr double kCorpusStrongXProbability = 0.30;
 // does not pin this exact probability, only that the subset may be empty.
 constexpr double kCorpusIknownProbability = 0.5;
 
+// |I| / |O| upper bounds for random_partition (docs/prd/generated-corpus-
+// soak-mode.md "Configuration struct"), extracted from the formerly-inline
+// input_count(1,5)/output_count(0,5) literals so CorpusConfig has a default
+// to fall back to.
+constexpr int kCorpusInputMax = 5;
+constexpr int kCorpusOutputMax = 5;
+
+// random_tin's state-count upper bound (soak-mode PRD "Configuration
+// struct"), extracted from the formerly-inline state_count(1,3) literal.
+constexpr int kCorpusTinStatesMax = 3;
+
+// GeneratedCorpusDifferential's |I union O| cap (soak-mode PRD
+// "Configuration struct"), extracted from the formerly-inline
+// `if (width > 3) continue;`.
+constexpr std::size_t kCorpusDiffWidthCap = 3;
+
+// CorpusConfig (docs/prd/generated-corpus-soak-mode.md "Configuration
+// struct"): every generated-corpus tunable, defaulting to the constants
+// above. Phase 1 only: the per-knob env-override / replay layer -- no soak
+// switch, no ladder (that is Phase 2).
+struct CorpusConfig {
+  unsigned seed = kCorpusSeed;
+  std::size_t case_count = kCorpusCaseCount;
+  int tree_size_min = kCorpusTreeSizeMin;
+  int tree_size_max = kCorpusTreeSizeMax;
+  int input_max = kCorpusInputMax;
+  int output_max = kCorpusOutputMax;
+  int tin_states_max = kCorpusTinStatesMax;
+  std::size_t diff_width_cap = kCorpusDiffWidthCap;
+  unsigned subprocess_timeout_secs = kCorpusSubprocessTimeoutSecs;
+};
+
+// EnvInt (soak-mode PRD "Env readers"): reads env var `name` as an integer
+// (std::stoll); returns std::nullopt when the var is unset (so the caller
+// keeps its default), the parsed value when present and in
+// [min_value, max_value], or throws std::runtime_error naming `name` on a
+// non-integer, trailing garbage, or an out-of-range value (loud-on-malformed,
+// never a silent fallback -- soak-mode PRD "Parse failure is loud, never
+// silent").
+std::optional<long long> EnvInt(const char* name, long long min_value,
+                                long long max_value) {
+  const char* raw = std::getenv(name);
+  if (raw == nullptr) return std::nullopt;
+  const std::string text(raw);
+  std::size_t consumed = 0;
+  long long parsed = 0;
+  try {
+    parsed = std::stoll(text, &consumed);
+  } catch (const std::exception&) {
+    throw std::runtime_error(std::string("malformed env var ") + name +
+                             "=\"" + text + "\": not an integer");
+  }
+  if (consumed != text.size())
+    throw std::runtime_error(std::string("malformed env var ") + name +
+                             "=\"" + text + "\": not an integer");
+  if (parsed < min_value || parsed > max_value)
+    throw std::runtime_error(std::string("env var ") + name + "=\"" + text +
+                             "\" out of range");
+  return parsed;
+}
+
+// corpus_config_from_env (soak-mode PRD "Configuration struct"): reads the
+// LTLF_EK_CORPUS_* env vars over the CorpusConfig defaults; each unset var
+// keeps its default, each malformed/negative/zero (or, for tree_size_min >
+// tree_size_max, inconsistent) value throws std::runtime_error naming the
+// var -- never a silent fallback.
+CorpusConfig corpus_config_from_env() {
+  CorpusConfig cfg;
+  constexpr long long kIntMax = std::numeric_limits<int>::max();
+
+  if (auto v = EnvInt("LTLF_EK_CORPUS_SEED", 0,
+                      std::numeric_limits<unsigned>::max()))
+    cfg.seed = static_cast<unsigned>(*v);
+  if (auto v = EnvInt("LTLF_EK_CORPUS_CASES", 1, kIntMax))
+    cfg.case_count = static_cast<std::size_t>(*v);
+  if (auto v = EnvInt("LTLF_EK_CORPUS_TREE_MIN", 1, kIntMax))
+    cfg.tree_size_min = static_cast<int>(*v);
+  if (auto v = EnvInt("LTLF_EK_CORPUS_TREE_MAX", 1, kIntMax))
+    cfg.tree_size_max = static_cast<int>(*v);
+
+  if (cfg.tree_size_min > cfg.tree_size_max)
+    throw std::runtime_error(
+        "LTLF_EK_CORPUS_TREE_MIN must be <= LTLF_EK_CORPUS_TREE_MAX");
+
+  if (auto v = EnvInt("LTLF_EK_CORPUS_INPUT_MAX", 1, kIntMax))
+    cfg.input_max = static_cast<int>(*v);
+  if (auto v = EnvInt("LTLF_EK_CORPUS_OUTPUT_MAX", 1, kIntMax))
+    cfg.output_max = static_cast<int>(*v);
+  if (auto v = EnvInt("LTLF_EK_CORPUS_STATES_MAX", 1, kIntMax))
+    cfg.tin_states_max = static_cast<int>(*v);
+  if (auto v = EnvInt("LTLF_EK_CORPUS_DIFF_WIDTH", 1, kIntMax))
+    cfg.diff_width_cap = static_cast<std::size_t>(*v);
+  if (auto v = EnvInt("LTLF_EK_CORPUS_TIMEOUT", 1, kIntMax))
+    cfg.subprocess_timeout_secs = static_cast<unsigned>(*v);
+
+  return cfg;
+}
+
 // GeneratedCase (PRD "Interfaces & types", Phase 2 shape): now also carries
 // the built random Tin, on its own private bdd_dict (one dict per case, like
 // the structural test's per-case dict) so the metamorphic body can replay
@@ -960,14 +1061,19 @@ spot::formula strengthen_next(spot::formula f, std::mt19937& rng) {
   return mapped;
 }
 
-// random_partition (PRD "Partition generation"): draws |I| in [1,5],
-// |O| in [0,5] (0 hits the empty-Ofree edge case), fresh AP names
-// p0, p1, ... up to |I \cup O|, and marks a random subset of the inputs
-// Iknown (may be empty = degenerate empty-knowledge).  Oknown = empty
-// always in v1 (Tout stays trivial, PRD "Partition generation").
-VariablePartition random_partition(std::mt19937& rng) {
-  std::uniform_int_distribution<int> input_count(1, 5);
-  std::uniform_int_distribution<int> output_count(0, 5);
+// random_partition (PRD "Partition generation"): draws |I| in
+// [1, config.input_max], |O| in [0, config.output_max] (0 hits the
+// empty-Ofree edge case), fresh AP names p0, p1, ... up to |I \cup O|, and
+// marks a random subset of the inputs Iknown (may be empty =
+// degenerate empty-knowledge).  Oknown = empty always in v1 (Tout stays
+// trivial, PRD "Partition generation").  Phase 1 (soak-mode PRD): the
+// [1,5]/[0,5] literals now come from CorpusConfig::input_max/output_max
+// (defaulting to kCorpusInputMax/kCorpusOutputMax); no joint width clamp
+// yet (Phase 2).
+VariablePartition random_partition(std::mt19937& rng,
+                                   const CorpusConfig& config) {
+  std::uniform_int_distribution<int> input_count(1, config.input_max);
+  std::uniform_int_distribution<int> output_count(0, config.output_max);
   const int n_inputs = input_count(rng);
   const int n_outputs = output_count(rng);
 
@@ -995,9 +1101,12 @@ VariablePartition random_partition(std::mt19937& rng) {
 // restricted to the LTLf-safe set (U, R, W, F, G, X, !, &, |, ->, <->):
 // xor and M (strong release) are disabled via priorities; strongX stays at
 // its library default of 0 -- X[!] is injected afterwards by
-// strengthen_next, not by randltl itself.
+// strengthen_next, not by randltl itself.  Phase 1 (soak-mode PRD):
+// tree_size_min/max now come from CorpusConfig (defaulting to
+// kCorpusTreeSizeMin/Max).
 spot::formula generate_random_formula(const VariablePartition& partition,
-                                      std::mt19937& rng) {
+                                      std::mt19937& rng,
+                                      const CorpusConfig& config) {
   std::set<std::string> ap_names = partition.inputs();
   for (const std::string& name : partition.outputs()) ap_names.insert(name);
 
@@ -1007,8 +1116,8 @@ spot::formula generate_random_formula(const VariablePartition& partition,
 
   spot::option_map opts;
   opts.set("output", spot::randltlgenerator::LTL);
-  opts.set("tree_size_min", kCorpusTreeSizeMin);
-  opts.set("tree_size_max", kCorpusTreeSizeMax);
+  opts.set("tree_size_min", config.tree_size_min);
+  opts.set("tree_size_max", config.tree_size_max);
   opts.set("seed", static_cast<int>(rng()));
 
   // parse_options (called by the randltlgenerator ctor) needs a mutable
@@ -1030,10 +1139,13 @@ spot::formula generate_random_formula(const VariablePartition& partition,
 // committed Case-A regime, \cref{def:enabled}) -- no validity check needed
 // afterward.  Role t_in => Sigma0 = Ifree, Sigma1 = Iknown (glossary "Role").
 // Degenerate empty-Iknown case: trivial_transducer instead of a random table
-// (PRD "Edge cases" "Empty Iknown").
+// (PRD "Edge cases" "Empty Iknown").  Phase 1 (soak-mode PRD): the
+// state_count(1,3) literal now comes from config.tin_states_max (defaulting
+// to kCorpusTinStatesMax).
 OutputLabeledTransducer random_tin(const VariablePartition& partition,
                                    std::mt19937& rng,
-                                   const spot::bdd_dict_ptr& dict) {
+                                   const spot::bdd_dict_ptr& dict,
+                                   const CorpusConfig& config) {
   if (partition.input_known.empty())
     return trivial_transducer(partition, Role::t_in, dict);
 
@@ -1049,7 +1161,7 @@ OutputLabeledTransducer random_tin(const VariablePartition& partition,
   for (const std::string& n : partition.output_free) g->register_ap(n);
   for (const std::string& n : partition.output_known) g->register_ap(n);
 
-  std::uniform_int_distribution<int> state_count(1, 3);
+  std::uniform_int_distribution<int> state_count(1, config.tin_states_max);
   const int n = state_count(rng);
   g->new_states(n);
   g->set_init_state(0);
@@ -1082,23 +1194,26 @@ OutputLabeledTransducer random_tin(const VariablePartition& partition,
 }
 
 // BuildGeneratedCorpus (PRD "Determinism / seeding"): one seeded
-// std::mt19937(kCorpusSeed), no reserved draw slots (PRD "Implementation
-// phases" cross-phase seed note -- deliberate: this Phase 2 draw inserts
-// here and shifts the single stream relative to the Phase-1-only tree, an
-// accepted trade, not a bug to "fix"; reproducibility is a property of the
-// final landed tree).  Emits kCorpusCaseCount cases partition-first, so
+// std::mt19937(config.seed), no reserved draw slots.  Emits config.case_count
+// cases partition-first, so
 // every phi's APs are in-partition by construction; each case's random Tin
-// is built on its own private bdd_dict.
-std::vector<GeneratedCase> BuildGeneratedCorpus() {
-  std::mt19937 rng(kCorpusSeed);
+// is built on its own private bdd_dict.  Phase 1 (soak-mode PRD
+// "Configuration struct"): takes an explicit CorpusConfig (no default
+// argument -- callers, including a future ladder, pass it explicitly) and
+// threads it into random_partition / generate_random_formula / random_tin,
+// preserving the exact std::mt19937 draw order (random_partition ->
+// generate_random_formula -> strengthen_next -> random_tin, per case) so
+// the default (all-env-unset) corpus stays byte-identical to pre-Phase-1.
+std::vector<GeneratedCase> BuildGeneratedCorpus(const CorpusConfig& config) {
+  std::mt19937 rng(config.seed);
   std::vector<GeneratedCase> corpus;
-  corpus.reserve(kCorpusCaseCount);
-  for (std::size_t i = 0; i < kCorpusCaseCount; ++i) {
-    VariablePartition partition = random_partition(rng);
-    spot::formula phi =
-        strengthen_next(generate_random_formula(partition, rng), rng);
+  corpus.reserve(config.case_count);
+  for (std::size_t i = 0; i < config.case_count; ++i) {
+    VariablePartition partition = random_partition(rng, config);
+    spot::formula phi = strengthen_next(
+        generate_random_formula(partition, rng, config), rng);
     const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
-    OutputLabeledTransducer t_in = random_tin(partition, rng, dict);
+    OutputLabeledTransducer t_in = random_tin(partition, rng, dict, config);
     corpus.push_back({phi, std::move(partition), std::move(t_in)});
   }
   return corpus;
@@ -1120,6 +1235,243 @@ std::string DescribeGeneratedPartition(const VariablePartition& p) {
   return os.str();
 }
 
+// Renders a CorpusConfig's seed + range knobs for SCOPED_TRACE (soak-mode
+// PRD "Reproducibility of a soak run": the replay recipe needs the seed and
+// per-knob maxes a failing case ran under; Phase 1 prints them even for the
+// single non-soak pass so the trace format is stable across both phases).
+std::string DescribeCorpusConfig(const CorpusConfig& config) {
+  std::ostringstream os;
+  os << "seed=" << config.seed << " cases=" << config.case_count
+     << " tree_min=" << config.tree_size_min
+     << " tree_max=" << config.tree_size_max
+     << " input_max=" << config.input_max
+     << " output_max=" << config.output_max
+     << " states_max=" << config.tin_states_max
+     << " diff_width=" << config.diff_width_cap
+     << " timeout=" << config.subprocess_timeout_secs;
+  return os.str();
+}
+
+// ---------------------------------------------------------------------------
+// Phase 1 harness tests (docs/prd/generated-corpus-soak-mode.md "Test oracles
+// (for /test-writer)"): these exercise the *driver* (CorpusConfig,
+// corpus_config_from_env, the config-parameterized BuildGeneratedCorpus)
+// added by Phase 1, not new synthesis behaviour. Two properties, per the
+// PRD: (1) the byte-identical default -- the critical guard that proves the
+// constexpr->struct refactor did not shift the mt19937 draw order; (2) the
+// per-knob env-override plumbing, including loud-on-malformed. Phase 2's
+// ladder monotonicity/clamp test and the LTLF_EK_SOAK soak smoke test are
+// out of scope here -- that code does not exist yet.
+// ---------------------------------------------------------------------------
+
+// ScopedEnvVar: sets (or, with value == nullptr, unsets) an environment
+// variable for the lifetime of the guard and restores its prior value (or
+// absence) on destruction, so LTLF_EK_CORPUS_* overrides in one test never
+// leak into the next (PRD "Env override plumbing": "Set/unset env within
+// the test via setenv/unsetenv and restore afterward").
+class ScopedEnvVar {
+ public:
+  ScopedEnvVar(const char* name, const char* value) : name_(name) {
+    const char* prev = std::getenv(name);
+    had_prev_ = prev != nullptr;
+    if (had_prev_) prev_value_ = prev;
+    if (value == nullptr)
+      unsetenv(name);
+    else
+      setenv(name, value, /*overwrite=*/1);
+  }
+  ScopedEnvVar(const ScopedEnvVar&) = delete;
+  ScopedEnvVar& operator=(const ScopedEnvVar&) = delete;
+  ~ScopedEnvVar() {
+    if (had_prev_)
+      setenv(name_.c_str(), prev_value_.c_str(), /*overwrite=*/1);
+    else
+      unsetenv(name_.c_str());
+  }
+
+ private:
+  std::string name_;
+  bool had_prev_;
+  std::string prev_value_;
+};
+
+// Every LTLF_EK_CORPUS_* knob name (soak-mode PRD "Configuration struct",
+// "Env var names"), used to force a clean (fully-unset) environment before
+// asserting the byte-identical default -- ambient env in a soaker's shell
+// must not leak into the fast-gate guard.
+constexpr const char* kAllCorpusEnvVars[] = {
+    "LTLF_EK_CORPUS_SEED",  "LTLF_EK_CORPUS_CASES",
+    "LTLF_EK_CORPUS_TREE_MIN", "LTLF_EK_CORPUS_TREE_MAX",
+    "LTLF_EK_CORPUS_INPUT_MAX", "LTLF_EK_CORPUS_OUTPUT_MAX",
+    "LTLF_EK_CORPUS_STATES_MAX", "LTLF_EK_CORPUS_DIFF_WIDTH",
+    "LTLF_EK_CORPUS_TIMEOUT"};
+
+// Builds an RAII bundle (one guard per knob, heap-held since ScopedEnvVar is
+// non-movable) that unsets every corpus knob for the caller's scope; returned
+// by value so the guards live as long as the caller needs them.
+std::vector<std::unique_ptr<ScopedEnvVar>> UnsetAllCorpusEnvVars() {
+  std::vector<std::unique_ptr<ScopedEnvVar>> guards;
+  for (const char* name : kAllCorpusEnvVars)
+    guards.push_back(std::make_unique<ScopedEnvVar>(name, nullptr));
+  return guards;
+}
+
+// A portable, order-sensitive 64-bit FNV-1a fold over a generated corpus's
+// (phi, partition) stream -- a stable stand-in for "the whole 256-case
+// stream" so the byte-identical guard does not string-compare 256 cases by
+// hand (PRD "Test oracles": "a stable checksum over the streamed cases").
+// Deliberately NOT std::hash, whose output is implementation-defined -- a
+// golden captured under one stdlib would false-fail under another and invite
+// a spurious re-capture that masks real draw-order drift; FNV-1a is fixed
+// across compilers/stdlibs so the golden stays a genuine drift detector.
+std::uint64_t ChecksumGeneratedCorpus(const std::vector<GeneratedCase>& corpus) {
+  std::uint64_t hash = 14695981039346656037ull;  // FNV-1a 64-bit offset basis
+  for (const GeneratedCase& c : corpus) {
+    std::ostringstream phi_os;
+    phi_os << c.phi;
+    const std::string s = phi_os.str() + DescribeGeneratedPartition(c.partition);
+    for (unsigned char byte : s) {
+      hash ^= byte;
+      hash *= 1099511628211ull;  // FNV-1a 64-bit prime
+    }
+  }
+  return hash;
+}
+
+// Golden values captured from the actual just-landed default corpus (PRD
+// "Golden values": "the PRD leaves the exact golden open" -- captured here
+// by running BuildGeneratedCorpus(corpus_config_from_env()) with no env set
+// on the landed Phase 1 tree). A later mismatch means the mt19937 draw order
+// drifted -- "investigate, don't adjust" (PRD "Edge cases" / repo-wide rule),
+// never silently re-capture to make the test pass.
+const std::string kGoldenDefaultCorpusPhi0 = "1";
+const std::string kGoldenDefaultCorpusPartition0 =
+    "input_free={p0 p1 p2 p3 } input_known={} output_free={p4 } "
+    "output_known={}";
+constexpr std::uint64_t kGoldenDefaultCorpusChecksum = 6327196066608144121ull;
+
+// Byte-identical default (soak-mode PRD "Test oracles" #1, "the critical
+// guard"): with no LTLF_EK_CORPUS_* env set, corpus_config_from_env() must
+// return the plain CorpusConfig{} defaults, and BuildGeneratedCorpus on those
+// defaults must reproduce the exact 256-case golden corpus captured above --
+// proving the constexpr->struct refactor preserved the std::mt19937 draw
+// order (random_partition -> generate_random_formula -> strengthen_next ->
+// random_tin, per case).
+TEST(GeneratedCorpus, DefaultCorpusIsByteIdenticalToGolden) {
+  const std::vector<std::unique_ptr<ScopedEnvVar>> clean_env =
+      UnsetAllCorpusEnvVars();
+
+  const CorpusConfig config = corpus_config_from_env();
+  EXPECT_EQ(config.seed, kCorpusSeed);
+  EXPECT_EQ(config.case_count, kCorpusCaseCount);
+  EXPECT_EQ(config.tree_size_min, kCorpusTreeSizeMin);
+  EXPECT_EQ(config.tree_size_max, kCorpusTreeSizeMax);
+  EXPECT_EQ(config.input_max, kCorpusInputMax);
+  EXPECT_EQ(config.output_max, kCorpusOutputMax);
+  EXPECT_EQ(config.tin_states_max, kCorpusTinStatesMax);
+  EXPECT_EQ(config.diff_width_cap, kCorpusDiffWidthCap);
+  EXPECT_EQ(config.subprocess_timeout_secs, kCorpusSubprocessTimeoutSecs);
+
+  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
+  ASSERT_EQ(corpus.size(), kCorpusCaseCount);
+
+  std::ostringstream phi0_os;
+  phi0_os << corpus.front().phi;
+  EXPECT_EQ(phi0_os.str(), kGoldenDefaultCorpusPhi0)
+      << "default corpus's case-0 phi drifted from the golden -- the "
+         "CorpusConfig refactor may have shifted the mt19937 draw order";
+  EXPECT_EQ(DescribeGeneratedPartition(corpus.front().partition),
+            kGoldenDefaultCorpusPartition0)
+      << "default corpus's case-0 partition drifted from the golden";
+  EXPECT_EQ(ChecksumGeneratedCorpus(corpus), kGoldenDefaultCorpusChecksum)
+      << "default corpus's full 256-case (phi, partition) stream drifted "
+         "from the golden checksum -- some case beyond #0 shifted";
+}
+
+// Env override plumbing (PRD "Test oracles" #2): LTLF_EK_CORPUS_CASES=8
+// shrinks both the reported config and the built corpus to exactly 8 cases.
+TEST(CorpusConfigFromEnv, CasesOverrideChangesCorpusSize) {
+  const ScopedEnvVar cases_guard("LTLF_EK_CORPUS_CASES", "8");
+
+  const CorpusConfig config = corpus_config_from_env();
+  EXPECT_EQ(config.case_count, 8u);
+
+  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
+  EXPECT_EQ(corpus.size(), 8u);
+}
+
+// Golden values for LTLF_EK_CORPUS_SEED=1, captured the same way as the
+// default golden above (a single BuildGeneratedCorpus call in a fresh
+// process).  NOTE for future readers: spot::randltlgenerator draws from a
+// process-*global* RNG that a same-seed re-construction does not cleanly
+// reset (confirmed experimentally: constructing it twice with an identical
+// explicit spot::srand()+"seed" option in the *same* process yields two
+// different formulas), so "internally deterministic" is verified the same
+// way as the default corpus -- one call per (fresh, ctest-per-test) process
+// against a captured golden -- rather than by rebuilding twice in-process
+// and comparing, which would spuriously fail on this Spot quirk and not on
+// any bug in CorpusConfig/BuildGeneratedCorpus. This is a mechanical Spot-API
+// issue (fix: spot::srand(seed) before each in-process build), captured as a
+// Phase-2 must-resolve in docs/prd/generated-corpus-soak-mode.md ("Fresh seed
+// per level"), since run_corpus's level loop builds multiple corpora per
+// process -- not a /theory-review item.
+const std::string kGoldenSeed1CorpusPhi0 = "(!p0 & p6) | (p0 & !p6)";
+const std::string kGoldenSeed1CorpusPartition0 =
+    "input_free={p0 p2 } input_known={p1 } output_free={p3 p4 p5 p6 p7 } "
+    "output_known={}";
+constexpr std::uint64_t kGoldenSeed1CorpusChecksum = 12756743135039034952ull;
+
+// Env override plumbing (PRD "Test oracles" #2): LTLF_EK_CORPUS_SEED=1
+// yields a *different* corpus than the default seed (from the golden
+// checksum above), and that corpus is itself reproducible (a captured
+// golden, verified the same way the default corpus's is).
+TEST(CorpusConfigFromEnv, SeedOverrideChangesCorpusDeterministically) {
+  const ScopedEnvVar seed_guard("LTLF_EK_CORPUS_SEED", "1");
+
+  const CorpusConfig config = corpus_config_from_env();
+  EXPECT_EQ(config.seed, 1u);
+
+  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
+  ASSERT_EQ(corpus.size(), kCorpusCaseCount);
+
+  std::ostringstream phi0_os;
+  phi0_os << corpus.front().phi;
+  EXPECT_EQ(phi0_os.str(), kGoldenSeed1CorpusPhi0);
+  EXPECT_EQ(DescribeGeneratedPartition(corpus.front().partition),
+            kGoldenSeed1CorpusPartition0);
+  const std::uint64_t checksum = ChecksumGeneratedCorpus(corpus);
+  EXPECT_EQ(checksum, kGoldenSeed1CorpusChecksum)
+      << "seed=1 corpus drifted from its captured golden";
+  EXPECT_NE(checksum, kGoldenDefaultCorpusChecksum)
+      << "seed=1 corpus is identical to the default-seed golden corpus -- "
+         "the seed override is not reaching BuildGeneratedCorpus";
+}
+
+// Env override plumbing (PRD "Test oracles" #2, "Parse failure is loud,
+// never silent"): a non-integer LTLF_EK_CORPUS_SEED value throws
+// std::runtime_error rather than silently falling back to the default seed.
+TEST(CorpusConfigFromEnv, MalformedSeedThrows) {
+  const ScopedEnvVar seed_guard("LTLF_EK_CORPUS_SEED", "notanumber");
+  EXPECT_THROW(corpus_config_from_env(), std::runtime_error);
+}
+
+// Env override plumbing (PRD "Test oracles" #2, "for counts/maxes -- zero"
+// must throw): LTLF_EK_CORPUS_CASES=0 throws rather than silently building
+// an empty (and therefore vacuously "passing") corpus.
+TEST(CorpusConfigFromEnv, ZeroCasesThrows) {
+  const ScopedEnvVar cases_guard("LTLF_EK_CORPUS_CASES", "0");
+  EXPECT_THROW(corpus_config_from_env(), std::runtime_error);
+}
+
+// Env override plumbing (PRD "Edge cases", "tree_size_min > tree_size_max"):
+// an internally-inconsistent tree-size range throws std::runtime_error
+// instead of silently building with a swapped or clamped range.
+TEST(CorpusConfigFromEnv, TreeMinGreaterThanMaxThrows) {
+  const ScopedEnvVar min_guard("LTLF_EK_CORPUS_TREE_MIN", "20");
+  const ScopedEnvVar max_guard("LTLF_EK_CORPUS_TREE_MAX", "5");
+  EXPECT_THROW(corpus_config_from_env(), std::runtime_error);
+}
+
 // Structural free-rider (PRD "ltlf_to_dfa structural check", Phase 1's
 // green checkpoint): for every generated phi, ltlf_to_dfa(phi) must be
 // deterministic and complete (ltlf_to_dfa calls spot::complete_here, so
@@ -1129,13 +1481,15 @@ std::string DescribeGeneratedPartition(const VariablePartition& p) {
 // ltlfsynt: a plain TEST, not under LtlfsyntOracleTest, so it runs even
 // where ltlfsynt is absent.
 TEST(GeneratedCorpus, LtlfToDfaStructural) {
-  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus();
+  const CorpusConfig config = corpus_config_from_env();
+  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
   for (std::size_t i = 0; i < corpus.size(); ++i) {
     const GeneratedCase& c = corpus[i];
     std::ostringstream phi_os;
     phi_os << c.phi;
     SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
-                 ", partition=" + DescribeGeneratedPartition(c.partition));
+                 ", partition=" + DescribeGeneratedPartition(c.partition) +
+                 ", " + DescribeCorpusConfig(config));
     const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
     const spot::twa_graph_ptr dfa = ltlf_to_dfa(c.phi, dict);
     EXPECT_TRUE(spot::is_deterministic(dfa))
@@ -1155,13 +1509,15 @@ TEST(GeneratedCorpus, LtlfToDfaStructural) {
 // "Unrealizable generated case").  Never gated on ltlfsynt: a plain TEST,
 // not under LtlfsyntOracleTest, so it runs even where ltlfsynt is absent.
 TEST(GeneratedCorpus, MetamorphicRoundTrip) {
-  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus();
+  const CorpusConfig config = corpus_config_from_env();
+  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
   for (std::size_t i = 0; i < corpus.size(); ++i) {
     const GeneratedCase& c = corpus[i];
     std::ostringstream phi_os;
     phi_os << c.phi;
     SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
-                 ", partition=" + DescribeGeneratedPartition(c.partition));
+                 ", partition=" + DescribeGeneratedPartition(c.partition) +
+                 ", " + DescribeCorpusConfig(config));
 
     const OutputLabeledTransducer t_out =
         trivial_transducer(c.partition, Role::t_out, c.t_in.dict());
@@ -1202,7 +1558,8 @@ std::string JoinCsv(const std::set<std::string>& names) {
 // partition". Gated on ltlfsynt via LtlfsyntOracleTest (GTEST_SKIPs cleanly
 // when it is absent, per "Edge cases").
 TEST_F(LtlfsyntOracleTest, GeneratedCorpusDifferential) {
-  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus();
+  const CorpusConfig config = corpus_config_from_env();
+  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
   std::size_t skipped = 0;
   for (std::size_t i = 0; i < corpus.size(); ++i) {
     const GeneratedCase& c = corpus[i];
@@ -1210,16 +1567,19 @@ TEST_F(LtlfsyntOracleTest, GeneratedCorpusDifferential) {
     // differential item).
     if (!c.partition.input_known.empty() || !c.partition.output_known.empty())
       continue;
-    // Differential width cap (PRD "Partition generation"): |I union O| <= 3.
+    // Differential width cap (soak-mode PRD "Configuration struct"): was the
+    // literal `3`, now config.diff_width_cap (defaulting to
+    // kCorpusDiffWidthCap = 3).
     const std::size_t width =
         c.partition.input_free.size() + c.partition.output_free.size();
-    if (width > 3) continue;
+    if (width > config.diff_width_cap) continue;
 
     std::ostringstream phi_os;
     phi_os << c.phi;
     const std::string phi_str = phi_os.str();
     SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_str +
-                 ", partition=" + DescribeGeneratedPartition(c.partition));
+                 ", partition=" + DescribeGeneratedPartition(c.partition) +
+                 ", " + DescribeCorpusConfig(config));
 
     std::vector<std::string> ek_args = {
         "--dfa-product", "--formula=" + phi_str, "--inputs",
@@ -1240,15 +1600,15 @@ TEST_F(LtlfsyntOracleTest, GeneratedCorpusDifferential) {
     synt_args.push_back(phi_str);
 
     bool ek_timed_out = false;
-    const CliResult ek =
-        RunEkSynth(ek_args, kCorpusSubprocessTimeoutSecs, &ek_timed_out);
+    const CliResult ek = RunEkSynth(ek_args, config.subprocess_timeout_secs,
+                                    &ek_timed_out);
     if (ek_timed_out) {
       ++skipped;
       continue;  // a slow subprocess is a skip, never a test failure.
     }
     bool synt_timed_out = false;
-    const CliResult synt =
-        RunLtlfsynt(synt_args, kCorpusSubprocessTimeoutSecs, &synt_timed_out);
+    const CliResult synt = RunLtlfsynt(
+        synt_args, config.subprocess_timeout_secs, &synt_timed_out);
     if (synt_timed_out) {
       ++skipped;
       continue;
