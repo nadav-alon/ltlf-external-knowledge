@@ -114,8 +114,15 @@ the existing term or update this file via `/glossary` — do not let drift happe
 ### Transition function (delta)
 - **`main.tex`:** $\delta:Q\times 2^{\mathcal{I}\cup\mathcal{O}}\to Q$.
 - **Definition:** successor over the *full* letter; tracks full state history.
-- **C++:** `Transducer::delta(q, v)`.
-- **Do not call it:** step, next, move.
+- **C++:** `Transducer::delta(q, v)` (per-letter). The **symbolic** (whole-set)
+  form is `Transducer::delta_edges(q)` → `std::vector<std::pair<bdd, unsigned>>`,
+  the deterministic δ out of $q$ as `(guard, dst)` pairs (for
+  `OutputLabeledTransducer`, its `twa_graph` out-edges; acceptance ignored). A
+  letter covered by no guard is δ-undefined there (partial transducer). Same δ,
+  region form — lets a symbolic product build compute successors without
+  enumerating letters (new; `docs/prd/symbolic-dfa-product.md`).
+- **Do not call it:** step, next, move; for the symbolic form, not `successors`,
+  `transitions`, `out_edges`/`edges` (bare).
 
 ### Output function (lambda)
 - **`main.tex`:** $\lambda:Q\times\Sigma_0\to\Sigma_1$ (the turn-order-restricted output).
@@ -274,12 +281,21 @@ the existing term or update this file via `/glossary` — do not let drift happe
   $\Sigma_1$: $V$ for $\Tin/\Tout$, $\Ofree$ for $T_C$, so on $T_C$ it is **not**
   $\cons$ (since $\Ofree\notin V$). δ-definedness is **not** part of `emits` (the
   caller reads it off the successor), matching $\cons$'s λ-only shape.
-- **C++:** `emits(t, q, v)` (`consistency.hpp`); $\cons$ is
+- **C++:** `emits(t, q, v)` (`consistency.hpp`, per-letter); $\cons$ is
   `emits(t_in,…) && emits(t_out,…)`, and the *Product* filter is
-  `all_of(taus, emits)`. See `docs/prd/transducer-product.md`.
+  `all_of(taus, emits)`. See `docs/prd/transducer-product.md`. The **symbolic**
+  (whole-set) form is `Transducer::emits_region(q)` → `bdd`: the region of every
+  letter whose $\Sigma_1$ slice agrees with $\lambda$ at $q$. For
+  `OutputLabeledTransducer` it is exactly `lambda_by_state_[q]` — the
+  λ-functionality invariant makes region membership ⟺ per-letter `emits(t,q,v)`
+  (`bddfalse` when λ is undefined, matching `emits`'s `nullopt`⇒`false`). The
+  symbolic $\cons$ region is `emits_region(q_in) & emits_region(q_out)`, no
+  separate function (new; `docs/prd/symbolic-dfa-product.md`; faithfulness to
+  `\cref{def:consistency}` flagged for `/theory-review`).
 - **Do not call it:** agrees (that is per-trace *Agreement*), consistent /
   consistent_with (that is the two-transducer $\cons$), commits, produces (that
-  is the *Produced-trace language*), matches.
+  is the *Produced-trace language*), matches; for the symbolic form, not
+  `emits_set`, `agreeing_region`, `lambda_region`.
 
 ### Product
 - **`main.tex`:** $P$ (Methods 1 & 2); states $S\times Q_{in}\times Q_{out}$
@@ -289,10 +305,23 @@ the existing term or update this file via `/glossary` — do not let drift happe
   all methods — `\cref{def:consistency}`, §203; partiality note §211).
 - **C++:** `ProductState` (a struct — `unsigned goal` + `std::vector<unsigned>
   taus` — generalized to N transducers), the reusable `agreeing_successor`
-  (lazy per-letter step) and `build_product` (eager driver → neutral map) in
-  `product.hpp`, plus the `*Product` synthesis classes. See
-  `docs/prd/transducer-product.md`.
-- **Do not call it:** composition, join, cross.
+  (lazy per-letter step) and `build_product` (eager per-letter driver → neutral
+  map) in `product.hpp`, plus the `*Product` synthesis classes. See
+  `docs/prd/transducer-product.md`. The **symbolic** builder is
+  `build_product_symbolic(goal, taus, init)` → `ProductGuards` (new;
+  `docs/prd/symbolic-dfa-product.md`), which computes the per-destination guards
+  directly from `delta_edges`/`emits_region` + Goal out-edges, no minterm loop;
+  `DfaProduct` uses it while the per-letter `build_product` stays for
+  `verify_controller` and as the build-equivalence reference. `ProductGuards` is
+  the shared neutral per-dst guard map both builds emit
+  (`map<ProductState, {bool acc; map<ProductState, bdd> guard}>`);
+  `materialize_product(pg, dict)` → `spot::twa_graph_ptr` turns it into the game
+  automaton (state-based Büchi $F_P$), and `to_guard_map(graph, alphabet)`
+  compresses the per-letter `build_product` output into `ProductGuards` (the
+  former inline `guards[dst] |= letters[idx]` loop).
+- **Do not call it:** composition, join, cross; for the symbolic pieces, not
+  `symbolic_product`/`product_symbolic` (build), `GuardMap`/`product_map`
+  (`ProductGuards`), `materialize`/`to_twa` (bare, for `materialize_product`).
 
 ### Forward progression
 - **`main.tex`:** `FP`$(\psi,w)$ returning $(\psi',b)$ (Alg. Forward Progression).
@@ -402,6 +431,25 @@ Common interface: `Synthesis::synthesize(phi, vars, t_in, t_out)`.
   not shrinking random), golden corpus (there is no golden expected value),
   round-trip test (bare), differential test (bare — pair the noun with *oracle* /
   *round-trip* as above).
+
+### Build-equivalence metamorphic oracle
+- **`main.tex`:** — (no symbol; test-only, `docs/prd/symbolic-dfa-product.md`).
+- **Definition:** *prose note, not a domain entry* — a **metamorphic** cross-check
+  between **two builds of the same method**: `build_product_symbolic` and the
+  per-letter `build_product` (compressed via `to_guard_map`) must yield the
+  **identical** product game — same reachable `ProductState`s, same acceptance,
+  and per-`⟨src,dst⟩` a **BDD-equal** guard (`==`; BuDDy canonicalises, so
+  structural equality is semantic). It compares the **game / arena** ($P$, the
+  input to `solve_dfa`), *not* realizability and *not* a `Controller` (winning
+  strategies are non-unique — not comparable). This is the direct check on the
+  symbolic rewrite's likeliest bug class (lost / mis-grouped transitions, the
+  `|=`→`=` seeded bug); it complements — does **not** replace — the realizability
+  oracles (*Controller verifier*, monolithic baseline, the corpus *differential*).
+- **C++:** test-local (no library API); a dedicated assertion plus a library-only
+  body over the *Generated corpus*.
+- **Do not call it:** **differential** (bare — that is the corpus's *realizability*
+  cross-check against `ltlfsynt`, a different oracle), build differential,
+  product diff.
 
 ---
 

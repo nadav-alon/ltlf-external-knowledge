@@ -99,6 +99,10 @@ exactly as `alg:dfa_product`'s `\For`, drives the per-letter APIs
 destination into one guarded edge** (the OR of their letters). The exponential
 letter loop is the accepted, documented baseline cost — the symbolic
 alternative is deferred (docs/BACKLOG.md → "Symbolic DFA-product construction").
+**Superseded (2026-07-12):** the symbolic build is now spec'd in
+`docs/prd/symbolic-dfa-product.md` (rewrites this construction for `DfaProduct`;
+keeps the per-letter core for the verifier + as a differential reference). This
+"deferred baseline cost" paragraph no longer stands.
 
 **`LtlfToDfa` (decided):** `ltlf_to_dfa(phi, dict)` = `spot::ltlf_to_mtdfa`
 followed by `mtdfa::as_twa()`, yielding an explicit deterministic `twa_graph`

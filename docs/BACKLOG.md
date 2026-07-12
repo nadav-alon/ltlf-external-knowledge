@@ -78,6 +78,31 @@ overriding its former "measure first" deferral._
 
 ## Later
 
+### Symbolic `verify_controller` ν-fixpoint (spun off from symbolic DFA-product, 2026-07-12)
+- **Intent:** the *Controller verifier*'s ν-fixpoint (`src/verify_controller.cpp`)
+  is inherently **per-$\Ifree$-combo** — `StateInfo::edges` is an array indexed by
+  `ifree_index`, and `compute_bad`/`extract_witness` enumerate $\Ifree$ choices as
+  the adversary's moves. So it still pays the minterm loop via `build_product` +
+  `LetterAlphabet`, which the symbolic DFA-product rewrite
+  (`docs/prd/symbolic-dfa-product.md`) deliberately **left in place** (scoped to
+  `DfaProduct` only). This item is the symbolic rewrite of the verifier's fixpoint.
+- **Why deferred:** the verifier is an **audit path**, not the benchmarked
+  synthesis path, and it is the project's **linchpin correctness oracle** — a
+  symbolic ν-fixpoint over BDDs is a real re-architecture with its own theory/test
+  burden, not worth folding into a perf change. Pursue **only** if the verifier's
+  own construction cost ever shows up as a bottleneck.
+- **Seeds for grilling:**
+  - A symbolic one-player reachability/safety fixpoint replaces the
+    $\Ifree$-combo enumeration — the $\exists\Ifree$ adversary move becomes a
+    `bdd_exist` over the $\Ifree$ cube, the greatest fixpoint an iteration over
+    BDD state sets. Reconcile with the current `Bad` nu-fixpoint spelling
+    (`docs/prd/controller-verifier.md`).
+  - Witness (lasso) extraction must survive the symbolic rewrite — currently it
+    walks concrete $\Ifree$ choices; a symbolic version needs to pick a concrete
+    witness letter out of a BDD region.
+  - Reuse `emits_region`/`delta_edges` (added by `symbolic-dfa-product.md`) so the
+    two symbolic builds share the contract.
+
 ### Co-generated $(\Tin,\psi_{in})$ family → known-knowledge differential (generated corpus v2)
 - **PRD:** extends `docs/prd/generated-corpus-oracle.md` (v1 draft, grilled
   2026-07-06). v1 grades a fixed-seed generated corpus with two **self-labeling**
