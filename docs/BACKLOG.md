@@ -169,33 +169,25 @@ overriding its former "measure first" deferral._
     builder needs $\Sigma_0=\mathcal I\cup\Ofree,\Sigma_1=\Oknown$, not the
     $\Tin$ shape.
 
-### Intense "soak" mode for the generated corpus (run sparingly)
-- **PRD:** operational extension of `docs/prd/generated-corpus-oracle.md` (v1 fully
-  implemented). The default corpus (256 cases, one `kCorpusSeed`, tree-size ≤10,
-  differential width ≤3) runs in well under a second — deliberately tuned for the
-  fast `ctest` gate. This item adds an opt-in heavy configuration to run
-  occasionally (nightly / pre-release), not on every build.
-- **Intent:** make the tunable knobs env-overridable (no recompile) so a soak run
-  can crank them, and add a **seed sweep** so breadth no longer rests on a single
-  256-case draw. Knobs: `kCorpusCaseCount`, `kCorpusTreeSizeMax`, the partition
-  width ranges, the differential width cap (currently the hardcoded `3` literal),
-  and `kCorpusSubprocessTimeoutSecs`. Default path stays byte-for-byte unchanged
-  (defaults substituted when env unset), so the fast gate and the landed tree's
-  reproducibility are untouched.
-- **Seeds for grilling:**
-  - The three bodies scale differently: the two **library** bodies (structural +
-    metamorphic) are in-process/self-labeling → crank case count freely; the
-    **differential** is the one that genuinely needs "sparingly" (raising its width
-    cap past 3 is where `ltlfsynt` blows up and the skip counter moves).
-  - **Seed sweep is the highest-value axis** — 50 seeds × 256 gives new
-    formula/partition/Tin shapes, catching the "unlucky single seed" blind spot
-    that bumping case count on one seed does not.
-  - Reproducibility: once the seed is swept, `SCOPED_TRACE` must also print the
-    **seed** (not just `(phi, partition, index)`) so a soak failure stays
-    re-runnable.
-  - Metamorphic's `random_tin` pays `2^|Ifree|` (enumerates every Ifree cube), so
-    widening the partition ranges has a steeper in-process cost than tree size —
-    weigh which axis buys more coverage per second.
+### Soak metamorphic body has no per-case time bound (from Phase 2, 2026-07-13)
+- **Context:** the soak mode's escalating driver (`run_corpus`,
+  `docs/prd/generated-corpus-soak-mode.md`, implemented) uses a **soft** deadline —
+  the case in flight when the budget passes always finishes. For the `differential`
+  body that in-flight case is bounded by the per-subprocess `ltlfsynt` timeout, but
+  the **`MetamorphicRoundTrip`** body's `DfaProduct::synthesize` /
+  `verify_controller` are **in-process Spot calls with no time bound**, so one large
+  case at a high level can dominate the wall clock (observed: 105 s for a 20 s
+  budget). The OOM/crash class is fixed (per-case `bad_alloc`→skip, lowered
+  ceilings); this is the residual *time* overrun.
+- **Why deferred:** you cannot safely interrupt a running in-process Spot synthesis
+  mid-case, so a firm bound needs either a per-case complexity cap (a tighter
+  width/tree ceiling for the metamorphic body specifically — trades escalation
+  depth for a firmer budget) or running each case under a watchdog process. Not
+  worth it until soak is run routinely enough that the overrun bites.
+- **Also minor:** `run_corpus`'s `levels_reached` can overcount a zero-case level by
+  1 (set at level entry, before the inner deadline check) — diagnostic-only
+  cosmetic, noted so it isn't rediscovered as a bug.
+- **Seeds for grilling:** _(tbd)_
 
 ### Formula shrinking on generated-corpus failure (generated corpus v2)
 - **PRD:** extends `docs/prd/generated-corpus-oracle.md`. v1 has **no shrinking**:
@@ -289,6 +281,25 @@ overriding its former "measure first" deferral._
 - **Seeds for grilling:** _(tbd)_
 
 ## Done
+
+### Intense "soak" mode for the generated corpus
+- **Intent:** an opt-in, wall-clock-budgeted escalating soak over the generated
+  corpus (nightly / pre-release), leaving the fast `ctest` gate byte-for-byte
+  unchanged. Reframed in the grill from "env-overridable knobs + seed sweep" to a
+  `LTLF_EK_SOAK=<secs>` runner that escalates complexity (wider $\Ifree$, deeper
+  formulas, more $\Tin$ states) until the deadline.
+- **Outcome:** shipped in two phases (PRD `docs/prd/generated-corpus-soak-mode.md`,
+  `implemented`, all gates clean). Phase 1 (`c897c82`): `CorpusConfig` +
+  `LTLF_EK_CORPUS_*` per-knob env overrides (loud-on-malformed) + the byte-identical
+  golden guard. Phase 2 (this commit): the `LTLF_EK_SOAK` escalating `run_corpus`
+  driver (fresh-seed levels, `ladder`, width ceilings, joint clamp, per-case
+  `bad_alloc`→skip), the metamorphic `t_in` replay dump, and ladder/soak tests.
+  Suite green 215/215; `/code-reviewer` + `/code-review` both clean. Two follow-ups
+  logged under **Later** (metamorphic per-case time bound; `levels_reached`
+  cosmetic). A deeper Spot finding surfaced and is captured in memory:
+  `randltlgenerator` in-process rebuilds are **not** seed-reproducible (global RNG +
+  AP apid recycling), so per-case replay is via the printed `phi`/partition/`t_in`,
+  not corpus regeneration.
 
 ### Trace-level controller verifier oracle
 - **Intent:** the internal linchpin correctness oracle — for a synthesized

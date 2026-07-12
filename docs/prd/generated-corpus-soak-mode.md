@@ -1,6 +1,8 @@
 # PRD: generated-corpus soak mode (wall-clock-budgeted escalating runner)
 
-**Status:** implemented — Phase 1 only (Phase 2 not started)
+**Status:** implemented — Phase 1 + Phase 2 landed, plus a soak-driver
+OOM/deadline-overrun bug fix (2026-07-12, uncommitted; branch `master`; see
+"Developer comments / PRD disagreements")
 **Interface:** extends the GoogleTest suite `tests/ltlfsynt_oracle_test.cpp`
 (no production C++); parameterizes the existing `BuildGeneratedCorpus` +
 three corpus bodies on a config struct, adds per-knob env overrides, and adds
@@ -37,9 +39,46 @@ larger, escalating corpus.
       `CorpusConfig`, flagged for `/theory-review` / Phase 2's `run_corpus`
       level loop), `MalformedSeedThrows`, `ZeroCasesThrows`,
       `TreeMinGreaterThanMaxThrows`). Full suite green, 213/213 (`ctest
-      --test-dir build`); branch `master`, uncommitted. Out of scope (Phase
-      2 code doesn't exist yet): ladder monotonicity/clamp test, soak-smoke
-      test.
+      --test-dir build`); branch `master`, uncommitted.
+      **Phase 2 (2026-07-12, /test-writer):** three deliverables landed, all
+      in `tests/ltlfsynt_oracle_test.cpp`.
+      (1) `Ladder.MonotoneAndClampedAcrossLevels` (pure function, levels
+      0..40, asserts non-decreasing ramped fields, unramped fields pinned to
+      `base`'s value, and the three ceilings both never-exceeded and
+      actually-reached by level 40) plus
+      `Ladder.DrawnPartitionRespectsWidthCeilingsAtHighLevels` (calls
+      `random_partition` — no formula generation, so no Spot RNG hazard — at
+      levels 0/1/5/20/100, asserts the drawn `|I|`/`|I∪O|` stay within the
+      ceilings). Both run unconditionally on the default `ctest` path (no
+      env, no synthesis, sub-millisecond).
+      (2) `GeneratedCorpusSoak.DISABLED_LtlfToDfaStructuralReachesAtLeastOneLevel`
+      — `DISABLED_`-prefixed so GoogleTest skips it under a plain `ctest`
+      run (verified: 215/215 non-disabled tests pass, this one reports
+      "Disabled" and does not execute); sets `LTLF_EK_SOAK=1` via
+      `ScopedEnvVar` scoped to the test body, drives the
+      `LtlfToDfaStructural` assertion through `run_corpus`, and asserts
+      `levels_reached >= 1` plus a generous elapsed-time ceiling. Manually
+      verified enabled (`--gtest_also_run_disabled_tests
+      --gtest_filter=GeneratedCorpusSoak.*`): `levels_reached=8,
+      cases_run=1792, elapsed_ms=1717` for the 1 s budget — no OOM, no
+      hang.
+      (3) `DumpTinForReplay` closes the metamorphic `t_in` replay gap:
+      renders the reachable (state, Ifree-letter) → (lambda, delta-dst)
+      table for a generated case's random `Tin` (Ifree alone determines
+      every pair, since `random_tin`'s guards/lambda read only Sigma0), via
+      a throwaway registrar `twa_graph` on `t_in`'s own dict (idempotent
+      `register_ap`, no new accessor needed on `OutputLabeledTransducer`).
+      Wired into `MetamorphicRoundTrip`'s `EXPECT_TRUE(...).ok` `<<` stream,
+      so GoogleTest only evaluates/prints it on an actual failure (verified
+      via a temporary forced-failure scratch test, output confirmed
+      readable and reverted before landing) — zero cost on passing cases.
+      No same-seed-twice-in-process reproducibility test was written (the
+      hard constraint from the Phase-2 developer note above; per-case
+      replay is `(phi, partition)` from `SCOPED_TRACE` + this `t_in` dump,
+      not corpus regeneration).
+      Full suite green, 215/215 (`ctest --test-dir build`), 1 `DISABLED_`
+      soak test correctly excluded from the count; branch `master`,
+      uncommitted.
 - [x] code-review     — domain (/code-reviewer) + generic (/code-review) both
       clean on the Phase 1 diff (2026-07-12). No correctness findings (the one
       candidate — the seed golden false-failing via Spot's process-global RNG —
@@ -49,10 +88,22 @@ larger, escalating corpus.
       9-block read/cast boilerplate); `DescribeCorpusConfig` now prints all knobs
       (tree_min/cases/timeout) for full replay; dropped duplicate
       `kGoldenDefaultCorpusCaseCount`; single-computed seed checksum. Suite green
-      213/213 after fixes.
+      213/213 after fixes. **Phase 2 diff re-reviewed (2026-07-13)** —
+      `/code-reviewer` (domain) + `/code-review` (generic, high) both clean on the
+      `env_soak_secs`/`ladder`/`run_corpus`/`GenerateOneCase`/joint-clamp/
+      `DumpTinForReplay` diff. `DumpTinForReplay`'s Spot usage (t_in's own dict,
+      idempotent AP registration, Ifree-only enumeration) confirmed idiomatic; no
+      domain-invariant or synthesis-semantics code touched. Three fixes applied:
+      `static_assert(kCorpusWidthCeiling < kCorpusUnionCeiling)` + `std::max(0,…)`
+      guard on the joint clamp (latent negative-range UB); widened `ladder`'s
+      per-level additions to `long long` before the min-clamp (signed-overflow UB
+      on a pathological env max); trimmed the ceiling-constant deviation narration
+      to a PRD pointer. One cosmetic finding left (`levels_reached` may overcount a
+      zero-case level by 1 — diagnostic only). Suite green 215/215 after fixes.
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex (n/a for the Phase 1
       test-harness diff; the Spot RNG quirk is a mechanical Spot-API item captured
-      as a Phase-2 must-resolve, not a theory question)
+      as a Phase-2 must-resolve, not a theory question). Phase 2 is likewise a pure
+      test-harness diff, no new synthesis semantics — n/a expected, but unconfirmed.
 
 ## Goal
 The fixed-seed generated corpus (`docs/prd/generated-corpus-oracle.md`, v1 fully
@@ -546,6 +597,162 @@ the point: more evidence, no new resolution):
     `random_partition`'s drawn `|O|` at 0 as today (the knob's floor and the
     distribution's floor are different things — only the former is
     env-validated).
+
+- **2026-07-12 (Phase 2 landing).** Implemented `env_soak_secs()`, the three
+  ceiling constants, the joint width clamp in `random_partition`, `ladder(base,
+  L)`, `run_corpus(base, per_case)` (returning a `RunCorpusStats{levels_reached,
+  cases_run}` the PRD didn't name — a small addition so each body's
+  `RecordProperty` calls have something to read; the PRD only said "the shared
+  level/deadline driver", not its return shape), and rewrote all three bodies to
+  call it. Green checkpoint reached: `LTLF_EK_SOAK` unset stays 213/213
+  byte-identical to Phase 1 (`ctest --test-dir build`); a manual
+  `LTLF_EK_SOAK=5` smoke on each of the three bodies (via `--gtest_filter`)
+  reached `levels_reached` 4–10 within a few seconds of the 5 s budget, no OOM,
+  `differential_skipped` present and 0 on this box.
+  - **`ladder`'s `output_max` field does not itself subtract the drawn `|I|`.**
+    The PRD's ladder pseudocode writes `output_max = min(B.output_max + L,
+    kCorpusUnionCeiling - drawn |I|)`, but "drawn `|I|`" is a **per-case**
+    quantity, not knowable when `ladder(base, L)` builds one `CorpusConfig` for
+    the whole level. Implemented as written elsewhere in the same PRD section
+    ("Joint width clamp (pinned draw order)"): `ladder` sets
+    `cfg.output_max = min(B.output_max + L, kCorpusUnionCeiling)` (no `|I|`
+    term), and the `- drawn |I|` reduction happens where `|I|` actually exists —
+    inside `random_partition`, after drawing that case's own `|I|`. Net effect on
+    the drawn ranges is identical to the PRD's intent; only *where* the
+    `|I|`-dependent half of the clamp is applied differs from a literal reading
+    of the ladder line.
+  - **⚠ Load-bearing checkpoint finding, deeper than the PRD's "Fresh seed per
+    level" theory — the Spot non-determinism is *not* (only) the process-global
+    RNG.** Implemented exactly as directed: `spot::srand(cfg.seed)` immediately
+    before each per-level `BuildGeneratedCorpus` in `run_corpus`'s level loop
+    (`#include <spot/misc/random.hh>` added). Per the PRD's own instruction, I
+    then did the "quick manual check" — build the *same* `cfg.seed` twice in one
+    process (with the fix applied both times) and diff the corpora. **It still
+    diverges**: case 0 of an 8-case corpus matched between the two builds, but
+    case 1 did not (`"p5 & ((p3 & Fp6) | (!p3 & G!p6))"` vs `"p6 & ((p3 & Fp4) |
+    (!p3 & G!p4))"` — a same-shape formula with different atomic-prop names).
+    I isolated this to `generate_random_formula` itself: two **back-to-back**
+    calls with an *identical* `VariablePartition`, `CorpusConfig`, and
+    `std::mt19937(999)` seed, with an *explicit* `spot::srand(777)` reset
+    immediately before **each** call, still diverged ("Xp6" vs "Xp5") — proving
+    the divergence is **not** a leftover-RNG-state issue (an explicit,
+    identical `srand` reset right before construction has zero effect on the
+    result; confirmed by also forcing `spot::srand(0)` inside
+    `generate_random_formula` right before constructing `randltlgenerator`,
+    which changed nothing). The actual mechanism (traced into Spot's own
+    source, `spot/tl/formula.cc` `fnode::ap` and `spot/tl/randomltl.cc`
+    `next()`'s `mrand(rl->ap()->size())`): `spot::formula` atomic props are
+    **reference-counted and hash-consed by name** (`fnode::ap`'s `m.name2ap`
+    cache); when the last reference to an atomic prop goes out of scope its
+    numeric id is placed on a **free list** (`m.free_apid`) and **recycled** for
+    the next new atomic prop. `randltlgenerator::next()` selects which AP
+    becomes a given literal by indexing (`mrand` + `std::advance`) into an
+    **id-sorted** `atomic_prop_set` — so if a name's id gets recycled between two
+    calls (because a *previous* call's returned formula didn't happen to
+    reference that name, so its temporary `atomic_prop_set` reference was the
+    last one and got dropped), the *same* `mrand()` draw lands on a *different*
+    name. This is a property-hash-consing/GC effect, orthogonal to (and not
+    fixed by) resetting the RNG. **Consequence:** `run_corpus`'s in-process,
+    multi-corpus-per-process construction is *not* guaranteed to make a level's
+    corpus a bit-perfect pure function of `cfg.seed` even with the PRD's
+    directed fix applied — the fix is still correct and worth keeping (it *does*
+    reset the one mechanism the PRD identified, and does not hurt), but it is
+    **necessary, not sufficient**. **What is unaffected:** the documented
+    *per-case replay recipe* (fresh process, `LTLF_EK_SOAK` unset, pin the
+    printed seed + knobs via `LTLF_EK_CORPUS_*`, run the single body) — a fresh
+    process starts with an empty atomic-prop table, so a *single*
+    `BuildGeneratedCorpus` call in a fresh process is unaffected by this
+    recycling effect (this is exactly the mechanism Phase 1's own golden tests
+    already rely on and have proven stable, 213/213, repeatedly). **Flagged for
+    `/test-writer`:** do **not** write an in-process "same `cfg.seed` built
+    twice ⇒ byte-identical corpus" unit test for `run_corpus`'s level loop — it
+    will be flaky/false-failing for the reason above, not a real bug when it
+    fails. The ladder monotonicity/clamp test (pure function of `(base, L)`,
+    no corpus construction) is unaffected and safe to write as specified.
+    Also flagged for `/theory-review` in spirit (it is a Spot-library mechanical
+    quirk, not a `main.tex` question, so likely a no-op there) and for a
+    `docs/BACKLOG.md` note if a future soak wants true in-process
+    level-to-level reproducibility (would require keeping every previously-used
+    atomic prop alive for the process's lifetime, e.g. a held `atomic_prop_set`
+    accumulator — out of scope here, not requested by this PRD).
+
+- **2026-07-12 (soak-driver OOM/deadline-overrun bug fix, post-Phase-2).** A
+  user-reproduced defect in the landed Phase 2 driver: `LTLF_EK_SOAK=40` on
+  `GeneratedCorpusDifferential` ran 128s (well past the 40s budget), then threw
+  `std::bad_alloc`, and the next test body hung. Root cause: `run_corpus`'s
+  `soak>0` branch called `BuildGeneratedCorpus(cfg)` to materialise the
+  **entire** `cfg.case_count`-case corpus for a level **before** any per-case
+  deadline check ran — so at a high level (wide `Ifree`, growing `Tin` state
+  count) the corpus-build step itself was unbounded and could exhaust memory
+  before the deadline check inside the old per-corpus loop ever got a chance to
+  fire. The width ceilings did not help because they bound a single case's
+  size, not the *unbounded build step* that sat outside any check. Three fixes,
+  all test-local (`tests/ltlfsynt_oracle_test.cpp`), no production C++:
+  1. **Lazy, one-case-at-a-time generation in the soak branch.** Extracted the
+     per-case body of `BuildGeneratedCorpus`'s loop (`random_partition` →
+     `generate_random_formula` → `strengthen_next` → `random_tin`) into a new
+     helper `GeneratedCase GenerateOneCase(std::mt19937&, const
+     CorpusConfig&)`. `BuildGeneratedCorpus` itself is otherwise **unchanged**
+     (still builds the full vector up front, still the exact call the
+     `soak==0` fast path and the golden tests use) — it just calls
+     `GenerateOneCase` once per case instead of inlining the body, which does
+     not alter the `std::mt19937` draw order. `run_corpus`'s `soak>0` level
+     loop no longer calls `BuildGeneratedCorpus` at all; it owns its own
+     `std::mt19937 rng(cfg.seed)` and calls `GenerateOneCase(rng, cfg)`
+     per case, with the deadline checked **immediately before each
+     generation** (not just between cases/levels as before).
+  2. **Lowered ceilings**, since a single case can still be large enough to OOM
+     even when generated one at a time: `kCorpusWidthCeiling` 12 → 10,
+     `kCorpusUnionCeiling` 16 → 12 (deviates from this PRD's pinned 12/16 —
+     the PRD did not anticipate a single case, at its own pinned ceiling,
+     being large enough to OOM before the *next* deadline check). The default
+     level-0 ranges (`input_max`/`output_max` = 5/5) stay far below both new
+     ceilings, so the byte-identical default-corpus golden is unaffected.
+  3. **Per-case `std::bad_alloc` catch in the soak loop.** `GenerateOneCase`'s
+     result is now wrapped in a `try`/`catch (const std::bad_alloc&)`; a catch
+     increments a new `RunCorpusStats::cases_skipped` counter (a PRD-unnamed
+     addition, same rationale as `levels_reached`/`cases_run`) and the loop
+     moves on to the next case index — never aborting the body. All three
+     bodies now also `RecordProperty("cases_skipped", ...)`. This makes an
+     over-large draw degrade to a skip even if a future ceiling still proves
+     too generous on some machine, rather than crashing the process (which is
+     also what caused the *next* test body to hang — a crashed process mid-body
+     leaves GoogleTest's harness in a bad state for whatever runs next).
+
+  **Verification.** `cmake --build build -j` clean;
+  `ctest --test-dir build --output-on-failure` **215/215**, including
+  `GeneratedCorpus.DefaultCorpusIsByteIdenticalToGolden`, all five
+  `CorpusConfigFromEnv.*` env-plumbing tests, and both `Ladder.*` tests
+  (unaffected — they exercise `ladder`/`random_partition` directly, not
+  `run_corpus`). Manual soak runs (`--gtest_filter`, this box):
+  `LTLF_EK_SOAK=20` on `GeneratedCorpusDifferential` → 28.5s wall (8.5s over
+  budget — one in-flight `ltlfsynt`/`ek-synth` subprocess pair finishing, each
+  bounded by `subprocess_timeout_secs`), `levels_reached=13`,
+  `cases_run=3114`, `cases_skipped=0`, `differential_skipped=0`, peak RSS
+  ≈1.8 GB, no OOM. `LTLF_EK_SOAK=20` on `GeneratedCorpus.LtlfToDfaStructural`
+  → 30.6s wall, `levels_reached=12`, `cases_run=2859`, `cases_skipped=0`, no
+  OOM. Neither the original 128s-then-crash symptom nor a hang reproduced.
+  - **Follow-up finding, not fixed here (out of this bug's scope).**
+    `LTLF_EK_SOAK=20` on `GeneratedCorpus.MetamorphicRoundTrip` took **105s**
+    (`levels_reached=5`, `cases_run=1229`, `cases_skipped=0`, no OOM) — it
+    passed and did not crash or hang, but overran the budget by far more than
+    the other two bodies. Cause: unlike the differential (bounded per
+    subprocess by `subprocess_timeout_secs`) and the structural check (fast
+    `ltlf_to_dfa` only), `MetamorphicRoundTrip`'s per-case work is
+    `DfaProduct::synthesize` + `verify_controller`, which has **no time bound
+    at all** — the PRD's own "Deadline mechanics" already pins this as
+    accepted ("the case in flight when it passes runs to completion... No
+    mid-case interruption"), but did not anticipate how large that in-flight
+    cost could get at level 5 (`tree_size_max` = 25, wide alphabet): a single
+    `synthesize` call on a large generated case can dominate the wall clock
+    for tens of seconds with no way to bound it short of adding a
+    synthesize-level timeout (a real feature, not a bug-fix line item, and
+    arguably production-adjacent since `DfaProduct::synthesize` itself has no
+    timeout parameter). Not addressed by this fix — flagged for
+    `docs/BACKLOG.md` if a soaker wants `MetamorphicRoundTrip`'s overrun
+    tightened (e.g. a thread-based watchdog around `synthesize`, or a note in
+    the PRD's "Deadline mechanics" section documenting that library-body
+    overrun can be large, not just "a few seconds").
 
 ## Out of scope (pinned, do not implement here)
 - **Distribution-probability knobs.** `kCorpusIknownProbability` (0.5) and

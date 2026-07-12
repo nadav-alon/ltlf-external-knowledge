@@ -18,12 +18,15 @@
 // portability to Spot [2.9, 2.13).
 #define SPOT_USES_STRONG_X 1
 
+#include <algorithm>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <cstdint>
 #include <limits>
 #include <memory>
+#include <new>
 #include <optional>
 #include <random>
 #include <set>
@@ -37,10 +40,12 @@
 
 #include <gtest/gtest.h>
 #include <spot/misc/optionmap.hh>
+#include <spot/misc/random.hh>
 #include <spot/tl/defaultenv.hh>
 #include <spot/tl/parse.hh>
 #include <spot/tl/randomltl.hh>
 #include <spot/twa/bdddict.hh>
+#include <spot/twa/formula2bdd.hh>
 #include <spot/twaalgos/complete.hh>
 #include <spot/twaalgos/isdet.hh>
 
@@ -952,6 +957,31 @@ constexpr int kCorpusTinStatesMax = 3;
 // `if (width > 3) continue;`.
 constexpr std::size_t kCorpusDiffWidthCap = 3;
 
+// Escalation-ladder ceilings (soak-mode PRD "Escalation ladder", "Width
+// ceilings guard against OOM, not just time"): random_tin enumerates
+// 2^|Ifree| cubes and build_product materialises 2^|I union O| letters, so
+// an unbounded width climb crashes on memory before the soak timer fires.
+// kCorpusWidthCeiling bounds |I| (hence |Ifree|); kCorpusUnionCeiling bounds
+// |I union O| (the joint clamp in random_partition, below);
+// kCorpusDiffWidthSoakCap is the ladder's ceiling on diff_width_cap, distinct
+// from kCorpusDiffWidthCap (the level-0/default cap).  Values (10/12/5) and
+// their lowering from the PRD-pinned 12/16 are recorded in
+// docs/prd/generated-corpus-soak-mode.md "Developer comments / PRD
+// disagreements" (2026-07-12); they back-stop, and do not replace, the soak
+// loop's per-case bad_alloc catch below.
+constexpr int kCorpusWidthCeiling = 10;
+constexpr std::size_t kCorpusUnionCeiling = 12;
+constexpr std::size_t kCorpusDiffWidthSoakCap = 5;
+
+// random_partition draws |O| from [0, kCorpusUnionCeiling - |I|]; keeping the
+// |I| ceiling strictly below the union ceiling guarantees that upper bound
+// stays >= 1, so std::uniform_int_distribution never sees a negative range
+// (which would be UB).  A future edit raising kCorpusWidthCeiling must not
+// cross kCorpusUnionCeiling.
+static_assert(kCorpusWidthCeiling < static_cast<int>(kCorpusUnionCeiling),
+              "width ceiling must stay < union ceiling so random_partition's "
+              "|O| range is non-negative");
+
 // CorpusConfig (docs/prd/generated-corpus-soak-mode.md "Configuration
 // struct"): every generated-corpus tunable, defaulting to the constants
 // above. Phase 1 only: the per-knob env-override / replay layer -- no soak
@@ -1034,6 +1064,53 @@ CorpusConfig corpus_config_from_env() {
   return cfg;
 }
 
+// env_soak_secs (soak-mode PRD "Soak switch and budget"): LTLF_EK_SOAK is
+// both the soak switch and the wall-clock budget in seconds; unset or `0`
+// means soak off (a single fast BuildGeneratedCorpus pass, run_corpus
+// below).  Reuses EnvInt so a malformed value (non-integer, negative)
+// throws std::runtime_error loudly rather than silently running the default
+// corpus and masquerading as a pass.
+unsigned env_soak_secs() {
+  if (auto v = EnvInt("LTLF_EK_SOAK", 0, std::numeric_limits<int>::max()))
+    return static_cast<unsigned>(*v);
+  return 0;
+}
+
+// ladder (soak-mode PRD "Escalation ladder"): derives level L's CorpusConfig
+// from the env-base config B by the pinned monotone schedule.  tree_size_max
+// grows unbounded (+3 per level, no ceiling -- deeper formulas are the
+// budget's main lever once width saturates); input_max/output_max/
+// diff_width_cap saturate at their ceilings so a long soak never OOMs (the
+// output_max/|I|-drawn interaction is realized by random_partition's joint
+// width clamp, not here -- |I| is a per-case draw, not known at this
+// per-level config-construction point).  tree_size_min, subprocess_timeout,
+// case_count, and seed are left at B's values; run_corpus overwrites seed
+// with the level's fresh mt19937 draw.
+CorpusConfig ladder(const CorpusConfig& base, unsigned level) {
+  // All additions are done in long long before the min-clamp so a pathological
+  // env-supplied base max (corpus_config_from_env allows up to INT_MAX) cannot
+  // signed-overflow before it is clamped -- the ceiling'd fields clamp to their
+  // ceiling, the unbounded fields (tree_size_max, tin_states_max) saturate at
+  // INT_MAX.
+  const long long l = level;
+  constexpr long long kIntMax = std::numeric_limits<int>::max();
+  CorpusConfig cfg = base;
+  cfg.tree_size_max =
+      static_cast<int>(std::min(base.tree_size_max + 3 * l, kIntMax));
+  cfg.input_max =
+      static_cast<int>(std::min(base.input_max + l,
+                                static_cast<long long>(kCorpusWidthCeiling)));
+  cfg.output_max =
+      static_cast<int>(std::min(base.output_max + l,
+                                static_cast<long long>(kCorpusUnionCeiling)));
+  cfg.tin_states_max =
+      static_cast<int>(std::min(base.tin_states_max + l, kIntMax));
+  cfg.diff_width_cap = static_cast<std::size_t>(
+      std::min(static_cast<long long>(base.diff_width_cap) + l,
+               static_cast<long long>(kCorpusDiffWidthSoakCap)));
+  return cfg;
+}
+
 // GeneratedCase (PRD "Interfaces & types", Phase 2 shape): now also carries
 // the built random Tin, on its own private bdd_dict (one dict per case, like
 // the structural test's per-case dict) so the metamorphic body can replay
@@ -1068,13 +1145,23 @@ spot::formula strengthen_next(spot::formula f, std::mt19937& rng) {
 // degenerate empty-knowledge).  Oknown = empty always in v1 (Tout stays
 // trivial, PRD "Partition generation").  Phase 1 (soak-mode PRD): the
 // [1,5]/[0,5] literals now come from CorpusConfig::input_max/output_max
-// (defaulting to kCorpusInputMax/kCorpusOutputMax); no joint width clamp
-// yet (Phase 2).
+// (defaulting to kCorpusInputMax/kCorpusOutputMax).  Phase 2 (soak-mode PRD
+// "Joint width clamp (pinned draw order)"): |I| is drawn first, capped at
+// kCorpusWidthCeiling regardless of config.input_max, then |O| is drawn
+// second, capped at kCorpusUnionCeiling minus the just-drawn |I|, so
+// |I union O| <= kCorpusUnionCeiling and |Ifree| <= kCorpusWidthCeiling
+// always hold under soak.  At the default level-0 ranges (5/5) both clamps
+// are inert (min(5,12)=5, min(5,16-|I|)=5 since |I|<=5) so the mt19937 draw
+// order and the non-soak corpus are unchanged from Phase 1.
 VariablePartition random_partition(std::mt19937& rng,
                                    const CorpusConfig& config) {
-  std::uniform_int_distribution<int> input_count(1, config.input_max);
-  std::uniform_int_distribution<int> output_count(0, config.output_max);
+  const int input_upper = std::min(config.input_max, kCorpusWidthCeiling);
+  std::uniform_int_distribution<int> input_count(1, input_upper);
   const int n_inputs = input_count(rng);
+  const int output_upper = std::max(
+      0, std::min(config.output_max,
+                  static_cast<int>(kCorpusUnionCeiling) - n_inputs));
+  std::uniform_int_distribution<int> output_count(0, output_upper);
   const int n_outputs = output_count(rng);
 
   std::set<std::string> inputs, outputs;
@@ -1090,6 +1177,95 @@ VariablePartition random_partition(std::mt19937& rng,
     if (is_known(rng)) governed.insert(name);
 
   return VariablePartition::split(inputs, outputs, governed);
+}
+
+// ---------------------------------------------------------------------------
+// Ladder monotonicity + clamp (soak-mode PRD "Test oracles" #3): a cheap,
+// pure-function unit test -- no formula generation (so none of
+// generate_random_formula's Spot process-global-RNG/apid-recycling hazards
+// documented above), no synthesis. Runs on the default ctest path.
+// ---------------------------------------------------------------------------
+
+// ladder(base, L) is non-decreasing in L for every ramped field, holds every
+// unramped field fixed at base's value (PRD "Escalation ladder": "tree_size_
+// min, subprocess_timeout, case_count = B.* (unchanged per level)"), and
+// never exceeds the pinned ceilings (input_max <= kCorpusWidthCeiling,
+// output_max <= kCorpusUnionCeiling, diff_width_cap <=
+// kCorpusDiffWidthSoakCap) -- soak-mode PRD "Width ceilings guard against
+// OOM, not just time".
+TEST(Ladder, MonotoneAndClampedAcrossLevels) {
+  const CorpusConfig base;  // CorpusConfig{} defaults (kCorpusSeed etc.).
+
+  int prev_tree_max = base.tree_size_max;
+  int prev_input_max = base.input_max;
+  int prev_output_max = base.output_max;
+  int prev_states_max = base.tin_states_max;
+  std::size_t prev_diff_width = base.diff_width_cap;
+
+  // 0..40 comfortably runs input_max/output_max/diff_width_cap past their
+  // ceilings (reached by level ~7-13 from the defaults) while tree_size_max
+  // and tin_states_max keep climbing unbounded, per the ladder schedule.
+  for (unsigned level = 0; level <= 40; ++level) {
+    SCOPED_TRACE("level=" + std::to_string(level));
+    const CorpusConfig cfg = ladder(base, level);
+
+    // Non-decreasing in L for every ramped field.
+    EXPECT_GE(cfg.tree_size_max, prev_tree_max);
+    EXPECT_GE(cfg.input_max, prev_input_max);
+    EXPECT_GE(cfg.output_max, prev_output_max);
+    EXPECT_GE(cfg.tin_states_max, prev_states_max);
+    EXPECT_GE(cfg.diff_width_cap, prev_diff_width);
+
+    // Ceilings never exceeded.
+    EXPECT_LE(cfg.input_max, kCorpusWidthCeiling);
+    EXPECT_LE(cfg.output_max, static_cast<int>(kCorpusUnionCeiling));
+    EXPECT_LE(cfg.diff_width_cap, kCorpusDiffWidthSoakCap);
+
+    // Unramped fields left at base's value (ladder itself; run_corpus is the
+    // one that overwrites seed with the level's fresh mt19937 draw).
+    EXPECT_EQ(cfg.seed, base.seed);
+    EXPECT_EQ(cfg.tree_size_min, base.tree_size_min);
+    EXPECT_EQ(cfg.case_count, base.case_count);
+    EXPECT_EQ(cfg.subprocess_timeout_secs, base.subprocess_timeout_secs);
+
+    prev_tree_max = cfg.tree_size_max;
+    prev_input_max = cfg.input_max;
+    prev_output_max = cfg.output_max;
+    prev_states_max = cfg.tin_states_max;
+    prev_diff_width = cfg.diff_width_cap;
+  }
+
+  // The ceilings are actually reached (not just never-exceeded vacuously) by
+  // level 40 from the default base -- otherwise the LE checks above would be
+  // trivially true without ever exercising the min()-clamp branch.
+  const CorpusConfig high = ladder(base, 40);
+  EXPECT_EQ(high.input_max, kCorpusWidthCeiling);
+  EXPECT_EQ(high.output_max, static_cast<int>(kCorpusUnionCeiling));
+  EXPECT_EQ(high.diff_width_cap, kCorpusDiffWidthSoakCap);
+}
+
+// The joint width clamp (soak-mode PRD "Joint width clamp (pinned draw
+// order)"): a partition drawn by random_partition under a high-level,
+// ceiling-saturated ladder config still respects |I| <=
+// kCorpusWidthCeiling and |I union O| <= kCorpusUnionCeiling -- the property
+// the clamp exists to guarantee, checked against the actual draw rather than
+// just the config's declared maxes. random_partition alone (no formula
+// generation) is deterministic pure-function machinery -- fixed-seed
+// std::mt19937, no Spot RNG involved -- so this is safe on the default path.
+TEST(Ladder, DrawnPartitionRespectsWidthCeilingsAtHighLevels) {
+  const CorpusConfig base;
+  std::mt19937 rng(kCorpusSeed);
+  for (const unsigned level : {0u, 1u, 5u, 20u, 100u}) {
+    const CorpusConfig cfg = ladder(base, level);
+    for (int trial = 0; trial < 25; ++trial) {
+      SCOPED_TRACE("level=" + std::to_string(level) +
+                   " trial=" + std::to_string(trial));
+      const VariablePartition p = random_partition(rng, cfg);
+      EXPECT_LE(p.inputs().size(),
+               static_cast<std::size_t>(kCorpusWidthCeiling));
+      EXPECT_LE(p.universe().size(), kCorpusUnionCeiling);
+    }
+  }
 }
 
 // randltlgenerator wrapper (PRD "Formula generation"): thin wrapper over
@@ -1193,6 +1369,27 @@ OutputLabeledTransducer random_tin(const VariablePartition& partition,
                                  sigma1_cube);
 }
 
+// GenerateOneCase (soak-driver OOM fix, 2026-07-12:
+// docs/prd/generated-corpus-soak-mode.md "Developer comments / PRD
+// disagreements"): the per-case body factored out of BuildGeneratedCorpus's
+// loop (random_partition -> generate_random_formula -> strengthen_next ->
+// random_tin), so run_corpus's soak branch can generate-and-consume one case
+// at a time -- checking the wall-clock deadline before each draw -- instead
+// of building an entire per-level 256-case corpus up front (the original bug:
+// one high-level BuildGeneratedCorpus call ran unbounded between deadline
+// checks and could OOM before the timer ever fired). BuildGeneratedCorpus
+// itself calls this once per case too, so the std::mt19937 draw order per
+// (config, seed) is unchanged and the byte-identical default-corpus golden
+// still holds.
+GeneratedCase GenerateOneCase(std::mt19937& rng, const CorpusConfig& config) {
+  VariablePartition partition = random_partition(rng, config);
+  spot::formula phi = strengthen_next(
+      generate_random_formula(partition, rng, config), rng);
+  const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  OutputLabeledTransducer t_in = random_tin(partition, rng, dict, config);
+  return {phi, std::move(partition), std::move(t_in)};
+}
+
 // BuildGeneratedCorpus (PRD "Determinism / seeding"): one seeded
 // std::mt19937(config.seed), no reserved draw slots.  Emits config.case_count
 // cases partition-first, so
@@ -1204,19 +1401,127 @@ OutputLabeledTransducer random_tin(const VariablePartition& partition,
 // preserving the exact std::mt19937 draw order (random_partition ->
 // generate_random_formula -> strengthen_next -> random_tin, per case) so
 // the default (all-env-unset) corpus stays byte-identical to pre-Phase-1.
+// Unchanged by the soak-driver OOM fix: builds via GenerateOneCase (above)
+// but is still called by the soak==0 fast path and the golden tests exactly
+// as before, up front, with no deadline/OOM handling of its own.
 std::vector<GeneratedCase> BuildGeneratedCorpus(const CorpusConfig& config) {
   std::mt19937 rng(config.seed);
   std::vector<GeneratedCase> corpus;
   corpus.reserve(config.case_count);
-  for (std::size_t i = 0; i < config.case_count; ++i) {
-    VariablePartition partition = random_partition(rng, config);
-    spot::formula phi = strengthen_next(
-        generate_random_formula(partition, rng, config), rng);
-    const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
-    OutputLabeledTransducer t_in = random_tin(partition, rng, dict, config);
-    corpus.push_back({phi, std::move(partition), std::move(t_in)});
-  }
+  for (std::size_t i = 0; i < config.case_count; ++i)
+    corpus.push_back(GenerateOneCase(rng, config));
   return corpus;
+}
+
+// RunCorpusStats: bookkeeping returned by run_corpus (soak-mode PRD
+// "Reproducibility of a soak run", "Skip/level accounting") so each body can
+// RecordProperty("levels_reached", ...) / ("cases_run", ...).
+// cases_skipped (soak-driver OOM fix, 2026-07-12: docs/prd/generated-corpus-
+// soak-mode.md "Developer comments / PRD disagreements") is a PRD-unnamed
+// addition, same rationale as levels_reached/cases_run: a case whose
+// GenerateOneCase draw throws std::bad_alloc under soak is skipped, not
+// fatal, and this counter makes that visible via RecordProperty rather than
+// silently swallowed.
+struct RunCorpusStats {
+  unsigned levels_reached = 0;
+  std::size_t cases_run = 0;
+  std::size_t cases_skipped = 0;
+};
+
+// run_corpus (soak-mode PRD "The three bodies under soak"): the shared
+// level/deadline driver factored out so it is not triplicated across the
+// three bodies.  `per_case(const GeneratedCase&, const CorpusConfig& cfg,
+// unsigned level, std::size_t index)` supplies the body's own unchanged
+// per-case assertions.
+//
+// soak == 0 (LTLF_EK_SOAK unset/`0`): exactly Phase 1's single
+// BuildGeneratedCorpus(base) pass -- byte-identical to Phase 1, including no
+// spot::srand call here (that would perturb Spot's process-global RNG ahead
+// of the very first randltlgenerator construction and risk shifting the
+// byte-identical golden; the fast path must reproduce Phase 1 exactly, per
+// the soak-mode PRD's Phase 2 green checkpoint).
+//
+// soak > 0: escalates level L = 0, 1, 2, ... until `deadline` (a soft
+// deadline: the case in flight when it passes always finishes).  A single
+// std::mt19937 seed_rng(base.seed) draws each level's seed as the L-th
+// successive draw (not base.seed + L, to avoid low-bit correlation between
+// adjacent levels), so the whole soak run is reproducible from base.seed.
+//
+// Generate-and-consume, one case at a time (soak-driver OOM fix, 2026-07-12:
+// docs/prd/generated-corpus-soak-mode.md "Developer comments / PRD
+// disagreements"): the level loop does NOT call BuildGeneratedCorpus(cfg) to
+// materialise all cfg.case_count cases up front -- that ran the entire
+// per-level corpus build unbounded between deadline checks, so one
+// high-level build (large |Ifree|, growing Tin state count) could run past
+// the wall-clock budget and exhaust memory before any check fired, even
+// though the ceilings bound a single case's width. Instead each case is
+// drawn on demand via GenerateOneCase, with the deadline checked
+// immediately before every draw (not just between levels), and a per-case
+// std::bad_alloc is caught and counted as a skip rather than aborting the
+// body -- an over-large draw degrades gracefully instead of crashing the
+// process.
+//
+// Spot global-RNG reset (soak-mode PRD "Fresh seed per level" warning):
+// spot::randltlgenerator's "seed" option seeds Spot's process-*global* RNG
+// (spot::srand), which a same-seed re-construction in the same process does
+// not cleanly reset (empirically confirmed -- see the kGoldenSeed1Corpus*
+// comment above).  run_corpus builds many corpora per process, so calling
+// spot::srand(cfg.seed) immediately before each per-level BuildGeneratedCorpus
+// resets that one mechanism.  IMPORTANT: this reset is necessary but *not*
+// sufficient for full in-process, level-to-level reproducibility -- a deeper
+// Spot mechanism (reference-counted/apid-recycling hash-consing of atomic
+// props, spot/tl/formula.cc fnode::ap) can still make two same-seed
+// in-process builds diverge (empirically confirmed by the Phase 2 developer;
+// see docs/prd/generated-corpus-soak-mode.md "Developer comments / PRD
+// disagreements", 2026-07-12, for the full repro and root cause). This does
+// NOT affect the documented per-case replay recipe (fresh process, single
+// BuildGeneratedCorpus call, LTLF_EK_SOAK unset) -- only repeated in-process
+// rebuilds with the same seed are at risk. Do not write a "same cfg.seed
+// twice in one process" unit test against run_corpus; it would be flaky.
+template <class PerCase>
+RunCorpusStats run_corpus(const CorpusConfig& base, PerCase&& per_case) {
+  RunCorpusStats stats;
+  const unsigned soak = env_soak_secs();
+  if (soak == 0) {
+    const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(base);
+    for (std::size_t i = 0; i < corpus.size(); ++i) {
+      per_case(corpus[i], base, /*level=*/0u, i);
+      ++stats.cases_run;
+    }
+    stats.levels_reached = 1;
+    return stats;
+  }
+
+  const auto deadline =
+      std::chrono::steady_clock::now() + std::chrono::seconds(soak);
+  std::mt19937 seed_rng(base.seed);
+  for (unsigned level = 0; std::chrono::steady_clock::now() < deadline;
+       ++level) {
+    CorpusConfig cfg = ladder(base, level);
+    cfg.seed = seed_rng();
+    spot::srand(cfg.seed);  // Load-bearing: see comment above.
+    std::mt19937 rng(cfg.seed);
+    stats.levels_reached = level + 1;
+    for (std::size_t i = 0; i < cfg.case_count; ++i) {
+      if (std::chrono::steady_clock::now() >= deadline) break;
+      // Deadline is checked before generating (not just before consuming) --
+      // this is the fix: a single case's generation is the unbounded step
+      // that could OOM, so it must never run outside a deadline check.
+      try {
+        GeneratedCase generated = GenerateOneCase(rng, cfg);
+        per_case(generated, cfg, level, i);
+        ++stats.cases_run;
+      } catch (const std::bad_alloc&) {
+        // An over-large draw degrades to a skip, not a crash (soak-driver
+        // OOM fix, above). The mt19937 stream is left wherever the failed
+        // draw advanced it to; per-run reproducibility is already accepted
+        // as impossible under soak (PRD "Edge cases" "Per-run
+        // non-reproducibility"), so this does not add a new hazard.
+        ++stats.cases_skipped;
+      }
+    }
+  }
+  return stats;
 }
 
 // Renders a VariablePartition's four sets for SCOPED_TRACE (PRD "Behaviour"
@@ -1479,24 +1784,150 @@ TEST(CorpusConfigFromEnv, TreeMinGreaterThanMaxThrows) {
 // hand-labeled expected value.  This kills the "ltlf_to_dfa asserted on one
 // formula" blind spot (PRD "Goal") at zero oracle cost.  Never gated on
 // ltlfsynt: a plain TEST, not under LtlfsyntOracleTest, so it runs even
-// where ltlfsynt is absent.
+// where ltlfsynt is absent.  Phase 2 (soak-mode PRD "The three bodies under
+// soak"): the single BuildGeneratedCorpus pass is now run_corpus's soak==0
+// fast path (byte-identical to Phase 1); LTLF_EK_SOAK>0 escalates this same
+// per-case assertion across levels until the deadline.
 TEST(GeneratedCorpus, LtlfToDfaStructural) {
-  const CorpusConfig config = corpus_config_from_env();
-  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
-  for (std::size_t i = 0; i < corpus.size(); ++i) {
-    const GeneratedCase& c = corpus[i];
-    std::ostringstream phi_os;
-    phi_os << c.phi;
-    SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
-                 ", partition=" + DescribeGeneratedPartition(c.partition) +
-                 ", " + DescribeCorpusConfig(config));
-    const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
-    const spot::twa_graph_ptr dfa = ltlf_to_dfa(c.phi, dict);
-    EXPECT_TRUE(spot::is_deterministic(dfa))
-        << "ltlf_to_dfa returned a non-deterministic automaton";
-    EXPECT_TRUE(spot::is_complete(dfa))
-        << "ltlf_to_dfa returned an incomplete automaton";
+  const CorpusConfig base = corpus_config_from_env();
+  const RunCorpusStats stats = run_corpus(
+      base, [](const GeneratedCase& c, const CorpusConfig& cfg,
+               unsigned level, std::size_t i) {
+        std::ostringstream phi_os;
+        phi_os << c.phi;
+        SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
+                     ", partition=" + DescribeGeneratedPartition(c.partition) +
+                     ", level=" + std::to_string(level) + " " +
+                     DescribeCorpusConfig(cfg));
+        const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+        const spot::twa_graph_ptr dfa = ltlf_to_dfa(c.phi, dict);
+        EXPECT_TRUE(spot::is_deterministic(dfa))
+            << "ltlf_to_dfa returned a non-deterministic automaton";
+        EXPECT_TRUE(spot::is_complete(dfa))
+            << "ltlf_to_dfa returned an incomplete automaton";
+      });
+  RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
+  RecordProperty("cases_run", static_cast<int>(stats.cases_run));
+  RecordProperty("cases_skipped", static_cast<int>(stats.cases_skipped));
+}
+
+// ---------------------------------------------------------------------------
+// Soak smoke (soak-mode PRD "Test oracles" #4): with a tiny LTLF_EK_SOAK
+// budget, run_corpus's escalating branch (not the soak==0 fast path, which
+// trivially reports levels_reached=1 without escalating at all) reaches at
+// least one full level and terminates within a small margin of the budget,
+// with no OOM. DISABLED_ so the default `ctest` gate -- which runs the whole
+// discovered suite, unfiltered -- never pays a real soak budget: GoogleTest
+// skips any DISABLED_-prefixed test unless invoked with BOTH
+// --gtest_filter=*SoakSmoke* AND --gtest_also_run_disabled_tests (a soaker
+// opts in explicitly; see also the PRD's "per body" budget note -- this
+// smokes exactly one body, the cheapest, library-only one, mirroring
+// LtlfToDfaStructural's assertion so no ltlfsynt subprocess dependency is
+// introduced). The LTLF_EK_SOAK=1 override is scoped to this test body via
+// ScopedEnvVar (restored on exit), so even an explicitly-enabled run is
+// never at the mercy of whatever LTLF_EK_SOAK a soaker's shell happens to
+// have exported for an unrelated, real soak invocation.
+// ---------------------------------------------------------------------------
+TEST(GeneratedCorpusSoak, DISABLED_LtlfToDfaStructuralReachesAtLeastOneLevel) {
+  constexpr unsigned kSmokeBudgetSecs = 1;
+  const ScopedEnvVar soak_guard("LTLF_EK_SOAK", "1");
+
+  const CorpusConfig base = corpus_config_from_env();
+  ASSERT_EQ(env_soak_secs(), kSmokeBudgetSecs)
+      << "LTLF_EK_SOAK override did not reach env_soak_secs()";
+
+  const auto start = std::chrono::steady_clock::now();
+  const RunCorpusStats stats = run_corpus(
+      base, [](const GeneratedCase& c, const CorpusConfig& cfg,
+               unsigned level, std::size_t i) {
+        std::ostringstream phi_os;
+        phi_os << c.phi;
+        SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
+                     ", partition=" + DescribeGeneratedPartition(c.partition) +
+                     ", level=" + std::to_string(level) + " " +
+                     DescribeCorpusConfig(cfg));
+        const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+        const spot::twa_graph_ptr dfa = ltlf_to_dfa(c.phi, dict);
+        EXPECT_TRUE(spot::is_deterministic(dfa));
+        EXPECT_TRUE(spot::is_complete(dfa));
+      });
+  const auto elapsed = std::chrono::steady_clock::now() - start;
+  const auto elapsed_ms =
+      std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+
+  EXPECT_GE(stats.levels_reached, 1u)
+      << "run_corpus(LTLF_EK_SOAK=1) did not reach a single escalation level";
+  EXPECT_GT(stats.cases_run, 0u);
+  // Soft deadline (PRD "Deadline mechanics"): the case in flight when the
+  // deadline passes always finishes, so allow generous slack over the 1s
+  // budget for a wide in-flight case plus process/CI scheduling jitter --
+  // this is a runaway-escalation smoke check, not a tight timing assertion.
+  EXPECT_LT(elapsed, std::chrono::seconds(30))
+      << "run_corpus(LTLF_EK_SOAK=" << kSmokeBudgetSecs << ") took "
+      << elapsed_ms
+      << "ms -- far beyond budget + soft-deadline slack; possible runaway "
+         "escalation or OOM-adjacent slowdown";
+  RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
+  RecordProperty("cases_run", static_cast<int>(stats.cases_run));
+  RecordProperty("cases_skipped", static_cast<int>(stats.cases_skipped));
+  RecordProperty("elapsed_ms", static_cast<int>(elapsed_ms));
+}
+
+// DumpTinForReplay (soak-mode PRD "Test oracles" deliverable 3, "closing the
+// metamorphic t_in replay gap"): renders the reachable (state, Ifree-letter)
+// -> (lambda-over-Iknown, delta dst) table for a generated case's random
+// Tin, so a MetamorphicRoundTrip failure is fully replayable even though the
+// generated corpus itself has no reliable in-process regeneration recipe
+// (run_corpus's Spot apid-recycling comment above) -- SCOPED_TRACE already
+// prints phi + partition + the seed/config a failing case ran under, but
+// until now nothing captured the random Tin those were paired with, so a
+// failure's *transducer* half of the reproducer was lost. Enumerates only
+// Sigma0=Ifree letters: random_tin's delta guards are exactly Ifree cubes
+// and lambda reads only its Sigma0 slice (Role t_in: Sigma0=Ifree,
+// Sigma1=Iknown), so Ifree alone determines every (delta, lambda) pair --
+// same partial-cube idiom as run_transducer/single_bit_iknown_mutations
+// above. A throwaway registrar twa_graph on t_in's own dict resolves I∪O
+// names to the exact variable numbers t_in's private graph already
+// registered (register_ap is idempotent per dict), so no accessor needs to
+// be added to OutputLabeledTransducer's public API for this. Intentionally
+// failure-only: call this only from a failing EXPECT_*'s `<<` stream (which
+// GoogleTest evaluates lazily -- only when the assertion actually fails),
+// never unconditionally, so passing cases pay nothing extra.
+std::string DumpTinForReplay(const OutputLabeledTransducer& t_in,
+                             const VariablePartition& partition) {
+  const spot::bdd_dict_ptr dict = t_in.dict();
+  const spot::twa_graph_ptr registrar = spot::make_twa_graph(dict);
+  std::vector<int> ifree_vars;
+  for (const std::string& n : partition.input_free)
+    ifree_vars.push_back(registrar->register_ap(n));
+  const std::vector<bdd> ifree_letters = all_letters_over(ifree_vars);
+
+  std::ostringstream os;
+  os << "t_in replay dump: initial_state=" << t_in.initial_state()
+     << ", " << ifree_letters.size() << " Ifree letter(s) per state\n";
+  std::vector<unsigned> queue{t_in.initial_state()};
+  std::set<unsigned> visited{t_in.initial_state()};
+  for (std::size_t qi = 0; qi < queue.size(); ++qi) {
+    const unsigned q = queue[qi];
+    for (const bdd& ifree : ifree_letters) {
+      const std::optional<bdd> iknown = t_in.lambda(q, ifree);
+      os << "  state " << q
+         << " ifree=(" << spot::bdd_to_formula(ifree, dict) << ")";
+      if (!iknown) {
+        os << " lambda=undefined delta=undefined\n";
+        continue;
+      }
+      os << " lambda=(" << spot::bdd_to_formula(*iknown, dict) << ")";
+      const std::optional<unsigned> dst = t_in.delta(q, ifree & *iknown);
+      if (!dst) {
+        os << " delta=undefined\n";
+        continue;
+      }
+      os << " delta=" << *dst << "\n";
+      if (visited.insert(*dst).second) queue.push_back(*dst);
+    }
   }
+  return os.str();
 }
 
 // Metamorphic round-trip (PRD "Test oracles" #1, Phase 2's green checkpoint):
@@ -1508,31 +1939,40 @@ TEST(GeneratedCorpus, LtlfToDfaStructural) {
 // nothing further -- one-directional by design (PRD "Edge cases"
 // "Unrealizable generated case").  Never gated on ltlfsynt: a plain TEST,
 // not under LtlfsyntOracleTest, so it runs even where ltlfsynt is absent.
+// Phase 2 (soak-mode PRD "The three bodies under soak"): driven by
+// run_corpus, unchanged assertion; the per-case `continue` becomes an early
+// lambda `return`.
 TEST(GeneratedCorpus, MetamorphicRoundTrip) {
-  const CorpusConfig config = corpus_config_from_env();
-  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
-  for (std::size_t i = 0; i < corpus.size(); ++i) {
-    const GeneratedCase& c = corpus[i];
-    std::ostringstream phi_os;
-    phi_os << c.phi;
-    SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
-                 ", partition=" + DescribeGeneratedPartition(c.partition) +
-                 ", " + DescribeCorpusConfig(config));
+  const CorpusConfig base = corpus_config_from_env();
+  const RunCorpusStats stats = run_corpus(
+      base, [](const GeneratedCase& c, const CorpusConfig& cfg,
+               unsigned level, std::size_t i) {
+        std::ostringstream phi_os;
+        phi_os << c.phi;
+        SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
+                     ", partition=" + DescribeGeneratedPartition(c.partition) +
+                     ", level=" + std::to_string(level) + " " +
+                     DescribeCorpusConfig(cfg));
 
-    const OutputLabeledTransducer t_out =
-        trivial_transducer(c.partition, Role::t_out, c.t_in.dict());
-    DfaProduct method;
-    const std::optional<Controller> controller =
-        method.synthesize(c.phi, c.partition, c.t_in, t_out);
-    if (!controller.has_value())
-      continue;  // unrealizable: no controller to verify (one-directional).
+        const OutputLabeledTransducer t_out =
+            trivial_transducer(c.partition, Role::t_out, c.t_in.dict());
+        DfaProduct method;
+        const std::optional<Controller> controller =
+            method.synthesize(c.phi, c.partition, c.t_in, t_out);
+        if (!controller.has_value())
+          return;  // unrealizable: no controller to verify (one-directional).
 
-    EXPECT_TRUE(verify_controller(c.phi, c.partition, c.t_in, t_out,
-                                  *controller)
-                    .ok)
-        << "metamorphic round-trip failed: synthesize returned a controller "
-           "that verify_controller rejects";
-  }
+        EXPECT_TRUE(verify_controller(c.phi, c.partition, c.t_in, t_out,
+                                      *controller)
+                        .ok)
+            << "metamorphic round-trip failed: synthesize returned a "
+               "controller that verify_controller rejects -- t_in for "
+               "replay (see DumpTinForReplay):\n"
+            << DumpTinForReplay(c.t_in, c.partition);
+      });
+  RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
+  RecordProperty("cases_run", static_cast<int>(stats.cases_run));
+  RecordProperty("cases_skipped", static_cast<int>(stats.cases_skipped));
 }
 
 // Comma-joins an AP-name set for --inputs/--outputs (ek-synth) or the
@@ -1556,73 +1996,85 @@ std::string JoinCsv(const std::set<std::string>& names) {
 // Random Tin is never fed here: this body only reads phi/partition off the
 // generated case, matching the PRD's "differential body needs only phi +
 // partition". Gated on ltlfsynt via LtlfsyntOracleTest (GTEST_SKIPs cleanly
-// when it is absent, per "Edge cases").
+// when it is absent, per "Edge cases").  Phase 2 (soak-mode PRD "The three
+// bodies under soak"): driven by run_corpus; the width cap escalates too
+// (config.diff_width_cap, clamped by the ladder to kCorpusDiffWidthSoakCap =
+// 5), and the RunSubprocess timeout stays per-subprocess so a slow ltlfsynt
+// is always a skip, never a failure, under soak.
 TEST_F(LtlfsyntOracleTest, GeneratedCorpusDifferential) {
-  const CorpusConfig config = corpus_config_from_env();
-  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
+  const CorpusConfig base = corpus_config_from_env();
   std::size_t skipped = 0;
-  for (std::size_t i = 0; i < corpus.size(); ++i) {
-    const GeneratedCase& c = corpus[i];
-    // V = empty subset only: an all-free partition (PRD "Behaviour",
-    // differential item).
-    if (!c.partition.input_known.empty() || !c.partition.output_known.empty())
-      continue;
-    // Differential width cap (soak-mode PRD "Configuration struct"): was the
-    // literal `3`, now config.diff_width_cap (defaulting to
-    // kCorpusDiffWidthCap = 3).
-    const std::size_t width =
-        c.partition.input_free.size() + c.partition.output_free.size();
-    if (width > config.diff_width_cap) continue;
+  const RunCorpusStats stats = run_corpus(
+      base, [this, &skipped](const GeneratedCase& c, const CorpusConfig& cfg,
+                             unsigned level, std::size_t i) {
+        // V = empty subset only: an all-free partition (PRD "Behaviour",
+        // differential item).
+        if (!c.partition.input_known.empty() ||
+            !c.partition.output_known.empty())
+          return;
+        // Differential width cap (soak-mode PRD "Configuration struct" /
+        // "Escalation ladder"): was the literal `3`, now cfg.diff_width_cap
+        // (defaulting to kCorpusDiffWidthCap = 3, ladder-clamped to
+        // kCorpusDiffWidthSoakCap = 5 under soak).
+        const std::size_t width =
+            c.partition.input_free.size() + c.partition.output_free.size();
+        if (width > cfg.diff_width_cap) return;
 
-    std::ostringstream phi_os;
-    phi_os << c.phi;
-    const std::string phi_str = phi_os.str();
-    SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_str +
-                 ", partition=" + DescribeGeneratedPartition(c.partition) +
-                 ", " + DescribeCorpusConfig(config));
+        std::ostringstream phi_os;
+        phi_os << c.phi;
+        const std::string phi_str = phi_os.str();
+        SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_str +
+                     ", partition=" + DescribeGeneratedPartition(c.partition) +
+                     ", level=" + std::to_string(level) + " " +
+                     DescribeCorpusConfig(cfg));
 
-    std::vector<std::string> ek_args = {
-        "--dfa-product", "--formula=" + phi_str, "--inputs",
-        JoinCsv(c.partition.input_free)};
-    if (!c.partition.output_free.empty()) {
-      ek_args.push_back("--outputs");
-      ek_args.push_back(JoinCsv(c.partition.output_free));
-    }
-    ek_args.push_back("--realizable");
+        std::vector<std::string> ek_args = {
+            "--dfa-product", "--formula=" + phi_str, "--inputs",
+            JoinCsv(c.partition.input_free)};
+        if (!c.partition.output_free.empty()) {
+          ek_args.push_back("--outputs");
+          ek_args.push_back(JoinCsv(c.partition.output_free));
+        }
+        ek_args.push_back("--realizable");
 
-    std::vector<std::string> synt_args = {"--ins=" +
-                                          JoinCsv(c.partition.input_free)};
-    if (!c.partition.output_free.empty())
-      synt_args.push_back("--outs=" + JoinCsv(c.partition.output_free));
-    synt_args.push_back("--semantics=Mealy");
-    synt_args.push_back("--realizability");
-    synt_args.push_back("-f");
-    synt_args.push_back(phi_str);
+        std::vector<std::string> synt_args = {
+            "--ins=" + JoinCsv(c.partition.input_free)};
+        if (!c.partition.output_free.empty())
+          synt_args.push_back("--outs=" + JoinCsv(c.partition.output_free));
+        synt_args.push_back("--semantics=Mealy");
+        synt_args.push_back("--realizability");
+        synt_args.push_back("-f");
+        synt_args.push_back(phi_str);
 
-    bool ek_timed_out = false;
-    const CliResult ek = RunEkSynth(ek_args, config.subprocess_timeout_secs,
-                                    &ek_timed_out);
-    if (ek_timed_out) {
-      ++skipped;
-      continue;  // a slow subprocess is a skip, never a test failure.
-    }
-    bool synt_timed_out = false;
-    const CliResult synt = RunLtlfsynt(
-        synt_args, config.subprocess_timeout_secs, &synt_timed_out);
-    if (synt_timed_out) {
-      ++skipped;
-      continue;
-    }
+        bool ek_timed_out = false;
+        const CliResult ek =
+            RunEkSynth(ek_args, cfg.subprocess_timeout_secs, &ek_timed_out);
+        if (ek_timed_out) {
+          ++skipped;
+          return;  // a slow subprocess is a skip, never a test failure.
+        }
+        bool synt_timed_out = false;
+        const CliResult synt = RunLtlfsynt(
+            synt_args, cfg.subprocess_timeout_secs, &synt_timed_out);
+        if (synt_timed_out) {
+          ++skipped;
+          return;
+        }
 
-    // ParseEkSynthVerdict/ParseLtlfsyntVerdict ADD_FAILURE loudly (with
-    // captured stderr) on any exit code/output outside the known verdict
-    // contract, so a parse/usage error can never masquerade as a verdict.
-    const Verdict ek_verdict = ParseEkSynthVerdict(ek);
-    const Verdict synt_verdict = ParseLtlfsyntVerdict(synt);
-    EXPECT_EQ(IsRealizable(ek_verdict), IsRealizable(synt_verdict))
-        << "generated-corpus differential disagreement for phi=" << phi_str
-        << ", partition=" << DescribeGeneratedPartition(c.partition);
-  }
+        // ParseEkSynthVerdict/ParseLtlfsyntVerdict ADD_FAILURE loudly (with
+        // captured stderr) on any exit code/output outside the known verdict
+        // contract, so a parse/usage error can never masquerade as a
+        // verdict.
+        const Verdict ek_verdict = ParseEkSynthVerdict(ek);
+        const Verdict synt_verdict = ParseLtlfsyntVerdict(synt);
+        EXPECT_EQ(IsRealizable(ek_verdict), IsRealizable(synt_verdict))
+            << "generated-corpus differential disagreement for phi="
+            << phi_str
+            << ", partition=" << DescribeGeneratedPartition(c.partition);
+      });
+  RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
+  RecordProperty("cases_run", static_cast<int>(stats.cases_run));
+  RecordProperty("cases_skipped", static_cast<int>(stats.cases_skipped));
   RecordProperty("differential_skipped", static_cast<int>(skipped));
 }
 
