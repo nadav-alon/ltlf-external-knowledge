@@ -205,8 +205,9 @@ the existing term or update this file via `/glossary` — do not let drift happe
 ### NFA / DFA for the Goal
 - **`main.tex`:** $N$ (Method 1), $A$ (Method 2); `LtlfToNfa` / `LtlfToDfa`.
 - **Definition:** the automaton recognizing the models of $\varphi$.
-- **C++:** `spot::twa_graph_ptr` (the automaton *object*; the DFA is built by
-  `ltlf_to_dfa` — see *Goal DFA construction* below).
+- **C++:** `spot::twa_graph_ptr` (the automaton *object*; the DFA $A$ is built by
+  `ltlf_to_dfa` — see *Goal DFA construction* — and the NFA $N$ by `ltlf_to_nfa`
+  — see *Goal NFA construction* — both below).
 - **Do not call it:** the graph, the machine.
 
 ## Transducer I/O
@@ -258,10 +259,77 @@ the existing term or update this file via `/glossary` — do not let drift happe
   AP** — so the alphabet stays $2^{\mathcal{I}\cup\mathcal{O}}$. Built on the
   transducers' shared `bdd_dict`.
 - **C++:** `ltlf_to_dfa(phi, dict)` — returns the `spot::twa_graph_ptr` (see
-  *NFA / DFA for the Goal*). The Method-1 NFA route (`LtlfToNfa`, `NfaToDfa`)
-  is not yet named — future, when Method 1 lands.
+  *NFA / DFA for the Goal*). The Method-1 NFA route is now split: the NFA
+  construction `LtlfToNfa`/`ltlf_to_nfa` is named below (*Goal NFA
+  construction*); `NfaToDfa` (the product's subset determinization) is still
+  future, when its PRD lands.
 - **Do not call it:** to_dfa, ltlf2dfa (that is Spot's own header/primitive),
   build_dfa, translate.
+
+### Goal NFA construction (LtlfToNfa)
+- **`main.tex`:** `LtlfToNfa`$(\varphi)$ (`\cref{alg:ltlftonfa}`,
+  Method 1 §`nfa`); black-boxed, returns the NFA $N$ of *NFA / DFA for the Goal*.
+- **Definition:** build the **nondeterministic** finite automaton $N$ for the
+  Goal formula $\varphi$ via the three-step pipeline $\mirror{\varphi}$ →
+  `PastLtlfToDfa` → `Reverse` (see the three entries below),
+  giving $L(N)=L(\varphi)$ at single-exponential size (`\cref{thm:nfa-mirror-size}`,
+  proof TBD). Counterpart to *Goal DFA construction* but the NFA, not the DFA —
+  only the *Product* is later determinized. Like `ltlf_to_dfa`, finiteness is in
+  **acceptance marks, not an extra AP** (the sole final state is the reversal's
+  $F_N=\{s_{D,0}\}$), the alphabet stays $2^{\mathcal{I}\cup\mathcal{O}}$, and it
+  is built on the transducers' shared `bdd_dict`; **unlike** `ltlf_to_dfa` it is
+  nondeterministic and **not** completed (`\cref{alg:nfa_product}` tolerates an
+  empty $\delta_N(s,v)$).
+- **C++:** `ltlf_to_nfa(phi, dict)` → `spot::twa_graph_ptr` (see *NFA / DFA for
+  the Goal*). Draft PRD `docs/prd/ltlf-to-nfa.md`; **not yet implemented**.
+- **Do not call it:** to_nfa, ltlf2nfa, build_nfa, translate; **not** `NfaToDfa`
+  (that is the later product-determinization step, still future).
+
+### Formula mirror
+- **`main.tex`:** $\mirror{\varphi}$ (`\cref{def:mirror}`, §`nfa`; macro `\mirror`).
+- **Definition:** the past-$\text{LTL}_f$ formula obtained from $\varphi$ by the
+  syntactic substitution sending each future operator to its temporal dual,
+  satisfying $w,0\models\varphi \iff \rev{w},|w|-1\models\mirror{\varphi}$ for
+  every **non-empty** trace $w$ (read backwards, evaluated at its last position).
+- **C++:** — (no dedicated identifier / no past-formula type). Spot's `op` enum
+  has **no** past operators (`Y/S/O/H`), so the mirror is never materialized as a
+  `spot::formula`; per `docs/prd/ltlf-to-nfa.md` it is **folded into the M2L-Str
+  encoder** of `past_ltlf_to_dfa` — a future-operator walk emitted against
+  decreasing positions, which is the same MONA source as the past dual at
+  increasing positions.
+- **Do not call it:** dual (bare), reverse formula, mirror image, negation,
+  complement; not `reverse` (that is the *automaton* reversal below).
+
+### Reverse-language DFA (PastLtlfToDfa)
+- **`main.tex`:** `PastLtlfToDfa`$(\mirror{\varphi})$ (§`nfa`,
+  `\cref{alg:ltlftonfa}` line `alg:ltlftonfa:mona`); returns the DFA $D$ with
+  $L(D)=\{\,\rev{w} : w,0\models\varphi\,\}$ (the **reverse language** of $\varphi$).
+- **Definition:** the black box realizing the mirror-to-DFA step via **MONA**
+  (`/usr/bin/mona`, v1.4) — the C++ encoder emits M2L-Str for $\varphi$'s
+  mirror, shells out to `mona`, and parses MONA's minimal DFA (deterministic,
+  complete) back into a `spot::twa_graph` over the shared `bdd_dict`. Single
+  exponential in $|\varphi|$. Because the *Formula mirror* is folded into the
+  encoder, the C++ entry point takes the **future** $\varphi$ and applies the
+  mirror internally (the composition of `PastLtlfToDfa` after the *Formula mirror*).
+- **C++:** `past_ltlf_to_dfa(phi, dict)` → `spot::twa_graph_ptr` — **tentative**
+  name (draft PRD `docs/prd/ltlf-to-nfa.md`, internal, may be renamed on
+  implementation; the MONA-output parser is a separate `detail` helper).
+- **Do not call it:** mona (bare), to_dfa, `ltlf_to_dfa` (that is Method 2's
+  *future* DFA $A$, double-exponential), reverse_dfa, ltlf2dfa.
+
+### Automaton reversal (Reverse)
+- **`main.tex`:** `Reverse`$(D)$ (`\cref{alg:ltlftonfa}` line
+  `alg:ltlftonfa:reverse`; §160–169).
+- **Definition:** turn the deterministic $D$ into the NFA $N$ for $\varphi$ by
+  reversing every edge ($s\xrightarrow{v}t$ in $D$ becomes $t\xrightarrow{v}s$ in
+  $N$), adding a **fresh** initial state $s_{N,0}$ with
+  $\delta_N(s_{N,0},v)=\{s:\delta_D(s,v)\in F_D\}$, and taking $F_N=\{s_{D,0}\}$.
+  The result is **not** completed (an NFA may have an empty $\delta_N(s,v)$);
+  dead / unreachable states left by reversing MONA's complete $D$ are purged.
+- **C++:** `reverse_dfa_to_nfa(dfa)` → `spot::twa_graph_ptr` — **tentative** name
+  (draft PRD `docs/prd/ltlf-to-nfa.md`, internal, may be renamed on implementation).
+- **Do not call it:** transpose, flip, `mirror` (that is the *formula* mirror
+  above), `NfaToDfa` (opposite direction, later step), determinize.
 
 ### Consistency (cons)
 - **`main.tex`:** $\cons(q_{in},q_{out},v)$ (`\cref{def:consistency}`, §203) — the per-letter filter.
