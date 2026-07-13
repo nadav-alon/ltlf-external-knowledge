@@ -1,6 +1,9 @@
 # PRD: Symbolic DFA-product construction (skip the minterm loop)
 
-**Status:** draft
+**Status:** Phase 1 implemented — `include/ltlf_ek/transducer.hpp` +
+`include/ltlf_ek/output_labeled_transducer.hpp` + `src/output_labeled_transducer.cpp`
+(branch `master`, uncommitted); Phase 2 (symbolic build + rewire + oracle) not
+started
 **Interface:** rewrites `DfaProduct`'s product construction; adds symbolic
 accessors to the `Transducer` base class; adds `build_product_symbolic` +
 a shared guard-map product representation
@@ -12,9 +15,28 @@ a shared guard-map product representation
   `ProductGuards`/`materialize_product`/`to_guard_map`, and the build-equivalence
   oracle note all added to docs/GLOSSARY.md (2026-07-12, pre-implementation —
   names ratified for `/developer`)
-- [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] tests           — Phase-1 contract-equivalence unit tests added
+  (`tests/symbolic_transducer_contract_test.cpp`, uncommitted on `master`):
+  `emits_region`/`delta_edges` vs per-letter `emits`/`delta` over a
+  `LetterAlphabet`, on a spread of transducers (hand-built partial
+  `OutputLabeledTransducer` fixtures isolating partial-delta/partial-lambda,
+  `trivial_transducer` for both `t_in`/`t_out`, `controller_as_transducer` on
+  a real `DfaProduct`-synthesized strategy). Full suite green (221/221,
+  `ctest --test-dir build`). Phase 2 (build-equivalence oracle,
+  `build_product_symbolic`/`to_guard_map`) is NOT covered — those functions
+  don't exist yet; tracked separately when Phase 2 lands.
+- [x] code-review     — Phase-1 diff clean: domain (/code-reviewer) found no
+  must-fix (glossary + BDD-lifetime + invariants all clean); generic
+  (/code-review, high) found no correctness bugs, only low-severity considers
+  (delta_edges lacks delta's non-determinism guard — latent Phase-2 trap, not
+  triggerable now; two test-hardening nits). Phase 2 (symbolic build) NOT
+  reviewed — reopen when it lands.
+- [ ] theory-review   — Phase-1 accessors clean (theory-reviewer, faithfulness
+  mode): `emits_region` membership ⟺ per-letter `emits` and `delta_edges` ⟺
+  `delta` both faithful to §203/§211 (no code-bug/doc-bug). Gate LEFT OPEN by
+  design: its load-bearing claim is the Phase-2 symbolic-`cons` region
+  (`emits_region(q_in) & emits_region(q_out)` ⟺ `\cref{def:consistency}`), whose
+  consumer `build_product_symbolic` does not exist yet.
 
 ## Goal
 

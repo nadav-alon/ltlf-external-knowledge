@@ -64,6 +64,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/variables_test.cpp
     tests/consistency_test.cpp
     tests/output_labeled_transducer_test.cpp
+    tests/symbolic_transducer_contract_test.cpp
     tests/transducer_io_test.cpp
     tests/ltlf_to_dfa_test.cpp
     tests/product_test.cpp

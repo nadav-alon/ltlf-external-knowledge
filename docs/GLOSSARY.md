@@ -286,9 +286,12 @@ the existing term or update this file via `/glossary` — do not let drift happe
   `all_of(taus, emits)`. See `docs/prd/transducer-product.md`. The **symbolic**
   (whole-set) form is `Transducer::emits_region(q)` → `bdd`: the region of every
   letter whose $\Sigma_1$ slice agrees with $\lambda$ at $q$. For
-  `OutputLabeledTransducer` it is exactly `lambda_by_state_[q]` — the
-  λ-functionality invariant makes region membership ⟺ per-letter `emits(t,q,v)`
-  (`bddfalse` when λ is undefined, matching `emits`'s `nullopt`⇒`false`). The
+  `OutputLabeledTransducer` it is exactly `lambda_by_state_[q]` — because that
+  relation ranges over $\Sigma_0\cup\Sigma_1$ **only**, region membership ⟺
+  per-letter `emits(t,q,v)` (the load-bearing invariant is this variable scope,
+  *not* λ-functionality — the equivalence holds even for a non-functional
+  relation; `bddfalse` when λ is undefined, matching `emits`'s
+  `nullopt`⇒`false`). The
   symbolic $\cons$ region is `emits_region(q_in) & emits_region(q_out)`, no
   separate function (new; `docs/prd/symbolic-dfa-product.md`; faithfulness to
   `\cref{def:consistency}` flagged for `/theory-review`).

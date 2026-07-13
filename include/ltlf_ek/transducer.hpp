@@ -1,6 +1,8 @@
 #pragma once
 
 #include <optional>
+#include <utility>
+#include <vector>
 
 #include <bddx.h>
 #include <spot/twa/bdddict.hh>
@@ -49,6 +51,24 @@ class Transducer {
   // *full* letter v (abuse-of-notation, main.tex §87); the implementation reads
   // only its Sigma0 slice and returns a cube over Sigma1.  nullopt = undefined.
   virtual std::optional<bdd> lambda(unsigned q, bdd v) const = 0;
+
+  // Symbolic 'emits' (docs/GLOSSARY.md "Output agreement (emits)", region form):
+  // the BDD over I∪O of every letter whose Sigma1 slice agrees with lambda at q.
+  // For OutputLabeledTransducer this is exactly lambda_by_state_[q] (the stored
+  // output relation over Sigma0∪Sigma1).  Because that relation ranges over
+  // Sigma0∪Sigma1 *only*, region membership `(v & .) != bddfalse` <=> per-letter
+  // emits(t,q,v) --- the load-bearing invariant is this variable scope, not
+  // lambda-functionality (the equivalence holds even for a non-functional
+  // relation).  bddfalse when lambda is undefined at q (matches emits's
+  // nullopt => false).
+  virtual bdd emits_region(unsigned q) const = 0;
+
+  // Symbolic 'delta' (docs/GLOSSARY.md "Transition function (delta)", partition
+  // form): the deterministic delta out of q as (guard, dst) pairs --- for
+  // OutputLabeledTransducer, its twa_graph out-edges (acceptance ignored).  A
+  // letter covered by no returned guard is delta-undefined there (partial
+  // transducer), handled structurally by contributing to no product edge.
+  virtual std::vector<std::pair<bdd, unsigned>> delta_edges(unsigned q) const = 0;
 };
 
 }  // namespace ltlf_ek

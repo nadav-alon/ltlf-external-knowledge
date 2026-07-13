@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <utility>
 #include <vector>
 
 #include <bddx.h>
@@ -50,6 +51,8 @@ class OutputLabeledTransducer final : public Transducer {
   spot::bdd_dict_ptr dict() const override;
   std::optional<unsigned> delta(unsigned q, bdd v) const override;
   std::optional<bdd> lambda(unsigned q, bdd v) const override;
+  bdd emits_region(unsigned q) const override;
+  std::vector<std::pair<bdd, unsigned>> delta_edges(unsigned q) const override;
 
   // The observed / produced slices this transducer was built with
   // (docs/GLOSSARY.md: "observed / produced slice").  Exposed so a consumer can

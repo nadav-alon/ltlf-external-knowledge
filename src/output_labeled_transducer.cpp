@@ -66,6 +66,22 @@ std::optional<bdd> OutputLabeledTransducer::lambda(unsigned q, bdd v) const {
   return bdd_exist(r, sigma0_cube_);  // keep only Sigma1.
 }
 
+bdd OutputLabeledTransducer::emits_region(unsigned q) const {
+  // lambda_by_state_[q] is already the whole output relation over
+  // Sigma0 ∪ Sigma1 at q (or bddfalse if lambda is undefined there) --- exactly
+  // the region form of emits (Transducer::emits_region doc-comment).
+  return lambda_by_state_[q];
+}
+
+std::vector<std::pair<bdd, unsigned>> OutputLabeledTransducer::delta_edges(
+    unsigned q) const {
+  // The twa's out-edges out of q ARE the deterministic delta partition
+  // (acceptance ignored, per the class comment); just copy (cond, dst).
+  std::vector<std::pair<bdd, unsigned>> edges;
+  for (const auto& e : delta_dfa_->out(q)) edges.emplace_back(e.cond, e.dst);
+  return edges;
+}
+
 OutputLabeledTransducer trivial_transducer(const VariablePartition& partition,
                                            Role role,
                                            const spot::bdd_dict_ptr& dict) {
