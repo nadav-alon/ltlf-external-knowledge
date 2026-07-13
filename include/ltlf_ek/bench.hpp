@@ -78,7 +78,6 @@ class BenchTimer {
 
  private:
   bool active_;
-  std::chrono::steady_clock::time_point start_;
 };
 
 }  // namespace ltlf_ek

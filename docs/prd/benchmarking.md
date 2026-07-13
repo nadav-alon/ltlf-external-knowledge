@@ -1,15 +1,15 @@
 # PRD: Benchmarking / stage timing
 
-**Status:** implemented — branch agent-a033ae3d24cc7caeb
+**Status:** implemented — concurrent dev/test pass, merged to master 2026-07-13
 **Interface:** new benchmarking infrastructure (`BenchScope` / `BenchTimer` / `BenchReport` / `Stage`, `include/ltlf_ek/bench.hpp`); `DfaProduct` and the CLI are instrumented. **Does not change the `Synthesis` contract.**
 **Recommended workflow:** concurrent — the span mechanism is a thin, standard RAII collector that falls straight out of the types (high freeze confidence); the test-writer binds to `BenchScope`/`BenchTimer`/`BenchReport`/`Stage` + the frozen JSON schema.
 **main.tex ref:** no benchmarking algorithm exists in `main.tex` (this is infrastructure, like `docs/prd/cli-wrapper.md` and the oracle PRDs). The *canonical stages* trace to the algorithm blocks they time: `LtlfToDfa` / `Product` / `SolveDfa` in `alg:dfa_product` (§fulldfa), and `Aggregation` (Methods 3.2/3.3).
 
 **Gates:**
 - [x] glossary        — *Canonical benchmarking stage* (`Stage`) added, this session (pre-`/developer`)
-- [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] tests           — `tests/bench_test.cpp` (12 cases: unit + JSON schema + DfaProduct integration + zero-perturbation oracle); suite green 238/238
+- [x] code-review     — /code-reviewer (domain) + /code-review (generic, high): clean; one low-severity dead-member (`BenchTimer::start_`) applied
+- [x] theory-review   — light: stage↔algorithm mapping FAITHFUL, observability-only (no math touched)
 
 ## Goal
 
