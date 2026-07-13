@@ -374,6 +374,32 @@ the existing term or update this file via `/glossary` — do not let drift happe
 
 Common interface: `Synthesis::synthesize(phi, vars, t_in, t_out)`.
 
+## Benchmarking
+
+### Canonical benchmarking stage
+- **`main.tex`:** — (no symbol; code-only observability, `docs/prd/benchmarking.md`).
+  Benchmarking is infrastructure with no math; the stage *values* alias existing
+  spine-algorithm terms.
+- **Definition:** one of a small **closed, soft registry** naming the timing axes
+  that are **comparable across methods** — `automaton_construction` (*Goal DFA
+  construction*, or the future NFA build), `product_construction` (*Product*),
+  `game_solving` (*Game solving / SolveDfa*), `aggregation` (*Aggregation*,
+  Methods 3.2/3.3 only). Two methods' same-named canonical stages are defined to
+  be comparable; a stage only *some* methods emit is fine (comparability means
+  "when both emit it, they compare"). The registry is **soft**: adding, renaming,
+  or re-mapping a value touches only the enum + its name table + this entry
+  (never the generic collector/emitter) and is **not** a PRD-change event. Its
+  counterpart is the **free-form sub-span** — an arbitrary-string nested span
+  needing no registry change (the "a new phase needs no infra" tier).
+- **C++:** `enum class Stage { automaton_construction, product_construction,
+  game_solving, aggregation }` with `stage_name(Stage)` → `std::string_view`
+  (`include/ltlf_ek/bench.hpp`). The recording / emission plumbing (`BenchScope`,
+  `BenchTimer`, `BenchSpan`, `BenchReport`) is **infra, not a domain concept**, so
+  — like the `cli.hpp` CLI plumbing — it gets **no** glossary entry.
+- **Do not call it:** phase, step, part (for a canonical stage); metric /
+  measurement (that is the recorded datum, not the axis); for the free-form tier,
+  not "custom stage" (it is a *sub-span*, not a registry value).
+
 ## Testing & oracles
 
 ### Faithfulness guard

@@ -239,7 +239,26 @@ external `ltlfsynt` cross-check._
   so the minterm loop's cost stops being an acceptable baseline. A first
   measurement pass here also sets the baseline the symbolic rewrite is judged
   against.
-- **Seeds for grilling:** _(tbd)_
+- **Grilled 2026-07-13 → PRD `docs/prd/benchmarking.md` (draft).** Decided: a
+  two-tier design — a soft closed registry of canonical comparable `Stage`s
+  (`automaton_construction` / `product_construction` / `game_solving` /
+  `aggregation`) plus free-form nested sub-spans; an ambient thread-local RAII
+  collector (`BenchScope`/`BenchTimer`) so the `Synthesis` contract and the
+  free-function black-boxes stay frozen and a new phase needs no infra; whole-run
+  wall `total`; structured-nested JSON via `--benchmark=FILE` (stdout untouched);
+  always-compiled, runtime-gated no-op; time-only, `DfaProduct` wired now.
+- **Deferred out of that PRD (track here):**
+  - **Size metrics** — |states|/|edges| of the DFA & product, BDD node counts,
+    controller size. The `BenchReport` container is designed to hold them; only
+    time is populated in the first pass. Do next after the timing infra lands.
+  - **Chrome-trace exporter** — a second serializer over the same generic
+    `BenchReport` span tree (`ph:"X"`, `ts`/`dur`) for perfetto / `chrome://tracing`
+    flame-chart viewing of one run. Pure add-on; wanted only once eyeballing a
+    slow run matters.
+  - **Wire the other four methods** — each adopts the frozen mechanism by adding
+    span guards (no infra change); this is also where the **NFA-method stage
+    mapping** convention gets settled (determinization runs *after* the product —
+    is it folded into `product_construction` or its own reserved stage?).
 
 ## Done
 
