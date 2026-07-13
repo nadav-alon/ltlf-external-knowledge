@@ -26,6 +26,7 @@ add_library(ltlf_ek
   src/transducer_io.cpp
   src/role.cpp
   src/ltlf_to_dfa.cpp
+  src/mona_dfa.cpp
   src/solve_dfa.cpp
   src/product.cpp
   src/dfa_product.cpp
@@ -48,6 +49,12 @@ target_link_libraries(ltlf-ek-synth PRIVATE ltlf_ek)
 # tools still builds and tests green (that suite GTEST_SKIP()s instead).
 find_program(LTLFSYNT_EXECUTABLE ltlfsynt)
 
+# --- mona (docs/prd/ltlf-to-nfa.md Method 1, PastLtlfToDfa) ---
+# Located for tests/mona_dfa_test.cpp's MONA-subprocess round-trip (P1).
+# Optional, same policy as LTLFSYNT_EXECUTABLE: a clean box without mona
+# still builds and tests green (that suite GTEST_SKIP()s instead).
+find_program(MONA_EXECUTABLE mona)
+
 # --- tests ---
 option(LTLF_EK_BUILD_TESTS "Build unit tests" ON)
 if(LTLF_EK_BUILD_TESTS)
@@ -68,6 +75,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/symbolic_transducer_contract_test.cpp
     tests/transducer_io_test.cpp
     tests/ltlf_to_dfa_test.cpp
+    tests/mona_dfa_test.cpp
     tests/product_test.cpp
     tests/product_build_equivalence_test.cpp
     tests/dfa_product_test.cpp
@@ -92,6 +100,14 @@ if(LTLF_EK_BUILD_TESTS)
     target_compile_definitions(unit_tests PRIVATE
       "LTLFSYNT_BINARY=\"${LTLFSYNT_EXECUTABLE}\"")
   endif()
+  if(MONA_EXECUTABLE)
+    target_compile_definitions(unit_tests PRIVATE MONA_FOUND=1)
+  endif()
+  # tests/mona_dfa_test.cpp reads the checked-in .mona fixture
+  # (docs/prd/ltlf-to-nfa.md Phase 1) from an absolute path baked in at
+  # configure time, so it works regardless of ctest's working directory.
+  target_compile_definitions(unit_tests PRIVATE
+    "LTLF_EK_TEST_FIXTURES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures\"")
 
   include(GoogleTest)
   gtest_discover_tests(unit_tests)

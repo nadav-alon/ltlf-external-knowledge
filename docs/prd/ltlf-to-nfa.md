@@ -1,6 +1,10 @@
 # PRD: LtlfToNfa (Method 1 — NFA construction)
 
-**Status:** draft
+**Status:** implemented — Phase 1 (MONA subprocess + DFA parser) landed,
+`src/mona_dfa.cpp` + `include/ltlf_ek/detail/mona_dfa.hpp` (branch
+`worktree-prd-ltlf-to-nfa`, uncommitted at PRD-edit time). Phase 2 (folded
+mirror encoder + `past_ltlf_to_dfa`) and Phase 3 (`Reverse` + public
+`ltlf_to_nfa`) are still pending.
 **Interface:** adds the black-box helper `ltlf_to_nfa` (`LtlfToNfa`); **not** a `Synthesis` method. The `NfaProduct` class, `NfaToDfa` determinization, and the product/`SolveDfa` wiring of Method 1 are separate later PRDs.
 **Recommended workflow:** concurrent — the public signature is high-confidence (a thin analog of `ltlf_to_dfa`, and the NFA's shape is pinned exactly by `main.tex`'s reverse formulas §160–169). The language-equivalence oracle binds to the public contract + the math, so it parallelizes. The *internal* parser/encoder phase boundaries are tentative, so P1/P2's per-function unit tests run sequential-within-phase (developer lands the internal function, then its unit test binds).
 **main.tex ref:** §`nfa` (Method 1), subsection "LTLf to NFA", Algorithm `alg:ltlftonfa` ("Ltlf To Nfa"); `def:mirror`; `thm:nfa-mirror-size`.
@@ -268,3 +272,41 @@ only on MONA's output format) and the encoder (P2) are genuinely separable.
   (MONA driver), DFA→NFA `reverse`.
 - `code-review` (domain + generic) and `theory-review` gates ticked; the three
   open theory questions above are dispositioned by `/theory-review`.
+
+## Developer comments / PRD disagreements
+
+**2026-07-13 (Phase 1 landing).** No disagreements with the math or the
+public contract (Phase 1 touches neither); four implementation choices the
+PRD left open, recorded here for traceability:
+
+- **Own translation unit + a `detail/` header, not "file-local".** The PRD's
+  "Definition of done" sketches a single `src/ltlf_to_nfa.cpp` holding all of
+  P1/P2/P3's `detail` helpers behind the one public
+  `include/ltlf_ek/ltlf_to_nfa.hpp`. P1 instead landed as its own
+  `src/mona_dfa.cpp` + `include/ltlf_ek/detail/mona_dfa.hpp` (declaring
+  `ltlf_ek::detail::run_mona` / `::mona_output_to_dfa`), following the
+  existing `include/ltlf_ek/detail/util.hpp` precedent. Reason: Phase 1's
+  green checkpoint is a structural GoogleTest suite driving the MONA
+  round-trip directly (PRD "Test oracles" / "Implementation phases" Phase 1),
+  which needs a declaration reachable from `tests/`; a `static`/anonymous-
+  namespace helper confined to one `.cpp` can't be unit-tested directly. The
+  header stays under `detail/` (no glossary entry, not part of the
+  `ltlf_to_nfa` public contract) so this is not a public-interface change —
+  P2/P3 remain free to fold these into `ltlf_to_nfa.cpp` or keep them split.
+- **MONA output format: `mona -q -w -n`** (see the header's doc-comment for
+  the `-w` vs `-gw` rationale). `-n` (skip the counter-/satisfying-example
+  ANALYSIS section) and `-q` (no progress bar) were added beyond the PRD's
+  bare `-w`/`-gw` framing since MONA prints unrelated noise on both
+  otherwise.
+- **Checked-in fixture as a real file**, `tests/fixtures/mona/small_example.mona`
+  (new `tests/fixtures/` directory — the codebase's other subprocess-input
+  fixtures, e.g. `tests/ltlfsynt_oracle_test.cpp`'s `%%LAMBDA` transducers,
+  are inline C-string literals). A real `.mona` file was used because the
+  PRD's Phase 1 green checkpoint explicitly calls for "a checked-in `.mona`
+  fixture".
+- **`mona`-absent skip gate.** Mirrors the existing `LTLFSYNT_EXECUTABLE`
+  policy (`CMakeLists.txt`): `find_program(MONA_EXECUTABLE mona)` +
+  `MONA_FOUND` compile define + `GTEST_SKIP()` in `MonaDfaTest::SetUp()`, so
+  a clean box without `mona` installed still builds and tests green. The
+  parser-only tests (`MonaDfaParser.*`, hand-written `-w` text, no
+  subprocess) always run regardless.
