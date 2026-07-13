@@ -26,6 +26,7 @@
 #include <spot/twa/twagraph.hh>
 #include <spot/twaalgos/hoa.hh>
 
+#include "ltlf_ek/bench.hpp"
 #include "ltlf_ek/cli.hpp"
 #include "ltlf_ek/detail/util.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
@@ -68,6 +69,8 @@ struct CliArgs {
   bool model_check = false;
   std::optional<std::string> controller;  // --controller F (Role::t_c file).
   bool realizable = false;
+  std::optional<std::string> benchmark_file;  // --benchmark=FILE (docs/prd/
+                                              // benchmarking.md).
 };
 
 struct Flag {
@@ -118,6 +121,8 @@ CliArgs ParseArgs(int argc, char** argv) {
       args.controller = need_value();
     } else if (f.name == "realizable") {
       args.realizable = true;
+    } else if (f.name == "benchmark") {
+      args.benchmark_file = need_value();
     } else {
       throw UsageError("unrecognised flag: --" + f.name);
     }
@@ -253,6 +258,42 @@ std::unique_ptr<Synthesis> BuildMethodOrNull(const std::string& flag) {
   }
 }
 
+// RAII emit-guard (docs/prd/benchmarking.md "CLI" section, "Recommended
+// implementation"): writes the accumulated report to --benchmark=FILE on
+// every completion path uniformly --- realizable, unrealizable, or a thrown
+// internal error (best-effort/partial, PRD "Edge cases"). Must be declared
+// *after* the BenchScope it reads so it destructs first (while the scope is
+// still alive, per BenchScope::report()'s "while alive or from dtor path"
+// contract) --- ordinary reverse-construction-order RAII. A write failure is
+// a stderr warning only; it never touches main()'s exit code.
+class BenchmarkEmitGuard {
+ public:
+  BenchmarkEmitGuard(const std::optional<std::string>& file,
+                     const std::optional<ltlf_ek::BenchScope>& scope)
+      : file_(file), scope_(scope) {}
+
+  ~BenchmarkEmitGuard() {
+    if (!file_ || !scope_) return;
+    std::ofstream out(*file_);
+    bool ok = static_cast<bool>(out);
+    if (ok) {
+      scope_->report().to_json(out);
+      ok = static_cast<bool>(out);
+    }
+    if (!ok) {
+      std::cerr << "warning: could not write --benchmark report to " << *file_
+                << "\n";
+    }
+  }
+
+  BenchmarkEmitGuard(const BenchmarkEmitGuard&) = delete;
+  BenchmarkEmitGuard& operator=(const BenchmarkEmitGuard&) = delete;
+
+ private:
+  const std::optional<std::string>& file_;
+  const std::optional<ltlf_ek::BenchScope>& scope_;
+};
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -266,8 +307,24 @@ int main(int argc, char** argv) {
       throw UsageError("more than one method flag given");
     if (!args.formula) throw UsageError("--formula is required");
 
+    // --benchmark=FILE (docs/prd/benchmarking.md): one whole-run BenchScope
+    // (parse -> build transducers -> synthesize). Constructed only when
+    // requested, so a non-benchmarked run installs no collector at all.
+    // bench_emit must be declared after bench_scope so it destructs first
+    // (LIFO), reading the report while the scope is still alive.
+    std::optional<ltlf_ek::BenchScope> bench_scope;
+    if (args.benchmark_file) bench_scope.emplace();
+    const BenchmarkEmitGuard bench_emit(args.benchmark_file, bench_scope);
+
     const VariablePartition partition = BuildPartition(args);
     ValidateKnownTransducerFlags(partition, args);
+
+    // Free-form input_parsing span (PRD "Behaviour": "around formula +
+    // transducer parsing"); a no-op when no BenchScope is active, so this
+    // stays unconditional. Closed explicitly (input_timer.reset()) once the
+    // transducers are built, below.
+    std::optional<ltlf_ek::BenchTimer> input_timer;
+    input_timer.emplace(std::string("input_parsing"));
 
     spot::formula phi;
     try {
@@ -291,6 +348,8 @@ int main(int argc, char** argv) {
         args.known_input_transducer, partition, Role::t_in, dict);
     const OutputLabeledTransducer t_out = BuildTransducer(
         args.known_output_transducer, partition, Role::t_out, dict);
+
+    input_timer.reset();  // input_parsing span ends here.
 
     if (args.model_check) {
       // --controller F: check a given artifact --- short-circuits before

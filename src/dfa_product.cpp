@@ -5,6 +5,7 @@
 #include <bddx.h>
 #include <spot/twa/twagraph.hh>
 
+#include "ltlf_ek/bench.hpp"
 #include "ltlf_ek/ltlf_to_dfa.hpp"
 #include "ltlf_ek/product.hpp"
 #include "ltlf_ek/solve_dfa.hpp"
@@ -24,21 +25,29 @@ std::optional<Controller> DfaProduct::synthesize(const spot::formula& phi,
   const spot::bdd_dict_ptr dict = t_in.dict();
 
   // --- LtlfToDfa: A on the shared dict (accepting states = F_D). ---
-  const spot::twa_graph_ptr dfa = ltlf_to_dfa(phi, dict);
+  spot::twa_graph_ptr dfa;
+  {
+    BenchTimer timer(Stage::automaton_construction);
+    dfa = ltlf_to_dfa(phi, dict);
+  }
 
   // --- Product P (alg:dfa_product) via the symbolic build (docs/prd/
   //     symbolic-dfa-product.md): per-dst guards computed directly from
   //     delta_edges/emits_region + Goal out-edges --- no LetterAlphabet, no
-  //     minterm loop.
-  const ProductState init{dfa->get_init_state_number(),
-                          {t_in.initial_state(), t_out.initial_state()}};
-  const ProductGuards pg = build_product_symbolic(dfa, taus, init);
-
-  // --- Materialize: one twa_graph state per reachable ProductState, one
-  //     guarded edge per destination.
-  const spot::twa_graph_ptr product = materialize_product(pg, init, dict);
+  //     minterm loop. --- Materialize: one twa_graph state per reachable
+  //     ProductState, one guarded edge per destination. One benchmarking span
+  //     covers both (docs/prd/benchmarking.md "What DfaProduct emits").
+  spot::twa_graph_ptr product;
+  {
+    BenchTimer timer(Stage::product_construction);
+    const ProductState init{dfa->get_init_state_number(),
+                            {t_in.initial_state(), t_out.initial_state()}};
+    const ProductGuards pg = build_product_symbolic(dfa, taus, init);
+    product = materialize_product(pg, init, dict);
+  }
 
   // --- SolveDfa: solve the product game and lift the controller. ---
+  BenchTimer timer(Stage::game_solving);
   return solve_dfa(product, vars);
 }
 

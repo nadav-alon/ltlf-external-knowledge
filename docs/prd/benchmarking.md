@@ -1,6 +1,6 @@
 # PRD: Benchmarking / stage timing
 
-**Status:** draft
+**Status:** implemented — branch agent-a033ae3d24cc7caeb
 **Interface:** new benchmarking infrastructure (`BenchScope` / `BenchTimer` / `BenchReport` / `Stage`, `include/ltlf_ek/bench.hpp`); `DfaProduct` and the CLI are instrumented. **Does not change the `Synthesis` contract.**
 **Recommended workflow:** concurrent — the span mechanism is a thin, standard RAII collector that falls straight out of the types (high freeze confidence); the test-writer binds to `BenchScope`/`BenchTimer`/`BenchReport`/`Stage` + the frozen JSON schema.
 **main.tex ref:** no benchmarking algorithm exists in `main.tex` (this is infrastructure, like `docs/prd/cli-wrapper.md` and the oracle PRDs). The *canonical stages* trace to the algorithm blocks they time: `LtlfToDfa` / `Product` / `SolveDfa` in `alg:dfa_product` (§fulldfa), and `Aggregation` (Methods 3.2/3.3).
