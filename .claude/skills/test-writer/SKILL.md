@@ -1,6 +1,6 @@
 ---
 name: test-writer
-description: Write GoogleTest unit tests for this LTLf-external-knowledge project — small tests for most functions, plus domain oracles (cross-method metamorphic equivalence, controller verifier, monolithic baseline). Use after implementing or changing code in src/ or include/ltlf_ek.
+description: Write GoogleTest unit tests for this LTLf-external-knowledge project — small tests for most functions, plus domain oracles (cross-method metamorphic equivalence, controller verifier, monolithic baseline). Use after implementing or changing code in src/ or include/ltlf_ek — or, in the concurrent workflow, against a frozen Interfaces & types contract before the implementation exists.
 ---
 
 # Test writer
@@ -38,6 +38,17 @@ Overleaf).
 
 - Read `docs/GLOSSARY.md` (use canonical names in test names and comments) and
   the code under test. Read the PRD's "Test oracles" section if present.
+- **Concurrent workflow — you may run before the code exists.** When the PRD's
+  `Recommended workflow` is `concurrent`, you run on your own branch, possibly
+  *before* `/developer` has landed anything. Bind to the PRD's frozen **Interfaces
+  & types** contract instead of the code: the **domain oracles** (metamorphic,
+  verifier, monolithic baseline) need no implementation — they bind to the public
+  interface and the math — so write those first; **unit fixtures** target the
+  frozen signatures. Do **not** edit `src/`/`include/` to make things compile — if
+  a signature looks wrong, that is a PRD-change event for `/developer` /
+  `/grill-prd`, not yours to fix. The launcher integrates the branches and runs
+  the suite against the real code once it lands. Modes are defined in
+  `/grill-prd`.
 
 ## Stay in scope — don't re-derive what's settled
 

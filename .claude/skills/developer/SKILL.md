@@ -19,6 +19,15 @@ Opus context — not inline on the main session.
   its result to the user, and **stop**. Do **not** implement inline. This holds
   even when the user typed `/developer` directly — the slash command always ends
   up on Sonnet via the agent.
+  - **Check the PRD's `Recommended workflow` before spawning.** If it is
+    **`concurrent`**, don't spawn the developer alone: launch `/developer` and
+    `/test-writer` at the same time, each on its own worktree, both bound to the
+    frozen *Interfaces & types* contract — then **own integration yourself**
+    instead of just stopping: merge both (disjoint `src/`+`include/` vs `test/`,
+    so clean; never `git add -A` with both worktrees live), build, and run
+    `ctest` once foreground. If the tests land first, the developer finishes
+    red→green against them. If it is **`sequential`** or absent, spawn the
+    developer alone as below. The modes are defined in `/grill-prd`.
   - **Keep the spawn prompt tight.** Name the PRD and the concrete deltas to
     implement, then defer to this skill — the agent already reads it. Do **not**
     restate the skill's steps/checklists back at the agent: echoing "verify X,
@@ -107,12 +116,23 @@ Overleaf).
   disagreement in a source comment: code comments explain what the code does and
   cite the `main.tex` symbol, they are not the place to argue with the spec.
   (Divergences from `main.tex` *itself* still go to `/theory-review`, above.)
+  Under the **`concurrent`** workflow a change to the frozen *Interfaces & types*
+  signature is **more than a recorded disagreement**: a `/test-writer` branch is
+  bound to the old signature, so surface it as a PRD-change event — flag it in
+  your report (don't just log it) so it propagates to that branch, and do not
+  quietly reshape the interface on your own branch.
 - **Style:** match surrounding code (namespace `ltlf_ek`, `.hpp` headers with
   `#pragma once`, doc-comments that cite the `main.tex` symbol/algorithm). Keep
   black-boxes (`LtlfToDfa`, `SolveDfa`, `progress`) behind named wrappers so the
   glossary maps onto them even while stubbed.
 - Keep functions small and unit-testable — `/test-writer` will want one test per
   function that sensibly has one.
+- **If a `/test-writer` suite already exists (concurrent workflow, tests landed
+  first), build against it and drive it green.** A red test is either a real code
+  bug (fix the code) or a mismatch with the frozen *Interfaces & types* contract
+  (a PRD-change event — see the disagreements bullet below); it is **not** a
+  licence to edit the tests, which are `/test-writer`'s. Where no tests exist yet,
+  implement to the contract as usual.
 
 ## Build & self-check
 
@@ -150,5 +170,8 @@ disagreements" entry — both are your bookkeeping on that file.
 - Any divergence from `main.tex` is flagged for `/theory-review`.
 - Any deviation from the PRD is recorded in that PRD's "Developer comments /
   PRD disagreements" section — not narrated in code comments.
-- **Suggest next steps** (do not auto-run): `/test-writer` on the new functions,
-  then `/code-review` (generic) and `/code-reviewer` (domain) before committing.
+- **Suggest next steps** (do not auto-run): under the `sequential` workflow,
+  `/test-writer` on the new functions, then `/code-review` (generic) and
+  `/code-reviewer` (domain) before committing. Under `concurrent`, the
+  `/test-writer` branch already ran — the launcher integrates it (merge + `ctest`)
+  before the same two reviews.

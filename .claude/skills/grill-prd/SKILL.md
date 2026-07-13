@@ -118,6 +118,33 @@ A PRD carries two orthogonal axes, both in its header block:
 
 Emit every new PRD with `Status: draft` and all four gates unchecked.
 
+## Workflow recommendation — how the field is consumed
+
+The header's **`Recommended workflow:`** field tells whoever implements the PRD
+how `/developer` and `/test-writer` run. It is derived from the *Interfaces &
+types* **freeze confidence** and is **advisory** — the launcher may override. It
+governs only the per-function unit tests and the developer-TDD path; the **domain
+oracles parallelize regardless**, since they bind to the public interface and the
+math, never internals. The two values:
+
+- **`sequential`** (from a *tentative* freeze): `/developer` first, then
+  `/test-writer` against the real signatures — the current linear order. Use when
+  implementation is likely to revise the interface, so the test-writer binds to
+  the settled shape and no branch is locked to a contract that churned.
+- **`concurrent`** (from a *high* freeze): spawn `/developer` and `/test-writer`
+  at the same time, each on its **own worktree**, both bound to the frozen
+  *Interfaces & types* contract. `src/`+`include/` and `test/` are disjoint
+  territories, so the branches merge clean — but **never `git add -A` while both
+  worktrees are live**. The **launcher owns integration**: merge both, build, and
+  run `ctest` once (foreground). If the tests land before the implementation,
+  `/developer` finishes **red→green** against them. If implementation proves the
+  contract wrong, that is a **PRD-change event** — update *Interfaces & types* and
+  propagate to the in-flight test branch; neither agent reshapes the interface
+  unilaterally on its own branch.
+
+The spawning mechanics live in the `/developer` and `/test-writer` delegation
+guards, which defer here for what the modes mean.
+
 ## PRD template
 
 ```markdown
@@ -125,7 +152,7 @@ Emit every new PRD with `Status: draft` and all four gates unchecked.
 
 **Status:** draft
 **Interface:** <e.g. implements Synthesis as DfaProduct>
-**Recommended workflow:** <concurrent | sequential> — <one-line reason, from the Interface-contract freeze confidence>
+**Recommended workflow:** <concurrent | sequential> — <one-line reason, from the *Interfaces & types* freeze confidence>
 **main.tex ref:** <section / \cref / algorithm>
 
 **Gates:**
@@ -143,7 +170,7 @@ Emit every new PRD with `Status: draft` and all four gates unchecked.
 ## Behaviour / semantics (from main.tex)
 <the invariants and steps that MUST hold, quoting the algorithm>
 
-## Interface contract
+## Interfaces & types
 **Freeze confidence: <high | tentative>.** high = the signature falls straight
 out of the glossary types (thin wrapper over an existing Spot construct);
 tentative = the interface is being invented here and implementation may revise it.
@@ -189,8 +216,8 @@ under-implementable:
 - Edge cases and test oracles are concrete enough for `/test-writer` to act on.
 - Every domain term used is in `docs/GLOSSARY.md` (or listed as a gap).
 - Interfaces name real types/signatures, not vague "some function".
-- **Interface contract** carries a freeze confidence, names each type by its
-  glossary term, and states the re-freeze path; the header **Recommended
+- The **Interfaces & types** section carries a freeze confidence, names each type
+  by its glossary term, and states the re-freeze path; the header **Recommended
   workflow** is consistent with it (high→concurrent, tentative→sequential).
 - **Any bespoke algorithm/mechanism** (not lifted from `main.tex`) is specified
   past sketch level: iteration bounds and their boundary behaviour, result type,
@@ -210,8 +237,8 @@ for `/theory-review`. This is a read-through, not a second interview.
 
 - `docs/prd/<feature>.md` written from the template, in ubiquitous language,
   with `Status: draft` and the four unchecked gates in the header.
-- The **Interface contract** is frozen with a freeze confidence, and the header
-  **Recommended workflow** field is set and consistent with it.
+- The **Interfaces & types** section is frozen with a freeze confidence, and the
+  header **Recommended workflow** field is set and consistent with it.
 - Any PRD this supersedes is marked `superseded by …` and cross-linked (not
   deleted).
 - For a large feature, an **Implementation phases** section splits it into
