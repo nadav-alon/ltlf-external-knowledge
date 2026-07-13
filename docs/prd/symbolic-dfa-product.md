@@ -1,9 +1,14 @@
 # PRD: Symbolic DFA-product construction (skip the minterm loop)
 
-**Status:** Phase 1 implemented — `include/ltlf_ek/transducer.hpp` +
-`include/ltlf_ek/output_labeled_transducer.hpp` + `src/output_labeled_transducer.cpp`
-(branch `master`, uncommitted); Phase 2 (symbolic build + rewire + oracle) not
-started
+**Status:** implemented (Phase 1 + Phase 2) — Phase 1:
+`include/ltlf_ek/transducer.hpp` + `include/ltlf_ek/output_labeled_transducer.hpp`
++ `src/output_labeled_transducer.cpp`; Phase 2: `ProductGuards` +
+`build_product_symbolic` + `to_guard_map` + `materialize_product`
+(`include/ltlf_ek/product.hpp` + `src/product.cpp`), `DfaProduct::synthesize`
+rewired onto the symbolic path (`src/dfa_product.cpp`) — branch `master`,
+uncommitted. Phase 2's build-equivalence metamorphic oracle (test) is written
+(`tests/product_build_equivalence_test.cpp` + `GeneratedCorpus.BuildEquivalence`
+in `tests/ltlfsynt_oracle_test.cpp`).
 **Interface:** rewrites `DfaProduct`'s product construction; adds symbolic
 accessors to the `Transducer` base class; adds `build_product_symbolic` +
 a shared guard-map product representation
@@ -15,28 +20,40 @@ a shared guard-map product representation
   `ProductGuards`/`materialize_product`/`to_guard_map`, and the build-equivalence
   oracle note all added to docs/GLOSSARY.md (2026-07-12, pre-implementation —
   names ratified for `/developer`)
-- [x] tests           — Phase-1 contract-equivalence unit tests added
-  (`tests/symbolic_transducer_contract_test.cpp`, uncommitted on `master`):
-  `emits_region`/`delta_edges` vs per-letter `emits`/`delta` over a
-  `LetterAlphabet`, on a spread of transducers (hand-built partial
-  `OutputLabeledTransducer` fixtures isolating partial-delta/partial-lambda,
-  `trivial_transducer` for both `t_in`/`t_out`, `controller_as_transducer` on
-  a real `DfaProduct`-synthesized strategy). Full suite green (221/221,
-  `ctest --test-dir build`). Phase 2 (build-equivalence oracle,
-  `build_product_symbolic`/`to_guard_map`) is NOT covered — those functions
-  don't exist yet; tracked separately when Phase 2 lands.
-- [x] code-review     — Phase-1 diff clean: domain (/code-reviewer) found no
-  must-fix (glossary + BDD-lifetime + invariants all clean); generic
-  (/code-review, high) found no correctness bugs, only low-severity considers
-  (delta_edges lacks delta's non-determinism guard — latent Phase-2 trap, not
-  triggerable now; two test-hardening nits). Phase 2 (symbolic build) NOT
-  reviewed — reopen when it lands.
-- [ ] theory-review   — Phase-1 accessors clean (theory-reviewer, faithfulness
-  mode): `emits_region` membership ⟺ per-letter `emits` and `delta_edges` ⟺
-  `delta` both faithful to §203/§211 (no code-bug/doc-bug). Gate LEFT OPEN by
-  design: its load-bearing claim is the Phase-2 symbolic-`cons` region
-  (`emits_region(q_in) & emits_region(q_out)` ⟺ `\cref{def:consistency}`), whose
-  consumer `build_product_symbolic` does not exist yet.
+- [x] tests           — Phase-1 contract-equivalence unit tests are in
+  (`tests/symbolic_transducer_contract_test.cpp`): `emits_region`/`delta_edges`
+  vs per-letter `emits`/`delta` over a `LetterAlphabet`, on a spread of
+  transducers. Phase 2's build-equivalence metamorphic oracle (Test oracles
+  #2) is now in: `tests/product_build_equivalence_test.cpp` (4 dedicated unit
+  fixtures — empty V/deeper mixed formula, zero-transducer product, a
+  partial-delta+partial-lambda transducer, a wider partition with several
+  Iknown vars) plus `GeneratedCorpus.BuildEquivalence` in
+  `tests/ltlfsynt_oracle_test.cpp` (wired into the generated corpus, run over
+  all 256 default cases). Both directly assert `build_product_symbolic(...)
+  == to_guard_map(build_product(...), alphabet)` (reachable ProductState set,
+  acc flag, BDD-equal per-⟨src,dst⟩ guard). Sanity-checked by a manual bug
+  injection (dropping the `emits_region` intersection in
+  `symbolic_successors`): both the dedicated fixtures and the corpus body
+  failed loudly, confirming the oracle is not vacuous; reverted before commit.
+  Full suite green: 226/226 (`ctest --test-dir build`, plus the pre-existing
+  1 DISABLED_ soak smoke, unchanged) — 221 pre-existing + 5 new tests.
+- [x] code-review     — Phase 1 + Phase 2 both clean. Domain (`/code-reviewer`):
+  no must-fix — BDD idioms (incl. `std::map` reference-stability across
+  `emplace` in `build_product_symbolic`), no-⊥-sink, F_P, and the
+  Goal-completeness assert all correct. Generic (`/code-review`, high): no
+  correctness bugs; 2 low-severity considers, both APPLIED post-review in
+  `symbolic_successors` — (a) restored the per-letter build's non-determinism
+  throw (assert pairwise-disjoint raw δ-guards, mirroring
+  `OutputLabeledTransducer::delta`, so `combine_taus`'s per-dst OR stays exact),
+  (b) fused the two `goal->out` traversals into one pass. Suite still 226/226.
+- [x] theory-review   — Phase 1 + Phase 2 both faithful (theory-reviewer,
+  faithfulness mode). Phase 1: `emits_region` membership ⟺ per-letter `emits`,
+  `delta_edges` ⟺ `delta` (§203/§211). Phase 2 (the deferred central claim,
+  now BLESSED): `emits_region(q_in) & emits_region(q_out)` ⟺ `\cref{def:consistency}`
+  by minterm distributivity on the Phase-1 result; δ/λ-partiality structural,
+  no ⊥-sink, Goal-completeness asserted. No code-bug, no doc-bug. Optional
+  non-blocking `\cl` note near `\cref{def:consistency}` drafted (traceability
+  only) — surfaced for the user, NOT applied.
 
 ## Goal
 
@@ -120,12 +137,15 @@ $\langle\text{src},\text{dst}\rangle$ the guard is the OR of exactly the enabled
 - **Symbolic $\cons$ region** (`\cref{def:consistency}` §203, region form): the
   set of letters consistent at $(q_{in},q_{out})$ is
   $\texttt{emits\_region}(q_{in})\ \wedge\ \texttt{emits\_region}(q_{out})$, one
-  BDD over $\mathcal I\cup\mathcal O$. This is faithful because the λ-functionality
-  invariant (owned by `parse_transducer` / `OutputLabeledTransducer`) makes
+  BDD over $\mathcal I\cup\mathcal O$. This is faithful because `lambda_by_state_[q]`
+  ranges over $\Sigma_0\cup\Sigma_1$ **only** (the load-bearing invariant — *not*
+  λ-functionality, which is sufficient but unnecessary), which makes
   `emits(t,q,v)` ⟺ $v$'s $(\Sigma_0,\Sigma_1)$ slice ∈ `lambda_by_state_[q]`, so
   the whole region **is** `lambda_by_state_[q]` (see *Interfaces & types*). This
   is the "symbolic `cons`" the backlog seed asks to reconcile with the math —
-  flagged for `/theory-review` (Open theory questions).
+  **confirmed faithful by `/theory-review`** (minterm distributivity on the
+  Phase-1 result; an optional `\cl` traceability note now sits by
+  `\cref{def:consistency}`).
 - **Symbolic successors:** for each transducer $t_i$, iterate
   `delta_edges(q_i)` = its $\delta$ partition as $(g_i, q_i')$ pairs; iterate the
   Goal DFA's out-edges $(g_{goal}, s')$. For each combination the destination is
@@ -344,3 +364,22 @@ No cross-method equivalence is added here (still Method-2-only).
   one uniform design; correctness rests on the build-equivalence + realizability
   oracles. A symbolic rewrite of the `verify_controller` ν-fixpoint is likewise
   out of scope, logged as a separate Later backlog item.
+
+## Developer comments / PRD disagreements
+
+- **2026-07-13 — `materialize_product` takes an extra `init` parameter.** The
+  PRD's Phase 2 signature is `materialize_product(const ProductGuards& pg,
+  const spot::bdd_dict_ptr& dict)`, but `ProductGuards::nodes` is a
+  `std::map<ProductState, ...>` keyed for the build-equivalence oracle's
+  structural comparison — it carries no entry-point marker, and `std::map`
+  iteration order (lexicographic on `(goal, taus)`) is unrelated to which
+  state is `init`. Implemented as
+  `materialize_product(const ProductGuards& pg, const ProductState& init,
+  const spot::bdd_dict_ptr& dict)` instead, mirroring the pre-existing pattern
+  where `build_product`'s caller (`DfaProduct::synthesize`) already keeps its
+  own `init` local to call `index.at(init)` for `set_init_state` — the
+  per-letter `ProductNode`/graph map has the identical gap and always relied on
+  the caller supplying `init` out of band. `build_product_symbolic`'s
+  signature is unchanged (`init` was already a parameter there). No effect on
+  the build-equivalence oracle, which compares `ProductGuards.nodes` directly
+  and never calls `materialize_product`.

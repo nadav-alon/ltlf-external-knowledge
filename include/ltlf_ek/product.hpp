@@ -117,4 +117,51 @@ void validate_product_inputs(const spot::formula& phi,
                              const VariablePartition& vars,
                              const std::vector<const Transducer*>& taus);
 
+// Neutral per-dst guard map (docs/GLOSSARY.md "Product", symbolic pieces): for
+// each reachable ProductState, its Goal-acceptance flag and, per destination
+// ProductState, the accumulated (OR'd) edge guard.  Both the symbolic build
+// and to_guard_map (the compressed per-letter build) emit THIS type, so they
+// are directly comparable --- the build-equivalence metamorphic oracle
+// (docs/prd/symbolic-dfa-product.md) diffs two ProductGuards.
+struct ProductGuards {
+  std::map<ProductState, std::pair<bool, std::map<ProductState, bdd>>> nodes;
+};
+
+// Symbolic build (docs/prd/symbolic-dfa-product.md, "The symbolic
+// reformulation"): BFS from `init`, computing per-dst guards directly from
+// delta_edges/emits_region + the Goal DFA's out-edges --- no LetterAlphabet,
+// no minterm loop.  For a state <s, q_1, ..., q_n>, each transducer's
+// contribution is (delta guard AND emits_region) at its OWN state q_i (the
+// source, not the destination); the destination's guard is the Goal out-guard
+// ANDed with every transducer's contribution, accumulated (OR) per
+// destination.  Assumes `goal` is complete (invariant 3): asserts, per
+// visited Goal state, that its out-guards union to bddtrue, throwing
+// std::runtime_error otherwise (the symbolic analogue of
+// agreeing_successor's goal_must_be_complete throw).  DfaProduct-only ---
+// verify_controller keeps the per-letter build_product.
+ProductGuards build_product_symbolic(
+    const spot::twa_graph_ptr& goal,
+    const std::vector<const Transducer*>& taus, const ProductState& init);
+
+// Compress the per-letter build's ProductNode edges into the shared
+// ProductGuards type --- the `guards[dst] |= letters[idx]` loop, extracted
+// out of DfaProduct::synthesize.  Reference side of the build-equivalence
+// metamorphic oracle (compared against build_product_symbolic on the same
+// inputs).
+ProductGuards to_guard_map(const std::map<ProductState, ProductNode>& graph,
+                           const LetterAlphabet& alphabet);
+
+// Materialise the game twa_graph from the shared ProductGuards type
+// (state-based Buchi, F_P on the acc flag) --- the single place product
+// states/guards become an automaton, called by DfaProduct.  `init` names the
+// entry ProductState: ProductGuards::nodes is a std::map (keyed for
+// build-equivalence comparison, not insertion order), so it cannot itself
+// mark which node is the entry --- same reason build_product's caller
+// (DfaProduct::synthesize) already keeps its own `init` local for
+// set_init_state.  (Deviation from the PRD's two-argument signature; see
+// docs/prd/symbolic-dfa-product.md "Developer comments / PRD disagreements".)
+spot::twa_graph_ptr materialize_product(const ProductGuards& pg,
+                                        const ProductState& init,
+                                        const spot::bdd_dict_ptr& dict);
+
 }  // namespace ltlf_ek

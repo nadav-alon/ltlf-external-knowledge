@@ -68,6 +68,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/transducer_io_test.cpp
     tests/ltlf_to_dfa_test.cpp
     tests/product_test.cpp
+    tests/product_build_equivalence_test.cpp
     tests/dfa_product_test.cpp
     tests/verify_controller_test.cpp
     tests/cli_test.cpp

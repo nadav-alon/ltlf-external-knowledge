@@ -25,6 +25,7 @@
 #include <fstream>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <memory>
 #include <new>
 #include <optional>
@@ -53,6 +54,7 @@
 #include "ltlf_ek/dfa_product.hpp"
 #include "ltlf_ek/ltlf_to_dfa.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
+#include "ltlf_ek/product.hpp"
 #include "ltlf_ek/transducer_io.hpp"
 #include "ltlf_ek/variables.hpp"
 #include "ltlf_ek/verify_controller.hpp"
@@ -63,13 +65,20 @@
 
 namespace {
 
+using ltlf_ek::build_product;
+using ltlf_ek::build_product_symbolic;
 using ltlf_ek::collect_aps;
 using ltlf_ek::Controller;
 using ltlf_ek::DfaProduct;
+using ltlf_ek::LetterAlphabet;
 using ltlf_ek::ltlf_to_dfa;
 using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::parse_transducer;
+using ltlf_ek::ProductGuards;
+using ltlf_ek::ProductState;
 using ltlf_ek::Role;
+using ltlf_ek::to_guard_map;
+using ltlf_ek::Transducer;
 using ltlf_ek::trivial_transducer;
 using ltlf_ek::VariablePartition;
 using ltlf_ek::verify_controller;
@@ -1969,6 +1978,101 @@ TEST(GeneratedCorpus, MetamorphicRoundTrip) {
                "controller that verify_controller rejects -- t_in for "
                "replay (see DumpTinForReplay):\n"
             << DumpTinForReplay(c.t_in, c.partition);
+      });
+  RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
+  RecordProperty("cases_run", static_cast<int>(stats.cases_run));
+  RecordProperty("cases_skipped", static_cast<int>(stats.cases_skipped));
+}
+
+// ---------------------------------------------------------------------------
+// Build-equivalence metamorphic oracle, generated-corpus half
+// (docs/prd/symbolic-dfa-product.md "Test oracles" #2): for every generated
+// (phi, partition, Tin), build_product_symbolic(...) must equal
+// to_guard_map(build_product(...), alphabet) on the SAME (goal, taus, init)
+// DfaProduct::synthesize itself would build (src/dfa_product.cpp) --
+// identical reachable ProductState set, identical acc flag, BDD-equal
+// per-<src,dst> guards.  This is the "same game" check, distinct from
+// MetamorphicRoundTrip above (which checks "same verdict" via
+// synthesize->verify_controller) and from GeneratedCorpusDifferential below
+// (realizability against an external oracle) -- it never calls synthesize or
+// solve_dfa, so it needs no controller and runs unconditionally realizable or
+// not.  Library-only, so -- like MetamorphicRoundTrip -- a plain TEST, not
+// gated on ltlfsynt, and driven by run_corpus for soak escalation.
+//
+// DescribeProductState / ExpectProductGuardsEqual duplicate
+// tests/product_build_equivalence_test.cpp's dedicated-fixture helpers
+// (this project's one-file-per-suite duplication norm, matching CliResult /
+// ShellQuote above) rather than sharing them across translation units.
+// ---------------------------------------------------------------------------
+
+std::string DescribeProductState(const ProductState& s) {
+  std::ostringstream os;
+  os << "<goal=" << s.goal << ", taus=[";
+  for (std::size_t i = 0; i < s.taus.size(); ++i) {
+    if (i) os << ",";
+    os << s.taus[i];
+  }
+  os << "]>";
+  return os.str();
+}
+
+void ExpectProductGuardsEqual(const ProductGuards& symbolic,
+                              const ProductGuards& reference) {
+  ASSERT_EQ(symbolic.nodes.size(), reference.nodes.size())
+      << "different number of reachable ProductStates between the symbolic "
+         "and per-letter (reference) builds";
+  for (const auto& [state, ref_entry] : reference.nodes) {
+    SCOPED_TRACE("state " + DescribeProductState(state));
+    ASSERT_TRUE(symbolic.nodes.count(state))
+        << "symbolic build is missing a ProductState the reference build "
+           "reached";
+    const auto& [ref_acc, ref_guards] = ref_entry;
+    const auto& [sym_acc, sym_guards] = symbolic.nodes.at(state);
+    EXPECT_EQ(sym_acc, ref_acc) << "acc flag differs";
+    ASSERT_EQ(sym_guards.size(), ref_guards.size())
+        << "different number of outgoing destinations from this state";
+    for (const auto& [dst, ref_guard] : ref_guards) {
+      SCOPED_TRACE("dst " + DescribeProductState(dst));
+      ASSERT_TRUE(sym_guards.count(dst))
+          << "symbolic build is missing an edge to this destination";
+      EXPECT_EQ(sym_guards.at(dst), ref_guard)
+          << "guard BDD differs (BuDDy canonicalises, so == is semantic "
+             "equality)";
+    }
+  }
+}
+
+TEST(GeneratedCorpus, BuildEquivalence) {
+  const CorpusConfig base = corpus_config_from_env();
+  const RunCorpusStats stats = run_corpus(
+      base, [](const GeneratedCase& c, const CorpusConfig& cfg,
+               unsigned level, std::size_t i) {
+        std::ostringstream phi_os;
+        phi_os << c.phi;
+        SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
+                     ", partition=" + DescribeGeneratedPartition(c.partition) +
+                     ", level=" + std::to_string(level) + " " +
+                     DescribeCorpusConfig(cfg));
+
+        const OutputLabeledTransducer t_out =
+            trivial_transducer(c.partition, Role::t_out, c.t_in.dict());
+        const std::vector<const Transducer*> taus{&c.t_in, &t_out};
+
+        // Same (goal, taus, init) construction as DfaProduct::synthesize
+        // (src/dfa_product.cpp): ltlf_to_dfa always returns a complete DFA,
+        // so invariant 3 holds for every generated phi without a
+        // hand-crafted goal.
+        const spot::twa_graph_ptr goal = ltlf_to_dfa(c.phi, c.t_in.dict());
+        const ProductState init{goal->get_init_state_number(),
+                                {c.t_in.initial_state(), t_out.initial_state()}};
+
+        const LetterAlphabet alphabet(c.partition, goal);
+        const ProductGuards symbolic = build_product_symbolic(goal, taus, init);
+        const std::map<ProductState, ltlf_ek::ProductNode> graph = build_product(
+            goal, taus, init, alphabet, /*goal_must_be_complete=*/true);
+        const ProductGuards reference = to_guard_map(graph, alphabet);
+
+        ExpectProductGuardsEqual(symbolic, reference);
       });
   RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
   RecordProperty("cases_run", static_cast<int>(stats.cases_run));
