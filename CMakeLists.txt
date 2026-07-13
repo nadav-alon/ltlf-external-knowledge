@@ -27,6 +27,7 @@ add_library(ltlf_ek
   src/role.cpp
   src/ltlf_to_dfa.cpp
   src/mona_dfa.cpp
+  src/past_ltlf_to_dfa.cpp
   src/solve_dfa.cpp
   src/product.cpp
   src/dfa_product.cpp

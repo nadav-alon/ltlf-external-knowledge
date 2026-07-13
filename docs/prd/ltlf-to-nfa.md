@@ -1,17 +1,23 @@
 # PRD: LtlfToNfa (Method 1 — NFA construction)
 
-**Status:** implemented — Phase 1 (MONA subprocess + DFA parser) landed,
-`src/mona_dfa.cpp` + `include/ltlf_ek/detail/mona_dfa.hpp` (branch
-`worktree-prd-ltlf-to-nfa`, uncommitted at PRD-edit time). Phase 2 (folded
-mirror encoder + `past_ltlf_to_dfa`) and Phase 3 (`Reverse` + public
-`ltlf_to_nfa`) are still pending.
+**Status:** implemented — Phase 1 (MONA subprocess + DFA parser, commit
+`2697e43`) and Phase 2 (folded mirror encoder + `past_ltlf_to_dfa`,
+`src/past_ltlf_to_dfa.cpp` + `include/ltlf_ek/detail/past_ltlf_to_dfa.hpp`,
+branch `worktree-prd-ltlf-to-nfa`, uncommitted at PRD-edit time) are landed.
+Phase 3 (`Reverse` + public `ltlf_to_nfa`) is still pending.
 **Interface:** adds the black-box helper `ltlf_to_nfa` (`LtlfToNfa`); **not** a `Synthesis` method. The `NfaProduct` class, `NfaToDfa` determinization, and the product/`SolveDfa` wiring of Method 1 are separate later PRDs.
 **Recommended workflow:** concurrent — the public signature is high-confidence (a thin analog of `ltlf_to_dfa`, and the NFA's shape is pinned exactly by `main.tex`'s reverse formulas §160–169). The language-equivalence oracle binds to the public contract + the math, so it parallelizes. The *internal* parser/encoder phase boundaries are tentative, so P1/P2's per-function unit tests run sequential-within-phase (developer lands the internal function, then its unit test binds).
 **main.tex ref:** §`nfa` (Method 1), subsection "LTLf to NFA", Algorithm `alg:ltlftonfa` ("Ltlf To Nfa"); `def:mirror`; `thm:nfa-mirror-size`.
 
 **Gates:**
-- [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
-- [ ] tests           — unit + oracle coverage
+- [x] glossary        — new terms in docs/GLOSSARY.md C++ column (commit
+      `a50ecb5`, predates Phase 1/2; `past_ltlf_to_dfa` landed matching its
+      already-drafted tentative entry, no new identifier introduced by P1/P2)
+- [ ] tests           — unit + oracle coverage (Phase 2's own P2 checkpoint
+      oracle — GeneratedCorpus.PastLtlfToDfaReverseLanguageExact/
+      MembershipFuzz, PastLtlfToDfa.* edge cases — lands with this phase; a
+      full /test-writer pass, incl. per-function unit tests for encode_mirror,
+      is still open)
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex
 
@@ -310,3 +316,63 @@ PRD left open, recorded here for traceability:
   a clean box without `mona` installed still builds and tests green. The
   parser-only tests (`MonaDfaParser.*`, hand-written `-w` text, no
   subprocess) always run regardless.
+
+**2026-07-14 (Phase 2 landing).** `src/past_ltlf_to_dfa.cpp` +
+`include/ltlf_ek/detail/past_ltlf_to_dfa.hpp` (`encode_mirror`,
+`ltlf_ek::detail::past_ltlf_to_dfa`), same "own detail header, not
+file-local" precedent as Phase 1, for the same testability reason. Two
+findings/decisions worth flagging beyond what the PRD anticipated:
+
+- **MONA M2L-Str compilation artifact, empirically discovered (not
+  documented by MONA): every `-w` automaton has one extra, formula-
+  independent leading state.** MONA's reported "Initial state" always has
+  exactly one outgoing edge, unconditional (`guard=true` across every
+  declared free var), before the automaton begins processing the string's
+  real position 0. Confirmed by hand (`mona -q -w` on `a={0}`, `a={1}`,
+  `true;`, `false;`, 0-free-var formulas, cross-checked against mona's own
+  printed satisfying/counter-example position columns) across every shape
+  tried — always present, always a single `guard=true` edge, never formula-
+  dependent. Left alone this shifts D's accepted length by one (an
+  MONA-string-of-length-n needs n+1 real edge-reads through the *raw* -w
+  table). `past_ltlf_to_dfa` corrects for it: re-point D's init state at
+  that single successor and `purge_unreachable_states()` the original.
+  This is *not* a P1 parser bug — `mona_output_to_dfa` is documented as
+  structurally faithful to whatever `-w` emits, and the P1 fixture's
+  structural tests (state count, F_D, determinism/completeness) hold
+  regardless of this artifact. It only bites a *language*-level consumer,
+  which P2 is the first of. Flagged for `/theory-review`: this is an
+  implementation fact about a third-party tool the review should sanity-
+  check against MONA's actual semantics/documentation if available, not a
+  main.tex divergence.
+- **Non-empty-trace exclusion falls out of the top-level encoding, not a
+  special case.** The wrapper `ex1 __last: (all1 __q: __q<=__last) & ...`
+  (selecting the string's own last position) has no witness on the empty
+  string, so `phi=1` (`tt`) correctly rejects the empty word without any
+  dedicated code path — confirmed by
+  `PastLtlfToDfa.TriviallyTrueRejectsEmptyAcceptsEveryNonEmptyWord`.
+- **The P2 checkpoint oracle (`GeneratedCorpus.PastLtlfToDfaReverseLanguage
+  Exact` / `MembershipFuzz`) is a `tests/ltlfsynt_oracle_test.cpp` addition,
+  not a new file**, per the PRD's own instruction to reuse
+  `generate_random_formula`/`random_partition`/`run_corpus` rather than
+  reinvent them — those are anonymous-namespace, file-local to that
+  translation unit, so there was no way to reuse them from a separate
+  `tests/past_ltlf_to_dfa_test.cpp` short of exporting them (out of scope
+  here). Matches the file's existing `GeneratedCorpus.LtlfToDfaStructural` /
+  `.BuildEquivalence` precedent. `ReverseAutomaton` +
+  `DeterminizeReversed` + `DfaLanguagesEqual` are test-local oracle
+  machinery (not `reverse_dfa_to_nfa`, which is Phase 3's *production*
+  reversal with different wiring/invariants — no completion, purge, etc.);
+  they duplicate, rather than anticipate, that future function. One real
+  bug surfaced and was fixed *in this oracle helper*, not in
+  `past_ltlf_to_dfa`: `spot::twa_graph::state_is_accepting` reads a state's
+  acceptance off its *first outgoing edge's* mark, so `DeterminizeReversed`
+  silently mis-reported `false` for a determinized state that is a genuine
+  *accepting dead end* (no outgoing edge at all — legitimate for an
+  uncompleted reversed NFA whenever nothing in the reference DFA
+  transitions back into its own initial state). Fixed with a defensive
+  `guard=bddfalse` self-loop on such states (never traversable, so it
+  cannot affect the language) purely so the mark has an edge to live on.
+  Caught by the exact-equivalence checkpoint itself (not by membership
+  fuzz, which sampled around it) on cases like `phi=X[!]G!p1` — a useful
+  data point that exact equivalence is pulling real weight the fuzz oracle
+  alone would have missed.
