@@ -38,17 +38,32 @@ Overleaf).
 
 - Read `docs/GLOSSARY.md` (use canonical names in test names and comments) and
   the code under test. Read the PRD's "Test oracles" section if present.
-- **Concurrent workflow — you may run before the code exists.** When the PRD's
-  `Recommended workflow` is `concurrent`, you run on your own branch, possibly
-  *before* `/developer` has landed anything. Bind to the PRD's frozen **Interfaces
-  & types** contract instead of the code: the **domain oracles** (metamorphic,
-  verifier, monolithic baseline) need no implementation — they bind to the public
-  interface and the math — so write those first; **unit fixtures** target the
-  frozen signatures. Do **not** edit `src/`/`include/` to make things compile — if
-  a signature looks wrong, that is a PRD-change event for `/developer` /
-  `/grill-prd`, not yours to fix. The launcher integrates the branches and runs
-  the suite against the real code once it lands. Modes are defined in
-  `/grill-prd`.
+- **Concurrent workflow — you run before the code exists.** When the PRD's
+  `Recommended workflow` is `concurrent`, you run on your own branch *before*
+  `/developer` has landed the implementation. Bind to the PRD's frozen
+  **Interfaces & types** block — it is frozen for exactly this — and treat **that
+  block, not the headers**, as the source of every signature you test against.
+  Write the **domain oracles** (metamorphic, verifier, monolithic baseline) first
+  (they bind to the public interface + the math), then **unit fixtures** on the
+  frozen signatures.
+  - **You cannot compile or run, and must not try.** The not-yet-written header
+    means the target won't link — that is the **expected, correct** state on your
+    branch, not a problem to solve. Do **not** write a scratch/`/tmp` stub or mock
+    of the missing header to self-check, do **not** edit `src/`/`include/`, and do
+    **not** loop on the build hoping it goes green. Your compile check is careful
+    reading against the frozen block; the launcher builds against the real code
+    once it lands.
+  - **Don't re-derive what the PRD already froze — this is the mode's top token
+    sink.** Reading five headers to reconstruct a signature the *Interfaces &
+    types* block already pins is exactly the waste to avoid. Read that block, the
+    PRD's *Test oracles* section, and **at most** the one support/fixtures header
+    (or existing generator) you actually reuse — then write. Prefer reusing an
+    existing corpus/fixture generator **by reference** over re-implementing its
+    technique in a large self-contained file; keep the new file lean (see *Small
+    over sprawling*).
+  - If a frozen signature looks wrong, that is a **PRD-change event** for
+    `/developer` / `/grill-prd` — flag it in your report, don't fix it. Modes are
+    defined in `/grill-prd`.
 
 ## Stay in scope — don't re-derive what's settled
 
