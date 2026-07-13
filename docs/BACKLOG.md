@@ -11,53 +11,14 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Priority order within this section: #1 symbolic DFA-product, then #2 $\Tout$
-oracle. #2's rationale (grilled 2026-07-05, updated 2026-07-08): the internal
-controller verifier is now **banked** (shipped in `81a4cf4`, migrated onto the
-shared product core, all four PRD gates clean), so the known-**output** $\Tout$
-oracle rounds out the external `ltlfsynt` cross-check. #1 promoted 2026-07-10
-(from "Later"): the tool's eventual purpose is **benchmarking** the methods, so
-the minterm loop's $2^{|\mathcal I\cup\mathcal O|}$ cost is no longer an
-acceptable baseline — the symbolic rewrite moves ahead of further oracle work,
-overriding its former "measure first" deferral._
+_Priority order within this section: #1 $\Tout$ oracle. (The former #1, the
+symbolic DFA-product rewrite, **shipped 2026-07-13** — see Done.) #1's rationale
+(grilled 2026-07-05, updated 2026-07-08): the internal controller verifier is
+**banked** (shipped in `81a4cf4`, migrated onto the shared product core, all
+four PRD gates clean), so the known-**output** $\Tout$ oracle rounds out the
+external `ltlfsynt` cross-check._
 
-### Symbolic DFA-product construction (skip the minterm loop) — **#1** (promoted 2026-07-10)
-- **Intent:** the Method-2 `DfaProduct` (spec'd in `docs/prd/dfa-product.md`)
-  builds the product by enumerating full letters $v\in2^{\mathcal{I}\cup\mathcal{O}}$
-  (`all_letters`, `src/product.cpp`) and grouping them into guarded edges —
-  faithful to `alg:dfa_product` but **exponential in $|\mathcal{I}\cup\mathcal{O}|$**
-  by design (the deliberate baseline cost). Replace the minterm loop with
-  **symbolic BDD-guard algebra**: compute successors and the $\cons$ filter
-  directly on edge-guard BDDs, never materialising individual letters. Note the
-  pipeline already round-trips today — `build_product` explodes $\Sigma$ into
-  minterms, then materialisation (`src/dfa_product.cpp`,
-  `guards[dst] |= letters[idx]`) re-compresses them into per-destination BDD
-  guards; the symbolic build computes those guards directly and drops the
-  round-trip.
-- **Why high priority (2026-07-10):** the tool's eventual use is **benchmarking**
-  the methods (automaton-construction / synthesis times, controller size), so
-  efficiency is *not* negligible and the $2^{|\mathcal I\cup\mathcal O|}$ letter
-  loop is an unacceptable baseline for wide partitions — promoted ahead of further
-  `ltlfsynt` oracle work, overriding the former "measure first / do last" seed.
-- **Seeds for grilling:**
-  - Needs a **symbolic `cons`** — the current `consistent(...)` is per-full-letter
-    only; a whole-region version must be reconciled with the math.
-  - The `Transducer` interface exposes `delta(q, v)` / `emits` **per full letter**;
-    a symbolic build needs each transducer's $\delta$/$\lambda$ as a **BDD relation**
-    (current-state, letter, next-state), not per-minterm functions — a base-class
-    contract change, not a local edit. The goal DFA is already symbolic.
-  - This is essentially the Method-3 (on-the-fly) construction style — decide
-    whether it lives as a `DfaProduct` optimisation or belongs only to
-    `OtfDfaProduct`.
-  - **Keep the explicit build as a differential oracle:** the symbolic version's
-    likeliest bug class is guard construction (lost-transition failures — cf. the
-    `|=`→`=` seeded bug); assert metamorphically that both builds yield the same
-    game so the per-letter reference isn't discarded.
-  - A **quick measurement still de-risks scope** (letter loop vs `SolveDfa` as the
-    dominant cost) even though the rewrite is now prioritised — cheap to run first,
-    and it sets the benchmark baseline the rewrite is judged against.
-
-### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **#2** (was #1; symbolic build promoted above 2026-07-10)
+### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **#1** (was #2; symbolic build shipped 2026-07-13)
 - **PRD:** the known-**input** ($\Tin$) half is spec'd in
   `docs/prd/ltlfsynt-oracle.md` (ready for `/developer` + `/test-writer`). This
   item is the $\Tout$ follow-up it explicitly deferred.
@@ -281,6 +242,35 @@ overriding its former "measure first" deferral._
 - **Seeds for grilling:** _(tbd)_
 
 ## Done
+
+### Symbolic DFA-product construction (skip the minterm loop)
+- **Intent:** replace Method-2 `DfaProduct`'s exponential minterm loop
+  (enumerate $v\in2^{\mathcal I\cup\mathcal O}$, group into guarded edges —
+  $2^{|\mathcal I\cup\mathcal O|}$ by design) with **symbolic BDD-guard algebra**:
+  compute successors and the $\cons$ filter directly on edge-guard BDDs, never
+  materialising a letter. Promoted to #1 (2026-07-10) because **benchmarking** is
+  the tool's eventual purpose, so the letter loop stopped being an acceptable
+  baseline.
+- **Outcome:** shipped in two phases (PRD `docs/prd/symbolic-dfa-product.md`,
+  `implemented (Phase 1 + Phase 2)`, all four gates clean). Phase 1 (`326136c`):
+  the symbolic `Transducer` contract — `emits_region(q)` (region form of `emits`)
+  + `delta_edges(q)` (edge-partition form of `delta`) on the base class,
+  implemented in `OutputLabeledTransducer`, with the Phase-1 contract-equivalence
+  oracle (`tests/symbolic_transducer_contract_test.cpp`). Phase 2 (`d88904c`):
+  `build_product_symbolic` (guard = $g_{goal}\wedge\bigwedge_i(g_i\wedge
+  \texttt{emits\_region}(q_i))$, cost = product of out-degrees) + `ProductGuards`
+  / `to_guard_map` / `materialize_product`, `DfaProduct::synthesize` rewired off
+  the minterm loop. The **build-equivalence metamorphic oracle**
+  (`tests/product_build_equivalence_test.cpp` + generated-corpus body) asserts
+  `build_product_symbolic == to_guard_map(build_product(...))` (BDD-equal game),
+  bug-injection-verified non-vacuous. Suite green 226/226, verdicts byte-identical
+  (invariant 4). `/code-reviewer` + `/code-review` clean (2 low-severity considers
+  applied), `/theory-review` blessed the symbolic-$\cons$ region faithful to
+  `\cref{def:consistency}` by minterm distributivity (with a `\cl` traceability
+  note pushed to Overleaf, `43b15f4`). The per-letter core is **kept** (backs
+  `verify_controller` + the oracle reference). Two follow-ups logged under
+  **Later**: the symbolic `verify_controller` ν-fixpoint (deliberately out of
+  scope) and benchmarking (the driver this rewrite serves).
 
 ### Intense "soak" mode for the generated corpus
 - **Intent:** an opt-in, wall-clock-budgeted escalating soak over the generated
