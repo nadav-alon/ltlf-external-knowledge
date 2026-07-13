@@ -37,8 +37,31 @@ the PRD hands cleanly to `/developer`. The paper `main.tex` lives at
      each builds on the last (types/interfaces → core algorithm → edge cases /
      aggregation → CLI wiring, as fits). A small, self-contained feature needs no
      phasing — don't invent phases where one session suffices.
-   - **Interface fit**: does it implement `Synthesis`? new base types? reused
-     black-boxes (`LtlfToDfa`, `SolveDfa`, `progress`) — implement now or stub?
+   - **Interface fit & freeze**: does it implement `Synthesis`? new base types?
+     reused black-boxes (`LtlfToDfa`, `SolveDfa`, `progress`) — implement now or
+     stub? Then **pin the exact public signature** — parameter order, return
+     type, const-ness, which header — naming each type by its **glossary term**
+     rather than eliciting raw C++ (the user need not author C++; propose the
+     shape from the glossary types and confirm it). This frozen signature is the
+     contract both `/developer` and `/test-writer` bind to, so both can be
+     written against it without one reading the other's code. Judge a **freeze
+     confidence**: *high* when the signature falls straight out of the glossary
+     types (a thin wrapper over an existing Spot construct), *tentative* when the
+     interface is genuinely being invented here and implementation is likely to
+     revise it. Record how the contract re-freezes if coding proves it wrong: it
+     is a **PRD-change event** that updates the contract and propagates to any
+     in-flight test branch — never a unilateral re-shape on the dev branch.
+   - **Workflow recommendation (advisory, derived from freeze confidence)**: how
+     should `/developer` and `/test-writer` run? *high* → **concurrent** — they
+     run on separate branches from the frozen contract (mostly-disjoint
+     territories: `src/`+`include/` vs `test/`, so file merges stay clean), and
+     if the tests land first the developer finishes red→green TDD-style against
+     them. *tentative* → **sequential** — developer first, so the test-writer
+     binds to the real signature and no branch is locked to a contract that
+     churned. This governs the **per-function unit tests and the developer-TDD
+     path only**; the **domain oracles parallelize regardless**, since they bind
+     to the public interface and the math, never internals. It is a
+     recommendation, not an order — the launcher may override.
    - **Semantics to preserve**: the exact invariants from `main.tex` (e.g. the
      `cons` filter, the ⊥ sink for Method 2, aggregation-loses-knowledge).
    - **Novel mechanisms — grill to the code.** When the feature introduces an
@@ -102,6 +125,7 @@ Emit every new PRD with `Status: draft` and all four gates unchecked.
 
 **Status:** draft
 **Interface:** <e.g. implements Synthesis as DfaProduct>
+**Recommended workflow:** <concurrent | sequential> — <one-line reason, from the Interface-contract freeze confidence>
 **main.tex ref:** <section / \cref / algorithm>
 
 **Gates:**
@@ -119,8 +143,18 @@ Emit every new PRD with `Status: draft` and all four gates unchecked.
 ## Behaviour / semantics (from main.tex)
 <the invariants and steps that MUST hold, quoting the algorithm>
 
-## Interfaces & types
-<signatures to add/implement; black-boxes to stub vs implement>
+## Interface contract
+**Freeze confidence: <high | tentative>.** high = the signature falls straight
+out of the glossary types (thin wrapper over an existing Spot construct);
+tentative = the interface is being invented here and implementation may revise it.
+
+<exact signatures to add/implement — parameter order, return type, const-ness,
+which header — naming each type by its glossary term rather than restating it.
+Black-boxes: implement now or stub.>
+
+**If implementation proves this contract wrong:** that is a PRD-change event —
+update this section and propagate to any in-flight test branch; the developer
+does not silently re-shape the interface on its own branch.
 
 ## Implementation phases
 <Omit this section entirely for a small feature that fits one /developer session.
@@ -155,6 +189,9 @@ under-implementable:
 - Edge cases and test oracles are concrete enough for `/test-writer` to act on.
 - Every domain term used is in `docs/GLOSSARY.md` (or listed as a gap).
 - Interfaces name real types/signatures, not vague "some function".
+- **Interface contract** carries a freeze confidence, names each type by its
+  glossary term, and states the re-freeze path; the header **Recommended
+  workflow** is consistent with it (high→concurrent, tentative→sequential).
 - **Any bespoke algorithm/mechanism** (not lifted from `main.tex`) is specified
   past sketch level: iteration bounds and their boundary behaviour, result type,
   pass/fail condition, don't-care/empty/degenerate handling, and determinism are
@@ -173,6 +210,8 @@ for `/theory-review`. This is a read-through, not a second interview.
 
 - `docs/prd/<feature>.md` written from the template, in ubiquitous language,
   with `Status: draft` and the four unchecked gates in the header.
+- The **Interface contract** is frozen with a freeze confidence, and the header
+  **Recommended workflow** field is set and consistent with it.
 - Any PRD this supersedes is marked `superseded by …` and cross-linked (not
   deleted).
 - For a large feature, an **Implementation phases** section splits it into
