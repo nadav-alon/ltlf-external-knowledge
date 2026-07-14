@@ -11,14 +11,76 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Priority order within this section: #1 $\Tout$ oracle. (The former #1, the
-symbolic DFA-product rewrite, **shipped 2026-07-13** — see Done.) #1's rationale
-(grilled 2026-07-05, updated 2026-07-08): the internal controller verifier is
-**banked** (shipped in `81a4cf4`, migrated onto the shared product core, all
-four PRD gates clean), so the known-**output** $\Tout$ oracle rounds out the
-external `ltlfsynt` cross-check._
+_Priority order within this section: #1 MTDFA scaffolding replacement, #2
+$\Tout$ oracle. #1's rationale (2026-07-14): it continues the arc the symbolic
+DFA-product rewrite started (**shipped 2026-07-13** — see Done). That one removed
+the minterm loop from the *product*; this one removes the explicit materialisation
+from the DFA *construction*, the other half of the same cost. The benchmarking
+infra having just landed makes `automaton_construction` a measured stage, so the
+win is now observable. #2's rationale (grilled 2026-07-05, updated 2026-07-08):
+the internal controller verifier is **banked** (shipped in `81a4cf4`, migrated
+onto the shared product core, all four PRD gates clean), so the known-**output**
+$\Tout$ oracle rounds out the external `ltlfsynt` cross-check._
 
-### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **#1** (was #2; symbolic build shipped 2026-07-13)
+### Replace the explicit-DFA scaffolding with MTDFA — solve the game the way `ltlfsynt` does — **#1** (promoted 2026-07-14)
+- **Intent:** `ltlf_to_dfa` (`src/ltlf_to_dfa.cpp:14`) **already builds a
+  `spot::mtdfa`** via `ltlf_to_mtdfa`, then immediately throws the symbolic form
+  away: `as_twa(state_based=true)` + `complete_here` explode it into an explicit
+  `twa_graph`. Spot's own header says of `as_twa` — "The conversion can be costly,
+  since it requires creating BDD-labeled transitions for each path between a root
+  and a leaf of the state array" — i.e. we pay a path-enumeration blowup to build
+  scaffolding that the rest of the pipeline then works symbolically over anyway.
+  This item keeps the MTDFA all the way through: $A_\varphi$, the product, and the
+  game stay MTBDD arrays, solved with Spot's MTDFA game solver
+  (`mtdfa_winning_region` / `mtdfa_winning_strategy` / `mtdfa_strategy_to_mealy`,
+  `spot/twaalgos/ltlf2dfa.hh`) — the same machinery `ltlfsynt` runs on
+  (Spot 2.14.5, `\cite duret.25.ciaa`).
+- **Seeds for grilling:**
+  - **Where does the external knowledge go?** This is the crux. The EK architecture
+    *is* the $\cons$-filtered product with $\Tin/\Tout$, but Spot's game solver
+    takes **one** mtdfa plus `set_controllable_variables`. Two routes: **(a)** turn
+    each transducer's cons-language into an MTDFA (`twadfa_to_mtdfa`) and fold it in
+    with Spot's `product`; **(b)** keep our own symbolic product directly over the
+    `states[]` MTBDD arrays. Note `build_product_symbolic` **already is** route (b)
+    working (its guard $g_{goal}\wedge\bigwedge_i(g_i\wedge
+    \texttt{emits\_region}(q_i))$ is exactly the product with the cons-DFAs), so the
+    honest question is narrow: does going through Spot's composition ops beat code
+    we already have and trust? Decide on code volume + measured cost, not theory —
+    (a) may just be a distraction.
+  - **Intersection, not implication — and *not* blocked on the monolithic
+    conjecture** (corrected 2026-07-14; an earlier version of this seed claimed the
+    opposite). Two things that look like obstructions but aren't. **(i)** The
+    cons-language *is* regular and its DFA is near-trivial — `delta` is already
+    deterministic over the full $2^{\mathcal I\cup\mathcal O}$
+    (`include/ltlf_ek/transducer.hpp:15`), so the cons-DFA is $(Q\cup\{sink\}$,
+    $\delta$ guarded by `emits_region`$(q)$, all $Q$ accepting, partial
+    $\delta/\lambda$ → sink$)$. The transducer$\to\psi_{in}$ **star-free
+    obstruction does not bite here**: it blocks an LTLf *formula*, not a DFA
+    (LTLf ⊊ regular). **(ii)** Spot's plain `product` (intersection) is the EK
+    shape; `product_implies` is the **monolithic** shape and is the wrong operator
+    — implication is only needed when $\Iknown$ is a *free* environment move that
+    could be broken to win vacuously, and `solve_dfa` projects $\Iknown$ out
+    entirely (`include/ltlf_ek/solve_dfa.hpp:19`), so with $\Iknown$ pinned,
+    intersection and arena-restriction coincide.
+  - **`ltlf_to_mtdfa_for_synthesis` probably collapses too much.** It takes
+    `outvars` + a `backprop` mode and can return a single `bddtrue`/`bddfalse` state
+    (realizability-only). That's the *monolithic* route, not an EK-aware product —
+    if we want per-state EK filtering we likely need plain `ltlf_to_mtdfa` plus our
+    own composition.
+  - **Is `complete_here` even needed?** We complete the DFA because the old product
+    loop needed $\delta_D$ total. MTDFA already uses `bddfalse` terminals as the
+    rejecting sink, so completion may be implicit/free. Confirm rather than port it.
+  - **Blast radius:** `ltlf_to_dfa` has two consumers — `dfa_product.cpp:31` and
+    `verify_controller.cpp:158`. The verifier is the linchpin oracle and is still
+    explicit + per-$\Ifree$-combo (see the symbolic ν-fixpoint item). Keeping the
+    current explicit `ltlf_to_dfa` alongside a new MTDFA path is probably the honest
+    first step: it preserves the differential instead of moving both sides at once.
+  - **`minimize_mtdfa`** (Moore minimization, cheap on this data structure) is
+    adjacent free real estate — worth measuring as its own knob.
+  - New stages need wiring into `bench.hpp`'s `Stage` registry; this is a live
+    instance of the stage-mapping convention question logged under benchmarking.
+
+### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **#2** (was #1; MTDFA promoted above it 2026-07-14)
 - **PRD:** the known-**input** ($\Tin$) half is spec'd in
   `docs/prd/ltlfsynt-oracle.md` (ready for `/developer` + `/test-writer`). This
   item is the $\Tout$ follow-up it explicitly deferred.
@@ -38,6 +100,41 @@ external `ltlfsynt` cross-check._
     Mealy semantics still line up when $\Oknown$ is a synthesis output.
 
 ## Later
+
+### Investigate Nondeterministic Decision Diagrams for representing the NFA (Method 1)
+- **Intent:** Method 1 — the NFA route (`LtlfToNfa` / `NfaProduct` / `NfaToDfa`,
+  glossary *NFA / DFA for the Goal*) — **isn't built yet**. Before building it on
+  an explicit `twa_graph`, probe *nondeterministic* decision diagrams (nBDD /
+  nFBDD / nOBDD — decision diagrams carrying explicit "or"/nondeterminism nodes)
+  as the NFA's native representation, the way MTBDD is the DFA's (Now/next #1).
+  The pitch: an NFA is the natural symbolic object for Method 1 (no
+  determinization until *after* the product), and nondeterministic DDs are known
+  to be exponentially more succinct than their deterministic counterparts.
+- **Why this is an *investigate*, not a build:** it may well conclude "no usable
+  library, do the explicit thing." Two headwinds to establish up front: (1) the
+  succinctness win (nFBDD ⊋ uFBDD ⊋ FBDD, exponential separations) is paid for by
+  **losing canonicity** and cheap equivalence/complement — which is exactly what
+  BDD-based product and fixpoint code leans on; (2) **Spot ships no nBDD type** —
+  `mtdfa` is deterministic-DFA-shaped — so this means BuDDy-level or external
+  machinery, i.e. real cost, not a library swap.
+- **Seeds for grilling:**
+  - **Which operations does `NfaProduct` actually need?** If it's only $\land$ with
+    cons-guards plus reachability, nondeterminism nodes may be cheap. If it needs
+    equivalence or complement, the canonicity loss probably kills it outright.
+    Settle this first — it's the cheapest question that can end the investigation.
+  - `NfaToDfa` runs **after** the product (the stage-mapping question deferred
+    under benchmarking), so a symbolic NFA has to survive determinization. Does
+    subset construction over an nDD land anywhere better than Spot's `powerset`?
+  - **Honest baseline — the "semi-symbolic" shape** (explicit states, BDD-symbolic
+    transition labels) is what Spot's `twa_graph` *already is*. Establish what a
+    fully-symbolic nDD adds over that before assuming there's a gap to close.
+  - **Does Method 1 survive Now/next #1?** If Method 2 goes fully MTDFA, ask
+    whether the NFA route stays interesting as a distinct method or collapses into
+    "the same pipeline without early determinization."
+  - Literature starting points (from a quick unvetted search — verify these are the
+    right entry point before leaning on them): knowledge-compilation succinctness
+    for nFBDD/uFBDD/OBDD (arXiv `1802.04544`, `1811.02944`); "A Circus of Circuits"
+    (arXiv `2404.09674`) for the decision-diagram ↔ circuit ↔ automata map.
 
 ### Symbolic `verify_controller` ν-fixpoint (spun off from symbolic DFA-product, 2026-07-12)
 - **Intent:** the *Controller verifier*'s ν-fixpoint (`src/verify_controller.cpp`)
@@ -235,7 +332,7 @@ external `ltlfsynt` cross-check._
 - **Intent:** address the eventual benchmarking needed to assess the methods —
   automaton construction times, synthesis times, controller size, etc.
 - **Note (2026-07-10):** this is the **driver** for promoting the symbolic
-  DFA-product rewrite (Now/next #1) — benchmarking is the tool's eventual purpose,
+  DFA-product rewrite (shipped, see Done) — benchmarking is the tool's eventual purpose,
   so the minterm loop's cost stops being an acceptable baseline. A first
   measurement pass here also sets the baseline the symbolic rewrite is judged
   against.
