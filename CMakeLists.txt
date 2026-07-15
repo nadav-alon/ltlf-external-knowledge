@@ -15,8 +15,30 @@ if(NOT CMAKE_BUILD_TYPE)
 endif()
 
 # --- Spot (via pkg-config: libspot) ---
+# Spot >= 2.15 is REQUIRED, not preferred: before 2.15,
+# mtdfa_winning_strategy(backprop_nodes=true) segfaults on a product MTDFA
+# (upstream bug, Spot issue #639, fixed by e4452735e).  src/solve_mtdfa.cpp
+# depends on that call, so an older Spot does not fail a test --- it crashes.
+#
+# SPOT_ROOT points at a Spot install to prefer over the system one; it also
+# pins the RUNTIME loader (below), which matters because a stray
+# LD_LIBRARY_PATH can otherwise shadow the library this build was compiled
+# against and silently pair 2.15 headers with an older .so.
+set(SPOT_ROOT "" CACHE PATH "Root of the Spot install to build and run against")
+if(SPOT_ROOT)
+  set(ENV{PKG_CONFIG_PATH} "${SPOT_ROOT}/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
+endif()
+
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(SPOT REQUIRED IMPORTED_TARGET libspot)
+pkg_check_modules(SPOT REQUIRED IMPORTED_TARGET libspot>=2.15)
+
+if(SPOT_ROOT)
+  # DT_RPATH, not DT_RUNPATH: only DT_RPATH takes precedence over
+  # LD_LIBRARY_PATH, so this build cannot be hijacked by another Spot install.
+  add_link_options(-Wl,--disable-new-dtags)
+  set(CMAKE_BUILD_RPATH "${SPOT_ROOT}/lib")
+  set(CMAKE_INSTALL_RPATH "${SPOT_ROOT}/lib")
+endif()
 
 # --- core library ---
 add_library(ltlf_ek
@@ -50,7 +72,10 @@ target_link_libraries(ltlf-ek-synth PRIVATE ltlf_ek)
 # Located for tests/ltlfsynt_oracle_test.cpp's external realizability oracle
 # (docs/prd/ltlfsynt-oracle.md).  Optional: a clean box without Spot's CLI
 # tools still builds and tests green (that suite GTEST_SKIP()s instead).
-find_program(LTLFSYNT_EXECUTABLE ltlfsynt)
+# SPOT_ROOT first: the oracle must come from the same Spot as the linked
+# library, or it silently compares against a different version's semantics.
+find_program(LTLFSYNT_EXECUTABLE ltlfsynt
+  HINTS ${SPOT_ROOT}/bin)
 
 # --- tests ---
 option(LTLF_EK_BUILD_TESTS "Build unit tests" ON)

@@ -1,4 +1,8 @@
 {
+  "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+  "cmake.configureSettings": {
+    "SPOT_ROOT": "${userHome}/opt/spot-2.15.1"
+  },
   "markdown.math.macros": {
     "\\Ifree": "\\mathcal{I}_{f}",
     "\\Iknown": "\\mathcal{I}_{k}",

@@ -40,9 +40,8 @@ spot::twa_graph_ptr emits_dfa(const Transducer& tau,
     // with lambda at q (docs/GLOSSARY.md "Output agreement (emits)", region
     // form).  Every out-edge of q marks q itself accepting (state-based
     // acceptance, Phase 0/Q1).  No sink: a letter not covered by any edge
-    // below is simply a missing edge, an implicit reject (Phase 1 blocker
-    // fix, docs/prd/mtdfa-product.md "Phase 1 blocker" --- a materialised
-    // rejecting sink segfaults Spot's mtdfa_winning_strategy(backprop=true)).
+    // below is simply a missing edge, an implicit reject --- main.tex SKIPS
+    // non-enabled letters, which an incomplete automaton does literally.
     const bdd er = tau.emits_region(q);
     for (const auto& [guard, d] : tau.delta_edges(q)) {
       const bdd eg = guard & er;

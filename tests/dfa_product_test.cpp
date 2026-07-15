@@ -52,9 +52,16 @@ bool Realizable(const std::string& phi, const VariablePartition& vars,
 bool SpotRealizable(const std::string& phi,
                     const std::vector<std::string>& outs) {
   auto dict = spot::make_bdd_dict();
+  // Spot 2.15 moved one_step_preprocess out of the positional args into
+  // ltlf_synthesis_options AND flipped its default to true; realizability
+  // shifted up a slot.  Keep the preprocessing OFF, as this baseline always
+  // had it: with it on, Spot may settle realizability in one step and never
+  // build the mtdfa this baseline reads.
+  spot::ltlf_synthesis_options opts;
+  opts.one_step_preprocess = false;
   auto m = spot::ltlf_to_mtdfa_for_synthesis(
       Phi(phi), dict, outs, spot::ltlf_synthesis_backprop::dfs_node_backprop,
-      /*one_step_preprocess=*/false, /*realizability=*/true);
+      /*realizability=*/true, opts);
   return m->states.size() == 1 && m->states[0] == bddtrue;
 }
 

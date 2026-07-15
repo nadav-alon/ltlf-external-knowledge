@@ -30,11 +30,9 @@ namespace ltlf_ek {
 // NO rejecting sink: the automaton is deterministic but deliberately
 // INCOMPLETE --- a letter not covered by any edge is a missing edge, an
 // implicit reject, so the language above is unchanged.  A materialised
-// rejecting sink used to be built here; it was removed as the Phase 1 blocker
-// fix (docs/prd/mtdfa-product.md "Phase 1 blocker") because such a sink
-// segfaults Spot's mtdfa_winning_strategy(backprop_nodes=true) inside a
-// twadfa_to_mtdfa operand --- an upstream Spot bug, reproduced with no
-// ltlf_ek code (docs/spot-bugs/mtdfa-sink-segfault.cc).
+// rejecting sink used to be built here; it was removed as wasted work
+// (Phase 0/Q1), and because main.tex SKIPS non-enabled letters --- which an
+// incomplete automaton does literally.
 //
 // Phase 0/Q1: marks acceptance STATE-BASED and calls prop_state_acc(true)
 // explicitly --- twadfa_to_mtdfa branches on that property and would otherwise
