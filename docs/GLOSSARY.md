@@ -65,6 +65,58 @@ the existing term or update this file via `/glossary` — do not let drift happe
   and output one are `t_in` / `t_out`.
 - **Do not call it:** oracle, helper, assumption.
 
+### Turn order
+- **`main.tex`:** the single canonical per-step order (§83); *named* "turn order"
+  at §107; committed to **Mealy** by the `\na` at §100.
+- **Definition:** the order the parties move in at **every** step — the
+  environment picks $\Ifree$, then $\Sin$ produces $\Iknown$, then $S_C$ produces
+  $\Ofree$, then $\Sout$ produces $\Oknown$ — where *each party observes every
+  earlier party's moves and nothing later*. It is what makes each $\lambda$'s
+  **observed slice** $\Sigma_0$ well-defined (see *Observed / produced slice*:
+  $\Ifree$ for $\Tin$, $\mathcal{I}\cup\Ofree$ for $\Tout$, $\mathcal{I}$ for
+  $T_C$), and it is **Mealy** — $S_C$ sees the *same* step's $\mathcal{I}$, not
+  only earlier steps. A Moore option is anticipated but unbuilt (§100 `\na`; see
+  *Open theory questions*).
+- **C++:** **no single identifier** — turn order is *encoded*, and each
+  *Representation* encodes it differently. The two are easy to confuse and are
+  not interchangeable:
+  - **explicit:** turn order is **structural** — `solve_dfa`'s `split_2step`
+    builds the env-moves-then-system-moves arena, so the BDD variable order is
+    irrelevant to correctness. Separately, `LetterAlphabet` (`product.hpp`)
+    registers APs in the block order $\Ifree,\Iknown,\Ofree,\Oknown$ so that a
+    **letter's index bits** are turn-ordered (`ifree_index(idx)` masks the low
+    bits). That is an *indexing* convention, is the class's **own invariant, not a
+    caller obligation**, and holds at **any** BDD level order.
+  - **mtdfa:** turn order is carried **only** by the **BDD variable order on the
+    shared `bdd_dict`** — there is no split arena, and the MTDFA game reads the
+    move order straight off the variable levels. So here it *is* a **caller
+    obligation**: `register_turn_order_aps(vars, dict)` establishes it at dict
+    setup; `require_turn_order_aps(vars, dict)` throws `std::invalid_argument` if
+    it is violated. See *Game solving*, `docs/prd/mtdfa-product.md` Phase 0/Q2.
+
+  Two properties of the mtdfa encoding are load-bearing and non-obvious.
+  **(1) The rule `require_turn_order_aps` enforces is the *necessary and
+  sufficient* one:** every $\Ifree$ variable strictly **above** every
+  *controllable* ($\Ofree\cup\Iknown\cup\Oknown$ — $\Iknown,\Oknown$ are
+  controllable-but-forced, see *Game solving*). Order *among* the controllables is
+  **free**. It deliberately does **not** demand the registrar's canonical
+  $\Ifree,\Iknown,\Ofree,\Oknown$ sequence: that is a convention, and a check that
+  rejected a correct-but-non-canonical order would be a bug source, not a guard.
+  **(2) Violating it does not crash** — it silently reinterprets the game as
+  **Moore** and returns a wrong "unrealizable". And since `register_ap` is
+  **idempotent**, the order can only ever be *established* before an AP's first
+  registration — **never repaired afterwards**. That is why the ordering lives at
+  dict setup rather than inside a method, and why there is no
+  `ltlf_ek::ltlf_to_mtdfa` wrapper (see *Goal DFA construction*).
+- **Do not call it:** player order, move order, step order, canonical order
+  (bare), priority; **variable order / AP order (bare)** — those name one
+  *encoding*, not the concept; mode (reserved for the Mealy/Moore axis, see
+  *Role*). For the mtdfa functions, not `register_ek_ap_order` (stutters inside
+  `ltlf_ek::`) or `assert_mtdfa_ap_order` (it **throws**; `assert` implies an
+  `NDEBUG`-compiled-out check) — both were `docs/prd/mtdfa-product.md` Phase 0
+  placeholders, superseded here; nor `set_var_order`, `force_ifree_first`,
+  `check_ap_order`.
+
 ### Controller (system strategy)
 - **`main.tex`:** $S_C$ / $T_C$, signature $\ldots\to 2^{\Ofree}$ (Def. probDef / probDefTransducer).
 - **Definition:** the strategy we synthesize; produces the free outputs.
@@ -72,8 +124,10 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Do not call it:** solution, policy, winning strategy.
 
 ### Agreement
-- **`main.tex`:** "$\varphi$ *agrees* with $S$" — $v_t\cap X = S(v_0\cdots v_{t-1}, v_t)$ (§Problem Definition).
-- **Definition:** a trace is consistent with a strategy at every step.
+- **`main.tex`:** "$\varphi$ *agrees* with $S$" — $v_t\cap \Sigma_1 = S(v_0\cdots v_{t-1},\ v_t\cap \Sigma_0)$ (§90).
+- **Definition:** a trace is consistent with a strategy at every step: what $S$ is
+  *responsible for* ($\Sigma_1$) is exactly what it produces from the history plus
+  what it is *allowed to see* ($\Sigma_0$) — the two slices *Turn order* fixes.
 - **C++:** `agrees(...)` (per-trace); cf. `consistent` (per-letter, below).
 - **Do not call it:** satisfies, matches.
 
@@ -189,11 +243,18 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Definition:** the full-letter alphabet materialised as an explicitly
   enumerated vector of letters, LSB-first over a **fixed $\Ifree$-first
   variable order** ($\Ifree$, $\Iknown$, $\Ofree$, $\Oknown$; lexicographic
-  within each block), so a letter index's low bits are exactly its $\Ifree$
+  within each block) — i.e. *Turn order*, encoded as **letter-index bit
+  positions**, so a letter index's low bits are exactly its $\Ifree$
   combination (`ifree_index(idx)`). The AP registration order is the class's
   own invariant, not a caller obligation — this is the type that replaces the
   former `io_vars`-ordering comment-contract between the *Product* core and
   the *Controller verifier*.
+  **Not the mtdfa route's ordering contract** (*Turn order*, mtdfa): that one is
+  about actual **BDD variable levels** on the shared dict and *is* a caller
+  obligation. This class's indexing is level-agnostic — it works at any BDD order,
+  and constructing a `LetterAlphabet` does **not** discharge the mtdfa obligation.
+  (It registers the same blocks in the same sequence, so on a *fresh* dict it
+  would establish that order incidentally — do not rely on that.)
 - **C++:** `LetterAlphabet` (`product.hpp`; consumed by `build_product`,
   whose `ProductNode` edges index into `letters()`). Introduced by
   `docs/prd/architecture-cleanup.md`, absorbing the former free function
@@ -204,10 +265,35 @@ the existing term or update this file via `/glossary` — do not let drift happe
 
 ### NFA / DFA for the Goal
 - **`main.tex`:** $N$ (Method 1), $A$ (Method 2); `LtlfToNfa` / `LtlfToDfa`.
-- **Definition:** the automaton recognizing the models of $\varphi$.
+- **Definition:** the automaton recognizing the models of $\varphi$, in the
+  **explicit** *Representation* — states are graph nodes, acceptance is
+  **state-based** ($F_D$ = the accepting states). Contrast *MTDFA* below, the
+  same automaton in the mtdfa representation.
 - **C++:** `spot::twa_graph_ptr` (the automaton *object*; the DFA is built by
   `ltlf_to_dfa` — see *Goal DFA construction* below).
 - **Do not call it:** the graph, the machine.
+
+### MTDFA (multi-terminal DFA)
+- **`main.tex`:** — (no symbol; a Spot data structure, `\cite duret.25.ciaa`. The
+  `\na` at `main.tex:335` gestures at it — *"This likely requires adjusting the
+  definitions for MTDFA usage"* — but no definition commits to it.)
+- **Definition:** a DFA held as **one MTBDD per state** (the `states[]` array),
+  with each destination encoded in a *terminal* as $2d+b$ ($d$ = destination state,
+  $b$ = the final bit) and `bddtrue`/`bddfalse` as the accepting/rejecting sinks.
+  Acceptance is therefore **transition-based**, unlike the state-based *NFA / DFA
+  for the Goal* — the two are **not** interchangeable without `mtdfa::as_twa()`,
+  and that conversion is precisely the cost `docs/prd/mtdfa-product.md` exists to
+  avoid. Because `bddfalse` already *is* the rejecting sink, completion is
+  implicit: an MTDFA needs no `complete_here`.
+- **C++:** `spot::mtdfa_ptr` (`spot/twaalgos/ltlf2dfa.hh`); built by
+  `spot::ltlf_to_mtdfa`. Terminal manipulation is **not** public Spot API (only
+  `ltlf_translator`, which Spot's own header marks *"Semi-internal… Do not rely on
+  the interface to be stable"*), so a bespoke MTDFA product is unavailable — hence
+  the *Output-agreement automaton* + `spot::product` route (see *Representation*).
+- **Do not call it:** MTBDD (that is the node structure **one** state is held in,
+  not the automaton), symbolic DFA (*symbolic* is **taken** — see *Product*,
+  `build_product_symbolic`), multi-terminal BDD, mtdfa (bare, in prose — the type
+  is `spot::mtdfa_ptr`, the concept is "an MTDFA").
 
 ## Transducer I/O
 
@@ -257,9 +343,23 @@ the existing term or update this file via `/glossary` — do not let drift happe
   `mtdfa::as_twa()`) that carries finiteness in acceptance marks — **no extra
   AP** — so the alphabet stays $2^{\mathcal{I}\cup\mathcal{O}}$. Built on the
   transducers' shared `bdd_dict`.
-- **C++:** `ltlf_to_dfa(phi, dict)` — returns the `spot::twa_graph_ptr` (see
-  *NFA / DFA for the Goal*). The Method-1 NFA route (`LtlfToNfa`, `NfaToDfa`)
-  is not yet named — future, when Method 1 lands.
+- **C++:** per *Representation* —
+  - **explicit:** `ltlf_to_dfa(phi, dict)` → `spot::twa_graph_ptr` (see *NFA / DFA
+    for the Goal*). Pays `as_twa` + `complete_here`.
+  - **mtdfa:** `spot::ltlf_to_mtdfa(phi, dict)` → `spot::mtdfa_ptr` (see *MTDFA*),
+    called **directly**, stopping there — no `as_twa`, no `complete_here`
+    (completion is implicit). **There is no `ltlf_ek` wrapper** — resolved by
+    `docs/prd/mtdfa-product.md` Phase 0/Q2 (2026-07-15), which had reserved this
+    slot for one that would force $\Ifree$-first AP registration on the shared
+    `bdd_dict`. A wrapper **cannot** do that: `register_ap` is idempotent, so by
+    the time a `Synthesis` method runs the APs are already registered and the
+    wrapper could only validate. The ordering is a **dict-setup obligation**
+    instead — see *Turn order*. (Had one survived, `ltlf_to_mtdfa` would have been
+    unavailable as its name: it is Spot's own primitive, the same rule that rejects
+    `ltlf2dfa` below.)
+
+  The Method-1 NFA route (`LtlfToNfa`, `NfaToDfa`) is not yet named — future, when
+  Method 1 lands.
 - **Do not call it:** to_dfa, ltlf2dfa (that is Spot's own header/primitive),
   build_dfa, translate.
 
@@ -295,10 +395,24 @@ the existing term or update this file via `/glossary` — do not let drift happe
   symbolic $\cons$ region is `emits_region(q_in) & emits_region(q_out)`, no
   separate function (new; `docs/prd/symbolic-dfa-product.md`; faithfulness to
   `\cref{def:consistency}` flagged for `/theory-review`).
+  The **automaton** form is the *Output-agreement automaton* `emits_dfa(tau, dict)`
+  → `spot::twa_graph_ptr` (new; `docs/prd/mtdfa-product.md`): the DFA accepting
+  exactly those words whose every letter agrees with $\lambda$ along $\tau$'s run —
+  $\delta$ from `delta_edges` guarded by `emits_region`, all of $Q$ accepting,
+  uncovered letters to a rejecting sink; deterministic **and** complete by
+  construction. Exactly as with the symbolic form, the automaton $\cons$ is the
+  **intersection** `product(emits_dfa(t_in), emits_dfa(t_out))` and there is **no
+  cons automaton** — $\cons$ has a per-letter form and nothing else. Where the
+  per-letter/symbolic forms *skip* a non-agreeing letter (`\cref{def:enabled}`),
+  the automaton form *sinks* it; that these coincide is load-bearing and is flagged
+  for `/theory-review` (`docs/prd/mtdfa-product.md`).
 - **Do not call it:** agrees (that is per-trace *Agreement*), consistent /
   consistent_with (that is the two-transducer $\cons$), commits, produces (that
   is the *Produced-trace language*), matches; for the symbolic form, not
-  `emits_set`, `agreeing_region`, `lambda_region`.
+  `emits_set`, `agreeing_region`, `lambda_region`; for the automaton form, not
+  `cons_dfa` / cons-DFA / *Consistency automaton* (that names the two-transducer
+  $\cons$, which has no automaton form — this object takes **one** transducer),
+  `lambda_dfa`, `agreement_dfa` (that is per-trace *Agreement*), filter automaton.
 
 ### Product
 - **`main.tex`:** $P$ (Methods 1 & 2); states $S\times Q_{in}\times Q_{out}$
@@ -322,6 +436,15 @@ the existing term or update this file via `/glossary` — do not let drift happe
   automaton (state-based Büchi $F_P$), and `to_guard_map(graph, alphabet)`
   compresses the per-letter `build_product` output into `ProductGuards` (the
   former inline `guards[dst] |= letters[idx]` loop).
+  All of the above is the **explicit** *Representation*. In the **mtdfa**
+  representation the product is a **language intersection** —
+  `spot::product(spot::product(goal_mtdfa, emits_in), emits_out)` over the
+  *Output-agreement automaton* of each transducer lifted by
+  `spot::twadfa_to_mtdfa` (new; `docs/prd/mtdfa-product.md`). There is **no**
+  `ProductState`, `ProductGuards` or `materialize_product` on that route: Spot owns
+  the state numbering and terminal encoding, so the *Build-equivalence metamorphic
+  oracle* does not apply to it (nothing to diff), and the two representations are
+  cross-checked on **realizability verdicts** instead.
 - **Do not call it:** composition, join, cross; for the symbolic pieces, not
   `symbolic_product`/`product_symbolic` (build), `GuardMap`/`product_map`
   (`ProductGuards`), `materialize`/`to_twa` (bare, for `materialize_product`).
@@ -357,22 +480,69 @@ the existing term or update this file via `/glossary` — do not let drift happe
   synthesis outputs; the arena input partition ($\Ifree$ vs full $\mathcal{I}$)
   is a deferred `/theory-review` question (tracked in
   `docs/prd/dfa-product.md`).
-- **C++:** `solve_dfa(product, vars)` → `std::optional<Controller>` (`nullopt` =
-  unrealizable).
-- **Do not call it:** solve (bare), `solve_game` (that is Spot's primitive, not
-  our wrapper), synthesize (that is the `Synthesis` method), realize.
+- **C++:** per *Representation*, both → `std::optional<Controller>` (`nullopt` =
+  unrealizable) —
+  - **explicit:** `solve_dfa(product, vars)`.
+  - **mtdfa:** `solve_mtdfa(product, vars)` (new; `docs/prd/mtdfa-product.md`),
+    wrapping `set_controllable_variables` → `mtdfa_winning_strategy` →
+    `mtdfa_strategy_to_mealy`. **Precondition:** the *Turn order* AP-ordering
+    contract (`require_turn_order_aps`) — this route reads turn order off the BDD
+    variable order alone, and a violation returns a wrong verdict rather than
+    failing.
+
+  They differ in **where the governed variables are projected**, and that is the
+  interesting part: `solve_dfa` projects **arena-side** (`bdd_exist` per edge
+  guard, `src/solve_dfa.cpp:49`), which `solve_mtdfa` **cannot** do — an MTDFA's
+  destination lives inside its terminal, so quantifying would cross destinations.
+  Instead `solve_mtdfa` makes $\Iknown,\Oknown$ **controllable** ($\cons$ pins each
+  to exactly one legal value, so it is a *forced* move, not a real choice) and
+  projects **strategy-side**, off the `twa_graph` that `mtdfa_strategy_to_mealy`
+  returns. Both discharge the same `main.tex:300` `\na` by different routes — see
+  *Open theory questions*.
+- **Do not call it:** solve (bare), `solve_game` / `mtdfa_winning_strategy` (those
+  are Spot's primitives, not our wrappers), synthesize (that is the `Synthesis`
+  method), realize.
 
 ## The five methods
 
-| Term | `main.tex` | C++ |
-|---|---|---|
-| NFA product | Method 1 (§nfa) | `NfaProduct` |
-| DFA product | Method 2 (§fulldfa) | `DfaProduct` |
-| On-the-fly DFA product | Method 3.1 (§otfdfa) | `OtfDfaProduct` |
-| On-the-fly aggregated | Method 3.2 (§otfagg) | `OtfAggProduct` |
-| Dynamic aggregation | Method 3.3 (§dynamicagg) | `OtfDynAggProduct` |
+| Term | `main.tex` | C++ (explicit) | C++ (mtdfa) |
+|---|---|---|---|
+| NFA product | Method 1 (§nfa) | `NfaProduct` | — |
+| DFA product | Method 2 (§fulldfa) | `DfaProduct` | `MtdfaProduct` |
+| On-the-fly DFA product | Method 3.1 (§otfdfa) | `OtfDfaProduct` | — |
+| On-the-fly aggregated | Method 3.2 (§otfagg) | `OtfAggProduct` | — |
+| Dynamic aggregation | Method 3.3 (§dynamicagg) | `OtfDynAggProduct` | — |
 
 Common interface: `Synthesis::synthesize(phi, vars, t_in, t_out)`.
+
+**Five rows, five methods.** The last two columns are the *Representation* axis
+(below), **not** more methods — a sixth row would assert a sixth method, which is
+exactly what `MtdfaProduct` is not. Only Method 2 has an mtdfa implementation today
+(`docs/prd/mtdfa-product.md`); `main.tex:335`'s `\na` anticipates one for Method 3.
+`make_synthesis_method` (`cli.hpp`) selects a **cell**: `--dfa-product` →
+`DfaProduct`, `--mtdfa-product` → `MtdfaProduct`. That flag shape names a
+method×representation cell rather than a method, and is a **known wart** — it does
+not scale (a Method-3 mtdfa route would want `--mtdfa-otf-dfa-product`). Accepted
+deliberately over an orthogonal `--representation=` selector; revisit if a second
+method gains an mtdfa route.
+
+### Representation
+- **`main.tex`:** — (no symbol; the `\na` at `main.tex:335` gestures at MTDFA for
+  Method 3, but no definition commits to the axis).
+- **Definition:** *prose note, not a domain entry* — pinned here to fix the spelling
+  and stop drift. Which data structure a method holds its automata in: **explicit**
+  (`spot::twa_graph`, see *NFA / DFA for the Goal*) or **mtdfa** (`spot::mtdfa`, see
+  *MTDFA*). It is **orthogonal to the method**: `main.tex` has five methods, and a
+  representation changes *how* one is executed, never *which* one it is.
+  `MtdfaProduct` is Method 2 in the mtdfa representation — **not** a sixth method.
+  The axis reaches three entries: *Goal DFA construction*, *Product*, and *Game
+  solving* each name a per-representation C++ identifier.
+- **C++:** — (no identifier; a modifier, not a type. There is deliberately **no**
+  `enum class Representation`: the axis is selected per-method by CLI flag, and each
+  cell is its own `Synthesis` class.)
+- **Do not call it:** symbolic (**taken** — see *Product*, `build_product_symbolic`,
+  which is the *explicit* Method 2's product build, not this axis), method, Method 6,
+  backend, mode (reserved for the Mealy/Moore axis), variant, flavour.
 
 ## Benchmarking
 
@@ -492,14 +662,45 @@ is seeded with them:
   Product": inserting into $F_P$ keyed on $[\psi']$ may be overwritten when the
   same $[\psi']$ later returns $b=\bot$; unresolved whether to remove.
 - **On-the-fly game solving** — Method 3 builds the product on the fly but still
-  solves at the end; the hanging-fruit on-the-fly *solving* is not done.
+  solves at the end; the hanging-fruit on-the-fly *solving* is not done. The same
+  `\na` continues (`main.tex:335`): *"This likely requires adjusting the definitions
+  for MTDFA usage"* — i.e. the author anticipates a *Representation* change for
+  Method 3. Only Method 2 has one today (`docs/prd/mtdfa-product.md`).
+- **Governed-variable projection** (`main.tex:300` `\na`) — *"Because the resulting
+  game is being limited to transitions consistent with the external knowledge
+  transducers, which govern the variable set $\mathcal{V}$, it can project these
+  variables out without loss."* The supporting argument is drafted but **commented
+  out** (`main.tex:302–303`), so the claim is currently unbacked in the live text.
+  Both *Game solving* routes depend on it and discharge it **differently** —
+  `solve_dfa` arena-side, `solve_mtdfa` by pinning the variables as forced
+  controllable moves and projecting strategy-side. Flagged for `/theory-review`
+  (`docs/prd/mtdfa-product.md`). Newly load-bearing; not previously listed here.
+- **Mealy is baked into the signatures; no Moore option** (`main.tex:100` `\na`) —
+  *"these signatures are commiting to a mealy turn order, and are not ready for
+  adding a moore option. For that, the signatures would be dependent on the order
+  of players."* Newly listed here because Phase 0/Q2 made it concrete rather than
+  hypothetical: see *Turn order*. In the **explicit** *Representation* the
+  Mealy commitment is structural (`split_2step`), but in the **mtdfa** one it is
+  *nothing but* the BDD variable order — inverting that order is exactly what turns
+  the game Moore, and it is a silent reinterpretation, not an error. Evidence the
+  inversion is all a Moore option would take, mechanically: Spot's own `ltlfsynt`
+  selects between the two with one flag on the same machinery
+  (`bin/ltlfsynt.cc:481`, `unsigned val = mealy_semantics ? 1 : 2;`, over the
+  comment *"For Mealy semantics, inputs should appear first in the MTBDDs. For
+  Moore semantics, outputs should be first."*). The *math* is the open part, not
+  the plumbing: §100 says the signatures themselves must change. Out of scope for
+  `docs/prd/mtdfa-product.md`; `mode` stays reserved for this axis (see *Role*).
 - **Trace-termination semantics** (`main.tex:96` `\na`) — `def:probDef` quantifies
   over "every trace that agrees" without saying who ends the trace. Both
   `solve_dfa` and the *Controller verifier* commit to the mainstream
   **system-controlled-termination reachability** reading (De Giacomo–Vardi). They
   **must** share it, or "every `solve_dfa` controller verifies" fails for a
   semantic, not a bug, reason — flagged for `/theory-review`
-  (`docs/prd/controller-verifier.md`).
+  (`docs/prd/controller-verifier.md`). `solve_mtdfa` adds a **third** consumer
+  carrying **Spot's own** reading (`mtdfa_winning_strategy`); if it diverges,
+  cross-method agreement between the two *Representation*s fails semantically
+  rather than as a bug. Weak evidence it agrees: `ltlfsynt` runs that machinery and
+  the existing differential already passes for `DfaProduct`.
 
 **Resolved (kept here so they are not re-flagged as novel):**
 

@@ -23,6 +23,31 @@ onto the shared product core, all four PRD gates clean), so the known-**output**
 $\Tout$ oracle rounds out the external `ltlfsynt` cross-check._
 
 ### Replace the explicit-DFA scaffolding with MTDFA — solve the game the way `ltlfsynt` does — **#1** (promoted 2026-07-14)
+- **PRD:** spec'd 2026-07-14 in `docs/prd/mtdfa-product.md` (grilled; ready for
+  Phase 0). Adds `MtdfaProduct` as a **second implementation of Method 2**
+  alongside `DfaProduct` (which is left untouched, to preserve the differential).
+  Three seeds below were **settled or corrected** by the grill — read the PRD, not
+  these, for the live decisions:
+  - **Route (a) won, contra the seed's lean.** Not because Spot's composition ops
+    are prettier, but because route (b) is not the cheap port the seed assumed: an
+    MTDFA product must *rewrite terminals* ($2d+b$), and Spot exposes **no public
+    API** for that — only `ltlf_translator`, which its own header marks unstable.
+  - **The seeds missed the crux.** `solve_dfa` projects $\Iknown,\Oknown$ out of
+    per-edge guards; in an MTDFA the destination lives *inside the terminal*, so
+    that projection isn't available, and leaving $\Iknown$ uncontrollable makes the
+    env force a $\neg\cons$ letter into the `bddfalse` sink ⇒ spuriously
+    unrealizable. Resolved by making the pinned vars **controllable** (they have
+    exactly one legal value each, so it's a forced move) and projecting them out of
+    the *strategy* instead, where guard and dst are separate fields again.
+  - **Seed "`build_product_symbolic` already is route (b) working" is half-true:**
+    the guard computation matches, but `ProductGuards` is state-based-acceptance
+    and MTDFA is transition-based. Different data structure, not a port.
+  - Seed (ii) (intersection not implication) and the `complete_here` seed (MTDFA's
+    `bddfalse` terminals make completion implicit) both **held up**.
+  - **"cons-DFA" below is a dead name** (`/glossary`, 2026-07-14). The per-transducer
+    automaton is an *Output-agreement automaton*, `emits_dfa` — $\cons$ is the
+    **two**-transducer conjunction, so a one-transducer object cannot wear its name;
+    $\cons$ has no automaton form, it emerges from intersecting the two.
 - **Intent:** `ltlf_to_dfa` (`src/ltlf_to_dfa.cpp:14`) **already builds a
   `spot::mtdfa`** via `ltlf_to_mtdfa`, then immediately throws the symbolic form
   away: `as_twa(state_based=true)` + `complete_here` explode it into an explicit
