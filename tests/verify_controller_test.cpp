@@ -413,6 +413,47 @@ TEST(ControllerAsTransducer, ReproducesStrategyGraphOutputsOnEveryState) {
 }
 
 // ---------------------------------------------------------------------------
+// Phase 0/Q4 follow-up (docs/prd/mtdfa-product.md "Interfaces & types"
+// src/synthesis.cpp): controller_as_transducer must unsplit ONLY when the
+// "state-player" named property is present.  DfaProduct's Controller always
+// carries it (solved_game_to_mealy, exercised above); solve_mtdfa's does
+// NOT (mtdfa_strategy_to_mealy's output is already unsplit) --- calling
+// spot::unsplit_2step unconditionally on such a Controller used to throw
+// "get_state_players(): state-player property not defined, not a game?".
+// This fixture stands in for that shape directly (a hand-built, already-
+// unsplit Mealy machine with NO "state-player" property) so the regression
+// is covered without needing solve_mtdfa/MtdfaProduct to exist yet
+// (concurrent workflow).
+// ---------------------------------------------------------------------------
+
+TEST(ControllerAsTransducer, AcceptsAnAlreadyUnsplitMealyLackingTheStatePlayerProperty) {
+  auto dict = spot::make_bdd_dict();
+  auto vars = IoFreeVars();
+  auto g = spot::make_twa_graph(dict);
+  const int iv = g->register_ap("i");
+  const int ov = g->register_ap("o");
+  g->new_states(1);
+  g->set_init_state(0);
+  g->new_edge(0, 0, bdd_ithvar(ov));  // commits o := true regardless of i.
+
+  ASSERT_EQ(g->get_named_prop<std::vector<bool>>("state-player"), nullptr)
+      << "sanity: this graph must NOT carry the split-arena property --- "
+         "mirroring mtdfa_strategy_to_mealy's (already-unsplit) output";
+
+  const Controller controller{g};
+  std::optional<OutputLabeledTransducer> t_c;
+  EXPECT_NO_THROW(t_c = controller_as_transducer(controller, vars))
+      << "controller_as_transducer must not call spot::unsplit_2step "
+         "unconditionally --- only when \"state-player\" is present";
+  ASSERT_TRUE(t_c.has_value());
+  EXPECT_EQ(t_c->initial_state(), 0u);
+  EXPECT_EQ(t_c->lambda(0, bdd_ithvar(iv)), std::optional<bdd>(bdd_ithvar(ov)));
+  EXPECT_EQ(t_c->lambda(0, bdd_nithvar(iv)), std::optional<bdd>(bdd_ithvar(ov)));
+  EXPECT_EQ(t_c->delta(0, bdd_ithvar(iv) & bdd_ithvar(ov)),
+           std::optional<unsigned>(0u));
+}
+
+// ---------------------------------------------------------------------------
 // Validation policy (same policy as DfaProduct::synthesize).
 // ---------------------------------------------------------------------------
 

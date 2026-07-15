@@ -12,6 +12,7 @@
 #include "ltlf_ek/cli.hpp"
 #include "ltlf_ek/consistency.hpp"
 #include "ltlf_ek/dfa_product.hpp"
+#include "ltlf_ek/mtdfa_product.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/role.hpp"
 #include "ltlf_ek/synthesis.hpp"
@@ -28,6 +29,7 @@ namespace {
 using ltlf_ek::consistent;
 using ltlf_ek::DfaProduct;
 using ltlf_ek::make_synthesis_method;
+using ltlf_ek::MtdfaProduct;
 using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::parse_partition_file;
 using ltlf_ek::Role;
@@ -224,6 +226,19 @@ TEST(MakeSynthesisMethod, DfaProductFlagBuildsADfaProduct) {
   std::unique_ptr<Synthesis> method = make_synthesis_method("dfa-product");
   ASSERT_NE(method, nullptr);
   EXPECT_NE(dynamic_cast<DfaProduct*>(method.get()), nullptr);
+}
+
+// docs/prd/mtdfa-product.md "Interfaces & types" (cli.hpp, modified):
+// make_synthesis_method gains "mtdfa-product" -> MtdfaProduct --- a sixth
+// *flag* over five methods (MtdfaProduct is a second implementation of
+// Method 2, not a sixth method), not one of the "unwired methods" below.
+// FROZEN CONTRACT, NOT YET IMPLEMENTED (concurrent workflow): needs
+// include/ltlf_ek/mtdfa_product.hpp AND src/cli.cpp's dispatch-table entry;
+// will not compile/link, then will fail, until both land.
+TEST(MakeSynthesisMethod, MtdfaProductFlagBuildsAnMtdfaProduct) {
+  std::unique_ptr<Synthesis> method = make_synthesis_method("mtdfa-product");
+  ASSERT_NE(method, nullptr);
+  EXPECT_NE(dynamic_cast<MtdfaProduct*>(method.get()), nullptr);
 }
 
 TEST(MakeSynthesisMethod, UnwiredMethodsThrowLogicError) {
