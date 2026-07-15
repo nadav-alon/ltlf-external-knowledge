@@ -1,12 +1,18 @@
 # PRD: MTDFA product — Method 2 over `spot::mtdfa`
 
-**Status:** Phase 1 implemented — **green checkpoint NOT met** (merged 2026-07-15,
-`61b1ad0`). `emits_dfa`, `turn_order.hpp` (`register_turn_order_aps` /
-`require_turn_order_aps`), `solve_mtdfa`, `MtdfaProduct` and the CLI wiring all
-land and build clean; `ctest` is **299/302 with 3 SEGFAULTs**, all on the
-`MtdfaProduct` path, all inside Spot. **Blocked on *Phase 1 blocker — the
-`backprop_nodes=true` segfault*** at the end of this file. See also "Developer
-comments / PRD disagreements" for two implementation-level findings the frozen
+**Status:** Phase 1 implemented — **green checkpoint STILL NOT met** (merged
+2026-07-15, `61b1ad0`; sink dropped 2026-07-15, see "Phase 1 blocker" and
+"Developer comments / PRD disagreements"). `emits_dfa`, `turn_order.hpp`
+(`register_turn_order_aps` / `require_turn_order_aps`), `solve_mtdfa`,
+`MtdfaProduct` and the CLI wiring all land and build clean. `ctest` is now
+**295/302 passed, 7 failed**: 6 `EmitsDfa` unit tests red because they assert
+the now-superseded "complete + rejecting sink" contract (expected fallout of
+the PRD-change below — `/test-writer`'s to update, not touched here), and
+`GeneratedCorpus.MetamorphicRoundTrip` still **SEGFAULTs** — same crash site
+as before, but **confirmed unrelated to `emits_dfa`'s sink** (see "Phase 1
+blocker" addendum). The other two named `MtdfaKnownInputTest` SEGFAULTs
+(`B_XBang_not_k`, `C_XBang_k_iff_a`) are now green. See also "Developer
+comments / PRD disagreements" for implementation-level findings the frozen
 contract didn't fully pin.
 **Interface:** implements `Synthesis` as `MtdfaProduct` — a **second
 implementation of Method 2** (`alg:dfa_product`), not a sixth method. Selected by
@@ -559,30 +565,26 @@ number would muddy the only cross-method comparison that matters here.
 
 Bespoke (no `main.tex` counterpart), so specified past sketch level.
 
-- **States:** one per `tau` state $q \in [0, \texttt{num\_states})$, plus **one
-  fresh rejecting sink**. Initial state = `tau.initial_state()`.
+- **States:** one per `tau` state $q \in [0, \texttt{num\_states})$. Initial
+  state = `tau.initial_state()`. **No sink state** (Phase 1 blocker fix,
+  below) — the automaton is deliberately incomplete.
 - **Edges:** for each $q$, for each `(g, d)` in `tau.delta_edges(q)`, add
   $q \xrightarrow{\;g\ \&\ \texttt{tau.emits\_region}(q)\;} d$. **Skip the edge if
-  that conjunction is `bddfalse`** (no dead edges).
-- **Sink edge:** let $\mathit{covered}(q) = \bigvee_{(g,d)} (g\ \&\
-  \texttt{emits\_region}(q))$. Add $q \xrightarrow{\;\neg \mathit{covered}(q)\;}
-  \mathit{sink}$, **unless** $\neg\mathit{covered}(q) = $ `bddfalse`.
-  Sink gets one self-loop on `bddtrue`.
-- **Acceptance:** every $q \in [0,\texttt{num\_states})$ accepting; sink rejecting.
+  that conjunction is `bddfalse`** (no dead edges). **No other edge is added** —
+  in particular no $\neg\mathit{covered}(q)$ edge to a sink: a letter not covered
+  by any edge is a missing edge, an implicit reject, so the language is
+  unchanged.
+- **Acceptance:** every $q \in [0,\texttt{num\_states})$ accepting.
   **Phase 0/Q1: mark STATE-BASED and call `prop_state_acc(true)` explicitly** —
-  i.e. every out-edge of every $q$ carries the mark, and the sink's `bddtrue`
-  self-loop carries none. `twadfa_to_mtdfa` branches on that property and would
-  otherwise read the marks as final transitions.
-- **Sink state:** create it **only if** some $\neg\mathit{covered}(q)$ edge is
-  actually added (Phase 0/Q1) — an unreachable rejecting sink is not absorbed by
-  `twadfa_to_mtdfa` (absorption requires a non-empty mark) and would become a dead
-  root.
-- **Result type:** `spot::twa_graph_ptr`, deterministic **and complete** by
-  construction — `delta_edges` is deterministic per `Transducer`'s contract, ANDing
-  `emits_region` only shrinks guards (so determinism is preserved), and the sink
-  edge covers exactly the complement. **Determinism is a runtime precondition, not
-  just a claim:** `twadfa_to_mtdfa` throws `std::runtime_error` on a
-  non-deterministic input (Phase 0/Q1, `ltlf2dfa.cc:2958`).
+  i.e. every out-edge of every $q$ carries the mark. `twadfa_to_mtdfa` branches
+  on that property and would otherwise read the marks as final transitions.
+- **Result type:** `spot::twa_graph_ptr`, deterministic **but not complete** by
+  construction — `delta_edges` is deterministic per `Transducer`'s contract and
+  ANDing `emits_region` only shrinks guards, so determinism is preserved, but a
+  $q$ with no covering letter simply has no outgoing edge. **Determinism is a
+  runtime precondition, not just a claim:** `twadfa_to_mtdfa` throws
+  `std::runtime_error` on a non-deterministic input (Phase 0/Q1,
+  `ltlf2dfa.cc:2958`); it does not require completeness.
 - **Determinism of the build:** fully deterministic; `delta_edges` order is the
   transducer's own. No seed, no iteration to a fixpoint, no bounds — a single pass
   over $Q$, each with a single pass over its out-edges.
@@ -629,8 +631,9 @@ pinned rather than left to be guessed.
 ## Edge cases
 
 - **$\lambda$ undefined at $q$** ⇒ `emits_region(q)` = `bddfalse` ⇒ every edge from
-  $q$ is `bddfalse` and is skipped ⇒ $\neg\mathit{covered}(q) = $ `bddtrue` ⇒ a
-  single `bddtrue` edge to the sink. Correct: no letter is $\cons$ at $q$.
+  $q$ is `bddfalse` and is skipped ⇒ $q$ has **no outgoing edges**. Correct: no
+  letter is $\cons$ at $q$, and the missing edges are an implicit reject of
+  every letter (Phase 1 blocker fix; no sink is materialised).
 - **Partial transducers / Case A.** Decision 2 leans on an assumption `solve_dfa`
   does *not*: that a legal $\Iknown$ always **exists** after any env $\Ifree$ move.
   If $\lambda_{in}$ were partial at a reachable $(q_{in},\Ifree)$, the system would
@@ -776,6 +779,35 @@ Flagged for `/theory-review`; not resolved here.
 
 ## Developer comments / PRD disagreements
 
+**2026-07-15, `/developer` (Phase 1 blocker fix):**
+
+- **`emits_dfa` no longer materialises a rejecting sink — deviates from the
+  original frozen *pinned specification*, which mandated one.** This is the
+  fix for *Phase 1 blocker — the `backprop_nodes=true` segfault* (diagnosed by
+  `/grill-debug` the same day): a materialised rejecting sink, as an operand
+  fed through `twadfa_to_mtdfa`, triggers an upstream Spot bug under
+  `mtdfa_winning_strategy(backprop_nodes=true)` (`ltlf2dfa.cc:1593`,
+  reproduced with zero `ltlf_ek` code in
+  `docs/spot-bugs/mtdfa-sink-segfault.cc`). The result is now **deterministic
+  but not complete**: a state with no covered letter simply has no outgoing
+  edge, an implicit reject, so `L(emits_dfa(tau))` is unchanged. The frozen
+  **signature** does not move. Rewrote *`emits_dfa` — pinned specification*
+  (dropped the sink-state/sink-edge bullets, "deterministic and complete" →
+  "deterministic but not complete") and *Edge cases* (λ-undefined-at-q now
+  gets no outgoing edges, not a `bddtrue` edge to a sink) to match. `solve_mtdfa`'s
+  `backprop_nodes=true` is unchanged — flipping it to `false` would dodge the
+  bug by forfeiting the linear-time claim this PRD exists to measure, so it was
+  explicitly not taken (see "Phase 1 blocker"). **Only 2 of the 3 named
+  SEGFAULTing tests are fixed** by this change (`B_XBang_not_k`,
+  `C_XBang_k_iff_a`); `GeneratedCorpus.MetamorphicRoundTrip` still SEGFAULTs at
+  the same site via a trigger confirmed unrelated to this sink — see the
+  "Phase 1 blocker" addendum above, flagged for a fresh `/grill-debug` pass.
+  **Theory note, not acted on:** dropping the sink may *retire* rather than
+  discharge this PRD's "skip vs rejecting sink" load-bearing semantic claim
+  (`main.tex` \cref{def:enabled} already *skips* a non-enabled letter; an
+  incomplete automaton now does too, literally) — `/theory-review` item, `main.tex`
+  untouched here.
+
 **2026-07-15, `/developer` (Phase 1):**
 
 - **`emits_dfa`'s "one state per q in [0, num_states)" is not implementable
@@ -838,12 +870,22 @@ Flagged for `/theory-review`; not resolved here.
 
 ## Phase 1 blocker — the `backprop_nodes=true` segfault
 
-**Found at integration 2026-07-15 (`61b1ad0`). ROOT-CAUSED by `/grill-debug`
-the same day — see *Root cause (2026-07-15)* below. It is an **upstream Spot
-bug**, reproduced with no `ltlf_ek` code
-(`docs/spot-bugs/mtdfa-sink-segfault.cc`). The fix is on our side and is cheap:
-`emits_dfa` must stop materialising its rejecting sink. Handed to `/developer`;
-this section is the diagnosis, not the fix.**
+**Found at integration 2026-07-15 (`61b1ad0`). It is an **upstream Spot bug**,
+reproduced with no `ltlf_ek` code (`docs/spot-bugs/`). STILL OPEN — the trigger
+is **not pinned**.**
+
+> **Correction (2026-07-15, second `/grill-debug` pass).** The first pass
+> concluded *"the materialised rejecting sink is the trigger"* and handed
+> `/developer` a sink-removal fix. **That diagnosis was incomplete.** Dropping
+> the sink did fix two of the three failures, but
+> `GeneratedCorpus.MetamorphicRoundTrip` still segfaults on a **total**
+> transducer whose `emits_dfa` never had a sink — verified two independent ways:
+> `/developer` stashed the fix and reproduced the crash 3/3 on the pre-fix tree,
+> and a minimal sink-free replay of the offending case
+> (`docs/spot-bugs/mtdfa-backprop-segfault-sinkfree.cc`) crashes at the same
+> site. The sink was **one trigger, not the trigger**; the sink fix stands on its
+> own merits but **does not unblock Phase 1**. Read *What the trigger is NOT*
+> below before proposing anything.
 
 `ctest` is **299/302**. All three failures are SEGFAULTs, all on the
 `MtdfaProduct` path, all on `X[!]` formulas:
@@ -884,9 +926,10 @@ early-breaking encode loop. **Relinking is not the fix.** (Phase 0 treated the
 source as corroboration only and confirmed every claim against the **linked**
 lib, so no Phase 0 answer is invalidated either way.)
 
-### Root cause (2026-07-15, `/grill-debug`)
+### Crash site (2026-07-15, `/grill-debug`) — pinned
 
-**It is Spot's bug, and it is our sink that triggers it.**
+**It is Spot's bug. What input triggers it is NOT pinned** — see *What the
+trigger is NOT*.
 
 ```
 spot/twaalgos/ltlf2dfa.cc:1593  strategy_finalize
@@ -899,56 +942,66 @@ itself guarded (returns `-1` on a `find()` miss), so the root's map entry
 *exists* but resolves to an out-of-range backprop state. The exact bookkeeping
 producing the bad entry — likely the early-breaking `encode_state` loop
 (`ltlf2dfa.cc:3571-3573`), which encodes only a **prefix** of roots while the
-`apply1` loop then runs over **all** of them — is **not pinned**, and does not
-need to be for the fix.
-
-**Reproduced in pure Spot, zero `ltlf_ek`** —
-`docs/spot-bugs/mtdfa-sink-segfault.cc`. Same filter *language*, three encodings:
-
-| filter encoding | filter roots | product roots | result |
-|---|---|---|---|
-| `ltlf_to_mtdfa("G(!k)")` | 1 | 3 | survives |
-| 1-state **incomplete**, no sink | 1 | 3 | survives |
-| 2-state **with rejecting sink** | 2 | 5 | **SIGSEGV** |
+`apply1` loop then runs over **all** of them — is **not pinned**. `global_backprop`
+itself is **valid** (checked in gdb), so this is not a null/dangling global.
 
 All documented preconditions are met (deterministic; `prop_state_acc(true)`), so
 this is a genuine upstream bug, not a misuse. Not yet reported to
-`spot@lrde.epita.fr`.
+`spot@lrde.epita.fr`. Two reproducers live in `docs/spot-bugs/` — one pure Spot,
+one sink-free.
 
-**Three conditions are needed**, which is why the failure looked erratic:
+### What the trigger is NOT
 
-1. an operand with a **materialised rejecting sink**;
-2. **`backprop=true`** — `strategy_finalize` is exclusive to that path;
-3. a goal that is **realizable** and forces a next step (**`X[!]`**).
+Every row below is an experiment, not a guess. **Ruled out:**
 
-Condition 3 explains the corpus pattern exactly: `strategy_finalize` returns
-early on accepting terminals (`term & 1`) *without* touching `global_backprop`,
-so realizable goals whose strategy only finalizes accepting terminals (`!k`,
-`F(!k)`, `G(!k)`) never crash, and unrealizable goals collapse before reaching
-it. Hence `X[!] k` (unrealizable) passes while `X[!] !k` (realizable) does not —
-and `X[!] o` crashes too, though `o` has nothing to do with `k`.
+- **the materialised rejecting sink** — the first pass' answer. It *does* crash a
+  5-root product in pure Spot (`mtdfa-backprop-segfault.cc`: same filter
+  language, `ltlf_to_mtdfa` and 1-state-incomplete survive, 2-state-with-sink
+  dies), and removing it fixed `B_XBang_not_k` + `C_XBang_k_iff_a`. But a
+  **sink-free total** `t_in` still crashes at 10 roots
+  (`mtdfa-backprop-segfault-sinkfree.cc`, corpus case i=48).
+- **root count alone** — sink-free products at 5 roots survive
+  (`X[!](X[!](X[!] !k))`, `X[!] !k & F(o)`, `(a U o) & X[!] !k`), while the
+  5-root *sink* product crashes.
+- **`X[!]` / forced continuation** — the corpus trigger is
+  `phi = p1 | p6 | F(Gp1 & Fp7)`, which has no `X[!]` at all. (The `X[!]`
+  correlation was real *within* the sink cases: `strategy_finalize` early-exits on
+  accepting terminals via `term & 1` without touching `global_backprop`, so
+  `!k`/`F(!k)`/`G(!k)` never reach the fault and unrealizable goals collapse
+  first. It was never the trigger.)
+- **a Spot version gap** — the `2.15.1` source carries the same unchecked
+  `winner()` and the same early-breaking encode loop.
+- **the trivial `t_out` operand** (all-accepting `bddtrue` self-loop).
+- **the goal automaton alone** — no product, no crash.
 
-**The fix (handed to `/developer`): `emits_dfa` must NOT materialise the sink.**
-Leave the automaton **incomplete** — a missing edge is already an implicit
-reject, and the language is unchanged. This
+**What holds:** `backprop=false` survives every observed case, including the
+sink-free one. It is a **workaround with a real price**, not a fix — the header
+promises backprop is a *"linear-time resolution"* against `false`'s *"does not
+have linear complexity"*, and cost is this PRD's entire premise.
 
-- **keeps `backprop_nodes=true`**, so this PRD's linear-time cost claim survives
-  intact — the reason `backprop=false` is the *wrong* lever: it only dodges the
-  bug by avoiding `strategy_finalize`, at the price of the very thing being
-  measured;
-- **costs nothing** — Phase 0/Q1 already called the sink "correct, but wasted";
+### Where that leaves the fix
+
+**The sink removal is already landed and should stay** — but on its own merits,
+**not** as a fix for this bug:
+
+- it **costs nothing** — Phase 0/Q1 already called the sink "correct, but wasted";
 - **plausibly improves faithfulness.** `main.tex` **skips** a non-enabled letter
   (`\cref{def:enabled}`, §107–116); an incomplete automaton literally skips it,
   where the sink was an encoding we had to *argue* equivalent. That argument is
   this PRD's "single load-bearing semantic claim" — dropping the sink may retire
   it rather than discharge it. **`/theory-review` item**, not a claim to assume.
 
-**Contract impact — this is a PRD-change event.** *`emits_dfa` — pinned
-specification* currently mandates the sink, calls the result "deterministic
-**and complete** by construction", and its *Edge cases* entry says a λ-undefined
-`q` gets "a single `bddtrue` edge to the sink" (it would get **no outgoing
-edges**). Those must be rewritten with the fix. The frozen **signature** does not
-move.
+**Contract impact — a PRD-change event, already applied.** *`emits_dfa` — pinned
+specification* mandated the sink and called the result "deterministic **and
+complete** by construction"; *Edge cases* said a λ-undefined `q` gets "a single
+`bddtrue` edge to the sink". `/developer` rewrote both (sink bullets dropped;
+"deterministic but not complete"; λ-undefined `q` now gets **no outgoing
+edges**). The frozen **signature** did not move. **Fallout still open:** 6
+`EmitsDfa` unit tests assert the superseded contract and are red — notably
+`GraphAccepts` throws *"emits_dfa's result is expected complete"*, so the
+**language oracle currently cannot run**. That means "dropping the sink leaves
+the language unchanged" is **argued, not verified**. `/test-writer` must teach
+the helper that a missing edge is a reject, and re-establish the language claim.
 
 **Do not credit the earlier all-clear.** During Phase 1 the concurrent
 `/test-writer` hit this *same* crash — same `strategy_finalize` /
@@ -959,7 +1012,65 @@ against the developer's real implementation, so that attribution was wrong. The
 crash is genuine and pre-dates either implementation; it belongs to the
 `backprop=true` path itself.
 
-**Why the corpus oracle earns its cost here.** The two named fixtures are `X[!]`
-rows — the Mealy/weak-X-sensitive region. `B_XBang_k` **passes** while
-`B_XBang_not_k` segfaults, so the trigger is narrower than "uses `X[!]`" and a
-thinner corpus would have shipped this.
+**Why the corpus oracle earns its cost here — twice over.** The two hand-written
+fixtures are `X[!]` rows in the Mealy/weak-X-sensitive region, and `B_XBang_k`
+**passes** while `B_XBang_not_k` segfaults, so the trigger was already narrower
+than "uses `X[!]`" — a thinner hand-picked corpus ships this. More important: the
+**generated** corpus is the *only* thing that caught the sink-free trigger. Had
+it not been in the suite, the sink fix would have turned the suite green and the
+real bug would have shipped behind a plausible, wrong root cause. The generator
+found a case (`p1 | p6 | F(Gp1 & Fp7)` over an 8-variable partition with a
+3-state `t_in`) that no one would have hand-written.
+
+### Addendum (2026-07-15, `/developer`): the sink fix does not clear `GeneratedCorpus.MetamorphicRoundTrip`
+
+**Applied the fix above** (`emits_dfa` no longer materialises a sink; *pinned
+specification* and *Edge cases* rewritten to match). The two named
+`MtdfaKnownInputTest` fixtures (`B_XBang_not_k`, `C_XBang_k_iff_a`) are now
+**green**. `GeneratedCorpus.MetamorphicRoundTrip` is **not** — it still
+SEGFAULTs, at the identical stack (`strategy_finalize` →
+`bdd_mt_apply1_synthesis_with_choice` → `mtdfa_winning_strategy_by_backprop` →
+`solve_mtdfa.cpp:47`), on every run (5/5 post-fix, 3/3 pre-fix — see below),
+despite the random corpus differing run to run (in-process `randltl`/RNG
+non-reproducibility means each run's generated `phi`/`t_in` differ).
+
+**This crash is confirmed NOT caused by `emits_dfa`'s sink**, so the fix above
+is a genuine no-op for this test, not an incomplete fix of the same trigger:
+
+- The generated case's `t_in` is `random_tin` (`tests/ltlfsynt_oracle_test.cpp`),
+  documented **"deterministic + total by construction (the committed Case-A
+  regime)"** — `lambda` and `delta` are both total over every reachable state,
+  so `emits_region(q)` never leaves a letter uncovered and the sink (old
+  version) or a missing edge (new version) never arise.
+- `t_out` is always `trivial_transducer` — one state, `delta` self-loops on
+  `bddtrue`, `lambda` commits the empty cube (`Sigma1 = ∅`) — likewise always
+  total, never uncovered.
+- **Verified directly:** reverted this fix (`git stash`), rebuilt, ran the same
+  test 3× — **identical SEGFAULT**, same exit code, same crash site. The
+  pre-fix and post-fix trees behave identically on this test, which only makes
+  sense if neither tree's `emits_dfa(t_in)` / `emits_dfa(t_out)` ever produced
+  a sink here in the first place.
+
+**Conclusion: the upstream Spot bug (`ltlf2dfa.cc:1593`, the unchecked
+`winner()`/`root_winner()` under `backprop=true`) has at least one OTHER
+trigger, independent of a materialised transducer sink** — most likely the
+**Goal DFA's own root/terminal count** (`ltlf_to_mtdfa(phi)` for a
+structurally-generated `phi`, or the product's root count after combining
+Goal ⊗ filter ⊗ filter) crossing whatever threshold the early-breaking
+`encode_state` loop mishandles (`ltlf2dfa.cc:3571-3573`, per the *Root cause*
+section above) — the minimal pure-Spot reproducer
+(`docs/spot-bugs/mtdfa-sink-segfault.cc`) used a sink only as *one* way to
+push root count from 3 to 5; nothing pins root count as sink-exclusive. **Not
+re-derived here** — this is a new finding, not the one `/grill-debug` already
+diagnosed, and needs its own `/grill-debug` pass (candidate next probe: does
+`ltlf_to_mtdfa(phi)` alone, product-ed with two always-total, sink-free
+`emits_dfa` operands, still crash for a generated `phi` of typical corpus
+size/shape?). Out of scope for this developer session: fixing it would mean
+either changing `solve_mtdfa.cpp`'s `backprop_nodes` (forbidden — see above)
+or a `main.tex`/`ltlf_to_mtdfa` construction change neither pinned nor
+diagnosed yet.
+
+**PRD green checkpoint remains unmet.** `ctest --test-dir build` is
+**295/302 passed, 7 failed**: this one SEGFAULT plus 6 `EmitsDfa` unit tests
+that assert the now-superseded "complete + sink" contract (expected fallout
+of this PRD-change event, `/test-writer`'s to update).

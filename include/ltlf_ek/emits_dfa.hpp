@@ -20,13 +20,21 @@ namespace ltlf_ek {
 // letter agrees with lambda at its state } (docs/prd/mtdfa-product.md
 // "emits_dfa --- pinned specification").
 //
-// States: one per state reachable from tau.initial_state() via delta_edges,
-// plus one fresh rejecting sink created lazily (only if some letter is ever
-// non-agreeing).  Transducer exposes no state count, so reachability (BFS from
-// the initial state) is how this build discovers tau's state set --- recorded
-// as a "Developer comments / PRD disagreements" entry in
-// docs/prd/mtdfa-product.md (the PRD's "q in [0, num_states)" phrasing assumes
-// an accessor the frozen Transducer interface does not have).
+// States: one per state reachable from tau.initial_state() via delta_edges.
+// Transducer exposes no state count, so reachability (BFS from the initial
+// state) is how this build discovers tau's state set --- recorded as a
+// "Developer comments / PRD disagreements" entry in docs/prd/mtdfa-product.md
+// (the PRD's "q in [0, num_states)" phrasing assumes an accessor the frozen
+// Transducer interface does not have).
+//
+// NO rejecting sink: the automaton is deterministic but deliberately
+// INCOMPLETE --- a letter not covered by any edge is a missing edge, an
+// implicit reject, so the language above is unchanged.  A materialised
+// rejecting sink used to be built here; it was removed as the Phase 1 blocker
+// fix (docs/prd/mtdfa-product.md "Phase 1 blocker") because such a sink
+// segfaults Spot's mtdfa_winning_strategy(backprop_nodes=true) inside a
+// twadfa_to_mtdfa operand --- an upstream Spot bug, reproduced with no
+// ltlf_ek code (docs/spot-bugs/mtdfa-sink-segfault.cc).
 //
 // Phase 0/Q1: marks acceptance STATE-BASED and calls prop_state_acc(true)
 // explicitly --- twadfa_to_mtdfa branches on that property and would otherwise
