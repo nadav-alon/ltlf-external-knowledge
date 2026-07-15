@@ -838,9 +838,12 @@ Flagged for `/theory-review`; not resolved here.
 
 ## Phase 1 blocker — the `backprop_nodes=true` segfault
 
-**Found at integration 2026-07-15 (`61b1ad0`), by the launcher. Open — not
-diagnosed past localisation. `/grill-debug` owns the root cause; this section is
-the handoff, not a resolution.**
+**Found at integration 2026-07-15 (`61b1ad0`). ROOT-CAUSED by `/grill-debug`
+the same day — see *Root cause (2026-07-15)* below. It is an **upstream Spot
+bug**, reproduced with no `ltlf_ek` code
+(`docs/spot-bugs/mtdfa-sink-segfault.cc`). The fix is on our side and is cheap:
+`emits_dfa` must stop materialising its rejecting sink. Handed to `/developer`;
+this section is the diagnosis, not the fix.**
 
 `ctest` is **299/302**. All three failures are SEGFAULTs, all on the
 `MtdfaProduct` path, all on `X[!]` formulas:
@@ -873,15 +876,79 @@ get green would quietly trade away the thing being measured. That is a
 **PRD-change event and a `/grill-debug` question**, not an integration decision —
 hence untaken here.
 
-**Live hypothesis, untested: a version gap.** The linked library is
-**`libspot 2.14.4.dev`**; the source tree at `/home/cowclaw/spot` is
-**`2.15.1.dev`**, *newer* — the same gap Phase 0 flagged (Phase 0 treated the
-source as corroboration only, and every Phase 0 claim was confirmed against the
-**linked** lib, so no Phase 0 answer is invalidated by this). `2.15.1` carries
-`ltlf2dfa.cc` commits including *"ltlfsynt: add node-based backpropagation
-options"* (`ec2d00d9f`). **If this is an upstream bug already fixed in 2.15.1,
-the fix is to relink, and `backprop_nodes=true` stays** — which would preserve
-the cost claim intact. Establish this **before** touching the flag.
+**Version gap — hypothesis REFUTED.** The linked library is
+**`libspot 2.14.4.dev`** against a **`2.15.1.dev`** source tree, and the first
+guess was that an upstream fix would make this go away. It will not: the
+`2.15.1` source carries the **same** unchecked `winner()` and the **same**
+early-breaking encode loop. **Relinking is not the fix.** (Phase 0 treated the
+source as corroboration only and confirmed every claim against the **linked**
+lib, so no Phase 0 answer is invalidated either way.)
+
+### Root cause (2026-07-15, `/grill-debug`)
+
+**It is Spot's bug, and it is our sink that triggers it.**
+
+```
+spot/twaalgos/ltlf2dfa.cc:1593  strategy_finalize
+  -> global_backprop->root_winner(term / 2)
+  -> spot/twaalgos/backprop.hh:102  winner(s) { return (*this)[s].winner; }
+```
+
+`winner()` indexes the adjlist **without a bounds check**. `root_winner()` is
+itself guarded (returns `-1` on a `find()` miss), so the root's map entry
+*exists* but resolves to an out-of-range backprop state. The exact bookkeeping
+producing the bad entry — likely the early-breaking `encode_state` loop
+(`ltlf2dfa.cc:3571-3573`), which encodes only a **prefix** of roots while the
+`apply1` loop then runs over **all** of them — is **not pinned**, and does not
+need to be for the fix.
+
+**Reproduced in pure Spot, zero `ltlf_ek`** —
+`docs/spot-bugs/mtdfa-sink-segfault.cc`. Same filter *language*, three encodings:
+
+| filter encoding | filter roots | product roots | result |
+|---|---|---|---|
+| `ltlf_to_mtdfa("G(!k)")` | 1 | 3 | survives |
+| 1-state **incomplete**, no sink | 1 | 3 | survives |
+| 2-state **with rejecting sink** | 2 | 5 | **SIGSEGV** |
+
+All documented preconditions are met (deterministic; `prop_state_acc(true)`), so
+this is a genuine upstream bug, not a misuse. Not yet reported to
+`spot@lrde.epita.fr`.
+
+**Three conditions are needed**, which is why the failure looked erratic:
+
+1. an operand with a **materialised rejecting sink**;
+2. **`backprop=true`** — `strategy_finalize` is exclusive to that path;
+3. a goal that is **realizable** and forces a next step (**`X[!]`**).
+
+Condition 3 explains the corpus pattern exactly: `strategy_finalize` returns
+early on accepting terminals (`term & 1`) *without* touching `global_backprop`,
+so realizable goals whose strategy only finalizes accepting terminals (`!k`,
+`F(!k)`, `G(!k)`) never crash, and unrealizable goals collapse before reaching
+it. Hence `X[!] k` (unrealizable) passes while `X[!] !k` (realizable) does not —
+and `X[!] o` crashes too, though `o` has nothing to do with `k`.
+
+**The fix (handed to `/developer`): `emits_dfa` must NOT materialise the sink.**
+Leave the automaton **incomplete** — a missing edge is already an implicit
+reject, and the language is unchanged. This
+
+- **keeps `backprop_nodes=true`**, so this PRD's linear-time cost claim survives
+  intact — the reason `backprop=false` is the *wrong* lever: it only dodges the
+  bug by avoiding `strategy_finalize`, at the price of the very thing being
+  measured;
+- **costs nothing** — Phase 0/Q1 already called the sink "correct, but wasted";
+- **plausibly improves faithfulness.** `main.tex` **skips** a non-enabled letter
+  (`\cref{def:enabled}`, §107–116); an incomplete automaton literally skips it,
+  where the sink was an encoding we had to *argue* equivalent. That argument is
+  this PRD's "single load-bearing semantic claim" — dropping the sink may retire
+  it rather than discharge it. **`/theory-review` item**, not a claim to assume.
+
+**Contract impact — this is a PRD-change event.** *`emits_dfa` — pinned
+specification* currently mandates the sink, calls the result "deterministic
+**and complete** by construction", and its *Edge cases* entry says a λ-undefined
+`q` gets "a single `bddtrue` edge to the sink" (it would get **no outgoing
+edges**). Those must be rewritten with the fix. The frozen **signature** does not
+move.
 
 **Do not credit the earlier all-clear.** During Phase 1 the concurrent
 `/test-writer` hit this *same* crash — same `strategy_finalize` /
