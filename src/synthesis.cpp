@@ -13,15 +13,23 @@ namespace ltlf_ek {
 
 OutputLabeledTransducer controller_as_transducer(const Controller& controller,
                                                  const VariablePartition& vars) {
-  // controller.strategy (solved_game_to_mealy) is a SPLIT/alternating arena
-  // --- an env-player node's out-edges are guarded by Ifree alone, leading to
-  // a sys-player node whose out-edges are guarded by Ofree alone (Spot's
-  // "state-player" named property; confirmed by unsplit_2step's own
-  // precondition).  unsplit_2step collapses each Ifree-then-Ofree hop into
-  // one edge guarded by their conjunction ("ins&outs", synthesis.hh), leaving
-  // only the (real) Q_C states --- exactly the one-edge-per-transition shape
-  // OutputLabeledTransducer expects.
-  const spot::twa_graph_ptr g = spot::unsplit_2step(controller.strategy);
+  // Controller's real contract (Phase 0/Q4 follow-up,
+  // docs/prd/mtdfa-product.md): a Mealy machine, split or not.
+  // DfaProduct's controller.strategy (solved_game_to_mealy) is a
+  // SPLIT/alternating arena --- an env-player node's out-edges are guarded by
+  // Ifree alone, leading to a sys-player node whose out-edges are guarded by
+  // Ofree alone (Spot's "state-player" named property; confirmed by
+  // unsplit_2step's own precondition).  unsplit_2step collapses each
+  // Ifree-then-Ofree hop into one edge guarded by their conjunction
+  // ("ins&outs", synthesis.hh), leaving only the (real) Q_C states ---
+  // exactly the one-edge-per-transition shape OutputLabeledTransducer
+  // expects.  solve_mtdfa's controller.strategy (mtdfa_strategy_to_mealy) is
+  // NOT split (no "state-player" property) and already has that shape, so
+  // unsplit_2step would throw on it ("state-player property not defined, not
+  // a game?") --- only unsplit when the property is actually present.
+  spot::twa_graph_ptr g = controller.strategy;
+  if (g->get_named_prop<std::vector<bool>>("state-player"))
+    g = spot::unsplit_2step(g);
 
   const SigmaSlices slices = sigma_slices(vars, Role::t_c);
   const bdd sigma0_cube = detail::cube_of(slices.sigma0, g);
