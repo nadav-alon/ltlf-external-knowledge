@@ -53,9 +53,11 @@
 #include "ltlf_ek/cli.hpp"
 #include "ltlf_ek/dfa_product.hpp"
 #include "ltlf_ek/ltlf_to_dfa.hpp"
+#include "ltlf_ek/mtdfa_product.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/product.hpp"
 #include "ltlf_ek/transducer_io.hpp"
+#include "ltlf_ek/turn_order.hpp"
 #include "ltlf_ek/variables.hpp"
 #include "ltlf_ek/verify_controller.hpp"
 
@@ -72,10 +74,12 @@ using ltlf_ek::Controller;
 using ltlf_ek::DfaProduct;
 using ltlf_ek::LetterAlphabet;
 using ltlf_ek::ltlf_to_dfa;
+using ltlf_ek::MtdfaProduct;
 using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::parse_transducer;
 using ltlf_ek::ProductGuards;
 using ltlf_ek::ProductState;
+using ltlf_ek::register_turn_order_aps;
 using ltlf_ek::Role;
 using ltlf_ek::to_guard_map;
 using ltlf_ek::Transducer;
@@ -1331,6 +1335,18 @@ OutputLabeledTransducer random_tin(const VariablePartition& partition,
                                    std::mt19937& rng,
                                    const spot::bdd_dict_ptr& dict,
                                    const CorpusConfig& config) {
+  // Dict-setup site (docs/prd/mtdfa-product.md "Test oracles" #3:
+  // "register_turn_order_aps must be called at every dict-setup site in
+  // tests too, not just the CLI"): establishes Ifree (sorted) < Iknown <
+  // Ofree < Oknown on `dict` BEFORE any other registration, on EITHER
+  // branch below.  Identical variable numbering to the four manual
+  // register_ap loops this replaces (same order: input_free, input_known,
+  // output_free, output_known), so the existing byte-identical golden
+  // corpus (GeneratedCorpus.DefaultCorpusIsByteIdenticalToGolden) is
+  // unaffected -- register_ap is idempotent, so the loops below just look
+  // up the same variable numbers register_turn_order_aps already assigned.
+  register_turn_order_aps(partition, dict);
+
   if (partition.input_known.empty())
     return trivial_transducer(partition, Role::t_in, dict);
 
@@ -1939,15 +1955,23 @@ std::string DumpTinForReplay(const OutputLabeledTransducer& t_in,
   return os.str();
 }
 
-// Metamorphic round-trip (PRD "Test oracles" #1, Phase 2's green checkpoint):
-// for every generated case, if DfaProduct::synthesize returns a Controller,
-// verify_controller on that same (phi, Tin, trivial Tout, T_C) must be `ok`
-// -- the standing "every solve_dfa controller verifies" invariant
-// (docs/prd/controller-verifier.md), now exercised on generated phi AND
-// generated Tin.  Unrealizable cases (synthesize returns nullopt) assert
-// nothing further -- one-directional by design (PRD "Edge cases"
-// "Unrealizable generated case").  Never gated on ltlfsynt: a plain TEST,
-// not under LtlfsyntOracleTest, so it runs even where ltlfsynt is absent.
+// Metamorphic round-trip (PRD "Test oracles" #1, Phase 2's green checkpoint;
+// extended by docs/prd/mtdfa-product.md "Test oracles" #1 to a SECOND
+// method): for every generated case, DfaProduct::synthesize (a) and
+// MtdfaProduct::synthesize (b) must AGREE on realizability (cross-method
+// metamorphic -- route (a) leans on Spot semantics Phase 0 probes but does
+// not prove, so this "roughly doubles corpus runtime; earns it"), and
+// whichever of a/b returns a Controller must pass verify_controller on that
+// same (phi, Tin, trivial Tout, T_C) -- the standing "every ...Product
+// controller verifies" invariant (docs/prd/controller-verifier.md), now
+// exercised on generated phi AND generated Tin, for BOTH methods
+// independently.  Unrealizable cases assert nothing further for that method
+// -- one-directional by design (PRD "Edge cases" "Unrealizable generated
+// case").  Never gated on ltlfsynt: a plain TEST, not under
+// LtlfsyntOracleTest, so it runs even where ltlfsynt is absent (the
+// differential half of oracle #1, "EXPECT_EQ(b.has_value(),
+// ltlfsynt_verdict(...))", lives in GeneratedCorpusDifferential below,
+// which IS gated on ltlfsynt since it drives it as a subprocess).
 // Phase 2 (soak-mode PRD "The three bodies under soak"): driven by
 // run_corpus, unchanged assertion; the per-case `continue` becomes an early
 // lambda `return`.
@@ -1965,19 +1989,34 @@ TEST(GeneratedCorpus, MetamorphicRoundTrip) {
 
         const OutputLabeledTransducer t_out =
             trivial_transducer(c.partition, Role::t_out, c.t_in.dict());
-        DfaProduct method;
-        const std::optional<Controller> controller =
-            method.synthesize(c.phi, c.partition, c.t_in, t_out);
-        if (!controller.has_value())
-          return;  // unrealizable: no controller to verify (one-directional).
 
-        EXPECT_TRUE(verify_controller(c.phi, c.partition, c.t_in, t_out,
-                                      *controller)
-                        .ok)
-            << "metamorphic round-trip failed: synthesize returned a "
-               "controller that verify_controller rejects -- t_in for "
-               "replay (see DumpTinForReplay):\n"
+        DfaProduct dfa_method;
+        MtdfaProduct mtdfa_method;
+        const std::optional<Controller> a =
+            dfa_method.synthesize(c.phi, c.partition, c.t_in, t_out);
+        const std::optional<Controller> b =
+            mtdfa_method.synthesize(c.phi, c.partition, c.t_in, t_out);
+
+        EXPECT_EQ(a.has_value(), b.has_value())
+            << "cross-method metamorphic failure: DfaProduct and "
+               "MtdfaProduct disagree on realizability -- t_in for replay "
+               "(see DumpTinForReplay):\n"
             << DumpTinForReplay(c.t_in, c.partition);
+
+        if (a.has_value())
+          EXPECT_TRUE(
+              verify_controller(c.phi, c.partition, c.t_in, t_out, *a).ok)
+              << "metamorphic round-trip failed: DfaProduct returned a "
+                 "controller that verify_controller rejects -- t_in for "
+                 "replay (see DumpTinForReplay):\n"
+              << DumpTinForReplay(c.t_in, c.partition);
+        if (b.has_value())
+          EXPECT_TRUE(
+              verify_controller(c.phi, c.partition, c.t_in, t_out, *b).ok)
+              << "metamorphic round-trip failed: MtdfaProduct returned a "
+                 "controller that verify_controller rejects -- t_in for "
+                 "replay (see DumpTinForReplay):\n"
+              << DumpTinForReplay(c.t_in, c.partition);
       });
   RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
   RecordProperty("cases_run", static_cast<int>(stats.cases_run));
@@ -2105,6 +2144,13 @@ std::string JoinCsv(const std::set<std::string>& names) {
 // (config.diff_width_cap, clamped by the ladder to kCorpusDiffWidthSoakCap =
 // 5), and the RunSubprocess timeout stays per-subprocess so a slow ltlfsynt
 // is always a skip, never a failure, under soak.
+//
+// Extended by docs/prd/mtdfa-product.md "Test oracles" #1 (the differential
+// line of the oracle's pseudocode, "EXPECT_EQ(b.has_value(),
+// ltlfsynt_verdict(...))"): the SAME phi/partition are also driven through
+// `--mtdfa-product`, and MtdfaProduct's verdict must agree with ltlfsynt too
+// -- "the differential drives the binary as a subprocess, so it needs
+// --mtdfa-product -- a Phase 1 dependency, not Phase 2."
 TEST_F(LtlfsyntOracleTest, GeneratedCorpusDifferential) {
   const CorpusConfig base = corpus_config_from_env();
   std::size_t skipped = 0;
@@ -2173,6 +2219,25 @@ TEST_F(LtlfsyntOracleTest, GeneratedCorpusDifferential) {
         const Verdict synt_verdict = ParseLtlfsyntVerdict(synt);
         EXPECT_EQ(IsRealizable(ek_verdict), IsRealizable(synt_verdict))
             << "generated-corpus differential disagreement for phi="
+            << phi_str
+            << ", partition=" << DescribeGeneratedPartition(c.partition);
+
+        // MtdfaProduct half (docs/prd/mtdfa-product.md "Test oracles" #1):
+        // same phi/partition, --mtdfa-product instead of --dfa-product,
+        // compared against the SAME ltlfsynt verdict already computed above.
+        std::vector<std::string> mtdfa_args = ek_args;
+        mtdfa_args[0] = "--mtdfa-product";
+        bool mtdfa_timed_out = false;
+        const CliResult mtdfa_ek = RunEkSynth(
+            mtdfa_args, cfg.subprocess_timeout_secs, &mtdfa_timed_out);
+        if (mtdfa_timed_out) {
+          ++skipped;
+          return;
+        }
+        const Verdict mtdfa_verdict = ParseEkSynthVerdict(mtdfa_ek);
+        EXPECT_EQ(IsRealizable(mtdfa_verdict), IsRealizable(synt_verdict))
+            << "MtdfaProduct generated-corpus differential disagreement for "
+               "phi="
             << phi_str
             << ", partition=" << DescribeGeneratedPartition(c.partition);
       });

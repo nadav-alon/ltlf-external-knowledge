@@ -75,6 +75,9 @@ if(LTLF_EK_BUILD_TESTS)
     tests/product_test.cpp
     tests/product_build_equivalence_test.cpp
     tests/dfa_product_test.cpp
+    tests/emits_dfa_test.cpp
+    tests/turn_order_test.cpp
+    tests/mtdfa_product_test.cpp
     tests/verify_controller_test.cpp
     tests/cli_test.cpp
     tests/ltlf_ek_synth_test.cpp
