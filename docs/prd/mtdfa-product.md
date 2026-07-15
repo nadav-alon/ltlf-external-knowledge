@@ -1,7 +1,11 @@
 # PRD: MTDFA product — Method 2 over `spot::mtdfa`
 
-**Status:** Phase 0 complete (2026-07-15) — *Interfaces & types* **frozen**;
-Phase 1 ready to start.
+**Status:** Phase 1 implemented (2026-07-15, uncommitted on the developer
+worktree) — `emits_dfa`, `turn_order.hpp` (`register_turn_order_aps` /
+`require_turn_order_aps`), `solve_mtdfa`, `MtdfaProduct`, and the CLI wiring
+all land; `ctest` not yet run by the developer (build-only per instructions;
+integration owns `ctest`). See "Developer comments / PRD disagreements" below
+for two implementation-level findings the frozen contract didn't fully pin.
 **Interface:** implements `Synthesis` as `MtdfaProduct` — a **second
 implementation of Method 2** (`alg:dfa_product`), not a sixth method. Selected by
 the CLI flag `--mtdfa-product`. `DfaProduct` and `ltlf_to_dfa` are left untouched.
@@ -767,3 +771,65 @@ Flagged for `/theory-review`; not resolved here.
   them is the reported result of this PRD.
 - `minimize_mtdfa` available as a separately-measured knob, default off.
 - All four gates ticked with refs.
+
+## Developer comments / PRD disagreements
+
+**2026-07-15, `/developer` (Phase 1):**
+
+- **`emits_dfa`'s "one state per q in [0, num_states)" is not implementable
+  against the frozen `Transducer` interface, and the correct fix is BFS, not a
+  new accessor.** `transducer.hpp` exposes `initial_state()`, `delta(q, v)`,
+  `lambda(q, v)`, `emits_region(q)`, `delta_edges(q)`, `dict()` --- no
+  `num_states()`, so there is no way to iterate a literal `[0, num_states)`
+  range for an arbitrary `Transducer`. `emits_dfa` instead discovers tau's
+  state set by BFS from `tau.initial_state()`, following `delta_edges`'
+  destinations, assigning each newly-seen tau state a fresh index in its own
+  `spot::twa_graph` as it is discovered. This is not a signature change (no
+  frozen type moved) and is arguably *more* correct than the literal reading:
+  it visits exactly the reachable states, so an unreachable state (which
+  contributes nothing to the language) costs nothing, and an unreachable
+  rejecting sink never gets created --- exactly the dead-root Phase 0/Q1
+  already told us to avoid by other means. Confirmed independently by the
+  concurrent `/test-writer` branch against the same header before this PRD
+  entry was written.
+- **`register_turn_order_aps`'s registrar cannot be transient, and the frozen
+  `void(vars, dict)` signature has no way to return a handle for the caller to
+  keep alive.** `spot::bdd_dict::register_proposition` is ref-counted per
+  owner (`spot/twa/bdddict.cc:106-125,223-272`): when the *last* owner of an
+  AP unregisters, the mapping is erased from `var_map` and the BuDDy variable
+  slot is returned to that dict's own free list, available for a *different*
+  formula's next allocation. The PRD's own reasoning ("register_ap is
+  idempotent, so this can only establish the order before the first
+  registration") is only true if `register_turn_order_aps`'s own registration
+  is *still present* (not yet unregistered) when `t_in`/`t_out`/the Goal
+  automaton later re-register the same AP names — i.e. the establishing
+  registrar must outlive the call, exactly like Spot's own
+  `bdd_dict_preorder` (`bin/ltlfsynt.cc:469`, a stack-scoped object spanning
+  the whole synthesis call) and this project's pre-existing `ap_registrar`
+  idiom (`ltlf_ek_synth.cpp`, kept alive for the whole CLI run). A registrar
+  that dies at `register_turn_order_aps`'s own return would let that ordering
+  guarantee depend on the *accidental* re-registration order of later
+  consumers instead — fragile, and not what the "idempotent no-op" argument
+  actually requires. Chosen fix: `register_turn_order_aps` keeps its scratch
+  `spot::twa_graph_ptr` alive in a function-local `static
+  std::vector<spot::twa_graph_ptr>` (never cleared), so it only ever
+  unregisters at process exit — after every real consumer on that dict has
+  come and gone. This is a deliberate, bounded, per-call footprint (one empty
+  `twa_graph` plus a handful of `bdd_map` entries, never the transducers/DFAs/
+  controllers built *on* the dict, which are unaffected and free normally);
+  the dict itself is kept alive longer than its natural scope, which is a
+  non-issue for the CLI (one dict per process) and a small, bounded cost for
+  a test binary calling this once per generated-corpus case. If corpus scale
+  ever makes this cost material, the fix is a signature change (an explicit
+  persistent-registrar out-parameter or object) — a PRD-change event, not a
+  quiet workaround.
+- **Minor, non-signature additions beyond the pinned snippets:**
+  `MtdfaProduct::synthesize` also calls `validate_product_inputs` (phi's APs
+  ⊆ I∪O, one shared `bdd_dict`) before `require_turn_order_aps`, mirroring
+  `DfaProduct`'s own validation preamble — the frozen class comment doesn't
+  mention it, but nothing in Decision 1/2 forbids it either.
+  `ltlf_ek_synth.cpp`'s `kMethodFlags` list (used by `ParseArgs`, not by
+  `make_synthesis_method`) also gained `"mtdfa-product"` — without it,
+  `--mtdfa-product` would throw `UsageError("unrecognised flag")` before ever
+  reaching `make_synthesis_method`, so this was necessary for the PRD's own
+  green checkpoint ("`--mtdfa-product` reachable from the CLI").

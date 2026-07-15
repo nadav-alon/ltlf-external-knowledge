@@ -32,6 +32,7 @@
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/synthesis.hpp"
 #include "ltlf_ek/transducer_io.hpp"
+#include "ltlf_ek/turn_order.hpp"
 #include "ltlf_ek/variables.hpp"
 #include "ltlf_ek/verify_controller.hpp"
 
@@ -44,11 +45,14 @@ using ltlf_ek::Synthesis;
 using ltlf_ek::VariablePartition;
 using ltlf_ek::Witness;
 
-// The five method flags this CLI recognises (docs/GLOSSARY.md "The five
-// methods"); only "dfa-product" is wired (ltlf_ek::make_synthesis_method).
+// The method flags this CLI recognises: the five methods (docs/GLOSSARY.md
+// "The five methods") plus "mtdfa-product", a second implementation of
+// Method 2 over the mtdfa Representation (docs/prd/mtdfa-product.md) --- six
+// flags over five methods.  "dfa-product" and "mtdfa-product" are wired
+// (ltlf_ek::make_synthesis_method); the rest are not yet implemented.
 const std::vector<std::string> kMethodFlags = {
-    "dfa-product", "nfa-product", "otf-dfa-product", "otf-agg-product",
-    "otf-dyn-agg-product"};
+    "dfa-product",     "mtdfa-product",     "nfa-product",
+    "otf-dfa-product", "otf-agg-product",   "otf-dyn-agg-product"};
 
 // A usage mistake (bad/missing/conflicting flags, malformed input the user
 // supplied) --- distinct from an internal/not-yet-implemented error.  Maps to
@@ -341,8 +345,13 @@ int main(int argc, char** argv) {
     // from phi and from both transducers").
     const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
     const spot::twa_graph_ptr ap_registrar = spot::make_twa_graph(dict);
-    for (const auto& ap : partition.inputs()) ap_registrar->register_ap(ap);
-    for (const auto& ap : partition.outputs()) ap_registrar->register_ap(ap);
+    // Phase 0/Q2 (docs/prd/mtdfa-product.md "Turn order"): register in the
+    // MTDFA-game-correct order --- Ifree strictly above every controllable
+    // (Ofree u Iknown u Oknown).  register_ap is idempotent, so this is also
+    // correct for DfaProduct: with V = {} (Iknown = Oknown = {}) the order
+    // collapses to exactly Ifree-then-Ofree, identical to the loops this
+    // replaces.
+    ltlf_ek::register_turn_order_aps(partition, dict);
 
     const OutputLabeledTransducer t_in = BuildTransducer(
         args.known_input_transducer, partition, Role::t_in, dict);

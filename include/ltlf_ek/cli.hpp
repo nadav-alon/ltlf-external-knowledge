@@ -35,9 +35,13 @@ VariablePartition parse_partition_file(std::istream& in);
 
 // Construct the Synthesis method named by a CLI method flag with its leading
 // `--` stripped, e.g. "dfa-product" (docs/GLOSSARY.md "The five methods").
-// Only "dfa-product" is wired today (-> DfaProduct); the other four recognised
-// method names throw std::logic_error("... not yet implemented"); any other
-// name throws std::invalid_argument("unrecognised method").
+// Six flags over five methods: "mtdfa-product" is a SECOND implementation of
+// Method 2 (the mtdfa Representation, docs/prd/mtdfa-product.md), not a sixth
+// method --- DfaProduct stays the explicit-Representation implementation of
+// the same method.  "dfa-product" and "mtdfa-product" are wired today (->
+// DfaProduct, MtdfaProduct respectively); the other four recognised method
+// names throw std::logic_error("... not yet implemented"); any other name
+// throws std::invalid_argument("unrecognised method").
 std::unique_ptr<Synthesis> make_synthesis_method(
     const std::string& method_flag);
 
