@@ -53,6 +53,13 @@ Overleaf).
     **not** loop on the build hoping it goes green. Your compile check is careful
     reading against the frozen block; the launcher builds against the real code
     once it lands.
+  - **Writing the implementation yourself is the specific failure this rule
+    exists to prevent.** A `/developer` agent is landing exactly those files on
+    its own branch right now; a second copy is duplicated work *and* collides at
+    merge, destroying the disjointness that makes the concurrent workflow cheap.
+    `tests/` plus your `CMakeLists.txt` additions are your **only** territory —
+    if you find yourself creating a header or a `src/*.cpp` to get something to
+    build, you have left it. Stop and report instead.
   - **Don't re-derive what the PRD already froze — this is the mode's top token
     sink.** Reading five headers to reconstruct a signature the *Interfaces &
     types* block already pins is exactly the waste to avoid. Read that block, the
@@ -152,6 +159,10 @@ print the offending formula/partition on failure.
 
 ## Build & run
 
+**Sequential workflow only.** In the `concurrent` workflow you do not build and
+do not run `ctest` — the implementation is absent by design and the launcher owns
+integration. This whole section is inapplicable there; see *Before writing*.
+
 - **Keep build/ctest output out of your context.** `--output-on-failure` dumps
   every failing test's full stdout, and that dump is then re-read on every later
   turn — the single biggest driver of this agent's token cost. Route verbose
@@ -166,9 +177,24 @@ print the offending formula/partition on failure.
 
 ## Definition of done
 
+**Sequential workflow** — the implementation already exists:
+
 - New/changed functions have unit tests where sensible; the suite builds.
 - `ctest` is green (or failures are reported with output, not hidden).
 - Metamorphic / verifier oracles added or extended when a method changed.
 - If a `docs/prd/` PRD backs this feature, tick its **`tests`** gate with the
   commit/PR ref (only once the suite is actually green). Gate vocabulary is
   defined in `/grill-prd`.
+
+**Concurrent workflow** — you ran *before* the implementation landed. The three
+clauses above about building, `ctest`, and the `tests` gate **do not apply to
+you**, and are **not** a licence to make them apply by supplying the missing code
+yourself. Yours is:
+
+- Test files authored under `tests/` against the frozen *Interfaces & types*
+  block, added to the `unit_tests` target in `CMakeLists.txt`.
+- `git status` on your branch shows changes under `tests/` and `CMakeLists.txt`
+  and **nothing else**.
+- **The suite not compiling is your correct end state** — report it plainly; it
+  is not a failure and not yours to fix.
+- The launcher merges both branches, builds, runs `ctest`, and ticks the gate.

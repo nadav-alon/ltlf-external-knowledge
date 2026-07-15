@@ -1,11 +1,13 @@
 # PRD: MTDFA product — Method 2 over `spot::mtdfa`
 
-**Status:** Phase 1 implemented (2026-07-15, uncommitted on the developer
-worktree) — `emits_dfa`, `turn_order.hpp` (`register_turn_order_aps` /
-`require_turn_order_aps`), `solve_mtdfa`, `MtdfaProduct`, and the CLI wiring
-all land; `ctest` not yet run by the developer (build-only per instructions;
-integration owns `ctest`). See "Developer comments / PRD disagreements" below
-for two implementation-level findings the frozen contract didn't fully pin.
+**Status:** Phase 1 implemented — **green checkpoint NOT met** (merged 2026-07-15,
+`61b1ad0`). `emits_dfa`, `turn_order.hpp` (`register_turn_order_aps` /
+`require_turn_order_aps`), `solve_mtdfa`, `MtdfaProduct` and the CLI wiring all
+land and build clean; `ctest` is **299/302 with 3 SEGFAULTs**, all on the
+`MtdfaProduct` path, all inside Spot. **Blocked on *Phase 1 blocker — the
+`backprop_nodes=true` segfault*** at the end of this file. See also "Developer
+comments / PRD disagreements" for two implementation-level findings the frozen
+contract didn't fully pin.
 **Interface:** implements `Synthesis` as `MtdfaProduct` — a **second
 implementation of Method 2** (`alg:dfa_product`), not a sixth method. Selected by
 the CLI flag `--mtdfa-product`. `DfaProduct` and `ltlf_to_dfa` are left untouched.
@@ -833,3 +835,64 @@ Flagged for `/theory-review`; not resolved here.
   `--mtdfa-product` would throw `UsageError("unrecognised flag")` before ever
   reaching `make_synthesis_method`, so this was necessary for the PRD's own
   green checkpoint ("`--mtdfa-product` reachable from the CLI").
+
+## Phase 1 blocker — the `backprop_nodes=true` segfault
+
+**Found at integration 2026-07-15 (`61b1ad0`), by the launcher. Open — not
+diagnosed past localisation. `/grill-debug` owns the root cause; this section is
+the handoff, not a resolution.**
+
+`ctest` is **299/302**. All three failures are SEGFAULTs, all on the
+`MtdfaProduct` path, all on `X[!]` formulas:
+
+- `GeneratedCorpus.MetamorphicRoundTrip`
+- `KnownInputCorpus/MtdfaKnownInputTest…/B_XBang_not_k`
+- `KnownInputCorpus/MtdfaKnownInputTest…/C_XBang_k_iff_a`
+
+**The crash is inside Spot, not in our frames.** Backtrace:
+
+```
+spot::strategy_finalize (ltlf2dfa.cc:1593)
+  <- bdd_mt_apply1_synthesis_with_choice (bddop.c:1818)
+  <- spot::mtdfa_winning_strategy_by_backprop (ltlf2dfa.cc:3537)
+  <- spot::mtdfa_winning_strategy (ltlf2dfa.cc:3553)
+  <- ltlf_ek::solve_mtdfa (src/solve_mtdfa.cpp:47)
+```
+
+`ltlf2dfa.cc:1593` is `global_backprop->root_winner(term / 2)` inside
+`strategy_finalize` — a global-pointer dereference during terminal rewriting.
+`solve_mtdfa.cpp:47` implements *`solve_mtdfa` — pinned specification* step 2
+**exactly as pinned**, so this is not an implementation deviation.
+
+**`backprop_nodes=false` makes all three pass** (verified at integration, then
+reverted — the tree still ships the pinned `true`). This is the discriminator,
+and it is **not** a free fix: step 2 pinned `true` precisely because the header
+promises *"a linear-time resolution"* versus `false`'s *"does not have linear
+complexity"*, and **cost is this PRD's entire claim**. Switching to `false` to
+get green would quietly trade away the thing being measured. That is a
+**PRD-change event and a `/grill-debug` question**, not an integration decision —
+hence untaken here.
+
+**Live hypothesis, untested: a version gap.** The linked library is
+**`libspot 2.14.4.dev`**; the source tree at `/home/cowclaw/spot` is
+**`2.15.1.dev`**, *newer* — the same gap Phase 0 flagged (Phase 0 treated the
+source as corroboration only, and every Phase 0 claim was confirmed against the
+**linked** lib, so no Phase 0 answer is invalidated by this). `2.15.1` carries
+`ltlf2dfa.cc` commits including *"ltlfsynt: add node-based backpropagation
+options"* (`ec2d00d9f`). **If this is an upstream bug already fixed in 2.15.1,
+the fix is to relink, and `backprop_nodes=true` stays** — which would preserve
+the cost claim intact. Establish this **before** touching the flag.
+
+**Do not credit the earlier all-clear.** During Phase 1 the concurrent
+`/test-writer` hit this *same* crash — same `strategy_finalize` /
+`bdd_mt_apply1_synthesis_with_choice` frames — while running its own throwaway
+implementation, and attributed it to a bug in that scratch code ("isolated to my
+throwaway automaton construction, not to the test assertions"). It reproduces
+against the developer's real implementation, so that attribution was wrong. The
+crash is genuine and pre-dates either implementation; it belongs to the
+`backprop=true` path itself.
+
+**Why the corpus oracle earns its cost here.** The two named fixtures are `X[!]`
+rows — the Mealy/weak-X-sensitive region. `B_XBang_k` **passes** while
+`B_XBang_not_k` segfaults, so the trigger is narrower than "uses `X[!]`" and a
+thinner corpus would have shipped this.
