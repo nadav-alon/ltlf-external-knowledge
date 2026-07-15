@@ -9,7 +9,7 @@ three corpus bodies on a config struct, adds per-knob env overrides, and adds
 a wall-clock-budgeted escalating driver. Not a `Synthesis` method; no new
 algorithm.
 **main.tex ref:** unchanged from v1 — Method 2 (`alg:dfa_product`); the
-*enabled* predicate `\cref{def:enabled}` (§107–116) + committed Case-A totality
+*enabled* predicate `\cref{def:consistency}` (§107–116) + committed Case-A totality
 (the generated $\Tin$ must satisfy these); the controller postcondition
 `\cref{def:probDefTransducer}` (§129–131, decided by `verify_controller`); the
 Mealy observed slice $\Sigma_0=\mathcal{I}$ of $S_C$ (`main.tex` §86). This PRD

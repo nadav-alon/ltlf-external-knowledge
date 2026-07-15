@@ -647,7 +647,7 @@ constexpr unsigned kGuardSampleSeed = 20260705;   // fixed seed (deterministic).
 // Ifree-sequence.  Each letter is `ifree_slice & lambda(q, ifree_slice)`
 // (Sigma0=Ifree, Sigma1=Iknown for Role::t_in) -- well-defined because Tin is
 // deterministic and total in the committed Case-A regime (main.tex
-// \cref{def:enabled}, glossary "Partial transducers -- resolved").  No Ofree
+// \cref{def:consistency}, glossary "Partial transducers -- resolved").  No Ofree
 // slice is materialised: none of the four Tin fixtures' transducer files or
 // psi_in strings mention an Ofree AP, so there is nothing to fix to a
 // canonical value for this corpus (PRD "Edge cases" "Ofree don't-cares").  A
@@ -1325,7 +1325,7 @@ spot::formula generate_random_formula(const VariablePartition& partition,
 
 // random_tin (PRD "Random Tin generation"): an in-memory OutputLabeledTransducer
 // built directly on `dict`, deterministic + total by construction (the
-// committed Case-A regime, \cref{def:enabled}) -- no validity check needed
+// committed Case-A regime, \cref{def:consistency}) -- no validity check needed
 // afterward.  Role t_in => Sigma0 = Ifree, Sigma1 = Iknown (glossary "Role").
 // Degenerate empty-Iknown case: trivial_transducer instead of a random table
 // (PRD "Edge cases" "Empty Iknown").  Phase 1 (soak-mode PRD): the

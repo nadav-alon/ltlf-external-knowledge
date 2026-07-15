@@ -29,7 +29,7 @@ namespace ltlf_ek {
 // has no F (main.tex §101); only states, initial state, and edge guards are
 // used.  delta and lambda may be partial: a missing HOA edge is an undefined
 // delta, a `state q: false` entry an undefined lambda (main.tex §107,
-// \cref{def:enabled}).
+// \cref{def:consistency}).
 //
 // Throws std::invalid_argument (with context) on any malformed input:
 // non-deterministic delta, a non-functional lambda, an AP outside Sigma0 ∪

@@ -225,7 +225,7 @@ TEST(DfaProduct, ThrowsWhenTransducersDoNotShareOneDict) {
 // --- Skip, not sink (docs/prd/drop-method2-sink.md) -------------------------
 //
 // A non-enabled letter now contributes no product transition at all (the
-// Methods 1/3 filter, def:enabled) instead of being routed to the deleted
+// Methods 1/3 filter, def:consistency) instead of being routed to the deleted
 // bot-sink.  These two tests replace the coverage lost by deleting
 // SolveDfa.ThrowsWhenProductLacksSinkProperty: one exercises DfaProduct's own
 // delta-undefined skip, the other exercises solve_dfa's new sink-free,
@@ -233,7 +233,7 @@ TEST(DfaProduct, ThrowsWhenTransducersDoNotShareOneDict) {
 
 // V = ∅ here, so consistent() is trivially true for every letter regardless
 // of lambda (v ∩ ∅ = lambda(...) over an empty slice) --- this isolates
-// DfaProduct's own `!d_in` skip (the delta-definedness half of def:enabled)
+// DfaProduct's own `!d_in` skip (the delta-definedness half of def:consistency)
 // from the lambda/cons half already covered by consistency_test.cpp and by
 // KnowledgeTurnsUnrealizableIntoRealizable.
 TEST(DfaProduct, PartialKnownTransducerDeltaSkipsUndefinedLetters) {

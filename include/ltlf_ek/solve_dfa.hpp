@@ -21,7 +21,7 @@ namespace ltlf_ek {
 // pinned by the transducers, so solve_dfa existentially projects them out of
 // the product guards and solves the game over Ifree (environment) vs Ofree
 // (system) --- non-cons letters contribute no product transition in the first
-// place (def:enabled, skipped as in Methods 1/3), so there is nothing to drop
+// place (def:consistency, skipped as in Methods 1/3), so there is nothing to drop
 // here.  The resulting Ifree-controller already ignores the redundant Iknown
 // bits, so it *is* the lifted 2^{I}-interface controller of
 // def:probDefTransducer (a faithful T_C).

@@ -8,7 +8,7 @@ Spec: `docs/prd/concrete-transducer.md` · Implemented at `2b45755`
 - **`Transducer` abstract base** (glossary: *transducer*) —
   `include/ltlf_ek/transducer.hpp:30`. Four pure virtuals: `initial_state`,
   `dict`, `delta(q, v)`, `lambda(q, v)`. Partiality is `std::optional`
-  (`nullopt` = undefined, `def:enabled`); `lambda` takes the **full letter**
+  (`nullopt` = undefined, `def:consistency`); `lambda` takes the **full letter**
   (§87 abuse-of-notation) so `t_in`/`t_out` are interchangeable at the
   interface. The header comment (`:22-29`) carries the un-typeable contract:
   a `nullopt` from delta *or* lambda ⇒ non-enabled ⇒ treated like a `cons`
@@ -44,7 +44,7 @@ Spec: `docs/prd/concrete-transducer.md` · Implemented at `2b45755`
   shared dict, full-minterm letter.
 
 - **Enabled discipline at the call site** — `src/dfa_product.cpp:118-140`.
-  `d_in && d_out && consistent(...)` on `:125` *is* `def:enabled`. `delta` may
+  `d_in && d_out && consistent(...)` on `:125` *is* `def:consistency`. `delta` may
   be *called* on any letter (total C++ function); the **dereference** `*d_in`
   happens only inside the guarded branch — the fix for the pre-`optional`
   latent bug (shared by main.tex pseudocode, `\cl`-flagged). A non-enabled
@@ -64,7 +64,7 @@ Spec: `docs/prd/concrete-transducer.md` · Implemented at `2b45755`
 - **Unit — `tests/consistency_test.cpp`**: shared-dict one-state fixtures
   (`t_in`: b:=a; `t_out`: e:=true with **empty Σ0**, `sigma0=bddtrue`).
   Consistent iff both known slices match; false on either mismatch; false on
-  undefined λ (`def:enabled`).
+  undefined λ (`def:consistency`).
 - **Domain oracles**:
   - *Monolithic baseline* — **covered**:
     `dfa_product_test.cpp:160` (`EmptyKnowledgeMatchesMonolithicBaseline`),

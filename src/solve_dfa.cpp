@@ -21,7 +21,7 @@ std::optional<Controller> solve_dfa(const spot::twa_graph_ptr& product,
   // Rebuild the product as the free-only game arena: project the pinned Iknown,
   // Oknown out of every guard, and turn the F_P-reachability objective into a
   // Büchi one by making every final state an absorbing accepting self-loop.
-  // Non-cons letters were already skipped by the product builder (def:enabled),
+  // Non-cons letters were already skipped by the product builder (def:consistency),
   // so there are no sink transitions to drop here.
   spot::twa_graph_ptr game = spot::make_twa_graph(dict);
   // The arena's alphabet is the free variables only; everything not an output

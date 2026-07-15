@@ -2,13 +2,13 @@
 
 **Status:** implemented
 **Interface:** new free function `verify_controller` (library, `include/ltlf_ek/verify_controller.hpp`); new `Role::t_c` + `controller_as_transducer` materializer; wires the deferred CLI `--model-check` flag. **Not** a `Synthesis` method.
-**main.tex ref:** `\cref{def:probDefTransducer}` (the postcondition being checked, §129–131), the turn order + *agreement* (§81, §88), `\cref{def:enabled}` / `\cons` (§149–157), the controller signature `$\lambda_C:Q_C\times2^{\mathcal I}\to2^{\Ofree}$` (§125). Fulfils the deferred **oracle #2** of `docs/prd/dfa-product.md` and the deferred **`--model-check`** of `docs/prd/cli-wrapper.md` (both stand; this PRD does not supersede them).
+**main.tex ref:** `\cref{def:probDefTransducer}` (the postcondition being checked, §129–131), the turn order + *agreement* (§81, §88), `\cref{def:consistency}` / `\cons` (§149–157), the controller signature `$\lambda_C:Q_C\times2^{\mathcal I}\to2^{\Ofree}$` (§125). Fulfils the deferred **oracle #2** of `docs/prd/dfa-product.md` and the deferred **`--model-check`** of `docs/prd/cli-wrapper.md` (both stand; this PRD does not supersede them).
 
 **Gates:**
 - [x] glossary        — new terms landed in docs/GLOSSARY.md C++ column (`verify_controller`, `Role::t_c`, `controller_as_transducer`, `VerifyResult`/`Witness`, "Controller verifier"), verified spelled-exact.
 - [x] tests           — `tests/verify_controller_test.cpp` (12 cases: oracles #1-#5 — ok/lasso/dead-end unit fixtures, positive metamorphic vs `DfaProduct` incl. knowledge-sensitivity flip and empty-Ofree, the `X[!] o` reachability-vs-inclusion discriminator, lambda-flip + edge-redirect discriminating negatives with witness-replay self-consistency, `controller_as_transducer` round-trip, validation throws); `Role::t_c` unit fixtures added to `tests/transducer_io_test.cpp` (`SigmaSlicesDirect.TCIsIAndOfree`, `ParseTransducer.RoleTcSigma0IsInputsSigma1IsOutputFree`); oracle #6 (CLI end-to-end) extended in `tests/ltlf_ek_synth_test.cpp` (SAFE self-check agreeing with the library, hand-broken UNSAFE `--controller` + witness, malformed `--controller` file exit 2) on top of the two pre-existing subprocess tests. Full suite green, 186/186; branch `master`, uncommitted.
 - [x] code-review     — domain (/code-reviewer) **and** generic (/code-review, high effort) both **clean** (2026-07-06): no must-fix, no shipping bug. The two real bugs (unrealizable-self-check `nullopt` deref; mismatched-iterator hang in `PrintWitness`) were fixed before review; the diff carries the fixed code. One non-blocking *consider* tracked in `docs/BACKLOG.md`: the throwaway letter `registrar` in `verify_controller` is the sole owner of some AP registrations feeding the returned `Witness` bdds — safe at every current call site (the CLI's `ap_registrar` / the tests' transducers independently keep I∪O registered), latent only for a library caller that doesn't; harden with a documented precondition.
-- [x] theory-review   — code ↔ math faithfulness vs main.tex: **clean, no code-bug** (theory-reviewer, 2026-07-06). All four flagged questions faithful/sound — F_φ mark parity with `solve_dfa` (both read `state_is_accepting` off the same `ltlf_to_dfa`), virtual-start split collapses to `init ∉ Bad` given `ltlf_to_mtdfa`'s non-accepting init, `agree` is the correct 4-way lift of `def:enabled`+§88+§125, DFA-completeness assumption sound (`complete_here` ⇒ `dfa_delta` nullopt branch is defensive dead code). One `underspecified` note stays in `main.tex` (author's open `\na` at §96, termination reading); reviewer recommends confirm-not-modify, no `\cl` committed. Branch `master`, uncommitted.
+- [x] theory-review   — code ↔ math faithfulness vs main.tex: **clean, no code-bug** (theory-reviewer, 2026-07-06). All four flagged questions faithful/sound — F_φ mark parity with `solve_dfa` (both read `state_is_accepting` off the same `ltlf_to_dfa`), virtual-start split collapses to `init ∉ Bad` given `ltlf_to_mtdfa`'s non-accepting init, `agree` is the correct 4-way lift of `def:consistency`+§88+§125, DFA-completeness assumption sound (`complete_here` ⇒ `dfa_delta` nullopt branch is defensive dead code). One `underspecified` note stays in `main.tex` (author's open `\na` at §96, termination reading); reviewer recommends confirm-not-modify, no `\cl` committed. Branch `master`, uncommitted.
 
 ## Goal
 
@@ -44,7 +44,7 @@ From `docs/GLOSSARY.md` unless flagged:
 - **External knowledge strategy** `$\Tin,\Tout$` → `Transducer` (`t_in`/`t_out`).
 - **Agreement** → `agrees`/the per-letter **Consistency** `$\cons$` →
   `consistent(t_in, q_in, t_out, q_out, v)` (§"Consistency (cons)").
-- **Enabled letter** → `\cref{def:enabled}`.
+- **Enabled letter** → `\cref{def:consistency}`.
 - **NFA/DFA for the Goal** → `ltlf_to_dfa` (§"Goal DFA construction").
 - **Role** / `sigma_slices` → §"Role".
 - **Output-labeled transducer** → `OutputLabeledTransducer`.
@@ -229,7 +229,7 @@ ltlf-ek-synth --model-check [--controller F] --<method> --formula φ  <partition
   returns `nullopt`).
 - **Partial `$\Tin/\Tout/T_C$`** — undefined `$\lambda$`/`$\delta$` ⇒ that
   `$\Ifree$` is a dead-end (`hasDeadEnd`); handled by `agree`'s definedness clause,
-  consistent with `\cref{def:enabled}` (Case-A regime).
+  consistent with `\cref{def:consistency}` (Case-A regime).
 - **Controller from `--controller` that is not total on reachable inputs** — an
   undefined `$\lambda_C$` on a reachable `$\Ifree$` is a dead-end ⇒ contributes to
   `Bad` (a partial controller that abandons a play is incorrect). This is the

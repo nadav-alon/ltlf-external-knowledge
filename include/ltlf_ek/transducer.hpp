@@ -21,7 +21,7 @@ namespace ltlf_ek {
 // This lambda-split shape has no native Spot equivalent, so we model it
 // explicitly.  See docs/GLOSSARY.md ("transducer", "lambda").
 //
-// Both delta and lambda are *partial* (main.tex §107, \cref{def:enabled}):
+// Both delta and lambda are *partial* (main.tex §107, \cref{def:consistency}):
 // either may be undefined at an argument, signalled by `std::nullopt`.  A letter
 // is *enabled* at a pair of states iff delta and lambda are defined at it on
 // both transducers AND `consistent(...)` holds; a nullopt from delta OR lambda

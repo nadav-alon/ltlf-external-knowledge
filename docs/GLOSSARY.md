@@ -403,9 +403,11 @@ the existing term or update this file via `/glossary` — do not let drift happe
   construction. Exactly as with the symbolic form, the automaton $\cons$ is the
   **intersection** `product(emits_dfa(t_in), emits_dfa(t_out))` and there is **no
   cons automaton** — $\cons$ has a per-letter form and nothing else. Where the
-  per-letter/symbolic forms *skip* a non-agreeing letter (`\cref{def:enabled}`),
-  the automaton form *sinks* it; that these coincide is load-bearing and is flagged
-  for `/theory-review` (`docs/prd/mtdfa-product.md`).
+  per-letter/symbolic forms *skip* a non-agreeing letter (`\cref{def:consistency}`,
+  partiality clause), the automaton form **also skips** it — a missing edge, not a
+  sink (sink dropped 2026-07-15). The two coincide by construction now, so the
+  question this once flagged for `/theory-review` is **closed**: there is no
+  sink-vs-skip encoding gap left to argue.
 - **Do not call it:** agrees (that is per-trace *Agreement*), consistent /
   consistent_with (that is the two-transducer $\cons$), commits, produces (that
   is the *Produced-trace language*), matches; for the symbolic form, not
@@ -708,10 +710,17 @@ is seeded with them:
   variable set as $\Sigma_0\in\{\Ifree,\ \mathcal{I}\cup\Ofree,\ \mathcal{I}\}$
   and writes the intersection $v_t\cap\Sigma_0$; the code's `sigma0_cube`
   instantiates exactly that slice (see *Observed / produced slice*).
-- **Partial transducers** — *resolved.* Settled by `main.tex` §107–116 and the
-  *enabled* predicate (`\cref{def:enabled}`), valid for all methods. The
-  `std::optional` return on `Transducer::delta` / `::lambda` (`nullopt` =
-  undefined) is **final**, not tentative: a non-enabled letter is skipped
-  (all methods, `\cref{def:enabled}`). The project commits to
-  the Case-A regime, so partial and total transducers are language-equivalent.
-  See `docs/prd/concrete-transducer.md`.
+- **Partial transducers** — *resolved.* Settled by `\cref{def:consistency}`, whose
+  **partiality clause** ("a missing $\delta$ or $\lambda$ value is equivalent to an
+  inconsistent letter") is valid for all methods. The `std::optional` return on
+  `Transducer::delta` / `::lambda` (`nullopt` = undefined) is **final**, not
+  tentative: a non-enabled letter is skipped (all methods).
+  The project commits to the Case-A regime, so partial and total transducers are
+  language-equivalent. See `docs/prd/concrete-transducer.md`.
+  - **Terminology note (2026-07-16).** *Enabled* was once its own `main.tex`
+    definition (`\label{def:enabled}`, "Enabled letter" = δ **and** λ defined at
+    both states **and** $\cons$). An Overleaf update **removed it** and folded
+    partiality into `\cref{def:consistency}` itself, so **`\cref{def:enabled}` no
+    longer resolves** and every reference was repointed to `def:consistency`.
+    *Enabled* survives as **this project's** term for the same predicate — it is
+    ours now, not `main.tex`'s. Cite `def:consistency`, never `def:enabled`.

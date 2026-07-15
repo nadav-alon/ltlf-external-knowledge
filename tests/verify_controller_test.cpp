@@ -113,7 +113,7 @@ TEST(VerifyController, ConstantFalseOutputNeverSatisfiesEventuallyO) {
 // Bad (dead-end, empty cycle): state 0 is total (commits o := false always,
 // F(o) never yet true), then moves to state 1 whose lambda_C is defined only
 // when `i` holds --- so the environment choosing i=false at step 2 is a
-// forced dead-end (main.tex \cref{def:enabled}; PRD "Edge cases": an
+// forced dead-end (main.tex \cref{def:consistency}; PRD "Edge cases": an
 // undefined lambda_C on a reachable Ifree is a dead-end).
 TEST(VerifyController, PartialControllerDeadEndsOnUndefinedLambda) {
   auto dict = spot::make_bdd_dict();

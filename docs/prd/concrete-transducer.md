@@ -42,7 +42,7 @@ scope** (a later PRD).
 - **`lambda` signature** — glossary corrected to `lambda(q, v)` (full letter in),
   which implies renaming the `bdd visible` parameter in `transducer.hpp` → `v`.
 - **Partiality** — **settled** in `main.tex` §Transducers (partial-transducer
-  paragraph) + `\cref{def:enabled}`: `delta`/`lambda` may be undefined, and a
+  paragraph) + `\cref{def:consistency}`: `delta`/`lambda` may be undefined, and a
   letter is *enabled* iff both transducers are **defined** at it **and** `cons`
   holds. The `std::optional` signature is now backed by theory (no longer
   tentative). The project uses only the **Case-A** regime (undefined solely on
@@ -67,10 +67,10 @@ scope** (a later PRD).
    $\lambda_{in}(q_{in},v)$ and $v\cap\Oknown$ against $\lambda_{out}(q_{out},v)$
    — i.e. `lambda` is always called with the full letter and must return a cube
    over its $\Sigma_1$ only.
-6. **Partiality / the `enabled` predicate (§Transducers, `\cref{def:enabled}`).**
+6. **Partiality / the `enabled` predicate (§Transducers, `\cref{def:consistency}`).**
    A letter `v` is **enabled** at `(q_in, q_out)` iff `delta_in`, `lambda_in`,
    `delta_out`, `lambda_out` are all **defined** at `v` **and** `cons` holds.
-   Non-enabled letters are skipped (all methods; `\cref{def:enabled}`).
+   Non-enabled letters are skipped (all methods; `\cref{def:consistency}`).
    Key consequences for the impl:
    - `enabled` **subsumes `cons`**: a `nullopt` from `delta` *or* `lambda`
      already makes the letter non-enabled — treat it exactly like a `cons`
@@ -108,7 +108,7 @@ class Transducer {
   - **Full letter in, implicit projection.** One abstract `Transducer`;
     `lambda(q, v)` takes the full letter; the impl reads only $\Sigma_0$ and
     returns only $\Sigma_1$. `t_in`/`t_out` stay interchangeable at the interface.
-  - **Partiality via `std::optional`** (final; backed by `\cref{def:enabled}`).
+  - **Partiality via `std::optional`** (final; backed by `\cref{def:consistency}`).
     `nullopt` on `delta` *or* `lambda` = non-enabled letter ⇒ skip.
 
 **Concrete impl (new, e.g. `output_labeled_transducer.hpp/.cpp`):**
@@ -179,7 +179,7 @@ class OutputLabeledTransducer final : public Transducer {
 ## Open theory questions touched
 
 - **Partiality compatibility — RESOLVED.** `main.tex` now defines partial
-  transducers and the `enabled` predicate in §Transducers (`\cref{def:enabled}`),
+  transducers and the `enabled` predicate in §Transducers (`\cref{def:consistency}`),
   valid for all methods: `nullopt` $\delta$/$\lambda$ ⇒ non-enabled ⇒ skip
   (Methods 1, 3) / `⊥` (Method 2). The project commits to the **Case-A** regime,
   so partial and total inputs are language-equivalent. The `optional` signature

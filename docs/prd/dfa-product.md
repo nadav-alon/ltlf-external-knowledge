@@ -3,7 +3,7 @@
 **Status:** implemented — `src/dfa_product.cpp` + `src/ltlf_to_dfa.cpp` + `src/solve_dfa.cpp` (+ headers, `Transducer::dict()`) (branch `master`, uncommitted)
 **Revised by:** `docs/prd/drop-method2-sink.md` — the ⊥-sink / `kSink` / `kSinkProperty` and `lem:sink_skip` were a later accretion and are being removed (Method 2 is a *direct* DFA product, not a *total* one). The sink bullets below (Goal `$P=A\times Q_{in}\times Q_{out}\cup\{\bot\}$`, §"Sink", the `lem:sink_skip` gate notes) are **superseded** there; the rest of this PRD stands.
 **Interface:** implements `Synthesis` as `DfaProduct`; adds the shared black-box helpers `ltlf_to_dfa` (`LtlfToDfa`) and `solve_dfa` (`SolveDfa`)
-**main.tex ref:** §`fulldfa` (Method 2), Algorithm `alg:dfa_product` ("DFA Product"); relies on `def:enabled`, `lem:sink_skip`, `def:probDef`/`def:probDefTransducer`
+**main.tex ref:** §`fulldfa` (Method 2), Algorithm `alg:dfa_product` ("DFA Product"); relies on `def:consistency`, `lem:sink_skip`, `def:probDef`/`def:probDefTransducer`
 
 **Gates:**
 - [x] glossary        — new terms in docs/GLOSSARY.md C++ column (`ltlf_to_dfa`, `solve_dfa`, `ProductState`, `kSink` all already present; no new domain identifier introduced — `Transducer::dict()` is Spot/BuDDy infrastructure, not a domain concept)
@@ -35,7 +35,7 @@ All from `docs/GLOSSARY.md` unless flagged:
 - **Product** / `ProductState` and the `$P$` construction (§"Product").
 - **Sink (⊥)** / `kSink` — absorbing non-accepting self-loop (§"Sink").
 - **Consistency (cons)** / `consistent(t_in, q_in, t_out, q_out, v)` (§"Consistency").
-- **Enabled** — `def:enabled`; `cons` + delta/lambda-definedness (used in prose).
+- **Enabled** — `def:consistency`; `cons` + delta/lambda-definedness (used in prose).
 - **Controller** / `Controller`, `$T_C$`, `$\lambda_C:Q\times2^{\mathcal I}\to2^{\Ofree}$` (§"Controller").
 - **NFA / DFA for the Goal** / `LtlfToDfa` wrapper (§"NFA / DFA for the Goal").
 - **Free / known inputs & outputs** / `VariablePartition` accessors (§"…split").
@@ -74,7 +74,7 @@ with, for every `$v\in2^{\mathcal I\cup\mathcal O}$`,
 
 Invariants that MUST hold:
 
-1. **`$\cons$` is the only filter, and `enabled` subsumes it** (`def:enabled`):
+1. **`$\cons$` is the only filter, and `enabled` subsumes it** (`def:consistency`):
    a letter takes the product branch iff `$\delta_{in},\lambda_{in},\delta_{out},
    \lambda_{out}$` are all defined at `$v$` **and** `$\cons$` holds. Dereference
    `delta` only after the enabled test passes (never call `*t_in.delta(...)`
@@ -201,7 +201,7 @@ class DfaProduct final : public Synthesis {
   anyway (self-loop, non-accepting); do not "optimise it away", so the graph
   matches `alg:dfa_product`.
 - **Partial transducers** — non-enabled (undefined `delta`/`lambda`) letters are
-  routed to `kSink`, exactly like a `$\cons$` failure (`def:enabled`; resolved
+  routed to `kSink`, exactly like a `$\cons$` failure (`def:consistency`; resolved
   in glossary "Open theory questions" → Case-A regime).
 - **Validation policy (decided):** up front, throw `std::invalid_argument` with a
   clear message when (a) an atomic proposition of `$\varphi$` is outside

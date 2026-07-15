@@ -37,7 +37,7 @@ the duplication. It refactors the internals of `docs/prd/dfa-product.md` and
   implementation note in the entry, not a concept change).
 - **Output agreement (`emits`)** — now in `docs/GLOSSARY.md`: the per-transducer
   λ-agreement atom (one conjunct of $\cons$, `\cref{def:consistency}`); $\cons$ is
-  now `emits(t_in) && emits(t_out)`. NB `main.tex` has **no** `def:enabled` label;
+  now `emits(t_in) && emits(t_out)`. NB `main.tex` has **no** `def:consistency` label;
   the "enabled"/skip notion is the unlabeled partiality note after
   `\cref{def:consistency}` (see the glossary-drift flag at handoff).
 - **Observed / produced slice ($\Sigma_0/\Sigma_1$)**, **Letter**, **Cube** —
@@ -369,5 +369,5 @@ naming deviation.** Implemented as specified:
   semantic change to `verify_controller` needs its own pass). Not committed —
   left for review first.
 - Out of scope, left for follow-up: new tests for `build_verifier_graph`
-  (`/test-writer`), the repo-wide dangling-`def:enabled` citation sweep, any
+  (`/test-writer`), the repo-wide dangling-`def:consistency` citation sweep, any
   `main.tex` change.

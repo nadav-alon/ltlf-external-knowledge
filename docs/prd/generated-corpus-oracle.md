@@ -16,7 +16,7 @@ expected value): the `ltlfsynt` **differential** and the
 `synthesize`$\to$`verify_controller` **metamorphic round-trip**. Not a `Synthesis`
 method; no new algorithm.
 **main.tex ref:** Method 2 (`alg:dfa_product`); the *enabled* predicate
-`\cref{def:enabled}` (§107–116) + committed Case-A totality (the generated $\Tin$
+`\cref{def:consistency}` (§107–116) + committed Case-A totality (the generated $\Tin$
 must satisfy these); the controller postcondition `\cref{def:probDefTransducer}`
 (§129–131, decided by `verify_controller`); the Mealy observed slice
 $\Sigma_0=\mathcal{I}$ of $S_C$ (`main.tex` §86).
@@ -194,7 +194,7 @@ Per case, draw from `rng`:
 Build an `OutputLabeledTransducer` **in memory** (no file I/O — like
 `tests/dfa_product_test.cpp`'s `TinAlwaysI`), on the same shared `bdd_dict` as the
 rest of the case. Role `t_in` ⇒ $\Sigma_0=\Ifree$, $\Sigma_1=\Iknown$. Validity
-(deterministic + total, the committed **Case-A** regime, `\cref{def:enabled}`) is
+(deterministic + total, the committed **Case-A** regime, `\cref{def:consistency}`) is
 guaranteed **by construction**:
 
 ```
@@ -214,7 +214,7 @@ OutputLabeledTransducer(g, lambda, sigma0_cube=cube(Ifree), sigma1_cube=cube(Ikn
   **mutually exclusive, exhaustive** $\Ifree$-cubes (one per valuation), so for any
   full letter exactly one edge matches — deterministic and total over $\Ifree$
   (the transducer observes only $\Sigma_0=\Ifree$; it ignores the $\Iknown$/$\Ofree$
-  bits of the letter, as `\cref{def:enabled}` allows).
+  bits of the letter, as `\cref{def:consistency}` allows).
 - **Functionality + totality of $\lambda$:** for each $\Ifree$-valuation exactly one
   $\Iknown$ cube is OR'd in (`rand_iknown_cube` assigns **every** $\Iknown$ var a
   truth value), so $\lambda(q,\cdot)$ is a total function $\Ifree\to 2^{\Iknown}$ —

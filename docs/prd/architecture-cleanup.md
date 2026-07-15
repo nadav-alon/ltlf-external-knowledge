@@ -2,13 +2,13 @@
 
 **Status:** implemented — e6cbc06 (Phase 0) + worktree merges 3726ec4 (A) / 083ee65 (B) / c159779 (C) + this commit (post-merge micro-pass)
 **Interface:** cross-cutting refactor — no new `Synthesis` method; adds `LetterAlphabet` + `VariablePartition::universe()` (public), `detail/util.hpp` (internal), `role.hpp` (relocation), `tests/support/fixtures.hpp` (test-only); relocates `controller_as_transducer` and `trivial_transducer`
-**main.tex ref:** no dedicated algorithm — this PRD moves code, it does not change semantics. The invariants preserved are the alphabet $\Sigma=2^{\mathcal{I}\cup\mathcal{O}}$ (§Transducers), the align-block slices (§124–133), $\cons$ = `\cref{def:consistency}` (with its §211 partiality note), `\cref{def:enabled}`, and the `\cref{def:probDefTransducer}` postcondition — all exactly as already implemented.
+**main.tex ref:** no dedicated algorithm — this PRD moves code, it does not change semantics. The invariants preserved are the alphabet $\Sigma=2^{\mathcal{I}\cup\mathcal{O}}$ (§Transducers), the align-block slices (§124–133), $\cons$ = `\cref{def:consistency}` (with its §211 partiality note), `\cref{def:consistency}`, and the `\cref{def:probDefTransducer}` postcondition — all exactly as already implemented.
 
 **Gates:**
 - [x] glossary        — /glossary (2026-07-08): *Closed universe of APs* (`VariablePartition::universe()`) and *Letter alphabet* (`LetterAlphabet`, `all_letters` retired to its "Do not call it" line) landed in docs/GLOSSARY.md ahead of implementation (deliberate — the glossary drives /developer naming); existing *Product* / *Role* / *Observed-produced slice* / *Controller-as-transducer view* entries checked, no file references go stale under this PRD's relocations. Branch `master`, uncommitted.
 - [x] tests           — unit + oracle coverage (2026-07-09): full suite 207/207 green (200 pre-existing + 7 new `LetterAlphabet` tests + `universe()` test); metamorphic round-trip and `ltlfsynt` differential oracles green, no golden shifted.
 - [x] code-review     — domain (/code-reviewer, 2026-07-09): clean, no must-fix. Grep gates clean (single `cube_of`/`trim` in `detail/util.hpp`, no `using ProductState = std::tuple`, `all_letters` file-local to `product.cpp`, no hand-built universe outside `universe()`). Glossary carries *Closed universe of APs* + *Letter alphabet*. `LetterAlphabet` (empty-universe ⇒ `{bddtrue}`, empty-Ifree ⇒ `ifree_index≡0`) and the `verify_controller` migration onto `validate_product_inputs` + shared `ProductState` verified faithful; verifier stays independent of `solve_dfa`/`solve_game`.
-- [x] theory-review   — code ↔ math faithfulness vs main.tex (2026-07-09): satisfied by diff inspection, no spawn needed — the $\cons$/`\cref{def:enabled}` filter (`agreeing_successor` body, `emits`, `consistent`) is byte-identical modulo comments and the `letters`→`alphabet.letters()` type-threading; `consistency.hpp` edit is the named history-relative-comment sweep. Semantics-preserving as claimed.
+- [x] theory-review   — code ↔ math faithfulness vs main.tex (2026-07-09): satisfied by diff inspection, no spawn needed — the $\cons$/`\cref{def:consistency}` filter (`agreeing_successor` body, `emits`, `consistent`) is byte-identical modulo comments and the `letters`→`alphabet.letters()` type-threading; `consistency.hpp` edit is the named history-relative-comment sweep. Semantics-preserving as claimed.
 
 ## Goal
 
@@ -66,7 +66,7 @@ glossary entries (same policy as `Transducer::dict()`).
    metamorphic round-trip (`synthesize` → `verify_controller` accepts) and
    the differential oracle vs `ltlfsynt`, not byte-identical HOA.
 3. **The product filter stays $\cons$-shaped** (`\cref{def:consistency}`,
-   partiality per `\cref{def:enabled}`): `LetterAlphabet` only re-packages the
+   partiality per `\cref{def:consistency}`): `LetterAlphabet` only re-packages the
    letter enumeration; `agreeing_successor` / `emits` logic is untouched.
 4. **The verifier stays independent of `solve_dfa`/`solve_game`**
    (`docs/prd/controller-verifier.md`): migrating it onto
@@ -313,7 +313,7 @@ questions (FP stub, aggregated final-state overwrite, on-the-fly solving,
 trace-termination `\na` §96) are unaffected; the termination reading shared
 by `solve_dfa` and the verifier is preserved by invariant #4. Nothing here
 for `/theory-review` beyond confirming the migration did not alter the
-$\cons$/`\cref{def:enabled}` filter or the `\cref{def:probDefTransducer}`
+$\cons$/`\cref{def:consistency}` filter or the `\cref{def:probDefTransducer}`
 check.
 
 ## Definition of done

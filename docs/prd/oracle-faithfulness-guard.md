@@ -7,7 +7,7 @@
 Reuses `parse_transducer` and `ltlf_to_dfa` from the library (already linked into
 `unit_tests`).
 **main.tex ref:** the conjecture `\cl` note after `\cref{def:probDefTransducer}`
-(main.tex:133–135); `\cref{def:enabled}` (Case-A totality) for why a $\Tin$ run is
+(main.tex:133–135); `\cref{def:consistency}` (Case-A totality) for why a $\Tin$ run is
 well-defined; §86 for Mealy turn order.
 
 **Gates:**
@@ -117,7 +117,7 @@ guard(transducer_file, psi_in, partition):
   $\Iknown$-slice is $\lambda(q,\cdot)$ evaluated on the current $\Ifree$-slice
   (the $\Ofree$ bits are don't-cares — pick a canonical value, e.g. false).
   Well-defined because $\Tin$ is deterministic and **total** in the committed
-  Case-A regime (`\cref{def:enabled}`, glossary "Partial transducers — resolved").
+  Case-A regime (`\cref{def:consistency}`, glossary "Partial transducers — resolved").
 - **`accepts(A_psi, trace)`** — walk the concrete finite trace through
   `ltlf_to_dfa(psi_in)` and test the finite-acceptance mark at the reached state.
   Membership of a *concrete* finite trace is unambiguous, so this is safe to

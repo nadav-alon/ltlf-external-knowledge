@@ -6,7 +6,7 @@
 **Revises:** `docs/prd/dfa-product.md` (implemented Method-2 PRD) — sink sections only; the rest stands
 
 **Gates:**
-- [x] glossary        — "Sink (⊥)" entry deleted; "Product" + "Partial transducers" notes de-sinked (now point to `\cref{def:enabled}`) (ref: `docs/GLOSSARY.md`, 2026-07-05)
+- [x] glossary        — "Sink (⊥)" entry deleted; "Product" + "Partial transducers" notes de-sinked (now point to `\cref{def:consistency}`) (ref: `docs/GLOSSARY.md`, 2026-07-05)
 - [x] tests           — sink-contract test deleted, suite green (163/163, one pre-existing DISABLED_ excluded-class test unaffected); `/test-writer` added two replacement tests covering the sink-free skip contract directly (`tests/dfa_product_test.cpp`, uncommitted at review time)
 - [x] code-review     — domain (/code-reviewer): no must-fix, invariants/glossary/interface clean; generic (/code-review, high): no findings (removed-behavior audit confirms the sink-free arena is identical modulo the unreachable sink) (2026-07-05, branch `master` uncommitted)
 - [x] theory-review   — main.tex de-sinking of §`fulldfa`, `alg:dfa_product`, and deletion of `lem:sink_skip` (ref: `latex/main.tex` §`fulldfa` Patches 1-8, 2026-07-05)
@@ -26,7 +26,7 @@ Mechanically the sink is already dead weight in code: `DfaProduct` builds
 before handing the arena to Spot (`src/solve_dfa.cpp:70-75`). The game Spot
 actually solves is byte-for-byte identical whether or not the sink was ever
 built. This PRD replaces "route non-`$\cons$` to `$\bot$`" with **skip**
-(contribute nothing), exactly as Methods 1 and 3 already do (`def:enabled`,
+(contribute nothing), exactly as Methods 1 and 3 already do (`def:consistency`,
 §`nfa`/§`otfdfa`). It is a **behaviour-preserving refactor** — the reason its
 test oracle is "the existing suite still passes unchanged."
 
@@ -42,7 +42,7 @@ All from `docs/GLOSSARY.md`:
   parenthetical "(Method 2 sends the rest to `$\bot$`)" is removed.
 - **Sink (⊥)** / `kSink` (§"Sink") — **this entry is deleted** by the glossary gate.
 - **Consistency (cons)** / `consistent(t_in, q_in, t_out, q_out, v)` (§"Consistency").
-- **Enabled** — `def:enabled`; `$\cons$` + delta/lambda-definedness. A non-enabled
+- **Enabled** — `def:consistency`; `$\cons$` + delta/lambda-definedness. A non-enabled
   letter is now **skipped** in Method 2 (it was: routed to `$\bot$`).
 - **Game solving (SolveDfa)** / `solve_dfa(product, vars)` (§"Game solving").
 - **Free / known inputs & outputs** / `VariablePartition` accessors.
@@ -55,9 +55,9 @@ not an addition.)
 The invariants that MUST still hold after the change (all already true, the sink
 was never load-bearing):
 
-1. **Skip = drop, per `def:enabled`.** A non-enabled letter (inconsistent, or —
+1. **Skip = drop, per `def:consistency`.** A non-enabled letter (inconsistent, or —
    for a partial transducer — undefined `$\delta$`/`$\lambda$`) contributes no
-   product transition. This is the Method-1/3 filter (`def:enabled`: "skipped …
+   product transition. This is the Method-1/3 filter (`def:consistency`: "skipped …
    contributing `$\emptyset$`"). Method 2 now uses the same filter instead of the
    `$\bot$` route.
 
@@ -110,7 +110,7 @@ Black boxes (`ltlf_to_dfa`, `SolveDfa`, `progress`): no change beyond the above.
 
 ## Edge cases
 
-- **Partial transducers** (`def:enabled`): a `nullopt` `$\delta$`/`$\lambda$` was
+- **Partial transducers** (`def:consistency`): a `nullopt` `$\delta$`/`$\lambda$` was
   routed to `$\bot$`; now it is skipped — identical arena, since `solve_dfa`
   dropped the `$\bot$`-edge anyway. The Case-A regime (partial ≡ total,
   `docs/prd/concrete-transducer.md`) is unaffected.
@@ -161,7 +161,7 @@ their soundness:
   - Product definition (`~:246`): drop `$\cup\{\bot\}$`; states become
     `$S_D\times Q_{in}\times Q_{out}$`.
   - `$\delta_{Dprod}$` (`~:250-257`): drop the `$\bot$` otherwise-branch and the
-    sink self-loop; non-`$\cons$` becomes undefined (skip), matching `def:enabled`.
+    sink self-loop; non-`$\cons$` becomes undefined (skip), matching `def:consistency`.
   - Remove the sink/skip-interchangeability sentence (`:261`).
   - Rework the two surviving `\cl` notes (`:282-283`, `:285-286`): the
     `$\Iknown$`-redundancy / free-arena projection argument (`:282-283`) is
@@ -237,7 +237,7 @@ These are the author's own theory; `/theory-review` should not re-derive them.
   `EmptyKnowledgeMatchesMonolithicBaseline` / `KnowledgeTurnsUnrealizableIntoRealizable`
   / `ltlfsynt_oracle_test.cpp` corpus (Tables A-D use partial-delta-adjacent but
   actually-total transducers) already covers the consistency/lambda half of
-  `def:enabled`; cross-method metamorphic equivalence does not yet apply since
+  `def:consistency`; cross-method metamorphic equivalence does not yet apply since
   Methods 1/3 are unimplemented. Full suite green: 163/163 (one pre-existing
   `DISABLED_` excluded-class test unaffected, per design). `grep -rn
   'kSink\|ltlf-ek-sink'` over `include/ src/ tests/` still clean (one prose hit
@@ -245,14 +245,14 @@ These are the author's own theory; `/theory-review` should not re-derive them.
   Ticked the `tests` gate.
 - 2026-07-05: `/theory-review` (faithfulness mode) verified the code is faithful
   to the intended de-sinked math — the per-letter `continue` in
-  `src/dfa_product.cpp:117-119` is the exact complement of `def:enabled`, and
+  `src/dfa_product.cpp:117-119` is the exact complement of `def:consistency`, and
   `src/solve_dfa.cpp:34-65` realizes the surviving free-arena projection note.
   The sink-vs-skip equivalence is **sound**: with the governed variables pinned
   to the transducer outputs, every realized letter is `cons` by construction, so
   `$\bot$` is unreachable and its deletion removes one unreachable, non-`$F_P$`,
   absorbing state and nothing else (the 161/161→163/163 unchanged verdicts are
   the behavioural witness). Applied the main.tex de-sink (Patches 1-8):
-  `def:enabled` line-171 sink clause de-sinked; the Product definition and
+  `def:consistency` line-171 sink clause de-sinked; the Product definition and
   `$\delta_{Dprod}$` (dropped `$\cup\{\bot\}$`, the `$\bot$`-branch, and the
   self-loop sentence); deleted `lem:sink_skip` + proof + the `\na[inline]{Rewrite}`
   marker + the two sink-dependent `\cl` notes; de-anchored the surviving free-arena
@@ -262,5 +262,5 @@ These are the author's own theory; `/theory-review` should not re-derive them.
   `\cref{lem:sink_skip}` sites and the `:non_cons` / `:self_loop` label refs are
   gone. Not compiled locally (Overleaf-only); verified by reading. The
   theory-review gate is now ticked. Beyond the PRD's itemized edit list, the
-  de-sink also had to fix `def:enabled` (main.tex line 171), which still said
+  de-sink also had to fix `def:consistency` (main.tex line 171), which still said
   Method 2 "routed to the sink `$\bot$`."

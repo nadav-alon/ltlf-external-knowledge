@@ -128,7 +128,7 @@ OutputLabeledTransducer TrivialTransducer(const Vars& v) {
 // A 2-state Oknown transducer (Sigma1 = {o}): state 0 commits o:=true and
 // unconditionally advances to state 1; state 1 commits o:=false and
 // self-loops.  delta is total throughout, so only the lambda/cons half of
-// def:enabled ever filters a letter here.
+// def:consistency ever filters a letter here.
 OutputLabeledTransducer OKnownTransducer(const Vars& v) {
   auto g = spot::make_twa_graph(v.dict);
   g->new_states(2);
@@ -141,7 +141,7 @@ OutputLabeledTransducer OKnownTransducer(const Vars& v) {
 
 // A transducer whose lambda is trivially defined everywhere (like
 // TrivialTransducer) but whose delta is undefined unless i holds --- isolates
-// the delta-partiality half of def:enabled from the lambda/cons half.
+// the delta-partiality half of def:consistency from the lambda/cons half.
 OutputLabeledTransducer PartialDeltaOnInputTransducer(const Vars& v) {
   auto g = spot::make_twa_graph(v.dict);
   g->new_states(1);
@@ -194,7 +194,7 @@ TEST(AgreeingSuccessor, PartialDeltaLetterReturnsNullopt) {
   const ProductState state{0, {0, 0}};
 
   // i=false: t_in's lambda is trivially defined (emits true) but its delta has
-  // no outgoing edge for i=false --- the delta half of def:enabled fails,
+  // no outgoing edge for i=false --- the delta half of def:consistency fails,
   // independent of consistency.
   const auto succ = agreeing_successor(
       goal, taus, state, Letter(v, false, true), /*goal_must_be_complete=*/true);

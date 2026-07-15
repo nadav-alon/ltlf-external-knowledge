@@ -81,7 +81,7 @@ TEST(Consistent, FalseWhenOutputKnownSliceDisagrees) {
   EXPECT_FALSE(consistent(f.t_in, 0, f.t_out, 0, Letter(f, /*a=*/true, /*b=*/true, /*e=*/false)));
 }
 
-// Partiality (main.tex \cref{def:enabled}): an undefined lambda makes the
+// Partiality (main.tex \cref{def:consistency}): an undefined lambda makes the
 // letter non-enabled, so consistent is false even on an otherwise-matching
 // letter.
 TEST(Consistent, FalseWhenLambdaUndefined) {

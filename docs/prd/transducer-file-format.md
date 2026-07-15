@@ -2,7 +2,7 @@
 
 **Status:** implemented — `src/transducer_io.cpp` + `include/ltlf_ek/transducer_io.hpp` (branch `master`, uncommitted)
 **Interface:** free function `parse_transducer(...)` → `OutputLabeledTransducer` (concretises the `Transducer` base; consumed by `Synthesis::synthesize` as `t_in` / `t_out`)
-**main.tex ref:** §Transducers (§98–128), `\cref{def:enabled}`, `\cref{def:probDefTransducer}`
+**main.tex ref:** §Transducers (§98–128), `\cref{def:consistency}`, `\cref{def:probDefTransducer}`
 
 **Gates:**
 - [x] glossary        — `parse_transducer`, `Role`, transducer file format added to `docs/GLOSSARY.md`
@@ -84,7 +84,7 @@ changes the math; it is a serialization of the already-specified object.
    evaluation reads only the $\Sigma_0$ slice — the orientation cubes are what
    make the projection well-defined regardless of which convention the paper
    settles on.
-5. **Partiality (§107–116, `\cref{def:enabled}`).** Both $\delta$ and $\lambda$
+5. **Partiality (§107–116, `\cref{def:consistency}`).** Both $\delta$ and $\lambda$
    may be partial:
    - **$\delta$ partial** ⇒ **missing HOA edges** (an incomplete automaton). A
      letter satisfying no out-edge guard yields `nullopt` — native to HOA, no
@@ -248,7 +248,7 @@ OutputLabeledTransducer parse_transducer(std::istream& in,
 - **Non-deterministic knowledge ($\lambda$ returns a set) — Later backlog.** The
   BDD-relation encoding already *represents* this; only the WF functional check
   would relax (behind the same future mode flag). No change now.
-- **Partiality / `enabled` — RESOLVED** (`\cref{def:enabled}`, Case-A). The file
+- **Partiality / `enabled` — RESOLVED** (`\cref{def:consistency}`, Case-A). The file
   format signals partiality via missing edges / `false` entries; nothing new
   open.
 

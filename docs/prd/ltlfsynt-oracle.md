@@ -6,7 +6,7 @@
 `ltlf-ek-synth` binary and Spot's `ltlfsynt` binary as **subprocesses** and
 compares only the realizability verdict.
 **main.tex ref:** §Problem Definition (the $\Tin$ known-input semantics), the
-*enabled* predicate `\cref{def:enabled}` (§107–116) and the Case-A totality that
+*enabled* predicate `\cref{def:consistency}` (§107–116) and the Case-A totality that
 justify the assumption reduction; the method under test is Method 2
 (`alg:dfa_product`). No new algorithm.
 
@@ -63,7 +63,7 @@ Reduction: move $\Iknown$ to `--ins` (environment-visible), keep $\Ofree$ on
 the $\text{LTL}_f$ language of $\Tin$ (all $(\Ifree,\Iknown)$ traces $\Tin$
 produces). Because $\Tin$ is deterministic and total in the committed **Case-A**
 regime (glossary "Open theory questions → Partial transducers", §107–116,
-`\cref{def:enabled}`), any environment deviation from $\psi_{in}$ makes the
+`\cref{def:consistency}`), any environment deviation from $\psi_{in}$ makes the
 implication vacuously true, so the environment is effectively pinned to
 $\Iknown=\Tin(\cdots)$ — and the controller sees the same current letter under
 Mealy turn order. Hence the plain game's winning region equals the known-input

@@ -1,18 +1,19 @@
 # PRD: MTDFA product — Method 2 over `spot::mtdfa`
 
-**Status:** Phase 1 implemented — **green checkpoint not yet met, but the
-blocker is gone** (merged 2026-07-15, `61b1ad0`; sink dropped 2026-07-15;
-Spot >= 2.15 required 2026-07-15). `emits_dfa`, `turn_order.hpp`
+**Status:** Phase 1 implemented — **green checkpoint MET 2026-07-16** (merged
+2026-07-15, `61b1ad0`; sink dropped 2026-07-15; Spot >= 2.15 required
+2026-07-15). `emits_dfa`, `turn_order.hpp`
 (`register_turn_order_aps` / `require_turn_order_aps`), `solve_mtdfa`,
 `MtdfaProduct` and the CLI wiring all land and build clean. **The
 `backprop_nodes=true` SEGFAULT is RESOLVED**: it was an upstream Spot bug
 (issue #639, fixed in Spot 2.15), *not* ours — `CMakeLists.txt` now requires
 `libspot >= 2.15` and `solve_mtdfa.cpp` did not change, so the linear-time claim
 is intact. All three SEGFAULTing tests pass, `GeneratedCorpus.MetamorphicRoundTrip`
-included. `ctest` is now **296/302 passed, 6 failed** — all 6 are `EmitsDfa`
-unit tests asserting the now-superseded "complete + rejecting sink" contract
-(expected fallout of the PRD-change below — `/test-writer`'s to update, and
-verified pre-existing rather than upgrade fallout). See "Phase 1 blocker" for the
+included. `ctest` is **302/302** — the 6 `EmitsDfa` tests that asserted the
+superseded "complete + rejecting sink" contract were retargeted 2026-07-16
+(`/test-writer`), which also unblocked the **language oracle** and so *verified*,
+rather than argued, that dropping the sink leaves `L(emits_dfa(tau))` unchanged
+(one documented exception — see *Edge cases*). See "Phase 1 blocker" for the
 root cause and for three earlier claims it corrects, and "Developer comments /
 PRD disagreements" for implementation-level findings the frozen contract didn't
 fully pin.
@@ -27,7 +28,7 @@ in two ways the PRD did not predict** (the dropped `ltlf_to_mtdfa` wrapper; the
 `Controller` split-arena precondition) — read *Interfaces & types* and *Phase 0 —
 answers* before binding.
 **main.tex ref:** §Method 2 (`\cref{fulldfa}`, `alg:dfa_product`); $\cons$
-(`\cref{def:consistency}`, §203); *enabled* (`\cref{def:enabled}`, §107–116);
+(`\cref{def:consistency}`, §203); *enabled* (`\cref{def:consistency}`, §107–116);
 $T_C$'s interface (`\cref{def:probDefTransducer}`, §129); the projection `\na`
 (`main.tex:300`) and its commented-out `\cl` argument (`main.tex:302–303`).
 No new algorithm — a representation change to an existing one.
@@ -42,9 +43,22 @@ No new algorithm — a representation change to an existing one.
   *Representation*, `solve_mtdfa` + the mtdfa rows on *Product* / *Goal DFA
   construction*, and two *Open theory questions* cross-refs. Renamed this PRD's
   `cons_dfa` → `emits_dfa`. (`/glossary`; branch `master`, uncommitted.)
-- [ ] tests           — unit + oracle coverage
+- [x] tests           — *closed 2026-07-16* (`/test-writer`): the 6 `EmitsDfa`
+  tests retargeted onto the no-sink contract, `GraphAccepts` taught that a missing
+  edge is a reject — which unblocked the **language oracle** and turned the
+  sink-drop language claim from argued into verified (negative control confirms it
+  is non-vacuous). `ctest` **302/302**.
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] theory-review   — *closed 2026-07-16* (faithfulness mode, `emits_dfa`'s
+  no-sink contract vs `\cref{alg:dfa_product}`). Skip-not-sink on the **edges** is
+  faithful — `\cref{alg:dfa_product}` builds $\delta_{Dprod}$ as an *undefined
+  mapping* filled only `\If{$\cons$}`, and `\cref{def:consistency}`'s partiality
+  clause makes a missing $\delta$/$\lambda$ inconsistent. One divergence found and
+  **overruled as closed by Case A**: $F_P \gets F_D \times Q_{in} \times Q_{out}$
+  makes every $(q_{in},q_{out})$ final, but a $\lambda$-dead state has $0$ out-edges
+  and Spot cannot mark it accepting — unreachable under Case-A totality, so vacuous.
+  Recorded in *Edge cases*. Also repointed the repo-wide dangling
+  `\cref{def:enabled}` (removed upstream, folded into `def:consistency`).
 
 ## Goal
 
@@ -149,7 +163,7 @@ comment. No new *Canonical benchmarking stage* — see "Benchmarking" below.
    a letter survives iff its $\mathcal{V}$-variables are exactly what $\Tin,\Tout$
    output. Symbolically that is `emits_region(q_in) & emits_region(q_out)`, exactly
    as `build_product_symbolic` already computes it.
-3. **Non-enabled letters** (`\cref{def:enabled}`, §107–116) are *skipped* in
+3. **Non-enabled letters** (`\cref{def:consistency}`, §107–116) are *skipped* in
    `main.tex`. Route (a) instead sends them to a **rejecting sink**. These coincide
    **given decision 2 below**: a $\neg\cons$ letter is only ever reachable by a
    *system* move, and reaching the rejecting sink loses — the same outcome as
@@ -650,22 +664,45 @@ pinned rather than left to be guessed.
 ## Edge cases
 
 - **$\lambda$ undefined at $q$** ⇒ `emits_region(q)` = `bddfalse` ⇒ every edge from
-  $q$ is `bddfalse` and is skipped ⇒ $q$ has **no outgoing edges**. Correct: no
-  letter is $\cons$ at $q$, and the missing edges are an implicit reject of
-  every letter (sink dropped 2026-07-15; no sink is materialised).
+  $q$ is `bddfalse` and is skipped ⇒ $q$ has **no outgoing edges**. Correct on the
+  *edges*: no letter is $\cons$ at $q$ (`\cref{def:consistency}`'s partiality
+  clause), and the missing edges are an implicit reject of every letter (sink
+  dropped 2026-07-15; no sink is materialised).
+  **But such a $q$ is also not *accepting*, and that part is a known divergence.**
+  Spot carries state-based acceptance **on the edges**
+  (`twa_graph::state_is_accepting` reads the mark off the first out-edge and
+  returns `false` when there are none), so a $0$-out-edge state cannot be marked
+  accepting at all — whereas `\cref{alg:dfa_product}`'s
+  $F_P \gets F_D \times Q_{in} \times Q_{out}$ makes acceptance the **goal DFA's
+  alone**, unconditional in $Q_{in}\times Q_{out}$. **Closed by Case A** (next
+  bullet): $\lambda$ is total on reachable states, so no such $q$ is reachable and
+  the divergence is vacuous. Re-open this if Case A is ever relaxed — and note the
+  fix could not be "mark it accepting" (unrepresentable); it would need
+  transition-based acceptance or a re-introduced accepting structure.
 - **Partial transducers / Case A.** Decision 2 leans on an assumption `solve_dfa`
   does *not*: that a legal $\Iknown$ always **exists** after any env $\Ifree$ move.
   If $\lambda_{in}$ were partial at a reachable $(q_{in},\Ifree)$, the system would
-  have no legal move and **lose**, whereas `\cref{def:enabled}` says the letter is
+  have no legal move and **lose**, whereas `\cref{def:consistency}` says the letter is
   *skipped*. Under the Case-A totality the project commits to (glossary,
-  *Partial transducers — resolved*, §107–116), $\lambda_{in}$ is total on reachable
-  states and this is moot. **Stated, not inherited silently** — a `/theory-review`
-  item.
-- **`emits_dfa` accepts the empty word** (initial state $\in Q$, all accepting).
-  Harmless: the product is a language *intersection*, and $L(\varphi)$ excludes
-  $\varepsilon$ (non-empty traces; `1` rejects the empty word), so the intersection
-  does too. Do not "fix" this by making the initial state rejecting — that would
-  break the *Output-agreement automaton*'s stated language.
+  *Partial transducers — resolved*), $\lambda_{in}$ is total on reachable
+  states and this is moot. **Closed 2026-07-16 (`/theory-review`, user-overruled):**
+  Case A is taken as closing it, together with the acceptance divergence above —
+  the two are the same question wearing different hats ("stuck transducer": does
+  the system lose, or end the trace and win on $F_D$? `main.tex` says the latter;
+  our code says the former; Case A means it never happens).
+- **`emits_dfa` accepts the empty word** — **true only when $\lambda$ is defined
+  somewhere at the initial state.** The original claim ("initial state $\in Q$, all
+  accepting") is **too strong** and the language oracle now falsifies it: with
+  $\lambda$ undefined at the initial state, that state has $0$ out-edges and Spot
+  reports it **not** accepting (see the $\lambda$-undefined bullet above), so
+  `emits_dfa` there accepts *nothing*, not even $\varepsilon$.
+  **Harmless either way, and the reasoning is unchanged:** the product is a language
+  *intersection* and $L(\varphi)$ excludes $\varepsilon$ (non-empty traces; `1`
+  rejects the empty word), so $s_{D,0}\notin F_D$ and the intersection never accepts
+  $\varepsilon$ regardless. Still do not "fix" this by making the initial state
+  rejecting *on purpose* — that would break the *Output-agreement automaton*'s
+  language on the cases that do matter. Pinned by
+  `EmitsDfa.AcceptsTheEmptyWordAcrossEveryFixture`.
 - **Empty $\Ofree$.** `set_controllable_variables` receives $\Iknown \cup \Oknown$
   only; if that is also empty it receives `bddtrue`. Smoke-test both, mirroring the
   existing empty-`Ofree` cases in `tests/ltlfsynt_oracle_test.cpp`.
@@ -706,9 +743,12 @@ Bind to the frozen contract above; the domain oracles parallelize regardless.
    The differential drives the **binary** as a subprocess, so it needs
    `--mtdfa-product` — a Phase 1 dependency, not Phase 2.
 2. **`emits_dfa` unit tests** — the language claim above, per fixture: total $\lambda$,
-   partial $\lambda$ (sink reachable), $\lambda$ undefined at a state (all-`bddtrue`
-   sink edge), single-state transducer. Determinism + completeness as structural
-   free-riders.
+   partial $\lambda$ (some letters uncovered ⇒ missing edges), $\lambda$ undefined at
+   a state (⇒ that state has **no outgoing edges**), single-state transducer.
+   Determinism is a structural free-rider; **completeness is not** — the automaton is
+   deliberately incomplete, so assert `is_complete() == false` where letters are
+   uncovered (sink dropped 2026-07-15; the old "sink reachable" / "all-`bddtrue` sink
+   edge" phrasings described a structure that no longer exists).
    **Phase 0/Q1 trap — read before writing fixtures.** `twadfa_to_mtdfa` absorbs a
    **non-initial** state with an **accepting `bddtrue` self-loop** into the
    `bddtrue` constant (`ltlf2dfa.cc:2983`). A fixture whose accepting structure is
@@ -743,7 +783,7 @@ Flagged for `/theory-review`; not resolved here.
   (pin as forced system moves, project from the strategy) rather than **arena-side**
   (project from the guards, as `solve_dfa` does). Same result, different
   justification — needs review, not an assumed conformance.
-- **Skip vs rejecting sink** (`\cref{def:enabled}`, §107–116). `main.tex` *skips* a
+- **Skip vs rejecting sink** (`\cref{def:consistency}`, §107–116). `main.tex` *skips* a
   non-enabled letter; route (a) sends it to a rejecting sink. Equivalent only under
   decision 2's forced-move argument. This is the single load-bearing semantic claim
   of this PRD.
@@ -823,7 +863,7 @@ Flagged for `/theory-review`; not resolved here.
   requiring Spot >= 2.15.
   **Theory note, not acted on:** dropping the sink may *retire* rather than
   discharge this PRD's "skip vs rejecting sink" load-bearing semantic claim
-  (`main.tex` \cref{def:enabled} already *skips* a non-enabled letter; an
+  (`main.tex` \cref{def:consistency} already *skips* a non-enabled letter; an
   incomplete automaton now does too, literally) — `/theory-review` item, `main.tex`
   untouched here.
 
@@ -996,7 +1036,7 @@ Unaffected by the resolution, and still right:
 
 - it **costs nothing** — Phase 0/Q1 already called the sink "correct, but wasted";
 - **plausibly improves faithfulness.** `main.tex` **skips** a non-enabled letter
-  (`\cref{def:enabled}`, §107–116); an incomplete automaton literally skips it,
+  (`\cref{def:consistency}`, §107–116); an incomplete automaton literally skips it,
   where the sink was an encoding we had to *argue* equivalent. That argument is
   this PRD's "single load-bearing semantic claim" — dropping the sink may retire
   it rather than discharge it. **`/theory-review` item**, not a claim to assume.
@@ -1004,7 +1044,7 @@ Unaffected by the resolution, and still right:
 It was **never** a fix for the segfault, and nothing here should be read as
 saying so.
 
-### Still open — the `emits_dfa` contract fallout
+### The `emits_dfa` contract fallout — **CLOSED 2026-07-16** ✅
 
 **Contract impact — a PRD-change event, already applied.** *`emits_dfa` — pinned
 specification* mandated the sink and called the result "deterministic **and
@@ -1013,16 +1053,26 @@ complete** by construction"; *Edge cases* said a λ-undefined `q` gets "a single
 "deterministic but not complete"; λ-undefined `q` now gets **no outgoing
 edges**). The frozen **signature** did not move.
 
-**This is the only thing left before the PRD's green checkpoint.** 6 `EmitsDfa`
-unit tests assert the superseded contract and are red — notably `GraphAccepts`
-throws *"emits_dfa's result is expected complete"*, so the **language oracle
-currently cannot run**. That means "dropping the sink leaves the language
-unchanged" is **argued, not verified**. `/test-writer` must teach the helper that
-a missing edge is a reject, and re-establish the language claim.
+The 6 `EmitsDfa` tests that asserted the superseded contract were retargeted by
+`/test-writer` (2026-07-16); `ctest` is **302/302**. They were **not** fallout
+from the Spot upgrade — confirmed by building pristine `HEAD` against the old
+Spot in a throwaway worktree: the same 6 failed. They dated from `e7dcd7b`, which
+dropped the sink without updating the tests.
 
-These 6 are **not** fallout from the Spot upgrade — confirmed by building
-pristine `HEAD` against the old Spot in a throwaway worktree: the same 6 fail.
-They date from `e7dcd7b`, which dropped the sink without updating the tests.
+**The prize was not the green suite.** `GraphAccepts` used to *throw* on a
+missing edge (*"emits_dfa's result is expected complete"*), so the **language
+oracle could not run at all** — which is why "dropping the sink leaves
+`L(emits_dfa(tau))` unchanged", this PRD's *single load-bearing semantic claim*,
+was **argued, not verified**. Teaching the helper that a missing edge is a reject
+made the oracle run, and it now **verifies** that claim across every fixture and
+every non-empty word, with a negative control confirming it is not vacuous.
+
+It found exactly one exception, and `/theory-review` (2026-07-16) classified it:
+a λ-dead state's **empty word** (see *Edge cases*). The claim, not the code, was
+too strong — `\cref{alg:dfa_product}`'s $F_P$ wants every $(q_{in},q_{out})$
+final, but Spot cannot mark a $0$-out-edge state accepting. **Harmless** ($L(\varphi)$
+excludes $\varepsilon$) and **vacuous under Case A**, so it is recorded and closed
+rather than fixed.
 
 ### Why the corpus oracle earned its cost — twice over
 

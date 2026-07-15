@@ -13,7 +13,7 @@ in `tests/ltlfsynt_oracle_test.cpp`).
 accessors to the `Transducer` base class; adds `build_product_symbolic` +
 a shared guard-map product representation
 **main.tex ref:** §`fulldfa` (Method 2), Algorithm `alg:dfa_product`
-("DFA Product"), `\cref{def:consistency}` (§203); reuses `\cref{def:enabled}`
+("DFA Product"), `\cref{def:consistency}` (§203); reuses `\cref{def:consistency}`
 
 **Gates:**
 - [x] glossary        — `emits_region`, `delta_edges`, `build_product_symbolic`,
@@ -97,7 +97,7 @@ All from `docs/GLOSSARY.md` unless flagged:
   the per-transducer λ-agreement atom this PRD lifts to a **region**.
 - **Transition function (delta)** / `Transducer::delta(q, v)` (§"…(delta)") —
   this PRD lifts to a **symbolic edge partition**.
-- **Enabled** — `\cref{def:enabled}`; $\cons$ + δ/λ-definedness (used in prose).
+- **Enabled** — `\cref{def:consistency}`; $\cons$ + δ/λ-definedness (used in prose).
 - **Letter alphabet** / `LetterAlphabet` (§"Letter alphabet") — **retained** for
   the verifier + reference build; **not** used by the symbolic path.
 - **Cube**, **Letter**, **Σ₀/Σ₁** / `sigma0_cube`, `sigma1_cube`, `lambda_by_state_`.
@@ -158,10 +158,10 @@ Invariants that MUST hold (mirroring `docs/prd/dfa-product.md` and
 `alg:dfa_product`):
 
 1. **$\cons$ is the only filter**, and `enabled` subsumes it
-   (`\cref{def:enabled}`): a letter takes a product edge iff both transducers'
+   (`\cref{def:consistency}`): a letter takes a product edge iff both transducers'
    δ **and** λ are defined at it and $\cons$ holds. δ-partiality is handled
    structurally — an undefined-δ letter is covered by **no** `delta_edges` guard,
-   so it contributes to no edge (exactly the per-letter "skip", `def:enabled`).
+   so it contributes to no edge (exactly the per-letter "skip", `def:consistency`).
    λ-partiality is handled by `emits_region` (an undefined λ excludes the letter,
    see below). A non-enabled letter simply appears in no destination guard;
    there is no sink.
@@ -286,7 +286,7 @@ Each phase leaves the tree compiling and independently testable.
 - **Partial transducers** — undefined δ: letter covered by no `delta_edges` guard
   ⇒ no edge. Undefined λ at $q$: `emits_region(q)=\mathtt{bddfalse}$ ⇒ every guard
   through $q$ is `bddfalse` ⇒ dropped. Both match the per-letter "skip"
-  (`\cref{def:enabled}`, Case-A regime).
+  (`\cref{def:consistency}`, Case-A regime).
 - **Non-complete Goal** — assertion (invariant 3) throws rather than silently
   dropping enabled letters (symbolic analogue of the per-letter completeness
   throw). `ltlf_to_dfa` never produces one; the assert guards a future
