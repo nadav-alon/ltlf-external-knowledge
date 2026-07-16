@@ -48,7 +48,21 @@ No new algorithm — a representation change to an existing one.
   edge is a reject — which unblocked the **language oracle** and turned the
   sink-drop language claim from argued into verified (negative control confirms it
   is non-vacuous). `ctest` **302/302**.
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
+- [x] code-review     — *closed 2026-07-16* — domain (`/code-reviewer`) + generic
+  (`/code-review`, medium) both **clean, no must-fix**. Glossary coverage complete
+  (`emits_dfa`, `register_turn_order_aps`/`require_turn_order_aps`, `solve_mtdfa`,
+  `MtdfaProduct`, `emits_region` all in the C++ column). Turn-order level test
+  verified correct; `dict->varnum` throws `std::out_of_range` (var_map.at) so
+  `level_of`'s loud-failure guarantee holds. **Decision-2 theory-reviewed clean
+  2026-07-16** (faithfulness, focused): making `cons`-forced `Iknown/Oknown`
+  controllable then existentially projecting (`solve_mtdfa.cpp:69`) is
+  equivalent-in-outcome to `solve_dfa`'s arena-side projection — a forced move is
+  invariant to which player owns it, so neither realizability nor a winning
+  strategy changes; discharges the same `main.tex:300` `\na` by a different route.
+  Three low-severity *consider* items only (skipped guard on empty `Ifree` →
+  bare `out_of_range`; redundant double `require_turn_order_aps`; shared
+  AP-registration order shifted for `DfaProduct` too but correctness-safe as the
+  explicit route reads turn order from `sigma_slices(vars)`, not BDD order).
 - [x] theory-review   — *closed 2026-07-16* (faithfulness mode, `emits_dfa`'s
   no-sink contract vs `\cref{alg:dfa_product}`). Skip-not-sink on the **edges** is
   faithful — `\cref{alg:dfa_product}` builds $\delta_{Dprod}$ as an *undefined
