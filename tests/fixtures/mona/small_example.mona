@@ -1,0 +1,31 @@
+m2l-str;
+
+# P1 fixture (docs/prd/ltlf-to-nfa.md, "Implementation phases" Phase 1):
+# a hand-written M2L-Str source, NOT derived from any Goal formula phi (the
+# mirror -> M2L-Str encoder is Phase 2).  Free second-order variables "a" and
+# "b" stand in for two Goal APs; the formula "a sub b" (every position in a
+# is also in b) just needs to exercise the MONA -w output shapes P1's parser
+# must handle: a multi-state DFA, a mix of 0/1/don't-care ("X") transition
+# guard bits, and a non-initial, non-total-alphabet accepting set.
+#
+# Expected `mona -q -w -n` output (verified by running mona on this file):
+#
+#   DFA for formula with free variables: a b
+#   Initial state: 0
+#   Accepting states: 1
+#   Rejecting states: 2
+#   Don't-care states: 0
+#
+#   Automaton has 3 states and 4 BDD-nodes
+#   Transitions:
+#   State 0: XX -> state 1
+#   State 1: 0X -> state 1
+#   State 1: 10 -> state 2
+#   State 1: 11 -> state 1
+#   State 2: XX -> state 2
+#
+# i.e. D has states {0,1,2}, initial state 0, accepting F_D={1}; state 2 is
+# a rejecting sink.  This is deterministic + complete: state 1's guards
+# {!a, a&!b, a&b} partition the full 2-bit letter space.
+var2 a, b;
+a sub b;
