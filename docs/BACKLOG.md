@@ -11,7 +11,55 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Priority order within this section: #1 $\Tout$ oracle. (The former #1, the MTDFA
+_Top priority (added 2026-07-17): the two Method-1 build items below — explicit
+`NfaProduct` then `MtnfaProduct` — which the MTNFA-representation PRD being drafted
+now (`docs/prd/mtnfa.md`) feeds into. The $\Tout$ oracle (former #1) sits behind
+them._
+
+### Explicit `NfaProduct` — Method 1 (`alg:nfa_product`), the paper's NFA route — **top priority**
+- **Intent:** build Method 1 explicitly (`NfaProduct`, glossary *the five
+  methods*): the explicit NFA×transducer product over `ltlf_to_nfa` (landed),
+  `NfaToDfa` subset determinization into a `twa_graph`, then `solve_dfa`. This is
+  the paper's actual Method 1 and, downstream, the **reference oracle +
+  representation baseline** the mtdfa route (`MtnfaProduct`) is graded against.
+  Independent — needs only `ltlf_to_nfa` + the existing
+  `build_product`/`solve_dfa` machinery; does **not** depend on the MTNFA PRD.
+- **Seeds for grilling:**
+  - `NfaToDfa` = subset construction; every reachable subset has the form
+    $R\times\{q_{in}\}\times\{q_{out}\}$ (`main.tex:241`) — reuse the per-letter
+    `build_product` driver or a dedicated subset BFS? Output a complete DFA for
+    `solve_dfa`.
+  - Stage mapping: determinization runs *after* the product — its own `Stage` or
+    folded into `product_construction`? (the open benchmarking question, tracked
+    under *Later*).
+  - Non-completion of $N$ (partial $\delta_N$, `alg:nfa_product` tolerates empty)
+    vs `solve_dfa` wanting a complete DFA arena.
+
+### `MtnfaProduct` — Method 1 in the mtdfa representation (the rest after MTNFA) — **top priority**
+- **Intent:** once the MTNFA representation lands (`docs/prd/mtnfa.md` — the data
+  structure + construction + determinize-to-`mtdfa` + isolated `product_xor`
+  oracle), build the full Method-1 mtdfa synthesis method: the **symbolic**
+  NFA×transducer product (cons filter + transducer-state tracking), determinize the
+  product MTNFA into a `spot::mtdfa`, wired to `solve_mtdfa` (landed). Ships as a
+  `Synthesis` class `MtnfaProduct` + `--mtnfa-product` CLI + the three canonical
+  benchmark stages. **Depends on:** the MTNFA PRD, explicit `NfaProduct` (reference
+  oracle), `solve_mtdfa`.
+- **Why split off:** the MTNFA PRD de-risks the bespoke set-terminal apply +
+  determinizer in isolation on the goal NFA alone; this item then adds the
+  well-understood product/cons layer (mirrors `MtdfaProduct`'s route) + method
+  wiring on top.
+- **Seeds for grilling:**
+  - Product stays symbolic: cons = `emits_region(q_in) & emits_region(q_out)`
+    restricting live letters; the reachability invariant makes determinized states
+    $(R, q_{in}, q_{out})$. Fold transducer successors into the terminal, or track
+    them alongside?
+  - Comparisons this unlocks: vs `MtdfaProduct` (method axis — does NFA-product's
+    determinize step beat DFA-product avoiding it?), vs `NfaProduct` (representation
+    axis).
+  - Reuse `turn_order.hpp` (`require_turn_order_aps`) as the `solve_mtdfa`
+    precondition, exactly as `MtdfaProduct` does.
+
+_Then: #1 $\Tout$ oracle. (The former #1, the MTDFA
 scaffolding replacement, **shipped 2026-07-16** — see Done; it removed the explicit
 DFA materialisation from the goal *construction*, the other half of the cost the
 symbolic DFA-product rewrite started on the *product*, and a live benchmark

@@ -300,6 +300,36 @@ the existing term or update this file via `/glossary` — do not let drift happe
   `build_product_symbolic`), multi-terminal BDD, mtdfa (bare, in prose — the type
   is `spot::mtdfa_ptr`, the concept is "an MTDFA").
 
+### MTNFA (multi-terminal NFA)
+- **`main.tex`:** — (no symbol; a **code-only** data structure on the
+  *Representation* axis, the nondeterministic sibling of *MTDFA*. The `\na` at
+  `main.tex:335` gestures at MTDFA for Method 3 but commits to no NFA form.)
+- **Definition:** the NFA $N$ (*NFA / DFA for the Goal*) held as **one MTBDD per
+  state** — the same per-state-MTBDD shape as *MTDFA*, except each **terminal
+  encodes a set** of destination states (an interned index into a side table,
+  index $0=\emptyset$), not a single destination. That set-valued terminal is
+  exactly the nondeterminism, $\delta_N(s,v)\in 2^{S_N}$. Branching stays
+  deterministic (one path per letter), so the diagram keeps BDD **canonicity** —
+  unlike a general nondeterministic decision diagram (nBDD/nFBDD; the trade-off the
+  `docs/BACKLOG.md` "nondeterministic decision diagrams" investigation worried
+  about). Acceptance is a per-state $F_N$ bit (the reversal's sole final state),
+  **not** on the terminals. A non-covered letter keeps the $\emptyset$ terminal
+  (partial $\delta_N$, **no** sink state — `alg:nfa_product` tolerates an empty
+  $\delta_N(s,v)$). Determinized into a *MTDFA* by `mtnfa_to_mtdfa` (see *Goal
+  automaton determinization*).
+- **C++:** `Mtnfa` (`include/ltlf_ek/mtnfa.hpp`) — `std::vector<bdd> states`,
+  `std::vector<bool> accepting`, `unsigned initial`, an owned `detail::StateSetPool`
+  interpreting the set-terminals, `spot::bdd_dict_ptr`, `aps`. Introduced by
+  `docs/prd/mtnfa.md` (**not yet implemented**). The set-terminal substrate
+  (interning + the memoized union apply) is `detail::StateSetPool`
+  (`include/ltlf_ek/detail/state_set_pool.hpp`) — internal plumbing, **no domain
+  entry of its own** (cf. the `bench.hpp` `BenchTimer`/`BenchScope` infra).
+- **Do not call it:** symbolic NFA, nondeterministic mtdfa / nondeterministic
+  MTDFA, MTBDD-NFA (MTBDD is the node structure of **one** state, not the
+  automaton), nBDD / nFBDD (those are the *lose-canonicity* diagrams the backlog
+  investigation contrasts — the MTNFA keeps canonicity), set-terminal DFA, mtnfa
+  (bare, in prose — the type is `Mtnfa`, the concept is "an MTNFA").
+
 ## Transducer I/O
 
 ### Transducer file format (%%LAMBDA block)
@@ -433,6 +463,48 @@ the existing term or update this file via `/glossary` — do not let drift happe
   (draft PRD `docs/prd/ltlf-to-nfa.md`, internal, may be renamed on implementation).
 - **Do not call it:** transpose, flip, `mirror` (that is the *formula* mirror
   above), `NfaToDfa` (opposite direction, later step), determinize.
+
+### Goal MTNFA construction (ltlf_to_mtnfa / nfa_to_mtnfa)
+- **`main.tex`:** `\algname{LtlfToNfa}`$(\varphi)$ (`\cref{alg:ltlftonfa}`) in the
+  **mtdfa** *Representation*; no dedicated symbol (returns the *MTNFA* form of $N$).
+- **Definition:** build the *MTNFA* for the Goal formula $\varphi$. `nfa_to_mtnfa`
+  is the **lift** of an explicit `twa_graph` NFA into an `Mtnfa`: per state, fold
+  every out-edge $(\text{cond},\text{dst})$ by set-union of its guarded singleton —
+  **overlapping guards merge** (that overlap is the nondeterminism), an uncovered
+  letter stays $\emptyset$ — the NFA analog of Spot's `twadfa_to_mtdfa` (**ours**;
+  Spot has no `twanfa_to_mtnfa`). `ltlf_to_mtnfa` composes `ltlf_to_nfa`$(\varphi)$
+  (see *Goal NFA construction*, MONA-backed) with that lift. Same `(phi, dict)`
+  shape and shared-`bdd_dict` precondition as `ltlf_to_nfa`; APs come from
+  $\varphi$'s support.
+- **C++:** `ltlf_to_mtnfa(phi, dict)` / `nfa_to_mtnfa(nfa)` → `Mtnfa` (see *MTNFA*)
+  (`include/ltlf_ek/mtnfa.hpp`; `docs/prd/mtnfa.md`, **not yet implemented**).
+- **Do not call it:** to_mtnfa, ltlf2mtnfa, build_mtnfa, translate, `twanfa_to_mtnfa`
+  (no such Spot primitive — our lift is `nfa_to_mtnfa`); **not** `mtnfa_to_mtdfa`
+  (the reverse-direction determinization below).
+
+### Goal automaton determinization (NfaToDfa, mtdfa representation)
+- **`main.tex`:** `\algname{NfaToDfa}`$(P)$ (`\cref{alg:nfa_product}` line
+  `alg:nfa_product:determinize`); black-boxed subset construction.
+- **Definition:** subset-determinize an *MTNFA* into a *MTDFA*. A DFA state is a set
+  $R\subseteq S_N$; the initial DFA state is $\{s_{N,0}\}$,
+  $\delta_D(R,v)=\bigcup_{s\in R}\delta_N(s,v)$, and $R$ is accepting iff
+  $R\cap F_N\neq\emptyset$. Realized symbolically by a BFS over reachable subsets,
+  reusing the *MTNFA*'s set-union apply for the successor MTBDD, then relabeling
+  set-terminals to `spot::mtdfa` terminals $2\cdot\mathrm{idx}(R')+b$ ($\emptyset
+  \mapsto$ `bddfalse`, the rejecting sink). **This PRD applies it to the Goal NFA
+  $N$ alone** ($L(\texttt{mtnfa\_to\_mtdfa}(N))=L(N)=L(\varphi)$ — the isolated
+  oracle); `main.tex`'s `\algname{NfaToDfa}` is over the **product** $P$ — the same
+  algorithm at a different input, generalized to the $(R,q_{in},q_{out})$ product
+  states by `MtnfaProduct` (`docs/BACKLOG.md`) under the reachability invariant
+  `main.tex:241`.
+- **C++:** `mtnfa_to_mtdfa(nfa)` → `spot::mtdfa_ptr` (`include/ltlf_ek/mtnfa.hpp`;
+  `docs/prd/mtnfa.md`, **not yet implemented**; never returns `nullptr`). The
+  **explicit** counterpart `NfaToDfa` (subset → `twa_graph`, for `NfaProduct`) is
+  still future — see *Goal DFA construction*.
+- **Do not call it:** determinize (bare — direction-specific; cf. *Automaton
+  reversal*'s rejected `determinize`), to_mtdfa, `NfaToDfa` (bare — that is the
+  explicit product determinization, and Spot owns no `mtnfa_to_mtdfa`), powerset
+  (Spot's explicit primitive), subset_construction, mtnfa2mtdfa.
 
 ### Consistency (cons)
 - **`main.tex`:** $\cons(q_{in},q_{out},v)$ (`\cref{def:consistency}`, §203) — the per-letter filter.
