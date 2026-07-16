@@ -1,8 +1,21 @@
 # PRD: MTDFA product — Method 2 over `spot::mtdfa`
 
-**Status:** Phase 1 implemented — **green checkpoint MET 2026-07-16** (merged
-2026-07-15, `61b1ad0`; sink dropped 2026-07-15; Spot >= 2.15 required
-2026-07-15). `emits_dfa`, `turn_order.hpp`
+**Status:** Phase 2 implemented — **green checkpoint MET 2026-07-16**
+(`/developer`, uncommitted). `MtdfaProduct` gained the three canonical
+`BenchTimer` scopes (`automaton_construction` = `ltlf_to_mtdfa` alone;
+`product_construction` = `emits_dfa` ×2 + `twadfa_to_mtdfa` ×2 + `spot::product`
+×2; `game_solving` = `solve_mtdfa`) and a `minimize_mtdfa` knob (constructor
+param, default `false`; CLI `--minimize-mtdfa`) that applies
+`spot::minimize_mtdfa` to the product mtdfa between `product_construction` and
+`game_solving`, timed in its own free-form `"minimize_mtdfa"` span. `--benchmark`
+smoke-tested both off (three canonical stages only) and on (adds the extra
+span); `ctest` was **302/302** at developer handoff (Phase 2 added no tests of
+its own — that was `/test-writer`'s pass, now done: `tests/mtdfa_bench_test.cpp`
+landed and `ctest` is **307/307**, see the `tests` gate). See "Developer
+comments / PRD disagreements" for the CLI-plumbing choice.
+Phase 1 status (superseded by the above as current, kept for history): implemented
+— green checkpoint MET 2026-07-16 (merged 2026-07-15, `61b1ad0`; sink dropped
+2026-07-15; Spot >= 2.15 required 2026-07-15). `emits_dfa`, `turn_order.hpp`
 (`register_turn_order_aps` / `require_turn_order_aps`), `solve_mtdfa`,
 `MtdfaProduct` and the CLI wiring all land and build clean. **The
 `backprop_nodes=true` SEGFAULT is RESOLVED**: it was an upstream Spot bug
@@ -33,8 +46,15 @@ $T_C$'s interface (`\cref{def:probDefTransducer}`, §129); the projection `\na`
 (`main.tex:300`) and its commented-out `\cl` argument (`main.tex:302–303`).
 No new algorithm — a representation change to an existing one.
 
-**Gates:**
-- [x] glossary        — *closed 2026-07-15* after Phase 0/Q2 re-opened it: new
+**Gates (Phase 2 delta — reopened for the new surface below; Phase 1's closures
+are kept as history in each bullet):**
+- [x] glossary        — *closed 2026-07-16* (Phase 2, `/developer`): *MTDFA*'s
+  C++ column gained `spot::minimize_mtdfa` as the optional, separately-measured
+  `MtdfaProduct` knob (constructor param `minimize_mtdfa`, CLI
+  `--minimize-mtdfa`). No new domain identifier otherwise — `minimize_mtdfa` is
+  a direct call to Spot's own primitive, not a new `ltlf_ek::` concept, matching
+  the existing `spot::product`/`spot::ltlf_to_mtdfa` treatment in this same
+  entry. *Phase 1 history:* closed 2026-07-15 after Phase 0/Q2 re-opened it: new
   ***Turn order*** entry (canonical names `register_turn_order_aps` /
   `require_turn_order_aps`), *Goal DFA construction*'s wrapper placeholder
   retired, *Letter alphabet* / *Game solving* cross-refs, and the Mealy-commitment
@@ -43,12 +63,42 @@ No new algorithm — a representation change to an existing one.
   *Representation*, `solve_mtdfa` + the mtdfa rows on *Product* / *Goal DFA
   construction*, and two *Open theory questions* cross-refs. Renamed this PRD's
   `cons_dfa` → `emits_dfa`. (`/glossary`; branch `master`, uncommitted.)
-- [x] tests           — *closed 2026-07-16* (`/test-writer`): the 6 `EmitsDfa`
+- [x] tests           — *closed 2026-07-16* (Phase 2, `/test-writer`): new file
+  `tests/mtdfa_bench_test.cpp` (added to the `unit_tests` target), covering
+  exactly the Phase 2 delta only (Phase 1's `MtdfaProduct` behaviour stays in
+  `tests/mtdfa_product_test.cpp`, untouched). Bench-stage shape:
+  `BenchScopeIntegration.MtdfaProductEmitsCanonicalStagesOnceEachInOrder`
+  mirrors `bench_test.cpp`'s `DfaProduct` bench-shape test and asserts exactly
+  three canonical roots (`automaton_construction`, `product_construction`,
+  `game_solving`) in order — structurally encoding that `emits_dfa`'s work
+  falls inside the `product_construction` bracket, not `automaton_construction`.
+  `minimize_mtdfa` knob: verdict identity on a realizable
+  (`VerdictIdentityOnRealizableFixtureAndOnRunControllerPassesVerifier`, also
+  round-tripped through `verify_controller`) and an unrealizable
+  (`VerdictIdentityOnUnrealizableFixture`) fixture; span presence off
+  (`OffRunRegressesToExactlyThreeCanonicalStagesWithNoMinimizeMtdfaSpan`) vs on
+  (`OnRunEmitsExactlyOneFreeFormMinimizeMtdfaSpanBetweenProductConstructionAndGameSolving`,
+  asserting the free-form `"minimize_mtdfa"` span sits at root index 2, between
+  `product_construction` and `game_solving`, as a fourth root — `src/mtdfa_
+  product.cpp` opens it top-level, not nested). `ctest` **307/307** (306 pass +
+  1 pre-existing disabled `GeneratedCorpusSoak` test; up from 302/302 by the 6
+  new tests, all passing). (`/test-writer`; branch `master`, uncommitted
+  alongside the rest of the Phase 2 developer work.)
+  *Phase 1 history:* closed 2026-07-16 (`/test-writer`): the 6 `EmitsDfa`
   tests retargeted onto the no-sink contract, `GraphAccepts` taught that a missing
   edge is a reject — which unblocked the **language oracle** and turned the
   sink-drop language claim from argued into verified (negative control confirms it
-  is non-vacuous). `ctest` **302/302**.
-- [x] code-review     — *closed 2026-07-16* — domain (`/code-reviewer`) + generic
+  is non-vacuous).
+- [x] code-review     — *closed 2026-07-16* (Phase 2) — domain (`/code-reviewer`)
+  + generic (`/code-review`) both **clean, no must-fix**. The three `BenchTimer`
+  stages match the frozen Benchmarking table (`automaton_construction` =
+  `ltlf_to_mtdfa` alone); the `minimize_mtdfa` free-form span sits between
+  `product_construction` and `game_solving`; off-path is byte-for-byte the Phase 1
+  code path; CLI plumbing (second defaulted `make_synthesis_method` param through
+  both `BuildMethodOrNull` sites) is mechanical and correct; glossary carries
+  `spot::minimize_mtdfa`. One *consider* only: `--minimize-mtdfa` on a non-mtdfa
+  method is a silent no-op (a `UsageError` would be friendlier; left as-is).
+  *Phase 1 history:* closed 2026-07-16 — domain (`/code-reviewer`) + generic
   (`/code-review`, medium) both **clean, no must-fix**. Glossary coverage complete
   (`emits_dfa`, `register_turn_order_aps`/`require_turn_order_aps`, `solve_mtdfa`,
   `MtdfaProduct`, `emits_region` all in the C++ column). Turn-order level test
@@ -63,7 +113,16 @@ No new algorithm — a representation change to an existing one.
   bare `out_of_range`; redundant double `require_turn_order_aps`; shared
   AP-registration order shifted for `DfaProduct` too but correctness-safe as the
   explicit route reads turn order from `sigma_slices(vars)`, not BDD order).
-- [x] theory-review   — *closed 2026-07-16* (faithfulness mode, `emits_dfa`'s
+- [x] theory-review   — *closed 2026-07-16* (Phase 2, light — closed inline, no
+  spawn). `minimize_mtdfa` has no `main.tex` counterpart: it is Spot's own
+  language-preserving DFA minimisation applied as an optional pre-solve transform
+  on the same `bdd_dict` (turn-order variable ordering untouched), so it cannot
+  change the accepted language, hence not the realizability verdict. Verdict
+  identity is empirically confirmed by the new tests on both a realizable and an
+  unrealizable fixture plus a verifier round-trip. Touches no project math — a
+  Spot black-box knob, not a novel faithfulness claim like Phase 1's decision-2,
+  so no theory-reviewer spawn was warranted.
+  *Phase 1 history:* closed 2026-07-16 (faithfulness mode, `emits_dfa`'s
   no-sink contract vs `\cref{alg:dfa_product}`). Skip-not-sink on the **edges** is
   faithful — `\cref{alg:dfa_product}` builds $\delta_{Dprod}$ as an *undefined
   mapping* filled only `\If{$\cons$}`, and `\cref{def:consistency}`'s partiality
@@ -580,16 +639,31 @@ in the foreground.
 **Green checkpoint:** `ctest` green, including the full generated corpus running
 both methods (see *Test oracles*) and `--mtdfa-product` reachable from the CLI.
 
-### Phase 2 — benchmarking wiring + `minimize_mtdfa` knob
+### Phase 2 — benchmarking wiring + `minimize_mtdfa` knob — **DONE 2026-07-16** ✅
 
 - Wire the three `BenchTimer` scopes per *Benchmarking* below.
 - Add `minimize_mtdfa` (Moore minimisation, cheap on this data structure) as its
   **own knob, default off**, measured separately. It is adjacent free real estate,
   not part of the core claim — keep it separable so its effect is attributable.
 
-**Green checkpoint:** `--benchmark` emits the three canonical stages for
-`MtdfaProduct`; `automaton_construction` is directly comparable against
-`DfaProduct`'s; the minimisation knob is measured on its own.
+**Green checkpoint:** ✅ MET. `MtdfaProduct::synthesize` (`src/mtdfa_product.cpp`)
+now brackets `spot::ltlf_to_mtdfa` alone in `Stage::automaton_construction`, the
+`emits_dfa` ×2 + `twadfa_to_mtdfa` ×2 + `spot::product` ×2 block in
+`Stage::product_construction`, and `solve_mtdfa` in `Stage::game_solving` — the
+exact three-stage mapping the *Benchmarking* table freezes. `minimize_mtdfa`
+landed as a constructor param (`MtdfaProduct(bool minimize_mtdfa = false)`) wired
+from a new `--minimize-mtdfa` CLI flag (`CliArgs::minimize_mtdfa`, threaded
+through `make_synthesis_method`'s new defaulted second param and both
+`BuildMethodOrNull` call sites in `src/ltlf_ek_synth.cpp`); when on, it applies
+`spot::minimize_mtdfa` to the product mtdfa inside its own free-form
+`BenchTimer(std::string("minimize_mtdfa"))` span, between the
+`product_construction` and `game_solving` spans. Smoke-tested via the CLI binary:
+default (off) run's `--benchmark` JSON emits exactly the three canonical stages,
+byte-for-byte the same shape as before this phase; `--minimize-mtdfa` on adds the
+extra `"minimize_mtdfa"` (`canonical: false`) span and nothing else changes;
+`--dfa-product --minimize-mtdfa` is accepted and the flag is silently a no-op
+(only `MtdfaProduct` reads it). `cmake --build build -j` clean; `ctest`
+**302/302** (unchanged from Phase 1 — this phase added no tests).
 
 ## Benchmarking
 
@@ -844,13 +918,38 @@ Flagged for `/theory-review`; not resolved here.
 - `ctest` green, including the full corpus over both methods.
 - `docs/GLOSSARY.md` carries *Output-agreement automaton*, *MTDFA*, *Representation*,
   `solve_mtdfa`, and the five-methods table's *implementation of Method 2* row.
-- `--benchmark` emits the three canonical stages for `MtdfaProduct`;
-  `automaton_construction` is comparable to `DfaProduct`'s, and the delta between
-  them is the reported result of this PRD.
-- `minimize_mtdfa` available as a separately-measured knob, default off.
-- All four gates ticked with refs.
+- [x] `--benchmark` emits the three canonical stages for `MtdfaProduct`
+  (2026-07-16, Phase 2); `automaton_construction` is comparable to
+  `DfaProduct`'s, and the delta between them is the reported result of this PRD.
+- [x] `minimize_mtdfa` available as a separately-measured knob, default off
+  (2026-07-16, Phase 2 — constructor param + `--minimize-mtdfa` CLI flag).
+- All four gates ticked with refs — **glossary** is (Phase 2 delta, 2026-07-16);
+  **tests**, **code-review**, **theory-review** are reopened for the Phase 2
+  surface (see *Gates*) and pending `/test-writer` + the two review skills.
 
 ## Developer comments / PRD disagreements
+
+**2026-07-16, `/developer` (Phase 2):**
+
+- **CLI plumbing choice for `minimize_mtdfa`, left open by the PRD ("your
+  call"): took the "second defaulted param on `make_synthesis_method`" branch,
+  not "read the flag in `main()` and construct `MtdfaProduct` directly".**
+  `make_synthesis_method(method_flag, bool minimize_mtdfa = false)` forwards to
+  `MtdfaProduct`'s constructor and is ignored by every other `if` branch;
+  `ltlf_ek_synth.cpp` gained `CliArgs::minimize_mtdfa` and threads it through
+  both `BuildMethodOrNull` call sites (the `--model-check` self-check path and
+  the normal synth path). Chosen because it keeps `main()`'s two call sites
+  uniform (`BuildMethodOrNull(flag, minimize_mtdfa)` either way) rather than
+  special-casing a direct `MtdfaProduct` construction only when the method flag
+  happens to be `"mtdfa-product"` — no behavioural difference, just less
+  branching at the call sites. Not a PRD-change event: the PRD explicitly left
+  this a developer's-call detail, not a frozen-contract signature.
+- **No new tests, no new glossary interview, no reviews run this session** —
+  in scope for `/test-writer` (`BenchTimer` tree-shape assertions for
+  `MtdfaProduct`, and a `minimize_mtdfa`-on/off pair showing the report gains
+  exactly the one extra free-form span and no realizability-verdict change)
+  and `/code-reviewer` + `/code-review` + a light `/theory-review` next, per
+  the *Gates* reopening above.
 
 **2026-07-15, `/developer` (Phase 1 blocker fix):**
 
