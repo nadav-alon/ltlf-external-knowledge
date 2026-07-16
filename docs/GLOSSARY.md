@@ -290,6 +290,10 @@ the existing term or update this file via `/glossary` — do not let drift happe
   `ltlf_translator`, which Spot's own header marks *"Semi-internal… Do not rely on
   the interface to be stable"*), so a bespoke MTDFA product is unavailable — hence
   the *Output-agreement automaton* + `spot::product` route (see *Representation*).
+  `spot::minimize_mtdfa` (Moore minimisation) is an optional, separately-measured
+  knob on `MtdfaProduct` (constructor param `minimize_mtdfa`, CLI
+  `--minimize-mtdfa`, default off; `docs/prd/mtdfa-product.md` Phase 2) — applied
+  to the product mtdfa, not the Goal mtdfa alone.
 - **Do not call it:** MTBDD (that is the node structure **one** state is held in,
   not the automaton), symbolic DFA (*symbolic* is **taken** — see *Product*,
   `build_product_symbolic`), multi-terminal BDD, mtdfa (bare, in prose — the type

@@ -42,7 +42,11 @@ VariablePartition parse_partition_file(std::istream& in);
 // DfaProduct, MtdfaProduct respectively); the other four recognised method
 // names throw std::logic_error("... not yet implemented"); any other name
 // throws std::invalid_argument("unrecognised method").
+//
+// `minimize_mtdfa` (Phase 2, docs/prd/mtdfa-product.md "Benchmarking") is the
+// MtdfaProduct-only knob wired from the CLI's `--minimize-mtdfa` flag; it is
+// forwarded to MtdfaProduct's constructor and ignored by every other method.
 std::unique_ptr<Synthesis> make_synthesis_method(
-    const std::string& method_flag);
+    const std::string& method_flag, bool minimize_mtdfa = false);
 
 }  // namespace ltlf_ek

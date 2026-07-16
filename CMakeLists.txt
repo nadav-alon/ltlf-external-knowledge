@@ -103,6 +103,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/emits_dfa_test.cpp
     tests/turn_order_test.cpp
     tests/mtdfa_product_test.cpp
+    tests/mtdfa_bench_test.cpp
     tests/verify_controller_test.cpp
     tests/cli_test.cpp
     tests/ltlf_ek_synth_test.cpp

@@ -75,6 +75,9 @@ struct CliArgs {
   bool realizable = false;
   std::optional<std::string> benchmark_file;  // --benchmark=FILE (docs/prd/
                                               // benchmarking.md).
+  bool minimize_mtdfa = false;  // --minimize-mtdfa (docs/prd/mtdfa-product.md
+                                // Phase 2); MtdfaProduct-only, ignored by
+                                // every other method.
 };
 
 struct Flag {
@@ -127,6 +130,8 @@ CliArgs ParseArgs(int argc, char** argv) {
       args.realizable = true;
     } else if (f.name == "benchmark") {
       args.benchmark_file = need_value();
+    } else if (f.name == "minimize-mtdfa") {
+      args.minimize_mtdfa = true;
     } else {
       throw UsageError("unrecognised flag: --" + f.name);
     }
@@ -253,9 +258,12 @@ void PrintWitness(std::ostream& os, const Witness& w,
 // Construct the method named by `flag`, printing and swallowing an unwired
 // method's std::logic_error so both call sites in main() can react to a null
 // return with the shared exit-1 "not yet implemented" handling.
-std::unique_ptr<Synthesis> BuildMethodOrNull(const std::string& flag) {
+// `minimize_mtdfa` (docs/prd/mtdfa-product.md Phase 2) is forwarded to
+// make_synthesis_method; only MtdfaProduct reads it.
+std::unique_ptr<Synthesis> BuildMethodOrNull(const std::string& flag,
+                                             bool minimize_mtdfa) {
   try {
-    return ltlf_ek::make_synthesis_method(flag);
+    return ltlf_ek::make_synthesis_method(flag, minimize_mtdfa);
   } catch (const std::logic_error& e) {
     std::cerr << e.what() << "\n";
     return nullptr;
@@ -373,8 +381,8 @@ int main(int argc, char** argv) {
       } else {
         // Self-check: --controller omitted, so the method must synthesize a
         // controller first.
-        std::unique_ptr<Synthesis> method =
-            BuildMethodOrNull(args.method_flags.front());
+        std::unique_ptr<Synthesis> method = BuildMethodOrNull(
+            args.method_flags.front(), args.minimize_mtdfa);
         if (!method) return 1;
         const std::optional<Controller> result =
             method->synthesize(phi, partition, t_in, t_out);
@@ -402,7 +410,7 @@ int main(int argc, char** argv) {
     }
 
     std::unique_ptr<Synthesis> method =
-        BuildMethodOrNull(args.method_flags.front());
+        BuildMethodOrNull(args.method_flags.front(), args.minimize_mtdfa);
     if (!method) return 1;
 
     const std::optional<Controller> result =

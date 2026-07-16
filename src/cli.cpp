@@ -78,9 +78,10 @@ VariablePartition parse_partition_file(std::istream& in) {
 }
 
 std::unique_ptr<Synthesis> make_synthesis_method(
-    const std::string& method_flag) {
+    const std::string& method_flag, bool minimize_mtdfa) {
   if (method_flag == "dfa-product") return std::make_unique<DfaProduct>();
-  if (method_flag == "mtdfa-product") return std::make_unique<MtdfaProduct>();
+  if (method_flag == "mtdfa-product")
+    return std::make_unique<MtdfaProduct>(minimize_mtdfa);
 
   static const std::set<std::string> kRecognisedNotWired = {
       "nfa-product", "otf-dfa-product", "otf-agg-product",
