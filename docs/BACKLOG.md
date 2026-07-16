@@ -11,101 +11,16 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Priority order within this section: #1 MTDFA scaffolding replacement, #2
-$\Tout$ oracle. #1's rationale (2026-07-14): it continues the arc the symbolic
-DFA-product rewrite started (**shipped 2026-07-13** — see Done). That one removed
-the minterm loop from the *product*; this one removes the explicit materialisation
-from the DFA *construction*, the other half of the same cost. The benchmarking
-infra having just landed makes `automaton_construction` a measured stage, so the
-win is now observable. #2's rationale (grilled 2026-07-05, updated 2026-07-08):
-the internal controller verifier is **banked** (shipped in `81a4cf4`, migrated
-onto the shared product core, all four PRD gates clean), so the known-**output**
-$\Tout$ oracle rounds out the external `ltlfsynt` cross-check._
+_Priority order within this section: #1 $\Tout$ oracle. (The former #1, the MTDFA
+scaffolding replacement, **shipped 2026-07-16** — see Done; it removed the explicit
+DFA materialisation from the goal *construction*, the other half of the cost the
+symbolic DFA-product rewrite started on the *product*, and a live benchmark
+confirmed the win.) #1's rationale (grilled 2026-07-05, updated 2026-07-08): the
+internal controller verifier is **banked** (shipped in `81a4cf4`, migrated onto the
+shared product core, all four PRD gates clean), so the known-**output** $\Tout$
+oracle rounds out the external `ltlfsynt` cross-check._
 
-### Replace the explicit-DFA scaffolding with MTDFA — solve the game the way `ltlfsynt` does — **#1** (promoted 2026-07-14)
-- **PRD:** spec'd 2026-07-14 in `docs/prd/mtdfa-product.md` (grilled; ready for
-  Phase 0). Adds `MtdfaProduct` as a **second implementation of Method 2**
-  alongside `DfaProduct` (which is left untouched, to preserve the differential).
-  Three seeds below were **settled or corrected** by the grill — read the PRD, not
-  these, for the live decisions:
-  - **Route (a) won, contra the seed's lean.** Not because Spot's composition ops
-    are prettier, but because route (b) is not the cheap port the seed assumed: an
-    MTDFA product must *rewrite terminals* ($2d+b$), and Spot exposes **no public
-    API** for that — only `ltlf_translator`, which its own header marks unstable.
-  - **The seeds missed the crux.** `solve_dfa` projects $\Iknown,\Oknown$ out of
-    per-edge guards; in an MTDFA the destination lives *inside the terminal*, so
-    that projection isn't available, and leaving $\Iknown$ uncontrollable makes the
-    env force a $\neg\cons$ letter into the `bddfalse` sink ⇒ spuriously
-    unrealizable. Resolved by making the pinned vars **controllable** (they have
-    exactly one legal value each, so it's a forced move) and projecting them out of
-    the *strategy* instead, where guard and dst are separate fields again.
-  - **Seed "`build_product_symbolic` already is route (b) working" is half-true:**
-    the guard computation matches, but `ProductGuards` is state-based-acceptance
-    and MTDFA is transition-based. Different data structure, not a port.
-  - Seed (ii) (intersection not implication) and the `complete_here` seed (MTDFA's
-    `bddfalse` terminals make completion implicit) both **held up**.
-  - **"cons-DFA" below is a dead name** (`/glossary`, 2026-07-14). The per-transducer
-    automaton is an *Output-agreement automaton*, `emits_dfa` — $\cons$ is the
-    **two**-transducer conjunction, so a one-transducer object cannot wear its name;
-    $\cons$ has no automaton form, it emerges from intersecting the two.
-- **Intent:** `ltlf_to_dfa` (`src/ltlf_to_dfa.cpp:14`) **already builds a
-  `spot::mtdfa`** via `ltlf_to_mtdfa`, then immediately throws the symbolic form
-  away: `as_twa(state_based=true)` + `complete_here` explode it into an explicit
-  `twa_graph`. Spot's own header says of `as_twa` — "The conversion can be costly,
-  since it requires creating BDD-labeled transitions for each path between a root
-  and a leaf of the state array" — i.e. we pay a path-enumeration blowup to build
-  scaffolding that the rest of the pipeline then works symbolically over anyway.
-  This item keeps the MTDFA all the way through: $A_\varphi$, the product, and the
-  game stay MTBDD arrays, solved with Spot's MTDFA game solver
-  (`mtdfa_winning_region` / `mtdfa_winning_strategy` / `mtdfa_strategy_to_mealy`,
-  `spot/twaalgos/ltlf2dfa.hh`) — the same machinery `ltlfsynt` runs on
-  (Spot 2.14.5, `\cite duret.25.ciaa`).
-- **Seeds for grilling:**
-  - **Where does the external knowledge go?** This is the crux. The EK architecture
-    *is* the $\cons$-filtered product with $\Tin/\Tout$, but Spot's game solver
-    takes **one** mtdfa plus `set_controllable_variables`. Two routes: **(a)** turn
-    each transducer's cons-language into an MTDFA (`twadfa_to_mtdfa`) and fold it in
-    with Spot's `product`; **(b)** keep our own symbolic product directly over the
-    `states[]` MTBDD arrays. Note `build_product_symbolic` **already is** route (b)
-    working (its guard $g_{goal}\wedge\bigwedge_i(g_i\wedge
-    \texttt{emits\_region}(q_i))$ is exactly the product with the cons-DFAs), so the
-    honest question is narrow: does going through Spot's composition ops beat code
-    we already have and trust? Decide on code volume + measured cost, not theory —
-    (a) may just be a distraction.
-  - **Intersection, not implication — and *not* blocked on the monolithic
-    conjecture** (corrected 2026-07-14; an earlier version of this seed claimed the
-    opposite). Two things that look like obstructions but aren't. **(i)** The
-    cons-language *is* regular and its DFA is near-trivial — `delta` is already
-    deterministic over the full $2^{\mathcal I\cup\mathcal O}$
-    (`include/ltlf_ek/transducer.hpp:15`), so the cons-DFA is $(Q\cup\{sink\}$,
-    $\delta$ guarded by `emits_region`$(q)$, all $Q$ accepting, partial
-    $\delta/\lambda$ → sink$)$. The transducer$\to\psi_{in}$ **star-free
-    obstruction does not bite here**: it blocks an LTLf *formula*, not a DFA
-    (LTLf ⊊ regular). **(ii)** Spot's plain `product` (intersection) is the EK
-    shape; `product_implies` is the **monolithic** shape and is the wrong operator
-    — implication is only needed when $\Iknown$ is a *free* environment move that
-    could be broken to win vacuously, and `solve_dfa` projects $\Iknown$ out
-    entirely (`include/ltlf_ek/solve_dfa.hpp:19`), so with $\Iknown$ pinned,
-    intersection and arena-restriction coincide.
-  - **`ltlf_to_mtdfa_for_synthesis` probably collapses too much.** It takes
-    `outvars` + a `backprop` mode and can return a single `bddtrue`/`bddfalse` state
-    (realizability-only). That's the *monolithic* route, not an EK-aware product —
-    if we want per-state EK filtering we likely need plain `ltlf_to_mtdfa` plus our
-    own composition.
-  - **Is `complete_here` even needed?** We complete the DFA because the old product
-    loop needed $\delta_D$ total. MTDFA already uses `bddfalse` terminals as the
-    rejecting sink, so completion may be implicit/free. Confirm rather than port it.
-  - **Blast radius:** `ltlf_to_dfa` has two consumers — `dfa_product.cpp:31` and
-    `verify_controller.cpp:158`. The verifier is the linchpin oracle and is still
-    explicit + per-$\Ifree$-combo (see the symbolic ν-fixpoint item). Keeping the
-    current explicit `ltlf_to_dfa` alongside a new MTDFA path is probably the honest
-    first step: it preserves the differential instead of moving both sides at once.
-  - **`minimize_mtdfa`** (Moore minimization, cheap on this data structure) is
-    adjacent free real estate — worth measuring as its own knob.
-  - New stages need wiring into `bench.hpp`'s `Stage` registry; this is a live
-    instance of the stage-mapping convention question logged under benchmarking.
-
-### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **#2** (was #1; MTDFA promoted above it 2026-07-14)
+### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **#1** (MTDFA replacement shipped 2026-07-16, see Done)
 - **PRD:** the known-**input** ($\Tin$) half is spec'd in
   `docs/prd/ltlfsynt-oracle.md` (ready for `/developer` + `/test-writer`). This
   item is the $\Tout$ follow-up it explicitly deferred.
@@ -383,6 +298,35 @@ $\Tout$ oracle rounds out the external `ltlfsynt` cross-check._
     is it folded into `product_construction` or its own reserved stage?).
 
 ## Done
+
+### Replace the explicit-DFA scaffolding with MTDFA — `MtdfaProduct` (2nd impl of Method 2)
+- **Intent:** `ltlf_to_dfa` already builds a `spot::mtdfa` via `ltlf_to_mtdfa`,
+  then throws the symbolic form away (`as_twa` + `complete_here` path-enumeration
+  blowup). Keep the MTDFA all the way through — goal, product, and game stay MTBDD
+  arrays, solved with Spot's own MTDFA game solver the way `ltlfsynt` does — added
+  as a **second implementation of Method 2** alongside `DfaProduct` (left untouched
+  to preserve the differential).
+- **Outcome:** shipped, both phases, PRD `docs/prd/mtdfa-product.md` **CLOSED
+  2026-07-16**, all gates clean. **Phase 1** (`61b1ad0`): `emits_dfa` (the
+  *Output-agreement automaton*, no rejecting sink — skip-not-sink, faithful to
+  `alg:dfa_product`'s partial $\delta$), `turn_order.hpp`
+  (`register_turn_order_aps` / `require_turn_order_aps` — turn order rides the BDD
+  variable order, Ifree strictly above every controllable), `solve_mtdfa` (decision
+  2: pinned $\Iknown,\Oknown$ made **controllable** then projected strategy-side,
+  theory-reviewed equivalent to `solve_dfa`'s arena-side projection), `MtdfaProduct`,
+  and the `--mtdfa-product` CLI flag. The `backprop_nodes=true` segfault was
+  root-caused to **upstream Spot #639, fixed in 2.15** (not our bug) — `CMakeLists`
+  now requires `libspot >= 2.15`. **Phase 2** (`d1b0355`, gate bookkeeping
+  `0d2f93c`): the three canonical `BenchTimer` stages wired
+  (`automaton_construction` = `ltlf_to_mtdfa` **alone** — the measured win) plus a
+  `minimize_mtdfa` knob (own span, default off). Suite green **307/307**;
+  `/code-reviewer` + `/code-review` + `/theory-review` all clean. **Benchmark
+  validated** the core claim live vs `DfaProduct` on realizable + unrealizable
+  instances: faster at every stage — `automaton_construction` ~1.2–1.7× (grows with
+  goal-DFA size), `product_construction` / `game_solving` 5–46× by staying symbolic;
+  verdicts never disagreed. `minimize_mtdfa` shows no downstream payoff at these
+  sizes (adjacent free real estate, as predicted). Follow-ups still open under
+  **Later**: size metrics + the other-four-methods stage-mapping (benchmarking item).
 
 ### Symbolic DFA-product construction (skip the minterm loop)
 - **Intent:** replace Method-2 `DfaProduct`'s exponential minterm loop

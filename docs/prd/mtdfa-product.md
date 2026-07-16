@@ -1,7 +1,17 @@
 # PRD: MTDFA product — Method 2 over `spot::mtdfa`
 
-**Status:** Phase 2 implemented — **green checkpoint MET 2026-07-16**
-(`/developer`, uncommitted). `MtdfaProduct` gained the three canonical
+**Status:** ✅ **CLOSED 2026-07-16 — fully implemented, all gates green,
+committed, benchmark-validated.** Both phases landed (Phase 1 `61b1ad0`; Phase 2
+`d1b0355`, gate bookkeeping `0d2f93c`); every gate closed (glossary / tests
+`307/307` / code-review / theory-review). A live `--benchmark` comparison vs
+`DfaProduct` confirmed the core claim on realizable and unrealizable instances:
+`MtdfaProduct` is faster at every stage — `automaton_construction` ~1.2–1.7×
+(growing with goal-DFA size, the `as_twa`+`complete_here` cost the PRD targets),
+and `product_construction` / `game_solving` 5–46× by staying symbolic; the two
+methods never disagreed on a verdict. `minimize_mtdfa` measures in its own span
+but shows no downstream payoff at these sizes (adjacent free real estate, as
+predicted). Nothing outstanding. *(History below.)* `MtdfaProduct` gained the
+three canonical
 `BenchTimer` scopes (`automaton_construction` = `ltlf_to_mtdfa` alone;
 `product_construction` = `emits_dfa` ×2 + `twadfa_to_mtdfa` ×2 + `spot::product`
 ×2; `game_solving` = `solve_mtdfa`) and a `minimize_mtdfa` knob (constructor
