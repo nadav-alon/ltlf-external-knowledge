@@ -56,6 +56,7 @@
 #include "ltlf_ek/detail/past_ltlf_to_dfa.hpp"
 #include "ltlf_ek/dfa_product.hpp"
 #include "ltlf_ek/ltlf_to_dfa.hpp"
+#include "ltlf_ek/ltlf_to_nfa.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/product.hpp"
 #include "ltlf_ek/transducer_io.hpp"
@@ -75,6 +76,7 @@ using ltlf_ek::Controller;
 using ltlf_ek::DfaProduct;
 using ltlf_ek::LetterAlphabet;
 using ltlf_ek::ltlf_to_dfa;
+using ltlf_ek::ltlf_to_nfa;
 using ltlf_ek::detail::past_ltlf_to_dfa;
 using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::parse_transducer;
@@ -2492,6 +2494,224 @@ TEST(PastLtlfToDfa, PurelyBooleanPhiMatchesReversedReference) {
     EXPECT_TRUE(spot::is_complete(d));
     const spot::twa_graph_ptr reference = ltlf_to_dfa(phi, dict);
     EXPECT_TRUE(DfaLanguagesEqual(d, ReverseAndDeterminize(reference)));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Phase 3 checkpoint (docs/prd/ltlf-to-nfa.md "Implementation phases" Phase
+// 3, "Test oracles"): L(ltlf_to_nfa(phi)) == L(phi), verified against the
+// independent ltlf_to_dfa(phi) oracle two ways -- exact determinize-and-
+// compare (spot::powerset per the PRD's "Primary (P3)" oracle) and
+// membership fuzz on random non-empty traces -- plus the PRD's "Structural
+// free-riders": N over exactly phi's support (invariant 1). F_N is
+// mathematically {s_{D,0}}, a single state, but purge_unreachable_states can
+// legitimately drop it when D has no accepting state reachable back into
+// N's fresh init (e.g. phi=0, whose D has no accepting state at all) -- so
+// "at most one accepting state" is the invariant checked at corpus scale;
+// tests/reverse_dfa_to_nfa_test.cpp separately confirms "exactly one" on
+// hand-picked D's where s_{D,0} is known reachable. N is deliberately never
+// asserted deterministic (or non-deterministic) either way here, per PRD
+// invariant 3 ("not required"). GTEST_SKIP()s wholesale without `mona`
+// (ltlf_to_nfa's past_ltlf_to_dfa half always shells out to it), same policy
+// as the Phase 2 checkpoint tests above.
+// ---------------------------------------------------------------------------
+
+// Subset-construction membership for N (possibly nondeterministic, possibly
+// partial per PRD invariant 3): tracks the set of states reachable on
+// `word`, accepting iff any survivor is accepting. An empty survivor set (N
+// got stuck -- expected, since Reverse deliberately does not complete N)
+// rejects.
+bool NfaAccepts(const spot::twa_graph_ptr& n, const std::vector<bdd>& word) {
+  std::set<unsigned> current{n->get_init_state_number()};
+  for (const bdd& v : word) {
+    std::set<unsigned> next;
+    for (unsigned s : current)
+      for (const auto& e : n->out(s))
+        if ((v & e.cond) != bddfalse) next.insert(e.dst);
+    current = std::move(next);
+    if (current.empty()) return false;
+  }
+  for (unsigned s : current)
+    if (n->state_is_accepting(s)) return true;
+  return false;
+}
+
+// Determinizes reverse_dfa_to_nfa's production N via spot::tgba_powerset
+// (ignores acceptance) + power_map, recomputing state-based acceptance as
+// "the determinized state's power-set contains an N-accepting original
+// state" -- the standard subset-construction rule for NFA finite-word
+// acceptance. Distinct from DeterminizeReversed above (specific to the
+// un-reversed, test-local ReverseAutomaton helper and its single-accepting-
+// source convention): N already carries its own internally-consistent
+// state-based acceptance marks (every out-edge of an N-state shares one
+// mark -- reverse_dfa_to_nfa.cpp's own invariant), so acceptance is read
+// directly off n->state_is_accepting. Mirrors DeterminizeReversed's
+// defensive bddfalse self-loop for a genuine accepting dead-end (a
+// determinized state that is accepting but has no outgoing edge at all).
+spot::twa_graph_ptr DeterminizeNfa(const spot::twa_graph_ptr& n) {
+  spot::power_map pm;
+  spot::twa_graph_ptr det = spot::tgba_powerset(n, pm);
+  auto out = spot::make_twa_graph(det->get_dict());
+  for (const spot::formula& ap : det->ap()) out->register_ap(ap.ap_name());
+  out->set_buchi();
+  out->prop_state_acc(true);
+  out->new_states(det->num_states());
+  out->set_init_state(det->get_init_state_number());
+  const spot::acc_cond::mark_t kFinal = {0};
+  const spot::acc_cond::mark_t kNone = {};
+  for (unsigned s = 0; s < det->num_states(); ++s) {
+    bool acc = false;
+    for (unsigned orig : pm.states_of(s))
+      if (n->state_is_accepting(orig)) {
+        acc = true;
+        break;
+      }
+    bool added_edge = false;
+    for (const auto& e : det->out(s)) {
+      out->new_edge(s, e.dst, e.cond, acc ? kFinal : kNone);
+      added_edge = true;
+    }
+    if (!added_edge && acc) out->new_edge(s, s, bddfalse, kFinal);
+  }
+  return out;
+}
+
+unsigned NumAcceptingStatesNfa(const spot::twa_graph_ptr& g) {
+  unsigned count = 0;
+  for (unsigned s = 0; s < g->num_states(); ++s)
+    if (g->state_is_accepting(s)) ++count;
+  return count;
+}
+
+std::set<std::string> NfaApNames(const spot::twa_graph_ptr& g) {
+  std::set<std::string> names;
+  for (const spot::formula& ap : g->ap()) names.insert(ap.ap_name());
+  return names;
+}
+
+TEST(GeneratedCorpus, LtlfToNfaLanguageExact) {
+#ifndef MONA_FOUND
+  GTEST_SKIP() << "mona not found (CMake find_program(mona)); skipping the "
+                  "ltlf_to_nfa language oracle";
+#endif
+  const CorpusConfig base = corpus_config_from_env();
+  const RunCorpusStats stats = run_corpus(
+      base, [](const GeneratedCase& c, const CorpusConfig& cfg,
+               unsigned level, std::size_t i) {
+        std::ostringstream phi_os;
+        phi_os << c.phi;
+        SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
+                     ", partition=" + DescribeGeneratedPartition(c.partition) +
+                     ", level=" + std::to_string(level) + " " +
+                     DescribeCorpusConfig(cfg));
+
+        const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+        const spot::twa_graph_ptr n = ltlf_to_nfa(c.phi, dict);
+
+        // Structural free-riders (PRD "Test oracles" / invariants 1-3).
+        EXPECT_EQ(NfaApNames(n), collect_aps(c.phi))
+            << "N's alphabet is not exactly phi's support";
+        EXPECT_LE(NumAcceptingStatesNfa(n), 1u)
+            << "F_N has more than one accepting state";
+
+        const spot::twa_graph_ptr reference = ltlf_to_dfa(c.phi, dict);
+        const spot::twa_graph_ptr determinized_n = DeterminizeNfa(n);
+        EXPECT_TRUE(DfaLanguagesEqual(determinized_n, reference))
+            << "L(ltlf_to_nfa(phi)) != L(phi) (vs ltlf_to_dfa)";
+      });
+  RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
+  RecordProperty("cases_run", static_cast<int>(stats.cases_run));
+  RecordProperty("cases_skipped", static_cast<int>(stats.cases_skipped));
+}
+
+TEST(GeneratedCorpus, LtlfToNfaLanguageMembershipFuzz) {
+#ifndef MONA_FOUND
+  GTEST_SKIP() << "mona not found (CMake find_program(mona)); skipping the "
+                  "ltlf_to_nfa language oracle";
+#endif
+  constexpr int kTracesPerCase = 6;
+  constexpr std::size_t kMaxTraceLength = 6;
+  const CorpusConfig base = corpus_config_from_env();
+  const RunCorpusStats stats = run_corpus(
+      base, [](const GeneratedCase& c, const CorpusConfig& cfg,
+               unsigned level, std::size_t i) {
+        std::ostringstream phi_os;
+        phi_os << c.phi;
+        SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
+                     ", partition=" + DescribeGeneratedPartition(c.partition) +
+                     ", level=" + std::to_string(level) + " " +
+                     DescribeCorpusConfig(cfg));
+
+        const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+        const spot::twa_graph_ptr n = ltlf_to_nfa(c.phi, dict);
+        const spot::twa_graph_ptr reference = ltlf_to_dfa(c.phi, dict);
+        const std::vector<int> ap_vars = ApVars(reference);
+
+        // Case-local std::mt19937 (see PastLtlfToDfaReverseLanguageMembership
+        // Fuzz above for the same idiom); a distinct multiplier from that
+        // test's word_rng seeding so the two bodies do not draw identical
+        // word streams for the same (cfg.seed, level, i).
+        std::mt19937 word_rng(cfg.seed + 3000017u * level +
+                              static_cast<unsigned>(i));
+        std::uniform_int_distribution<std::size_t> len_dist(1, kMaxTraceLength);
+        for (int t = 0; t < kTracesPerCase; ++t) {
+          const std::vector<bdd> w =
+              RandomWord(ap_vars, len_dist(word_rng), word_rng);
+          EXPECT_EQ(NfaAccepts(n, w), Accepts(reference, w))
+              << "N.accepts(w) != ltlf_to_dfa(phi).accepts(w) for a length-"
+              << w.size() << " trace";
+        }
+      });
+  RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
+  RecordProperty("cases_run", static_cast<int>(stats.cases_run));
+  RecordProperty("cases_skipped", static_cast<int>(stats.cases_skipped));
+}
+
+// PRD "Edge cases": phi=1 (tt) rejects the empty word, accepts every
+// non-empty trace -- N must reflect this (cross-check vs ltlf_to_dfa(1),
+// which the existing DfaProduct tests already pin as non-empty-trace "1").
+TEST(LtlfToNfa, TriviallyTrueRejectsEmptyAcceptsEveryNonEmptyWord) {
+#ifndef MONA_FOUND
+  GTEST_SKIP() << "mona not found (CMake find_program(mona)); skipping the "
+                  "ltlf_to_nfa language oracle";
+#endif
+  auto dict = spot::make_bdd_dict();
+  auto n = ltlf_to_nfa(spot::parse_formula("1"), dict);
+  EXPECT_FALSE(NfaAccepts(n, {}));
+  EXPECT_TRUE(NfaAccepts(n, {bddtrue}));
+  EXPECT_TRUE(NfaAccepts(n, {bddtrue, bddtrue, bddtrue}));
+}
+
+// PRD "Edge cases": phi=0 (ff) has the empty language -- N accepts no word,
+// of any length.
+TEST(LtlfToNfa, TriviallyFalseHasEmptyLanguage) {
+#ifndef MONA_FOUND
+  GTEST_SKIP() << "mona not found (CMake find_program(mona)); skipping the "
+                  "ltlf_to_nfa language oracle";
+#endif
+  auto dict = spot::make_bdd_dict();
+  auto n = ltlf_to_nfa(spot::parse_formula("0"), dict);
+  EXPECT_FALSE(NfaAccepts(n, {}));
+  EXPECT_FALSE(NfaAccepts(n, {bddtrue}));
+  EXPECT_FALSE(NfaAccepts(n, {bddtrue, bddtrue, bddtrue}));
+}
+
+// PRD "Edge cases": purely boolean phi (no temporal operator) constrains
+// only the first position of a length-1-or-more trace. Verified against the
+// independent ltlf_to_dfa(phi) oracle (exact equivalence via determinize +
+// compare), not by hand-computing N's language.
+TEST(LtlfToNfa, PurelyBooleanPhiMatchesReference) {
+#ifndef MONA_FOUND
+  GTEST_SKIP() << "mona not found (CMake find_program(mona)); skipping the "
+                  "ltlf_to_nfa language oracle";
+#endif
+  for (const std::string& phi_str : {"a", "a & !b", "a | b", "!a"}) {
+    SCOPED_TRACE("phi=" + phi_str);
+    auto dict = spot::make_bdd_dict();
+    const spot::formula phi = spot::parse_formula(phi_str);
+    auto n = ltlf_to_nfa(phi, dict);
+    auto reference = ltlf_to_dfa(phi, dict);
+    EXPECT_TRUE(DfaLanguagesEqual(DeterminizeNfa(n), reference));
   }
 }
 

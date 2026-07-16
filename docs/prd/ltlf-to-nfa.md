@@ -1,25 +1,61 @@
 # PRD: LtlfToNfa (Method 1 — NFA construction)
 
 **Status:** implemented — Phase 1 (MONA subprocess + DFA parser, commit
-`2697e43`) and Phase 2 (folded mirror encoder + `past_ltlf_to_dfa`,
+`2697e43`), Phase 2 (folded mirror encoder + `past_ltlf_to_dfa`,
 `src/past_ltlf_to_dfa.cpp` + `include/ltlf_ek/detail/past_ltlf_to_dfa.hpp`,
-branch `worktree-prd-ltlf-to-nfa`, uncommitted at PRD-edit time) are landed.
-Phase 3 (`Reverse` + public `ltlf_to_nfa`) is still pending.
+commit `a0a710b`), and Phase 3 (`reverse_dfa_to_nfa` +
+public `ltlf_to_nfa`, `src/reverse_dfa_to_nfa.cpp` +
+`include/ltlf_ek/detail/reverse_dfa_to_nfa.hpp` +
+`src/ltlf_to_nfa.cpp` + `include/ltlf_ek/ltlf_to_nfa.hpp`, branch
+`worktree-prd-ltlf-to-nfa`, uncommitted at PRD-edit time) are landed. This
+was the PRD's last implementation phase — all three are now in.
 **Interface:** adds the black-box helper `ltlf_to_nfa` (`LtlfToNfa`); **not** a `Synthesis` method. The `NfaProduct` class, `NfaToDfa` determinization, and the product/`SolveDfa` wiring of Method 1 are separate later PRDs.
 **Recommended workflow:** concurrent — the public signature is high-confidence (a thin analog of `ltlf_to_dfa`, and the NFA's shape is pinned exactly by `main.tex`'s reverse formulas §160–169). The language-equivalence oracle binds to the public contract + the math, so it parallelizes. The *internal* parser/encoder phase boundaries are tentative, so P1/P2's per-function unit tests run sequential-within-phase (developer lands the internal function, then its unit test binds).
 **main.tex ref:** §`nfa` (Method 1), subsection "LTLf to NFA", Algorithm `alg:ltlftonfa` ("Ltlf To Nfa"); `def:mirror`; `thm:nfa-mirror-size`.
 
 **Gates:**
 - [x] glossary        — new terms in docs/GLOSSARY.md C++ column (commit
-      `a50ecb5`, predates Phase 1/2; `past_ltlf_to_dfa` landed matching its
-      already-drafted tentative entry, no new identifier introduced by P1/P2)
-- [ ] tests           — unit + oracle coverage (Phase 2's own P2 checkpoint
-      oracle — GeneratedCorpus.PastLtlfToDfaReverseLanguageExact/
-      MembershipFuzz, PastLtlfToDfa.* edge cases — lands with this phase; a
-      full /test-writer pass, incl. per-function unit tests for encode_mirror,
-      is still open)
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+      `a50ecb5`, predates Phase 1/2/3; `past_ltlf_to_dfa`, `ltlf_to_nfa`, and
+      `reverse_dfa_to_nfa` all landed matching their already-drafted entries
+      exactly, no new identifier introduced by P1/P2/P3 — the "Goal NFA
+      construction" and "Automaton reversal (Reverse)" entries' prose still
+      says "tentative" / "not yet implemented", which /glossary should refresh
+      now that Phase 3 has landed, but the C++ spellings themselves are
+      already correct and unchanged)
+- [x] tests           — unit + oracle coverage. Phase 2's own P2 checkpoint
+      oracle (GeneratedCorpus.PastLtlfToDfaReverseLanguageExact/
+      MembershipFuzz, PastLtlfToDfa.* edge cases) landed with Phase 2. Phase 3
+      (this /test-writer pass, uncommitted on branch worktree-prd-ltlf-to-nfa
+      alongside the Phase 3 implementation): the P3 checkpoint oracle
+      (GeneratedCorpus.LtlfToNfaLanguageExact/MembershipFuzz — L(N)=L(phi) vs
+      ltlf_to_dfa(phi), exact via spot::powerset determinize-and-compare +
+      membership fuzz, MONA_FOUND-gated), structural free-riders (N's
+      alphabet == phi's support; F_N at most one accepting state) folded into
+      the Exact test, edge cases (LtlfToNfa.TriviallyTrueRejectsEmpty
+      AcceptsEveryNonEmptyWord / .TriviallyFalseHasEmptyLanguage /
+      .PurelyBooleanPhiMatchesReference — phi=1/phi=0/purely-boolean phi, all
+      in tests/ltlfsynt_oracle_test.cpp reusing its existing oracle
+      machinery), and per-function unit tests for reverse_dfa_to_nfa (new
+      tests/reverse_dfa_to_nfa_test.cpp: alphabet-copying, single-accepting-
+      state, genuine nondeterminism, exhaustive L(N)=reverse(L(D)) language-
+      reversal sweeps on hand-built D fixtures, and a dedicated accepting-
+      dead-end-s_{D,0} fixture pinning the self-loop/purge interaction the
+      PRD dev comment flags as load-bearing) are all landed and green:
+      `ctest --test-dir build` — 270/270 passed, 0 failed (1 DISABLED_ soak
+      smoke intentionally excluded, per existing project convention).
+- [x] code-review     — domain (/code-reviewer) + generic (/code-review, high),
+      both clean, no must-fix (branch worktree-prd-ltlf-to-nfa, uncommitted):
+      reversal invariants (no-completion, F_N single accepting state,
+      mark-on-out-edge, the s_{D,0} self-loop/purge interaction) and glossary
+      conformance verified. Three low-severity "consider" notes only: the
+      dead-end self-loop's latent coupling to spot::purge_dead_states behaviour
+      (regression-pinned by DeadEndAcceptingStateSurvivesPurge), redundant
+      parallel s_{N,0} edges (powerset dedups), and the membership fuzz drawing
+      words over ltlf_to_dfa's AP set (guarded by the sibling structural check)
+- [x] theory-review   — code ↔ math faithfulness vs main.tex
+      (faithfulness pass 2026-07-16: reverse_dfa_to_nfa + ltlf_to_nfa exact
+      to alg:ltlftonfa:reverse §160–169; the three seeded open questions
+      dispositioned — no code-bug)
 
 ## Goal
 
@@ -376,3 +412,36 @@ findings/decisions worth flagging beyond what the PRD anticipated:
   fuzz, which sampled around it) on cases like `phi=X[!]G!p1` — a useful
   data point that exact equivalence is pulling real weight the fuzz oracle
   alone would have missed.
+
+**2026-07-16 (Phase 3 landing).** `src/reverse_dfa_to_nfa.cpp` +
+`include/ltlf_ek/detail/reverse_dfa_to_nfa.hpp` (`ltlf_ek::detail::reverse_dfa_to_nfa`),
+same "own detail header, not file-local" precedent as Phase 1/2, plus the
+public `include/ltlf_ek/ltlf_to_nfa.hpp` + `src/ltlf_to_nfa.cpp`
+(`ltlf_ek::ltlf_to_nfa`) exactly at the frozen signature. No disagreements
+with the math or public contract. One implementation-fact finding worth
+recording:
+
+- **The "defensive `guard=bddfalse` self-loop" workaround the P2-landing
+  entry above needed for the *test* oracle turns out to be a documented
+  Spot feature, not an ad hoc trick.** `spot::twa_graph::purge_dead_states()`
+  (`spot/twa/twagraph.cc`) explicitly special-cases exactly this pattern:
+  a `bddfalse` self-loop survives purging **iff** it is a state's *sole*
+  outgoing edge, "to store colors on state without successor with
+  state-based acceptance" (the function's own source comment). So
+  `reverse_dfa_to_nfa` adds the self-loop on `s_{D,0}` **unconditionally**
+  (not conditionally on whether reversal happened to leave it with zero
+  real out-edges) and lets `purge_dead_states()` decide: it is discarded
+  like any other `bddfalse` edge whenever `s_{D,0}` already has real
+  out-edges, and kept as the sole survivor otherwise. This removed the need
+  for any special-casing logic in the production function (unlike the test
+  helper `DeterminizeReversed`, which detects the dead-end case explicitly
+  because it must synthesize marks post-determinization from a `power_map`,
+  a genuinely different problem). Flagged for `/theory-review` only as an
+  FYI, not a math divergence — this is a Spot-API fact, not a `main.tex`
+  question.
+- Order of the two purges follows the PRD literally
+  (`purge_unreachable_states()` then `purge_dead_states()`); the second call
+  alone would already exclude states unreachable from `s_{N,0}` (it does its
+  own from-init reachability pass internally), so the first call is a cheap
+  no-op given the self-loop is added before either runs — kept anyway since
+  the PRD calls out both by name.

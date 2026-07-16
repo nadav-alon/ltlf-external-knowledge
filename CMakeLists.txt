@@ -28,6 +28,8 @@ add_library(ltlf_ek
   src/ltlf_to_dfa.cpp
   src/mona_dfa.cpp
   src/past_ltlf_to_dfa.cpp
+  src/reverse_dfa_to_nfa.cpp
+  src/ltlf_to_nfa.cpp
   src/solve_dfa.cpp
   src/product.cpp
   src/dfa_product.cpp
@@ -77,6 +79,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/transducer_io_test.cpp
     tests/ltlf_to_dfa_test.cpp
     tests/mona_dfa_test.cpp
+    tests/reverse_dfa_to_nfa_test.cpp
     tests/product_test.cpp
     tests/product_build_equivalence_test.cpp
     tests/dfa_product_test.cpp
