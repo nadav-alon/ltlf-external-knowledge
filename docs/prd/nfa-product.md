@@ -34,10 +34,15 @@ the **reachability-invariant note** at `main.tex:241`
   the bench-span shape check. `ctest` 358/358. The cross-method oracle **caught a
   real defect** on first run (the `materialize_product` empty-`ap()` bug — see the
   CONTRACT CHANGE note in *Interfaces & types*), which is precisely its purpose.
-- [~] code-review     — **domain (/code-reviewer) run 2026-07-17; generic
-  (/code-review) NOT run.** Domain review found the diff clean on `Synthesis`
+- [x] code-review     — *closed 2026-07-17* — **domain (/code-reviewer) AND generic
+  (/code-review) both run.** Both found the in-scope diff clean on `Synthesis`
   conformance, BDD/Spot idiom, the `bddfalse`-self-loop precedent, and glossary
-  naming. Two findings actioned: the stale GLOSSARY entries are fixed (this
+  naming. Generic pass additionally cleared: the `complete_here`-before-I∪O-registration
+  ordering (safe — completion is over φ's APs, and any full I∪O minterm projects onto a
+  covered φ-AP assignment, so `goal_delta_set` is non-empty per letter); `dst_guards`
+  reference stability across `std::map::emplace` in `build_product_nondet`; the
+  acceptance round-trip through `nfa_to_dfa` → `solve_dfa`. No new correctness findings.
+  Two earlier findings actioned: the stale GLOSSARY entries are fixed (this
   commit); the one **must-fix** — `materialize_product` dropping $F_P$ on an
   edgeless accepting product state — is **pre-existing, affects `DfaProduct`
   equally, and was deliberately DEFERRED** to `docs/BACKLOG.md` *Later* (it changes
@@ -47,11 +52,23 @@ the **reachability-invariant note** at `main.tex:241`
   corpus because `random_tin` is total by construction). Not re-litigated here.
   Lower-severity, left open: no `goal is COMPLETE` precondition throw in
   `build_product_nondet` (both sibling builders have one); `nfa_to_dfa.hpp`'s
-  undocumented state-based-acc *input* precondition.
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex. **Started 2026-07-17,
-  stopped early (unfinished) — NOT closed.** Still owes a verdict on the
-  load-bearing non-$\cons$-skip vs $\cons$-dead-sink distinction (Behaviour §1), the
-  `main.tex:241` reachability invariant, and the $\varepsilon$-convention.
+  undocumented state-based-acc *input* precondition; justified minterm-enumeration
+  duplication between `nfa_to_dfa::all_minterms` and `product.cpp` (partition-agnostic
+  by design).
+- [x] theory-review   — *closed 2026-07-17* — code ↔ math faithfulness vs main.tex.
+  **Verdict: Method 1 is theory-faithful; no `code-bug`.** All three open questions
+  settled in favor of the implementation: (Q1) the non-$\cons$-skip vs $\cons$-dead-sink
+  distinction is correct — `complete_here(N)` before the product makes a $\cons$-dead
+  letter a non-empty `{sink,…}` subset while the `cons` filter drops non-$\cons$ letters,
+  so `nfa_to_dfa`'s ∅-skip is sound; (Q2) the `main.tex:241` reachability invariant
+  $R×\{q_{in}\}×\{q_{out}\}$ is preserved (deterministic transducers ⇒ single
+  $(q_{in}',q_{out}')$ per successor); (Q3) the $\varepsilon$-convention holds (fresh
+  non-accepting init from `reverse_dfa_to_nfa`, unchanged by completion). One
+  **`underspecified`** finding is a *main.tex* clarity gap, NOT a code bug: the paper's
+  `NfaToDfa` black box states no empty-subset rule, and the code's `complete_here(N)` is
+  a necessary correction the paper omits. A drafted `\cl` note exists (see Developer
+  comments); applying it to `main.tex` is a separate LaTeX task, out of scope for this
+  code PRD, and does not block this gate.
 
 ## Goal
 
@@ -435,6 +452,15 @@ Both new pieces are bespoke (no Spot analog for our finite-acceptance rule; no
   computes `\algname{NfaToDfa}(P)` (the oracle *verifies* language empirically;
   theory-review blesses the argument, especially the **non-$\cons$-skip vs
   $\cons$-dead-sink** distinction). No new `\na`.
+  **[theory-review 2026-07-17 — RESOLVED, faithful.]** The distinction is correct
+  as implemented; the one gap is in *main.tex*, not the code: the `\algname{NfaToDfa}`
+  black box (main.tex:265) states no rule for the empty subset, and both sources of an
+  empty $\delta_{prod}$ (non-$\cons$ *and* $\cons$-dead) collapse to $\emptyset$ in the
+  paper, so no uniform reading of the black box is sound. The code corrects this by
+  completing $N$ (`complete_here`) before the product — exactly as Method 2 completes
+  $A$. Drafted `\cl` note to place after the reachability note at ~main.tex:241
+  (**not applied — separate LaTeX task, out of scope for this code PRD**):
+  > `\cl[inline]{The black box \algname{NfaToDfa} must treat the two sources of an empty $\delta_{prod}$ differently: a non-$\cons$ letter is impossible (its $\mathcal{V}$-bits are pinned by $\Tin,\Tout$) and must be \emph{skipped} (missing edge), whereas a $\cons$ letter on which the Goal dies ($\delta_N(s,v)=\emptyset$) is a legitimate, losing play and must reach a rejecting sink. Since both yield $\emptyset$ here, the explicit realization completes $N$ into $N_c$ (a fresh non-accepting sink, $\delta$ total) before the product --- exactly as Method 2 completes $A$ --- so $\cons$-dead becomes a non-empty subset $\{(\mathrm{sink},q_{in}',q_{out}')\}$ while non-$\cons$ letters are dropped by the $\cons$ filter; the subset construction then safely skips the empty subset.}`
 - **Governed-variable projection** (`main.tex:300` `\na`) and
   **trace-termination semantics** (`main.tex:96` `\na`) — `NfaProduct` inherits both
   through `solve_dfa` exactly as `DfaProduct` does; no new consumer, no new

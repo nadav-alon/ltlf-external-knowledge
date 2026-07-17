@@ -133,6 +133,23 @@ oracle rounds out the external `ltlfsynt` cross-check._
     bug is evidence the total-by-construction corpus has a systematic blind spot,
     not just this one gap.
 
+### `main.tex` `\algname{NfaToDfa}` empty-subset rule is underspecified (LaTeX-only, from theory-review 2026-07-17)
+- **Intent:** a *documentation* fix in `main.tex` (the latex submodule), not a code
+  change. The `\algname{NfaToDfa}` black box (~main.tex:265) states no rule for the
+  empty subset, and both sources of an empty $\delta_{prod}$ — a **non-$\cons$**
+  letter and a **$\cons$-dead** letter ($\delta_N(s,v)=\emptyset$) — collapse to
+  $\emptyset$ in the paper (main.tex:223–228). No uniform reading of the black box is
+  sound: skip-both → spuriously realizable; sink-both → spuriously unrealizable. The
+  explicit `NfaProduct` already corrects this by completing $N$ before the product
+  (`complete_here`), exactly as Method 2 completes $A$ — but the paper is silent.
+- **Fix:** apply the drafted `\cl[inline]{…}` note (verbatim in
+  `docs/prd/nfa-product.md` "Open theory questions touched") after the reachability
+  note at ~main.tex:241. **Verified faithful; code needs no change** — this is purely
+  a clarity gap in the write-up.
+- **Why Later:** main.tex is a submodule that only builds on Overleaf; batch it with
+  the next LaTeX pass (re-run `/glossary` + `/theory-review` after the Overleaf pull,
+  since line numbers drift).
+
 ### Investigate Nondeterministic Decision Diagrams for representing the NFA (Method 1)
 - **Intent:** Method 1 — the NFA route (`LtlfToNfa` / `NfaProduct` / `NfaToDfa`,
   glossary *NFA / DFA for the Goal*) — **isn't built yet**. Before building it on
