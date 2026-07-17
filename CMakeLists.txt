@@ -52,9 +52,11 @@ add_library(ltlf_ek
   src/past_ltlf_to_dfa.cpp
   src/reverse_dfa_to_nfa.cpp
   src/ltlf_to_nfa.cpp
+  src/nfa_to_dfa.cpp
   src/solve_dfa.cpp
   src/product.cpp
   src/dfa_product.cpp
+  src/nfa_product.cpp
   src/emits_dfa.cpp
   src/turn_order.cpp
   src/solve_mtdfa.cpp
@@ -111,9 +113,12 @@ if(LTLF_EK_BUILD_TESTS)
     tests/ltlf_to_dfa_test.cpp
     tests/mona_dfa_test.cpp
     tests/reverse_dfa_to_nfa_test.cpp
+    tests/nfa_to_dfa_test.cpp
     tests/product_test.cpp
     tests/product_build_equivalence_test.cpp
     tests/dfa_product_test.cpp
+    tests/nfa_product_test.cpp
+    tests/nfa_bench_test.cpp
     tests/emits_dfa_test.cpp
     tests/turn_order_test.cpp
     tests/mtdfa_product_test.cpp

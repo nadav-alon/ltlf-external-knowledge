@@ -36,6 +36,15 @@ bool operator==(const ProductState& a, const ProductState& b);
 std::optional<unsigned> goal_delta(const spot::twa_graph_ptr& goal, unsigned s,
                                    bdd v);
 
+// Set-valued Goal-automaton successor, for a NONDETERMINISTIC goal automaton
+// (the NFA N of docs/prd/nfa-product.md): { dst : v |= edge.cond }, the
+// multi-destination generalization of goal_delta above.  Used only by
+// build_product_nondet --- build_product / agreeing_successor's single-goal-
+// successor assumption still holds for DfaProduct / verify_controller, whose
+// goal automaton is deterministic.
+std::vector<unsigned> goal_delta_set(const spot::twa_graph_ptr& goal,
+                                     unsigned s, bdd v);
+
 // The full-letter alphabet Sigma = 2^{I union O} (docs/GLOSSARY.md "Letter
 // alphabet"), materialized as an explicitly enumerated vector of letters over
 // a fixed Ifree-first variable order --- so a letter index's low bits are
@@ -143,6 +152,26 @@ ProductGuards build_product_symbolic(
     const spot::twa_graph_ptr& goal,
     const std::vector<const Transducer*>& taus, const ProductState& init);
 
+// Nondeterministic per-letter product-guard builder (docs/GLOSSARY.md
+// "Product", docs/prd/nfa-product.md): like build_product, but the Goal
+// automaton is an NFA, so one letter can yield MANY goal successors.
+// Worklist BFS from `init` over `alphabet.letters()`.  Per letter v at
+// <s, q_1, ..., q_n>: the cons filter is emits(tau_i, q_i, v) for every tau_i
+// AND delta_i(q_i, v) defined --- a failing filter SKIPS v (no edge, the
+// non-cons/undefined case of def:consistency), exactly agreeing_successor's
+// per-tau loop.  On pass, for EVERY goal successor s' in goal_delta_set(goal,
+// s, v) (non-empty, since `goal` is COMPLETE by precondition), OR v into
+// guards[<s', delta_1(q_1,v), ..., delta_n(q_n,v)>].  Node acc flag is
+// goal->state_is_accepting(s) (F_P = F_N x Q_1 x ... x Q_n, state-based).
+// Emits the shared ProductGuards, so materialize_product turns it into a
+// NONDETERMINISTIC twa_graph (multiple edges per source/letter) --- later
+// subset-determinized by nfa_to_dfa.  Precondition: `goal` is complete (the
+// caller passes spot::complete_here(N), as NfaProduct does); NfaProduct-only.
+ProductGuards build_product_nondet(const spot::twa_graph_ptr& goal,
+                                   const std::vector<const Transducer*>& taus,
+                                   const ProductState& init,
+                                   const LetterAlphabet& alphabet);
+
 // Compress the per-letter build's ProductNode edges into the shared
 // ProductGuards type --- the `guards[dst] |= letters[idx]` loop, extracted
 // out of DfaProduct::synthesize.  Reference side of the build-equivalence
@@ -153,15 +182,20 @@ ProductGuards to_guard_map(const std::map<ProductState, ProductNode>& graph,
 
 // Materialise the game twa_graph from the shared ProductGuards type
 // (state-based Buchi, F_P on the acc flag) --- the single place product
-// states/guards become an automaton, called by DfaProduct.  `init` names the
-// entry ProductState: ProductGuards::nodes is a std::map (keyed for
-// build-equivalence comparison, not insertion order), so it cannot itself
-// mark which node is the entry --- same reason build_product's caller
-// (DfaProduct::synthesize) already keeps its own `init` local for
+// states/guards become an automaton, called by DfaProduct and NfaProduct.
+// `init` names the entry ProductState: ProductGuards::nodes is a std::map
+// (keyed for build-equivalence comparison, not insertion order), so it
+// cannot itself mark which node is the entry --- same reason build_product's
+// caller (DfaProduct::synthesize) already keeps its own `init` local for
 // set_init_state.  (Deviation from the PRD's two-argument signature; see
 // docs/prd/symbolic-dfa-product.md "Developer comments / PRD disagreements".)
+// `vars` supplies the closed AP universe (I ∪ O): after make_twa_graph(dict)
+// the returned graph must register_ap every name in vars.universe(), or
+// callers that trust twa_graph::ap() (nfa_to_dfa's minterm enumeration) see
+// an empty alphabet instead of the guards' real one.
 spot::twa_graph_ptr materialize_product(const ProductGuards& pg,
                                         const ProductState& init,
-                                        const spot::bdd_dict_ptr& dict);
+                                        const spot::bdd_dict_ptr& dict,
+                                        const VariablePartition& vars);
 
 }  // namespace ltlf_ek

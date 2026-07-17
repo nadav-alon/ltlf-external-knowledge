@@ -8,6 +8,7 @@
 #include "ltlf_ek/detail/util.hpp"
 #include "ltlf_ek/dfa_product.hpp"
 #include "ltlf_ek/mtdfa_product.hpp"
+#include "ltlf_ek/nfa_product.hpp"
 
 namespace ltlf_ek {
 
@@ -82,10 +83,10 @@ std::unique_ptr<Synthesis> make_synthesis_method(
   if (method_flag == "dfa-product") return std::make_unique<DfaProduct>();
   if (method_flag == "mtdfa-product")
     return std::make_unique<MtdfaProduct>(minimize_mtdfa);
+  if (method_flag == "nfa-product") return std::make_unique<NfaProduct>();
 
   static const std::set<std::string> kRecognisedNotWired = {
-      "nfa-product", "otf-dfa-product", "otf-agg-product",
-      "otf-dyn-agg-product"};
+      "otf-dfa-product", "otf-agg-product", "otf-dyn-agg-product"};
   if (kRecognisedNotWired.count(method_flag))
     throw std::logic_error("make_synthesis_method: method '" + method_flag +
                            "' not yet implemented");

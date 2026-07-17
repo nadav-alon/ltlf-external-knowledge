@@ -58,6 +58,8 @@
 #include "ltlf_ek/ltlf_to_dfa.hpp"
 #include "ltlf_ek/ltlf_to_nfa.hpp"
 #include "ltlf_ek/mtdfa_product.hpp"
+#include "ltlf_ek/nfa_product.hpp"
+#include "ltlf_ek/nfa_to_dfa.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/product.hpp"
 #include "ltlf_ek/transducer_io.hpp"
@@ -81,6 +83,8 @@ using ltlf_ek::ltlf_to_dfa;
 using ltlf_ek::ltlf_to_nfa;
 using ltlf_ek::detail::past_ltlf_to_dfa;
 using ltlf_ek::MtdfaProduct;
+using ltlf_ek::NfaProduct;
+using ltlf_ek::nfa_to_dfa;
 using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::parse_transducer;
 using ltlf_ek::ProductGuards;
@@ -2030,6 +2034,66 @@ TEST(GeneratedCorpus, MetamorphicRoundTrip) {
 }
 
 // ---------------------------------------------------------------------------
+// NfaProduct cross-method realizability oracle + metamorphic round-trip
+// (docs/prd/nfa-product.md "Test oracles", Phase 2's green checkpoint): for
+// every generated case, NfaProduct::synthesize and DfaProduct::synthesize
+// must AGREE on realizability -- "the strongest Method-1 oracle and the
+// reason NfaProduct is the baseline" -- and any NfaProduct controller
+// returned must pass verify_controller on the same (phi, Tin, trivial Tout,
+// T_C), the same "every ...Product controller verifies" invariant already
+// exercised for DfaProduct/MtdfaProduct in MetamorphicRoundTrip above.
+// NfaProduct::synthesize shells out to mona via ltlf_to_nfa, so this test is
+// MONA_FOUND-gated (unlike MetamorphicRoundTrip, which needs no mona) and
+// kept as its own TEST rather than folded into MetamorphicRoundTrip, so a
+// mona-less box still runs the DfaProduct/MtdfaProduct half unaffected.
+// ---------------------------------------------------------------------------
+
+TEST(GeneratedCorpus, NfaProductMatchesDfaProductAndMetamorphic) {
+#ifndef MONA_FOUND
+  GTEST_SKIP() << "mona not found (CMake find_program(mona)); NfaProduct "
+                  "needs it via ltlf_to_nfa";
+#endif
+  const CorpusConfig base = corpus_config_from_env();
+  const RunCorpusStats stats = run_corpus(
+      base, [](const GeneratedCase& c, const CorpusConfig& cfg,
+               unsigned level, std::size_t i) {
+        std::ostringstream phi_os;
+        phi_os << c.phi;
+        SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
+                     ", partition=" + DescribeGeneratedPartition(c.partition) +
+                     ", level=" + std::to_string(level) + " " +
+                     DescribeCorpusConfig(cfg));
+
+        const OutputLabeledTransducer t_out =
+            trivial_transducer(c.partition, Role::t_out, c.t_in.dict());
+
+        DfaProduct dfa_method;
+        NfaProduct nfa_method;
+        const std::optional<Controller> a =
+            dfa_method.synthesize(c.phi, c.partition, c.t_in, t_out);
+        const std::optional<Controller> b =
+            nfa_method.synthesize(c.phi, c.partition, c.t_in, t_out);
+
+        EXPECT_EQ(a.has_value(), b.has_value())
+            << "cross-method realizability disagreement: DfaProduct and "
+               "NfaProduct disagree -- t_in for replay (see "
+               "DumpTinForReplay):\n"
+            << DumpTinForReplay(c.t_in, c.partition);
+
+        if (b.has_value())
+          EXPECT_TRUE(
+              verify_controller(c.phi, c.partition, c.t_in, t_out, *b).ok)
+              << "metamorphic round-trip failed: NfaProduct returned a "
+                 "controller that verify_controller rejects -- t_in for "
+                 "replay (see DumpTinForReplay):\n"
+              << DumpTinForReplay(c.t_in, c.partition);
+      });
+  RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
+  RecordProperty("cases_run", static_cast<int>(stats.cases_run));
+  RecordProperty("cases_skipped", static_cast<int>(stats.cases_skipped));
+}
+
+// ---------------------------------------------------------------------------
 // Build-equivalence metamorphic oracle, generated-corpus half
 // (docs/prd/symbolic-dfa-product.md "Test oracles" #2): for every generated
 // (phi, partition, Tin), build_product_symbolic(...) must equal
@@ -2246,6 +2310,33 @@ TEST_F(LtlfsyntOracleTest, GeneratedCorpusDifferential) {
                "phi="
             << phi_str
             << ", partition=" << DescribeGeneratedPartition(c.partition);
+
+#ifdef MONA_FOUND
+        // NfaProduct half (docs/prd/nfa-product.md "Test oracles": "the
+        // existing GeneratedCorpusDifferential harness, adding the
+        // --nfa-product method"): same phi/partition, --nfa-product instead
+        // of --dfa-product, compared against the SAME ltlfsynt verdict
+        // already computed above. Compiled out entirely (not just runtime-
+        // skipped) when mona is absent on this box, so a mona-less box's
+        // ek-synth --nfa-product invocation -- which would fail inside
+        // ltlf_to_nfa -- is never attempted (PRD "Edge cases" "MONA
+        // absent").
+        std::vector<std::string> nfa_args = ek_args;
+        nfa_args[0] = "--nfa-product";
+        bool nfa_timed_out = false;
+        const CliResult nfa_ek =
+            RunEkSynth(nfa_args, cfg.subprocess_timeout_secs, &nfa_timed_out);
+        if (nfa_timed_out) {
+          ++skipped;
+          return;
+        }
+        const Verdict nfa_verdict = ParseEkSynthVerdict(nfa_ek);
+        EXPECT_EQ(IsRealizable(nfa_verdict), IsRealizable(synt_verdict))
+            << "NfaProduct generated-corpus differential disagreement for "
+               "phi="
+            << phi_str
+            << ", partition=" << DescribeGeneratedPartition(c.partition);
+#endif
       });
   RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
   RecordProperty("cases_run", static_cast<int>(stats.cases_run));
@@ -2730,6 +2821,96 @@ TEST(GeneratedCorpus, LtlfToNfaLanguageMembershipFuzz) {
   RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
   RecordProperty("cases_run", static_cast<int>(stats.cases_run));
   RecordProperty("cases_skipped", static_cast<int>(stats.cases_skipped));
+}
+
+// ---------------------------------------------------------------------------
+// docs/prd/nfa-product.md Phase 1 checkpoint, "Test oracles" #1 (primary,
+// MONA-gated): L(nfa_to_dfa(ltlf_to_nfa(phi))) == L(phi), verified against
+// the SAME independent ltlf_to_dfa(phi) oracle and the SAME DfaLanguagesEqual
+// equivalence mechanism the LtlfToNfaLanguage* checkpoint above already
+// establishes for L(N)=L(phi) -- reused, not reinvented. nfa_to_dfa's output
+// is already a genuine deterministic DFA (unlike N itself), so no
+// power-set-based DeterminizeNfa detour is needed here: compare it directly.
+// ---------------------------------------------------------------------------
+
+TEST(GeneratedCorpus, NfaToDfaIsolatedDeterminizeOracle) {
+#ifndef MONA_FOUND
+  GTEST_SKIP() << "mona not found (CMake find_program(mona)); skipping the "
+                  "nfa_to_dfa isolated determinize oracle";
+#endif
+  const CorpusConfig base = corpus_config_from_env();
+  const RunCorpusStats stats = run_corpus(
+      base, [](const GeneratedCase& c, const CorpusConfig& cfg,
+               unsigned level, std::size_t i) {
+        std::ostringstream phi_os;
+        phi_os << c.phi;
+        SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
+                     ", partition=" + DescribeGeneratedPartition(c.partition) +
+                     ", level=" + std::to_string(level) + " " +
+                     DescribeCorpusConfig(cfg));
+
+        const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+        const spot::twa_graph_ptr n = ltlf_to_nfa(c.phi, dict);
+        const spot::twa_graph_ptr d = nfa_to_dfa(n);
+        EXPECT_TRUE(spot::is_deterministic(d))
+            << "nfa_to_dfa returned a non-deterministic automaton";
+
+        const spot::twa_graph_ptr reference = ltlf_to_dfa(c.phi, dict);
+        EXPECT_TRUE(DfaLanguagesEqual(d, reference))
+            << "L(nfa_to_dfa(ltlf_to_nfa(phi))) != L(phi) (vs ltlf_to_dfa)";
+      });
+  RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
+  RecordProperty("cases_run", static_cast<int>(stats.cases_run));
+  RecordProperty("cases_skipped", static_cast<int>(stats.cases_skipped));
+}
+
+// Copies `d` with EVERY state's acceptance flipped (accepting <-> not) ---
+// the same copy-and-remark idiom DeterminizeNfa/DeterminizeReversed above
+// use, repurposed here to deliberately manufacture a broken determinization.
+// Structure (states, edges, guards) is preserved exactly; only marks change.
+spot::twa_graph_ptr BreakAcceptance(const spot::twa_graph_ptr& d) {
+  spot::twa_graph_ptr out = spot::make_twa_graph(d->get_dict());
+  for (const spot::formula& ap : d->ap()) out->register_ap(ap.ap_name());
+  out->set_buchi();
+  out->prop_state_acc(true);
+  out->new_states(d->num_states());
+  out->set_init_state(d->get_init_state_number());
+  const spot::acc_cond::mark_t kFinal = {0};
+  const spot::acc_cond::mark_t kNone = {};
+  for (unsigned s = 0; s < d->num_states(); ++s) {
+    const bool flipped_acc = !d->state_is_accepting(s);
+    for (const auto& e : d->out(s))
+      out->new_edge(s, e.dst, e.cond, flipped_acc ? kFinal : kNone);
+  }
+  return out;
+}
+
+// Negative control (PRD "Test oracles" #1, non-negotiable per the
+// mtdfa-product Phase-0 lesson: a naive oracle can be silently
+// non-discriminating). First a sanity check that the CORRECT determinization
+// agrees with the reference (or the control below would be meaningless);
+// then a deliberately broken determinization (every acceptance mark flipped)
+// must be caught as NOT language-equal.
+TEST(NfaToDfaIsolatedDeterminizeOracle, NegativeControlBrokenDeterminizationIsNotLanguageEqual) {
+#ifndef MONA_FOUND
+  GTEST_SKIP() << "mona not found (CMake find_program(mona)); skipping the "
+                  "nfa_to_dfa isolated determinize oracle negative control";
+#endif
+  const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  const spot::formula phi = spot::parse_formula("a");
+  const spot::twa_graph_ptr n = ltlf_to_nfa(phi, dict);
+  const spot::twa_graph_ptr reference = ltlf_to_dfa(phi, dict);
+  const spot::twa_graph_ptr d = nfa_to_dfa(n);
+
+  ASSERT_TRUE(DfaLanguagesEqual(d, reference))
+      << "sanity: the correct determinization must actually agree first, or "
+         "the negative control below proves nothing";
+
+  const spot::twa_graph_ptr broken = BreakAcceptance(d);
+  EXPECT_FALSE(DfaLanguagesEqual(broken, reference))
+      << "negative control: a deliberately broken determinization (every "
+         "state's acceptance flipped) must be reported as NOT language-equal "
+         "-- the oracle must actually discriminate, not just always pass";
 }
 
 // PRD "Edge cases": phi=1 (tt) rejects the empty word, accepts every

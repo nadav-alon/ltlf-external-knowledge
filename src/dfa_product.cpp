@@ -43,7 +43,7 @@ std::optional<Controller> DfaProduct::synthesize(const spot::formula& phi,
     const ProductState init{dfa->get_init_state_number(),
                             {t_in.initial_state(), t_out.initial_state()}};
     const ProductGuards pg = build_product_symbolic(dfa, taus, init);
-    product = materialize_product(pg, init, dict);
+    product = materialize_product(pg, init, dict, vars);
   }
 
   // --- SolveDfa: solve the product game and lift the controller. ---

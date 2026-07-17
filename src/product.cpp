@@ -119,6 +119,14 @@ std::optional<unsigned> goal_delta(const spot::twa_graph_ptr& goal, unsigned s,
   return std::nullopt;
 }
 
+std::vector<unsigned> goal_delta_set(const spot::twa_graph_ptr& goal,
+                                     unsigned s, bdd v) {
+  std::vector<unsigned> dsts;
+  for (const auto& e : goal->out(s))
+    if ((v & e.cond) != bddfalse) dsts.push_back(e.dst);
+  return dsts;
+}
+
 LetterAlphabet::LetterAlphabet(const VariablePartition& vars,
                                const spot::twa_graph_ptr& registrar) {
   std::vector<int> io_vars;
@@ -235,6 +243,66 @@ ProductGuards build_product_symbolic(
   return pg;
 }
 
+ProductGuards build_product_nondet(
+    const spot::twa_graph_ptr& goal,
+    const std::vector<const Transducer*>& taus, const ProductState& init,
+    const LetterAlphabet& alphabet) {
+  ProductGuards pg;
+  std::queue<ProductState> worklist;
+
+  pg.nodes.emplace(init, std::pair<bool, std::map<ProductState, bdd>>{
+                             goal->state_is_accepting(init.goal), {}});
+  worklist.push(init);
+
+  const std::vector<bdd>& letters = alphabet.letters();
+  while (!worklist.empty()) {
+    const ProductState cur = worklist.front();
+    worklist.pop();
+    // Reference stays valid across the inserts below: std::map insertion
+    // never invalidates existing elements' references (only erasure does) ---
+    // same reasoning as build_product_symbolic's dst_guards reference.
+    std::map<ProductState, bdd>& dst_guards = pg.nodes.at(cur).second;
+
+    for (const bdd& v : letters) {
+      // cons filter (def:consistency): emits AND delta defined, per
+      // transducer --- a failing filter skips v (no edge), the same per-tau
+      // loop as agreeing_successor.
+      std::vector<unsigned> next_taus;
+      next_taus.reserve(taus.size());
+      bool filtered = false;
+      for (std::size_t i = 0; i < taus.size(); ++i) {
+        const Transducer& t = *taus[i];
+        const unsigned q = cur.taus[i];
+        if (!emits(t, q, v)) {
+          filtered = true;
+          break;
+        }
+        const std::optional<unsigned> d = t.delta(q, v);
+        if (!d) {
+          filtered = true;
+          break;
+        }
+        next_taus.push_back(*d);
+      }
+      if (filtered) continue;
+
+      // For EVERY goal successor s' in delta_N(s, v) (goal is complete by
+      // precondition, so this is non-empty): OR v into the guard of
+      // <s', next_taus...>.
+      for (unsigned s2 : goal_delta_set(goal, cur.goal, v)) {
+        ProductState dst{s2, next_taus};
+        dst_guards[dst] |= v;
+        if (!pg.nodes.count(dst)) {
+          pg.nodes.emplace(dst, std::pair<bool, std::map<ProductState, bdd>>{
+                                    goal->state_is_accepting(dst.goal), {}});
+          worklist.push(dst);
+        }
+      }
+    }
+  }
+  return pg;
+}
+
 ProductGuards to_guard_map(const std::map<ProductState, ProductNode>& graph,
                            const LetterAlphabet& alphabet) {
   const std::vector<bdd>& letters = alphabet.letters();
@@ -251,8 +319,10 @@ ProductGuards to_guard_map(const std::map<ProductState, ProductNode>& graph,
 
 spot::twa_graph_ptr materialize_product(const ProductGuards& pg,
                                         const ProductState& init,
-                                        const spot::bdd_dict_ptr& dict) {
+                                        const spot::bdd_dict_ptr& dict,
+                                        const VariablePartition& vars) {
   spot::twa_graph_ptr product = spot::make_twa_graph(dict);
+  for (const auto& n : vars.universe()) product->register_ap(n);
   product->set_buchi();
   product->prop_state_acc(true);
 

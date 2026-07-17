@@ -393,9 +393,10 @@ the existing term or update this file via `/glossary` — do not let drift happe
     unavailable as its name: it is Spot's own primitive, the same rule that rejects
     `ltlf2dfa` below.)
 
-  The Method-1 NFA route is now split: the NFA construction
-  `LtlfToNfa`/`ltlf_to_nfa` is named below (*Goal NFA construction*); `NfaToDfa`
-  (the product's subset determinization) is still future, when its PRD lands.
+  The Method-1 NFA route is split: the NFA construction
+  `LtlfToNfa`/`ltlf_to_nfa` is named below (*Goal NFA construction*); the explicit
+  `NfaToDfa`/`nfa_to_dfa` (the product's subset determinization) is under *Goal
+  automaton determinization* (`docs/prd/nfa-product.md`).
 - **Do not call it:** to_dfa, ltlf2dfa (that is Spot's own header/primitive),
   build_dfa, translate.
 
@@ -416,7 +417,8 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **C++:** `ltlf_to_nfa(phi, dict)` → `spot::twa_graph_ptr` (see *NFA / DFA for
   the Goal*). Draft PRD `docs/prd/ltlf-to-nfa.md`; **not yet implemented**.
 - **Do not call it:** to_nfa, ltlf2nfa, build_nfa, translate; **not** `NfaToDfa`
-  (that is the later product-determinization step, still future).
+  (that is the later product-determinization step, `nfa_to_dfa` — see *Goal
+  automaton determinization*).
 
 ### Formula mirror
 - **`main.tex`:** $\mirror{\varphi}$ (`\cref{def:mirror}`, §`nfa`; macro `\mirror`).
@@ -482,29 +484,44 @@ the existing term or update this file via `/glossary` — do not let drift happe
   (no such Spot primitive — our lift is `nfa_to_mtnfa`); **not** `mtnfa_to_mtdfa`
   (the reverse-direction determinization below).
 
-### Goal automaton determinization (NfaToDfa, mtdfa representation)
+### Goal automaton determinization (NfaToDfa)
 - **`main.tex`:** `\algname{NfaToDfa}`$(P)$ (`\cref{alg:nfa_product}` line
   `alg:nfa_product:determinize`); black-boxed subset construction.
-- **Definition:** subset-determinize an *MTNFA* into a *MTDFA*. A DFA state is a set
-  $R\subseteq S_N$; the initial DFA state is $\{s_{N,0}\}$,
-  $\delta_D(R,v)=\bigcup_{s\in R}\delta_N(s,v)$, and $R$ is accepting iff
-  $R\cap F_N\neq\emptyset$. Realized symbolically by a BFS over reachable subsets,
-  reusing the *MTNFA*'s set-union apply for the successor MTBDD, then relabeling
-  set-terminals to `spot::mtdfa` terminals $2\cdot\mathrm{idx}(R')+b$ ($\emptyset
-  \mapsto$ `bddfalse`, the rejecting sink). **This PRD applies it to the Goal NFA
-  $N$ alone** ($L(\texttt{mtnfa\_to\_mtdfa}(N))=L(N)=L(\varphi)$ — the isolated
-  oracle); `main.tex`'s `\algname{NfaToDfa}` is over the **product** $P$ — the same
-  algorithm at a different input, generalized to the $(R,q_{in},q_{out})$ product
-  states by `MtnfaProduct` (`docs/BACKLOG.md`) under the reachability invariant
-  `main.tex:241`.
-- **C++:** `mtnfa_to_mtdfa(nfa)` → `spot::mtdfa_ptr` (`include/ltlf_ek/mtnfa.hpp`;
-  `docs/prd/mtnfa.md`, **not yet implemented**; never returns `nullptr`). The
-  **explicit** counterpart `NfaToDfa` (subset → `twa_graph`, for `NfaProduct`) is
-  still future — see *Goal DFA construction*.
+- **Definition:** subset-determinize an NFA into a DFA. A DFA state is a set
+  $R\subseteq S$; the initial DFA state is $\{s_0\}$,
+  $\delta_D(R,v)=\bigcup_{s\in R}\delta(s,v)$, and $R$ is accepting iff
+  $R\cap F\neq\emptyset$. Realized per *Representation* below. In `main.tex` it runs
+  on the **product** $P$; both PRDs also run it on the Goal NFA $N$ **alone** as
+  their **isolated oracle** ($L=L(N)=L(\varphi)$, checked against an independent
+  DFA), and it generalizes to the $(R,q_{in},q_{out})$ product states under the
+  reachability invariant `main.tex:241` (a single transducer-state pair per
+  reachable subset — the product determinizations `NfaProduct` / `MtnfaProduct`).
+- **C++:** per *Representation* —
+  - **explicit:** `nfa_to_dfa(nfa)` → `spot::twa_graph_ptr` — a **generic** subset
+    construction (partition- and transducer-agnostic: enumerates full minterms over
+    `nfa->ap()`), **state-based Büchi** output (matching the abused-DBA `as_twa`
+    convention of `ltlf_to_dfa`, so `solve_dfa` reads $D$ like $A$; accepting iff a
+    subset meets `nfa`'s finals). It **skips the empty subset** (missing edge =
+    reject; incomplete output, no sink of its own) — so a $\cons$-consistent letter
+    on which the goal dies must be made a *non-empty* subset **upstream** by the
+    caller completing $N$ (`spot::complete_here`, as `NfaProduct` does), while a
+    genuinely absent (non-$\cons$) letter stays skipped. `include/ltlf_ek/nfa_to_dfa.hpp`;
+    `docs/prd/nfa-product.md`, landed 2026-07-17; never returns `nullptr`.
+  - **mtdfa:** `mtnfa_to_mtdfa(nfa)` → `spot::mtdfa_ptr` — a symbolic BFS over
+    reachable subsets, reusing the *MTNFA*'s set-union apply for the successor
+    MTBDD, then relabeling set-terminals to `spot::mtdfa` terminals
+    $2\cdot\mathrm{idx}(R')+b$ with $\emptyset\mapsto$ `bddfalse`. Here the empty
+    subset is **kept** as `bddfalse` (the mtdfa rejecting sink — completion is
+    implicit, cf. *MTDFA*), *not* skipped: that substrate difference is why the
+    explicit route needs `spot::complete_here` and this one does not.
+    `include/ltlf_ek/mtnfa.hpp`; `docs/prd/mtnfa.md`, **not yet implemented**; never
+    returns `nullptr`.
 - **Do not call it:** determinize (bare — direction-specific; cf. *Automaton
-  reversal*'s rejected `determinize`), to_mtdfa, `NfaToDfa` (bare — that is the
-  explicit product determinization, and Spot owns no `mtnfa_to_mtdfa`), powerset
-  (Spot's explicit primitive), subset_construction, mtnfa2mtdfa.
+  reversal*'s rejected `determinize`), powerset (Spot's explicit primitive),
+  subset_construction, `NfaToDfa` (bare CamelCase — that is the algorithm name;
+  the C++ is representation-specific); for the explicit form, not `nfa2dfa`,
+  `to_dfa`, `subset_dfa`; for the mtdfa form, not `mtnfa2mtdfa`, `to_mtdfa`
+  (and Spot owns no `mtnfa_to_mtdfa` — it is ours).
 
 ### Consistency (cons)
 - **`main.tex`:** $\cons(q_{in},q_{out},v)$ (`\cref{def:consistency}`, §203) — the per-letter filter.
@@ -574,10 +591,20 @@ the existing term or update this file via `/glossary` — do not let drift happe
   `docs/prd/symbolic-dfa-product.md`), which computes the per-destination guards
   directly from `delta_edges`/`emits_region` + Goal out-edges, no minterm loop;
   `DfaProduct` uses it while the per-letter `build_product` stays for
-  `verify_controller` and as the build-equivalence reference. `ProductGuards` is
+  `verify_controller` and as the build-equivalence reference. The
+  **nondeterministic** builder is
+  `build_product_nondet(goal, taus, init, alphabet)` → `ProductGuards` (new;
+  `docs/prd/nfa-product.md`, landed 2026-07-17): the per-letter driver for a
+  **nondeterministic** Goal automaton (the NFA $N$), where one letter yields
+  **many** goal successors — for each $s'\in\delta_N(s,v)$ it ORs $v$ into the guard
+  of $\langle s',\delta_{in}(q_{in},v),\delta_{out}(q_{out},v)\rangle$, so
+  `materialize_product` emits a **nondeterministic** `twa_graph` (later
+  subset-determinized by `nfa_to_dfa`, see *Goal automaton determinization*).
+  `NfaProduct`-only; precondition `goal` complete (`spot::complete_here`).
+  `ProductGuards` is
   the shared neutral per-dst guard map both builds emit
   (`map<ProductState, {bool acc; map<ProductState, bdd> guard}>`);
-  `materialize_product(pg, dict)` → `spot::twa_graph_ptr` turns it into the game
+  `materialize_product(pg, init, dict, vars)` → `spot::twa_graph_ptr` turns it into the game
   automaton (state-based Büchi $F_P$), and `to_guard_map(graph, alphabet)`
   compresses the per-letter `build_product` output into `ProductGuards` (the
   former inline `guards[dst] |= letters[idx]` loop).
@@ -592,7 +619,9 @@ the existing term or update this file via `/glossary` — do not let drift happe
   cross-checked on **realizability verdicts** instead.
 - **Do not call it:** composition, join, cross; for the symbolic pieces, not
   `symbolic_product`/`product_symbolic` (build), `GuardMap`/`product_map`
-  (`ProductGuards`), `materialize`/`to_twa` (bare, for `materialize_product`).
+  (`ProductGuards`), `materialize`/`to_twa` (bare, for `materialize_product`);
+  for the nondeterministic build, not `nondet_product`, `build_nfa_product`,
+  `build_product_nfa` (for `build_product_nondet`).
 
 ### Forward progression
 - **`main.tex`:** `FP`$(\psi,w)$ returning $(\psi',b)$ (Alg. Forward Progression).

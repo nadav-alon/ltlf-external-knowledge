@@ -38,10 +38,11 @@ VariablePartition parse_partition_file(std::istream& in);
 // Six flags over five methods: "mtdfa-product" is a SECOND implementation of
 // Method 2 (the mtdfa Representation, docs/prd/mtdfa-product.md), not a sixth
 // method --- DfaProduct stays the explicit-Representation implementation of
-// the same method.  "dfa-product" and "mtdfa-product" are wired today (->
-// DfaProduct, MtdfaProduct respectively); the other four recognised method
-// names throw std::logic_error("... not yet implemented"); any other name
-// throws std::invalid_argument("unrecognised method").
+// the same method.  "dfa-product", "mtdfa-product", and "nfa-product" are
+// wired today (-> DfaProduct, MtdfaProduct, NfaProduct respectively,
+// docs/prd/nfa-product.md); the other three recognised method names throw
+// std::logic_error("... not yet implemented"); any other name throws
+// std::invalid_argument("unrecognised method").
 //
 // `minimize_mtdfa` (Phase 2, docs/prd/mtdfa-product.md "Benchmarking") is the
 // MtdfaProduct-only knob wired from the CLI's `--minimize-mtdfa` flag; it is

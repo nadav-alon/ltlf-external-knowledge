@@ -13,6 +13,7 @@
 #include "ltlf_ek/consistency.hpp"
 #include "ltlf_ek/dfa_product.hpp"
 #include "ltlf_ek/mtdfa_product.hpp"
+#include "ltlf_ek/nfa_product.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/role.hpp"
 #include "ltlf_ek/synthesis.hpp"
@@ -30,6 +31,7 @@ using ltlf_ek::consistent;
 using ltlf_ek::DfaProduct;
 using ltlf_ek::make_synthesis_method;
 using ltlf_ek::MtdfaProduct;
+using ltlf_ek::NfaProduct;
 using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::parse_partition_file;
 using ltlf_ek::Role;
@@ -242,11 +244,19 @@ TEST(MakeSynthesisMethod, MtdfaProductFlagBuildsAnMtdfaProduct) {
 }
 
 TEST(MakeSynthesisMethod, UnwiredMethodsThrowLogicError) {
-  for (const std::string& flag : {"nfa-product", "otf-dfa-product",
-                                  "otf-agg-product", "otf-dyn-agg-product"}) {
+  for (const std::string& flag :
+      {"otf-dfa-product", "otf-agg-product", "otf-dyn-agg-product"}) {
     SCOPED_TRACE(flag);
     EXPECT_THROW(make_synthesis_method(flag), std::logic_error);
   }
+}
+
+// docs/prd/nfa-product.md "Interfaces & types" (cli.hpp, modified):
+// make_synthesis_method gains "nfa-product" -> NfaProduct (explicit Method 1).
+TEST(MakeSynthesisMethod, NfaProductFlagBuildsAnNfaProduct) {
+  std::unique_ptr<Synthesis> method = make_synthesis_method("nfa-product");
+  ASSERT_NE(method, nullptr);
+  EXPECT_NE(dynamic_cast<NfaProduct*>(method.get()), nullptr);
 }
 
 TEST(MakeSynthesisMethod, UnrecognisedNameThrowsInvalidArgument) {

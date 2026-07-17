@@ -262,8 +262,8 @@ TEST(LtlfEkSynthExitCodes, MalformedTransducerFileIsUsageError) {
 // --- not-yet-implemented deferrals -> exit 1 --------------------------------
 
 TEST(LtlfEkSynthExitCodes, UnwiredMethodFlagExitsOne) {
-  const CliResult r = RunCli({"--nfa-product", "--formula=1", "--inputs", "i",
-                              "--outputs", "o"});
+  const CliResult r = RunCli({"--otf-dfa-product", "--formula=1", "--inputs",
+                              "i", "--outputs", "o"});
   EXPECT_EQ(r.exit_code, 1);
   EXPECT_NE(r.stderr_text.find("not yet implemented"), std::string::npos);
 }
@@ -281,8 +281,9 @@ TEST(LtlfEkSynthExitCodes, ModelCheckSelfCheckOfRealizableGoalIsSafe) {
 
 // --model-check with an explicit --controller short-circuits before method
 // dispatch (docs/prd/controller-verifier.md "CLI --model-check wiring"): the
-// unwired --nfa-product is never even constructed, so no "not yet implemented"
-// deferral is emitted and the given artifact is verified directly (SAFE here).
+// unwired --otf-dfa-product is never even constructed, so no "not yet
+// implemented" deferral is emitted and the given artifact is verified
+// directly (SAFE here).
 TEST(LtlfEkSynthExitCodes, ModelCheckControllerShortCircuitsUnwiredMethod) {
   // Role::t_c artifact (Sigma0 = I = {i}, Sigma1 = Ofree = {o}): a total
   // controller for the trivially-true goal `1` (any non-empty trace stops).
@@ -300,9 +301,9 @@ TEST(LtlfEkSynthExitCodes, ModelCheckControllerShortCircuitsUnwiredMethod) {
       "\n"
       "%%LAMBDA\n"
       "state 0: o\n");
-  const CliResult r = RunCli({"--nfa-product", "--model-check", "--controller",
-                              controller.path(), "--formula=1", "--inputs", "i",
-                              "--outputs", "o"});
+  const CliResult r = RunCli({"--otf-dfa-product", "--model-check",
+                              "--controller", controller.path(), "--formula=1",
+                              "--inputs", "i", "--outputs", "o"});
   EXPECT_EQ(r.exit_code, 0);
   EXPECT_NE(r.stdout_text.find("SAFE"), std::string::npos);
   EXPECT_EQ(r.stderr_text.find("not yet implemented"), std::string::npos);
@@ -364,9 +365,9 @@ TEST(LtlfEkSynthExitCodes, ModelCheckHandBrokenControllerIsUnsafeWithWitness) {
       "\n"
       "%%LAMBDA\n"
       "state 0: !o\n");
-  const CliResult r = RunCli({"--nfa-product", "--model-check", "--controller",
-                              controller.path(), "--formula=F(o)", "--outputs",
-                              "o"});
+  const CliResult r = RunCli({"--otf-dfa-product", "--model-check",
+                              "--controller", controller.path(),
+                              "--formula=F(o)", "--outputs", "o"});
   EXPECT_EQ(r.exit_code, 20);
   EXPECT_NE(r.stdout_text.find("UNSAFE"), std::string::npos);
   EXPECT_NE(r.stdout_text.find("prefix:"), std::string::npos);
