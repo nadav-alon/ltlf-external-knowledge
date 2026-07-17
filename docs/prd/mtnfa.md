@@ -1,6 +1,11 @@
 # PRD: MTNFA — a multi-terminal NFA representation, determinizable into `spot::mtdfa`
 
-**Status:** draft
+**Status:** implemented — Phase 1 (`StateSetPool`) landed,
+`src/state_set_pool.cpp` + `include/ltlf_ek/detail/state_set_pool.hpp`.
+Phase 2 (`Mtnfa` + construction + `mtnfa_to_mtdfa`) landed 2026-07-17,
+`src/mtnfa.cpp` + `include/ltlf_ek/mtnfa.hpp` (uncommitted at PRD-edit
+time); the isolated `product_xor` oracle itself is `/test-writer`'s job
+(see `tests` gate below), not yet written.
 **Interface:** adds the `Mtnfa` representation type + `ltlf_to_mtnfa` (construction)
 + `mtnfa_to_mtdfa` (determinization); **not** a `Synthesis` method. The Method-1
 mtdfa synthesis method (`MtnfaProduct`) and the explicit `NfaProduct` are separate
@@ -25,9 +30,46 @@ gesture, and it is about Method 3, not a commitment to this).
   construction* (`ltlf_to_mtnfa` / `nfa_to_mtnfa`) and *Goal automaton
   determinization* (`mtnfa_to_mtdfa`, cross-referencing the still-future explicit
   `NfaToDfa`). All rejected-synonym lines set. `/developer` binds to these names.
-- [ ] tests           — unit + oracle coverage
+- [x] tests           — *closed 2026-07-17* (`/test-writer`, uncommitted): Phase-1
+  apply units extended (>64-element set proving no bitmask, commutativity,
+  `bdd_varnum`/interning stability) + new `tests/mtnfa_test.cpp` — the MONA-gated
+  60-case corpus `product_xor` oracle vs `spot::ltlf_to_mtdfa`, an ungated
+  hand-built-NFA oracle vs independent subset-simulation, membership fuzz,
+  construction/determinize structural free-riders, the `phi=0`/`phi=1` edges, and
+  **four negative controls** (all confirmed discriminating). The suite caught a
+  second real lifetime bug (see *Developer comments*, 2026-07-17 entry 3);
+  362/362 green after the fix.
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] theory-review   — *closed 2026-07-17* (`/theory-review`, uncommitted):
+  **clean, no code-bug.** All three seeded questions dispositioned: (1) subset-
+  construction faithfulness **blessed** ($L(\texttt{mtnfa\_to\_mtdfa}(N))=L(N)$
+  verified link-by-link), no new `\na`; (2) $\varepsilon$-convention **agrees** —
+  but the PRD's argument runs backwards (see below); (3) `thm:nfa-mirror-size`
+  status-noted, unchanged. Four follow-ups left OPEN, none blocking:
+  **F1** (`underspecified`) `\algname{NfaToDfa}` is never defined in `main.tex` —
+  a drafted `\cl` for after `main.tex:241` is in the review; load-bearing for
+  `MtnfaProduct`, worth pinning before it lands.
+  **F2** (`underspecified`, latent) `mtnfa_to_mtdfa` silently drops an accepting
+  *initial* state — unreachable via `ltlf_to_mtnfa` (fresh $s_{N,0}$) but
+  `nfa_to_mtnfa`/`mtnfa_to_mtdfa` are public and take arbitrary `twa_graph`s.
+  Fix: document the precondition + `assert(!nfa.accepting[nfa.initial])`.
+  **F3** (`underspecified`) `nfa_to_mtnfa`'s two unstated `state_is_accepting`
+  preconditions (throws without `prop_state_acc()`; returns **false** for an
+  $F_N$ state with no out-edges — defended today only by accident of
+  `reverse_dfa_to_nfa`'s `bddfalse`-guarded self-loop).
+  **F4** (note) the PRD's floated cross-call `set_union` memo would be
+  **unsound**, not merely a perf tweak: the id-keyed memo is safe *only* because
+  per-call scoping keeps operands GC-reachable. Strike the "compatible
+  follow-up" phrasing; a persistent memo needs `bdd`-valued keys.
+- [x] code-review     — domain (/code-reviewer) *closed 2026-07-17*: **clean, no
+  must-fix.** Shared-dict usage, mtdfa terminal encoding (`2j+b` / `bddfalse`
+  sink), the `register_proposition` ownership fix (idempotent, `~mtdfa()`-paired),
+  and per-call memo scoping all confirmed sound; glossary-conformant. One
+  *consider* (non-blocking): `mtnfa.cpp:133` `const unsigned i` is `assert`-only →
+  `-Wunused-variable` under `NDEBUG`; add `(void)i;`. Theory-review already ran
+  clean separately (not re-spawned). Generic `/code-review` lens: not separately
+  run — recommend before committing, though the domain pass covered the semantic
+  surface.
 
 ## Goal
 
@@ -115,9 +157,13 @@ The representation is code-only, but its two operations must be faithful:
 
 ## Interfaces & types
 
-**Freeze confidence: tentative.** The `Mtnfa` type and both bespoke MTBDD applies
-are invented here; implementation may reshape them. Hence **sequential** workflow —
-`/developer` first, `/test-writer` binds to the landed signatures.
+**Freeze confidence: RE-FROZEN 2026-07-17 — this block now reflects what actually
+landed** (Phases 1 + 2 both implemented). The original tentative freeze was
+reshaped by implementation in exactly two ways, both recorded in *Developer
+comments / PRD disagreements* and both folded into the block below: `Mtnfa::pool`
+is now `mutable`, and `Mtnfa` gained a seventh field `source_nfa`. The three
+function signatures survived unchanged. **`/test-writer` binds to the block
+below.**
 
 ```cpp
 // include/ltlf_ek/detail/state_set_pool.hpp                          [new, Phase 1]
@@ -159,9 +205,23 @@ struct Mtnfa {
   std::vector<bdd> states;              // states[s] : MTBDD, set-valued terminals
   std::vector<bool> accepting;          // accepting[s] == (s in F_N)
   unsigned initial = 0;                 // index of s_{N,0}
-  detail::StateSetPool pool;            // interprets the terminals; OWNED
+  // MUTABLE (re-freeze 2026-07-17): mtnfa_to_mtdfa is frozen as `const Mtnfa&`
+  // but must intern newly-unioned successor sets into THIS pool as it
+  // determinizes --- the terminals in `states` are only meaningful relative to
+  // it.  Logical constness.
+  mutable detail::StateSetPool pool;    // interprets the terminals; OWNED
   spot::bdd_dict_ptr dict;
   std::vector<spot::formula> aps;       // APs registered (phi's support on dict)
+
+  // ADDED (re-freeze 2026-07-17): keeps the source twa_graph alive so the AP
+  // variables `states`' BDDs reference stay registered on `dict` for this
+  // Mtnfa's lifetime.  spot::bdd_dict frees an owner's variables when the LAST
+  // reference to that owner dies; without this, ltlf_to_mtnfa's temporary
+  // ltlf_to_nfa result died on return and a later dict->register_ap could alias
+  // those variable numbers.  Mirrors OutputLabeledTransducer::delta_dfa_
+  // (output_labeled_transducer.hpp:65).  Internal book-keeping --- NOT a field
+  // the oracle reads.
+  spot::twa_graph_ptr source_nfa;
 };
 
 // Lift an explicit deterministic-or-not twa_graph NFA into an Mtnfa.  For each
@@ -341,3 +401,127 @@ deterministic; no seed.
   construction-faithfulness and $\varepsilon$-convention questions dispositioned.
 - The two `docs/BACKLOG.md` follow-ons (`NfaProduct`, `MtnfaProduct`) remain
   accurate against what landed.
+
+## Developer comments / PRD disagreements
+
+**2026-07-17 (test gate — entry 3: the SECOND lifetime bug).** `/test-writer`'s
+dedicated regression test (`MtnfaBddDictLifetime`, the very test the Phase-2
+developer flagged as worth adding) **failed on arrival**, proving the Phase-2
+`source_nfa` fix was *incomplete*. `source_nfa` keeps $\varphi$'s AP variables
+registered on `dict` only while the **`Mtnfa` struct** lives. But
+`mtnfa_to_mtdfa`'s returned `spot::mtdfa` built its rows with `bdd_ite` over
+those variable numbers while claiming **no ownership stake of its own** — so the
+natural calling pattern `mtnfa_to_mtdfa(ltlf_to_mtnfa(phi, dict))`, which
+discards the `Mtnfa` temporary and keeps only the `mtdfa_ptr`, left the mtdfa
+holding BDDs over variable numbers `dict` was free to recycle on the next
+`register_ap` (exactly what `spot::ltlf_to_mtdfa` — the oracle — does next).
+Isolated three-pattern probe confirmed it: `Mtnfa` kept alive ⇒ XOR empty ✓;
+`Mtnfa` discarded ⇒ XOR **non-empty** ✗. Nothing in the frozen contract
+documented an obligation to keep the `Mtnfa` alive afterwards, so this was a
+genuine bug, not a misuse.
+
+**Fix (landed in `src/mtnfa.cpp`, `mtnfa_to_mtdfa`):** the output mtdfa now
+registers its own APs — `dict->register_proposition(ap, out.get())` for each of
+`out->aps`. `register_proposition` returns the **already-assigned** variable
+number and merely adds `out.get()` to that variable's owner list, so the numbers
+already baked into the rows stay valid; the pairing unregister is
+`spot::mtdfa`'s own destructor (`dict_->unregister_all_my_variables(this)`,
+`ltlf2dfa.hh:130` — the class is *designed* to own its stake, which is why this
+is the idiom `spot::twadfa_to_mtdfa` honours and not a leak). This does **not**
+re-trip `~bdd_dict()`'s `assert_emptiness()` (the trap that ruled out Phase 2's
+rejected `register_all_variables_of` "permanent claim" alternative), precisely
+because the destructor pairs it. Full suite 362/362 green. Signature unchanged;
+no re-freeze needed — but note the invariant now holds *without* any caller
+obligation, which is the point.
+
+**2026-07-17 (Phase 1 landing).** No disagreements with the frozen contract:
+`StateSetPool`'s constructor, `intern`, `set_of`, `set_union`, and
+`guarded_singleton` landed with exactly the signatures in "Interfaces &
+types". Two implementation choices the PRD left open (both within the
+"members may churn freely" latitude), recorded for traceability:
+
+- **Memo scope is per-call, not cross-call.** `set_union`'s "Novel mechanisms
+  (b)" memo (order-normalized `{a.id(), b.id()}` -> result) is a fresh
+  `std::unordered_map` allocated inside each top-level `set_union` call and
+  discarded on return, via a private recursive `UnionRec` worker — not a
+  member field persisted across calls. This satisfies the PRD's complexity
+  requirement ("polynomial in the input MTBDDs' node counts, not exponential
+  in letters") for a single call; it does not additionally amortize repeated
+  `set_union` calls across different top-level pairs (e.g. across the BFS in
+  Phase 2's determinizer). If Phase 2's profiling shows that matters, a
+  member-scoped memo is a compatible follow-up (same public signature).
+- **Explicit `LevelOf` helper for "a terminal counts as below every
+  variable".** Rather than relying on `bdd_level()`'s own (undocumented in
+  the installed header) treatment of terminal nodes, `set_union`'s topmost-
+  variable split uses a small `LevelOf(const bdd&)` that returns
+  `std::numeric_limits<int>::max()` for a terminal and `bdd_level(x)`
+  otherwise — making the PRD's stated invariant true by construction instead
+  of by assumption about BuDDy's internals.
+
+**2026-07-17 (Phase 2 landing).** `include/ltlf_ek/mtnfa.hpp` +
+`src/mtnfa.cpp` land with the three signatures verbatim from "Interfaces &
+types" (`nfa_to_mtnfa`, `ltlf_to_mtnfa`, `mtnfa_to_mtdfa`), and `Mtnfa`'s six
+frozen fields (`states`, `accepting`, `initial`, `pool`, `dict`, `aps`) all
+present with the documented semantics. Two forced deviations, both
+PRD-change events (the PRD's "reshape" latitude is limited to
+`StateSetPool`'s members — these touch `Mtnfa` itself and its
+`mtnfa_to_mtdfa` signature's usability, so are flagged here rather than
+silently absorbed):
+
+- **`Mtnfa::pool` had to become `mutable`.** `mtnfa_to_mtdfa(const Mtnfa&
+  nfa)` is frozen as taking `nfa` by `const&`, but the BFS determinizer must
+  `nfa.pool.set_union(...)` to fold multi-state subsets' successor MTBDDs —
+  `set_union` is a mutating (interning) call, and it must land in `nfa`'s
+  OWN pool (the terminals in `nfa.states` are only meaningful relative to
+  that specific pool; a fresh/copied pool would not recognize them). Marking
+  `pool` `mutable` is the standard C++ idiom for logical constness on an
+  owned cache/interning table and requires no signature change; the field is
+  still named `pool`, still `detail::StateSetPool`, still owned.
+- **A 7th field, `source_nfa` (`spot::twa_graph_ptr`), had to be added to
+  `Mtnfa`.** This is a genuine, empirically-discovered correctness bug,
+  not a style choice: `nfa_to_mtnfa` builds `states` from BDDs whose AP
+  variables were registered on `dict` by its `nfa` argument
+  (`spot::bdd_dict::register_ap(ap, nfa.get())`); `spot::bdd_dict` frees an
+  owner's variable numbers when the *last* reference to that owner object
+  dies (`unregister_all_my_variables`, called from `twa_graph`'s
+  destructor). `ltlf_to_mtnfa(phi, dict)` passes the just-constructed
+  `ltlf_to_nfa(phi, dict)` as a **temporary** into `nfa_to_mtnfa`; without
+  keeping a reference to it, that twa_graph is destroyed the instant
+  `nfa_to_mtnfa` returns, freeing its AP variable numbers back to `dict`
+  while `Mtnfa::states` still structurally references them by index. A
+  *later* unrelated `dict->register_ap` call on the same dict (e.g.
+  `spot::ltlf_to_mtdfa(phi, dict)` building the independent oracle
+  afterward, exactly the Phase-2 checkpoint's own oracle shape) can then
+  reuse/alias those freed numbers for what it thinks are the same or
+  different APs, silently corrupting any later BDD operation that compares
+  the two (`product`, `product_xor`, ...). Reproduced concretely: `phi =
+  "!(a & b) | c"` gave a spurious non-empty `product_xor` **only** when
+  built via the one-line `ltlf_to_mtnfa` composition (temporary `nfa`), and
+  correctly reported empty when the caller kept `ltlf_to_nfa`'s result alive
+  in a named variable across both `nfa_to_mtnfa` and the oracle call — the
+  smoking gun for a variable-aliasing bug, not a determinization bug. Tried
+  and rejected: registering a permanent claim under a stable key (e.g.
+  `dict.get()`) via `register_all_variables_of` and never unregistering —
+  `bdd_dict::~bdd_dict()` calls `assert_emptiness()` and **aborts**
+  (`SIGABRT`, confirmed empirically) if any owner's claim is still
+  outstanding at dict-destruction time, so a permanent leak is not a safe
+  option. The landed fix instead mirrors the codebase's existing pattern for
+  this exact hazard (`OutputLabeledTransducer::delta_dfa_`,
+  `output_labeled_transducer.hpp:65`): `Mtnfa` keeps a
+  `spot::twa_graph_ptr source_nfa` member
+  pointing at the graph `nfa_to_mtnfa` was built from, so the graph's own
+  (correctly paired) register/unregister lifecycle is tied to the `Mtnfa`'s
+  lifetime instead of to some other object's. `source_nfa` is internal
+  book-keeping, not part of the six fields the Phase-2 oracle is specified
+  to read (`states`, `accepting`, `initial`, `pool`, `dict`, `aps`); it
+  does not change any of their names, types, or semantics.
+- **Flag for `/test-writer`:** the reproduction above should become a
+  regression test — `ltlf_to_mtnfa` called directly (not decomposed into
+  `ltlf_to_nfa` + `nfa_to_mtnfa` with the intermediate kept alive), followed
+  by an oracle call on the same `dict`, over at least this witnessing
+  formula. The existing generated-corpus oracle loop (fresh `dict` per
+  formula, `ltlf_to_mtnfa` called once) already exercises this path and
+  passed after the fix, but a small dedicated regression test pins the
+  *mechanism*, not just an incidental corpus formula.
+- **Flag for `/theory-review`:** none — this is a C++/BDD-manager lifetime
+  fix, not a `main.tex` semantics question; no theory content changed.

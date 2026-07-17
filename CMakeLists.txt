@@ -59,6 +59,8 @@ add_library(ltlf_ek
   src/turn_order.cpp
   src/solve_mtdfa.cpp
   src/mtdfa_product.cpp
+  src/state_set_pool.cpp
+  src/mtnfa.cpp
   src/synthesis.cpp
   src/verify_controller.cpp
   src/cli.cpp
@@ -116,6 +118,8 @@ if(LTLF_EK_BUILD_TESTS)
     tests/turn_order_test.cpp
     tests/mtdfa_product_test.cpp
     tests/mtdfa_bench_test.cpp
+    tests/state_set_pool_test.cpp
+    tests/mtnfa_test.cpp
     tests/verify_controller_test.cpp
     tests/cli_test.cpp
     tests/ltlf_ek_synth_test.cpp
