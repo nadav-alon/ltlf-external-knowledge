@@ -406,6 +406,21 @@ oracle rounds out the external `ltlfsynt` cross-check._
     mapping** convention gets settled (determinization runs *after* the product —
     is it folded into `product_construction` or its own reserved stage?).
 
+### Link `libmona` directly instead of shelling out to the `mona` binary
+- **Intent:** replace the `std::system("mona …")` subprocess call in `run_mona`
+  (`src/mona_dfa.cpp`) with a direct link against `libmona`, dropping the fixed
+  fork/exec + shell + process-startup cost paid on every NFA construction.
+- **Note (2026-07-18, from benchmarking the three product methods):** on small
+  formulas that ~1.5 ms fixed overhead *is* essentially all of `NfaProduct`'s
+  `automaton_construction` stage (mona's own compute stays sub-10 ms, below its
+  `-t` timer resolution). Lower priority than it looks: on **bigger** formulas the
+  NFA path's real scaling cost turned out to be the in-process subset
+  determinization (`nfa_to_dfa`, the `determinize` sub-span under
+  `product_construction`, worst-case exponential — saw a 1.2 s spike), not mona.
+  So this is a fixed-overhead win, not a scaling fix.
+- **Seeds for grilling:** _(tbd)_ — libmona API surface vs the current `-w` text
+  parse; also drops the temp-file write + `-w` table parsing, or keep those?
+
 ## Done
 
 ### Replace the explicit-DFA scaffolding with MTDFA — `MtdfaProduct` (2nd impl of Method 2)
