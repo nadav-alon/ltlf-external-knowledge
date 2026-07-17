@@ -506,7 +506,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
     on which the goal dies must be made a *non-empty* subset **upstream** by the
     caller completing $N$ (`spot::complete_here`, as `NfaProduct` does), while a
     genuinely absent (non-$\cons$) letter stays skipped. `include/ltlf_ek/nfa_to_dfa.hpp`;
-    `docs/prd/nfa-product.md`, **not yet implemented**; never returns `nullptr`.
+    `docs/prd/nfa-product.md`, landed 2026-07-17; never returns `nullptr`.
   - **mtdfa:** `mtnfa_to_mtdfa(nfa)` → `spot::mtdfa_ptr` — a symbolic BFS over
     reachable subsets, reusing the *MTNFA*'s set-union apply for the successor
     MTBDD, then relabeling set-terminals to `spot::mtdfa` terminals
@@ -594,7 +594,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   `verify_controller` and as the build-equivalence reference. The
   **nondeterministic** builder is
   `build_product_nondet(goal, taus, init, alphabet)` → `ProductGuards` (new;
-  `docs/prd/nfa-product.md`, **not yet implemented**): the per-letter driver for a
+  `docs/prd/nfa-product.md`, landed 2026-07-17): the per-letter driver for a
   **nondeterministic** Goal automaton (the NFA $N$), where one letter yields
   **many** goal successors — for each $s'\in\delta_N(s,v)$ it ORs $v$ into the guard
   of $\langle s',\delta_{in}(q_{in},v),\delta_{out}(q_{out},v)\rangle$, so
@@ -604,7 +604,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   `ProductGuards` is
   the shared neutral per-dst guard map both builds emit
   (`map<ProductState, {bool acc; map<ProductState, bdd> guard}>`);
-  `materialize_product(pg, dict)` → `spot::twa_graph_ptr` turns it into the game
+  `materialize_product(pg, init, dict, vars)` → `spot::twa_graph_ptr` turns it into the game
   automaton (state-based Büchi $F_P$), and `to_guard_map(graph, alphabet)`
   compresses the per-letter `build_product` output into `ProductGuards` (the
   former inline `guards[dst] |= letters[idx]` loop).

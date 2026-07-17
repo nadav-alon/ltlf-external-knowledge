@@ -1,6 +1,7 @@
 # PRD: NfaProduct — explicit Method 1 (NFA product), the paper's NFA route
 
-**Status:** draft
+**Status:** implemented — Phase 1 (`nfa_to_dfa` + `build_product_nondet`,
+uncommitted); Phase 2 (`NfaProduct` + CLI, uncommitted) landed 2026-07-17.
 **Interface:** implements `Synthesis` as `NfaProduct` (the **explicit** *Representation*
 of Method 1); adds the generic subset construction `nfa_to_dfa` and the
 nondeterministic product-guard builder `build_product_nondet`. **Independent of
@@ -26,9 +27,31 @@ the **reachability-invariant note** at `main.tex:241`
   explicit `nfa_to_dfa` into *Goal automaton determinization* (now bicameral,
   explicit + mtdfa), added `build_product_nondet` to *Product*, and repointed the
   *Goal DFA construction* "still future" note. All rejected-synonym lines set.
-- [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] tests           — *closed 2026-07-17*: Phase-1 structural (`nfa_to_dfa_test.cpp`,
+  `product_test.cpp`) + the isolated determinize oracle with a **discriminating**
+  negative control; Phase-2 cross-method (vs `DfaProduct`), metamorphic
+  (`verify_controller`), corpus differential (`--nfa-product` vs `ltlfsynt`), and
+  the bench-span shape check. `ctest` 358/358. The cross-method oracle **caught a
+  real defect** on first run (the `materialize_product` empty-`ap()` bug — see the
+  CONTRACT CHANGE note in *Interfaces & types*), which is precisely its purpose.
+- [~] code-review     — **domain (/code-reviewer) run 2026-07-17; generic
+  (/code-review) NOT run.** Domain review found the diff clean on `Synthesis`
+  conformance, BDD/Spot idiom, the `bddfalse`-self-loop precedent, and glossary
+  naming. Two findings actioned: the stale GLOSSARY entries are fixed (this
+  commit); the one **must-fix** — `materialize_product` dropping $F_P$ on an
+  edgeless accepting product state — is **pre-existing, affects `DfaProduct`
+  equally, and was deliberately DEFERRED** to `docs/BACKLOG.md` *Later* (it changes
+  shipped `DfaProduct` verdicts on partial transducers, so it wants its own grill).
+  **Known-live bug at merge; both our oracles are structurally blind to it** (the
+  cross-method oracle because both methods share the broken function and agree; the
+  corpus because `random_tin` is total by construction). Not re-litigated here.
+  Lower-severity, left open: no `goal is COMPLETE` precondition throw in
+  `build_product_nondet` (both sibling builders have one); `nfa_to_dfa.hpp`'s
+  undocumented state-based-acc *input* precondition.
+- [ ] theory-review   — code ↔ math faithfulness vs main.tex. **Started 2026-07-17,
+  stopped early (unfinished) — NOT closed.** Still owes a verdict on the
+  load-bearing non-$\cons$-skip vs $\cons$-dead-sink distinction (Behaviour §1), the
+  `main.tex:241` reachability invariant, and the $\varepsilon$-convention.
 
 ## Goal
 
@@ -178,6 +201,32 @@ ProductGuards build_product_nondet(const spot::twa_graph_ptr& goal,
                                    const LetterAlphabet& alphabet);
 }  // namespace ltlf_ek
 
+// include/ltlf_ek/product.hpp  --- CONTRACT CHANGE, 2026-07-17     [Phase 2 fix]
+//
+// materialize_product gains a `vars` parameter and now REGISTERS the universe's
+// APs on the product graph it builds.  Previously it made the graph via
+// make_twa_graph(dict) and only attached BDD guards --- the guards referenced
+// variables numbered in the shared dict, but the graph never DECLARED them, so
+// product->ap() came back EMPTY.  DfaProduct never noticed: solve_dfa
+// re-registers vars' APs on its own game graph rather than trusting P->ap().
+// NfaProduct is the first caller to feed a materialized product into something
+// that TRUSTS ap() --- nfa_to_dfa enumerates full minterms over `nfa->ap()`, so
+// an empty list collapsed the whole game to the single letter bddtrue (it
+// reported phi="o" REALIZABLE and returned a controller verify_controller
+// rejects).  Caught by the Phase-2 cross-method oracle vs DfaProduct, exactly
+// the regression class it exists for.  Fixing materialize_product (rather than
+// patching the NfaProduct call site, or making nfa_to_dfa take explicit letters)
+// keeps nfa_to_dfa's partition-agnostic contract intact and stops the product
+// graph misreporting its own alphabet for every future caller.  Every call site
+// updated; behaviour-preserving for DfaProduct/MtdfaProduct (it only declares
+// APs those graphs already use).
+namespace ltlf_ek {
+spot::twa_graph_ptr materialize_product(const ProductGuards& pg,
+                                        const ProductState& init,
+                                        const spot::bdd_dict_ptr& dict,
+                                        const VariablePartition& vars);  // NEW
+}  // namespace ltlf_ek
+
 // include/ltlf_ek/nfa_product.hpp                                    [new, Phase 2]
 //
 // Method 1 --- NFA product (main.tex §nfa, alg:nfa_product), EXPLICIT
@@ -218,7 +267,7 @@ spot::twa_graph_ptr D;                         // Stage::product_construction
   const ProductState init{nfa->get_init_state_number(),
                           {t_in.initial_state(), t_out.initial_state()}};
   const ProductGuards pg = build_product_nondet(nfa, taus, init, alphabet);
-  const spot::twa_graph_ptr P = materialize_product(pg, init, dict);
+  const spot::twa_graph_ptr P = materialize_product(pg, init, dict, vars);
   { BenchTimer sub("determinize");             // free-form nested sub-span
     D = nfa_to_dfa(P); } }
 
@@ -331,6 +380,23 @@ Both new pieces are bespoke (no Spot analog for our finite-acceptance rule; no
   `ltlf_to_nfa`'s `mona` runtime dependency; those tests are `MONA_FOUND`-gated
   exactly as the existing `ltlf_to_nfa` tests. `nfa_to_dfa` / `build_product_nondet`
   on hand-built `twa_graph`s need no `mona` and always run.
+- **Accepting dead-end subset (`nfa_to_dfa`).** The same shape flagged in
+  `tests/reverse_dfa_to_nfa_test.cpp`'s `AcceptingDeadEnd` fixture recurs one
+  level up: a subset $R$ can be accepting (some $s\in R$ has
+  `nfa->state_is_accepting(s)`) yet have every letter $\emptyset$-skipped, so
+  it gets **zero** real out-edges in the output DFA. Since
+  `spot::twa_graph::state_is_accepting` reads a state-based mark off its
+  **first out-edge** (returning `false` with none), such a state would
+  silently read back non-accepting without a fix. `nfa_to_dfa` applies the
+  same defensive fix `reverse_dfa_to_nfa` uses: a `bddfalse`-guarded self-loop
+  carrying the Final mark, added only when a subset is accepting and no real
+  edge was emitted for it — never taken by any real letter, but gives Spot an
+  edge whose mark to read. Verified by hand (both the merge-into-one-subset
+  case and this dead-end case) with ad hoc smoke drivers before handoff; not a
+  PRD-contract change (the PRD's "Acceptance" bullet already states the
+  intended rule, this just names the encoding needed to make Spot honor it
+  uniformly) — flagged here so `/test-writer` includes a dedicated structural
+  case for it (mirroring the reversal fixture).
 
 ## Test oracles (for /test-writer)
 

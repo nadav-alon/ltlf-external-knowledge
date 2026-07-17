@@ -1,4 +1,6 @@
 #include <map>
+#include <queue>
+#include <set>
 #include <stdexcept>
 #include <vector>
 
@@ -26,8 +28,10 @@ namespace {
 
 using ltlf_ek::agreeing_successor;
 using ltlf_ek::build_product;
+using ltlf_ek::build_product_nondet;
 using ltlf_ek::LetterAlphabet;
 using ltlf_ek::OutputLabeledTransducer;
+using ltlf_ek::ProductGuards;
 using ltlf_ek::ProductNode;
 using ltlf_ek::ProductState;
 using ltlf_ek::Transducer;
@@ -381,6 +385,187 @@ TEST(LetterAlphabet, EmptyIfreeYieldsSingleIfreeCombo) {
   ASSERT_EQ(alphabet.n_ifree_combos(), 1u);
   for (std::size_t idx = 0; idx < alphabet.size(); ++idx)
     EXPECT_EQ(alphabet.ifree_index(idx), 0u) << "idx=" << idx;
+}
+
+// --- build_product_nondet (docs/prd/nfa-product.md Phase 1 (c)) -----------
+//
+// A separate ap ('a') and dict-registration helper from Vars/MakeAlphabet
+// above -- build_product_nondet's whole point is a NONDETERMINISTIC,
+// COMPLETE goal automaton, a shape TwoStateGoal's deterministic goal doesn't
+// exercise.
+struct AVars {
+  spot::bdd_dict_ptr dict;
+  int av;
+};
+
+AVars MakeAVars() {
+  auto dict = spot::make_bdd_dict();
+  auto probe = spot::make_twa_graph(dict);
+  const int av = probe->register_ap("a");
+  return {dict, av};
+}
+
+// Goal N over ap 'a': nondeterministic AND complete (build_product_nondet's
+// documented precondition -- the caller passes spot::complete_here(N), as
+// NfaProduct does; this fixture is complete by hand-construction instead).
+//   0 (init, non-acc) --a--> 1, --a--> 2  (nondeterministic: SAME guard,
+//                                          two destinations)
+//   0                 --!a--> 0
+//   1 (acc)           --true--> 1         (accepting sink)
+//   2 (non-acc)       --true--> 2         (non-accepting sink)
+spot::twa_graph_ptr BranchingCompleteGoal(const AVars& v) {
+  auto g = spot::make_twa_graph(v.dict);
+  g->set_buchi();
+  g->prop_state_acc(true);
+  g->new_states(3);
+  g->set_init_state(0);
+  g->new_edge(0, 1, bdd_ithvar(v.av), kNoAcc);
+  g->new_edge(0, 2, bdd_ithvar(v.av), kNoAcc);
+  g->new_edge(0, 0, bdd_nithvar(v.av), kNoAcc);
+  g->new_edge(1, 1, bddtrue, kAcc);
+  g->new_edge(2, 2, bddtrue, kNoAcc);
+  return g;
+}
+
+// t_in: a 2-state "toggle on a" -- its delta depends on the SAME ap the goal
+// branches on, so q_in genuinely advances in step with the goal's
+// nondeterministic branch (needed so the reachability-invariant check below
+// is not vacuous: with a 1-state transducer, taus could never differ across
+// a subset regardless of whether the invariant holds). Sigma0=Sigma1=bddtrue
+// (lambda trivially bddtrue everywhere) so emits never blocks a letter --
+// isolates the goal's own nondeterminism as the only source of branching.
+OutputLabeledTransducer ToggleOnA(const AVars& v) {
+  auto g = spot::make_twa_graph(v.dict);
+  g->new_states(2);
+  g->set_init_state(0);
+  g->new_edge(0, 1, bdd_ithvar(v.av));
+  g->new_edge(0, 0, bdd_nithvar(v.av));
+  g->new_edge(1, 1, bddtrue);
+  return OutputLabeledTransducer(g, {bddtrue, bddtrue}, /*sigma0=*/bddtrue,
+                                 /*sigma1=*/bddtrue);
+}
+
+// t_out: trivial, single state, total self-loop -- q_out never moves, so any
+// variation in a reachable subset's taus traces entirely to t_in's toggle.
+OutputLabeledTransducer TrivialOutTransducer(const AVars& v) {
+  auto g = spot::make_twa_graph(v.dict);
+  g->new_states(1);
+  g->set_init_state(0);
+  g->new_edge(0, 0, bddtrue);
+  return OutputLabeledTransducer(g, {bddtrue}, /*sigma0=*/bddtrue,
+                                 /*sigma1=*/bddtrue);
+}
+
+TEST(BuildProductNondet, GoalBranchYieldsMultiDestinationEdges) {
+  auto v = MakeAVars();
+  auto goal = BranchingCompleteGoal(v);
+  auto t_in = ToggleOnA(v);
+  auto t_out = TrivialOutTransducer(v);
+  const std::vector<const Transducer*> taus{&t_in, &t_out};
+  const ProductState init{0, {0, 0}};
+  auto vars = VariablePartition::split({"a"}, {}, {});
+  const LetterAlphabet alphabet(vars, goal);
+  ASSERT_EQ(alphabet.size(), 2u);
+
+  const ProductGuards pg = build_product_nondet(goal, taus, init, alphabet);
+
+  // From init, letter a=T lands on BOTH goal successors 1 and 2
+  // (build_product_nondet's "for every s' in goal_delta_set" loop) --- two
+  // DISTINCT destinations, each carrying the SAME letter in their guard: the
+  // native multi-destination representation build_product's single-goal-
+  // successor assumption cannot express.
+  const ProductState dst1{1, {1, 0}};  // t_in advances 0->1 on a=T.
+  const ProductState dst2{2, {1, 0}};
+  ASSERT_TRUE(pg.nodes.count(init));
+  const auto& [acc0, guards0] = pg.nodes.at(init);
+  EXPECT_FALSE(acc0) << "goal state 0 is not accepting";
+  ASSERT_EQ(guards0.size(), 3u)
+      << "dst1, dst2 (both via a=T), and the a=F self-loop back to init";
+  ASSERT_TRUE(guards0.count(dst1));
+  ASSERT_TRUE(guards0.count(dst2));
+  const bdd a_true = bdd_ithvar(v.av);
+  EXPECT_NE(guards0.at(dst1) & a_true, bddfalse)
+      << "dst1's guard must include the letter that produced it";
+  EXPECT_NE(guards0.at(dst2) & a_true, bddfalse)
+      << "dst2's guard must include the SAME letter -- the multi-"
+         "destination point";
+}
+
+// Independent, test-local subset construction directly over ProductGuards
+// (NOT nfa_to_dfa, which is separately unit-tested in tests/nfa_to_dfa_test
+// .cpp): mirrors its algorithm one level up, in ProductState space, purely
+// so the reachability invariant (main.tex:241) can be checked against the
+// taus of whichever raw ProductStates end up sharing a subset. Subsets are
+// std::set<ProductState> (ordered by ProductState::operator<); BFS from
+// {init} over `alphabet.letters()`; R' = union over p in R of
+// { dst : pg's guard(p, dst) & v != bddfalse }; an empty R' is skipped
+// (nfa_to_dfa's own ∅-skip rule, mirrored here for reachability fidelity,
+// though nfa_to_dfa itself is not under test here).
+std::vector<std::set<ProductState>> ReachableProductSubsets(
+    const ProductGuards& pg, const ProductState& init,
+    const LetterAlphabet& alphabet) {
+  std::vector<std::set<ProductState>> subsets;
+  std::set<std::set<ProductState>> interned;
+  std::queue<std::set<ProductState>> worklist;
+
+  const std::set<ProductState> r0{init};
+  interned.insert(r0);
+  subsets.push_back(r0);
+  worklist.push(r0);
+
+  while (!worklist.empty()) {
+    const std::set<ProductState> cur = worklist.front();
+    worklist.pop();
+    for (const bdd& v : alphabet.letters()) {
+      std::set<ProductState> next;
+      for (const ProductState& p : cur) {
+        const auto& guards = pg.nodes.at(p).second;
+        for (const auto& [dst, guard] : guards)
+          if ((v & guard) != bddfalse) next.insert(dst);
+      }
+      if (next.empty()) continue;
+      if (interned.insert(next).second) {
+        subsets.push_back(next);
+        worklist.push(next);
+      }
+    }
+  }
+  return subsets;
+}
+
+TEST(BuildProductNondet, EveryReachableSubsetHasASingleTausPair) {
+  auto v = MakeAVars();
+  auto goal = BranchingCompleteGoal(v);
+  auto t_in = ToggleOnA(v);
+  auto t_out = TrivialOutTransducer(v);
+  const std::vector<const Transducer*> taus{&t_in, &t_out};
+  const ProductState init{0, {0, 0}};
+  auto vars = VariablePartition::split({"a"}, {}, {});
+  const LetterAlphabet alphabet(vars, goal);
+
+  const ProductGuards pg = build_product_nondet(goal, taus, init, alphabet);
+  const std::vector<std::set<ProductState>> subsets =
+      ReachableProductSubsets(pg, init, alphabet);
+
+  // Hand-traced (see BranchingCompleteGoal / ToggleOnA above): reading a=T
+  // from init reaches the subset {(1,{1,0}), (2,{1,0})} --- two DIFFERENT
+  // goal components (1 vs 2) paired with the exact SAME (q_in,q_out) =
+  // (1,0). That subset is NOT a singleton (the goal's nondeterminism really
+  // did merge two distinct P-states together), yet its taus is uniform ---
+  // the main.tex:241 reachability invariant made concrete.
+  bool found_nonsingleton = false;
+  for (const std::set<ProductState>& subset : subsets) {
+    ASSERT_FALSE(subset.empty());
+    const std::vector<unsigned>& first_taus = subset.begin()->taus;
+    for (const ProductState& p : subset)
+      EXPECT_EQ(p.taus, first_taus)
+          << "reachable subset mixes (q_in,q_out) pairs -- violates the "
+             "main.tex:241 reachability invariant";
+    if (subset.size() > 1) found_nonsingleton = true;
+  }
+  EXPECT_TRUE(found_nonsingleton)
+      << "fixture must actually exercise a merged (non-singleton) subset, "
+         "else the invariant check above is vacuous";
 }
 
 TEST(LetterAlphabet, IdempotentRegistrationYieldsIdenticalLetters) {

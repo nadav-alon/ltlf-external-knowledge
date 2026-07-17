@@ -89,6 +89,50 @@ oracle rounds out the external `ltlfsynt` cross-check._
 
 ## Later
 
+### `materialize_product` drops $F_P$ on an edgeless accepting product state — **known live bug** (found 2026-07-17)
+- **Intent:** fix, and decide the semantics first. `materialize_product`
+  (`src/product.cpp:341`) only attaches the acceptance mark **inside** its
+  per-destination guard loop, so an accepting product state with **zero** outgoing
+  guards emits no edges at all — and Spot's `state_is_accepting` reads a
+  state-based mark off a state's *first out-edge*, so the flag
+  `build_product`/`build_product_nondet` computed is **lost in transit** and reads
+  back `false`. Same hazard class `nfa_to_dfa` (`src/nfa_to_dfa.cpp:105`) and
+  `reverse_dfa_to_nfa` (`:40`) already defend against with a `bddfalse`-guarded
+  self-loop carrying the mark; `materialize_product` is the one that doesn't.
+- **Reachability:** needs a **partial transducer** — a $\cons$-passing product state
+  whose $\delta$ is undefined on every letter. Legal (`transducer.hpp:24`,
+  `main.tex:107`) and explicitly handled by `build_product_nondet`. Reproduced end
+  to end: $\varphi=b$, $\Ofree=\{b\}$, `t_in` with a delta-dead state 1 →
+  **both** `DfaProduct` and `NfaProduct` say UNREALIZABLE where REALIZABLE is
+  expected.
+- **Pre-existing, NOT introduced by `NfaProduct`** (found by its domain review;
+  deliberately deferred out of `docs/prd/nfa-product.md` on 2026-07-17 to keep that
+  PRD's scope to Method 1 explicit). It affects `DfaProduct` equally, so fixing it
+  **changes shipped `DfaProduct` verdicts on partial transducers** — a semantic
+  change worth its own grill, which is why it isn't a drive-by.
+- **Why both oracles are blind to it — the load-bearing lesson:**
+  - the **cross-method** oracle can't see it: `DfaProduct` and `NfaProduct` share
+    `materialize_product` + `solve_dfa`, so they fail **identically and agree**;
+  - the **generated corpus** can't see it: `random_tin` is deterministic + **total**
+    by construction (the committed Case-A regime,
+    `tests/ltlfsynt_oracle_test.cpp:1337`) and `t_out` is `trivial_transducer`, so
+    the partial-transducer regime is simply unexercised at corpus scale.
+  A green suite is fully consistent with this bug. Any fix **must** ship a
+  partial-transducer test, or it is untested by construction.
+- **Seeds for grilling:**
+  - **Semantics first:** is a $\cons$-dead transducer state reached *after*
+    acceptance a **win**? LTLf acceptance is at the end of a finite trace, so an
+    accepting state where the trace can only stop looks like a win — but that is a
+    $\Tin$/$\Tout$ partiality reading (`\cref{def:consistency}`), not something
+    `alg:dfa_product` spells out. Settle this before touching code; the bug is real
+    either way (the flag is *lost*, not deliberately reinterpreted).
+  - Fix locus: the defensive self-loop in `materialize_product` (mirrors the two
+    existing precedents), or make `ProductGuards`→graph carry acceptance
+    out-of-band so no caller can lose it again?
+  - Does the corpus want a **partial-transducer regime** (Case B) generally? This
+    bug is evidence the total-by-construction corpus has a systematic blind spot,
+    not just this one gap.
+
 ### Investigate Nondeterministic Decision Diagrams for representing the NFA (Method 1)
 - **Intent:** Method 1 — the NFA route (`LtlfToNfa` / `NfaProduct` / `NfaToDfa`,
   glossary *NFA / DFA for the Goal*) — **isn't built yet**. Before building it on
