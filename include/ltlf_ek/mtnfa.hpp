@@ -59,6 +59,17 @@ struct Mtnfa {
 // formula id, mirroring spot::mtdfa's `aps` convention).  No sink state is
 // added: N is legitimately partial.  The NFA analog of
 // spot::twadfa_to_mtdfa (ours; Spot has no twanfa_to_mtnfa).
+//
+// Preconditions on `nfa`'s acceptance (theory-review F3), both flowing from
+// spot::twa_graph::state_is_accepting:
+//   (1) `nfa` must use state-based acceptance (prop_state_acc() set);
+//       state_is_accepting THROWS otherwise.
+//   (2) an accepting state with NO out-edges reads back as accepting == false
+//       (state_is_accepting infers acceptance from a state's own edges).  If a
+//       final state may be edgeless, give it an explicit bddfalse-guarded
+//       self-loop first (as reverse_dfa_to_nfa does) so its F-membership
+//       survives the lift.
+// ltlf_to_nfa satisfies both; arbitrary-twa_graph callers must check them.
 Mtnfa nfa_to_mtnfa(const spot::twa_graph_ptr& nfa);
 
 // LtlfToNfa in the mtdfa representation: ltlf_to_nfa(phi, dict) then
@@ -76,6 +87,12 @@ Mtnfa ltlf_to_mtnfa(const spot::formula& phi, const spot::bdd_dict_ptr& dict);
 // empty-set/rejecting sink) recognizing L(nfa).  nullptr is NEVER
 // returned; an NFA whose language is empty yields the single
 // rejecting-sink mtdfa.
+//
+// Precondition (theory-review F2): nfa.accepting[nfa.initial] must be false
+// (the NFA must not accept the empty word).  R0 = {nfa.initial} is seeded at
+// output index 0 and never rediscovered as a destination subset, so an
+// accepting initial state would be silently dropped.  Asserted; ltlf_to_mtnfa
+// always satisfies it (fresh non-accepting s_{N,0}).
 spot::mtdfa_ptr mtnfa_to_mtdfa(const Mtnfa& nfa);
 
 }  // namespace ltlf_ek

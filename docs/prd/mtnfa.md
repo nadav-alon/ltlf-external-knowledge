@@ -45,28 +45,35 @@ gesture, and it is about Method 3, not a commitment to this).
   construction faithfulness **blessed** ($L(\texttt{mtnfa\_to\_mtdfa}(N))=L(N)$
   verified link-by-link), no new `\na`; (2) $\varepsilon$-convention **agrees** —
   but the PRD's argument runs backwards (see below); (3) `thm:nfa-mirror-size`
-  status-noted, unchanged. Four follow-ups left OPEN, none blocking:
-  **F1** (`underspecified`) `\algname{NfaToDfa}` is never defined in `main.tex` —
+  status-noted, unchanged. Four follow-ups; F2/F3/F4 actioned 2026-07-17, F1
+  remains OPEN (none were blocking):
+  **F1** (`underspecified`, **OPEN**) `\algname{NfaToDfa}` is never defined in `main.tex` —
   a drafted `\cl` for after `main.tex:241` is in the review; load-bearing for
-  `MtnfaProduct`, worth pinning before it lands.
-  **F2** (`underspecified`, latent) `mtnfa_to_mtdfa` silently drops an accepting
-  *initial* state — unreachable via `ltlf_to_mtnfa` (fresh $s_{N,0}$) but
-  `nfa_to_mtnfa`/`mtnfa_to_mtdfa` are public and take arbitrary `twa_graph`s.
-  Fix: document the precondition + `assert(!nfa.accepting[nfa.initial])`.
-  **F3** (`underspecified`) `nfa_to_mtnfa`'s two unstated `state_is_accepting`
-  preconditions (throws without `prop_state_acc()`; returns **false** for an
-  $F_N$ state with no out-edges — defended today only by accident of
-  `reverse_dfa_to_nfa`'s `bddfalse`-guarded self-loop).
-  **F4** (note) the PRD's floated cross-call `set_union` memo would be
-  **unsound**, not merely a perf tweak: the id-keyed memo is safe *only* because
-  per-call scoping keeps operands GC-reachable. Strike the "compatible
-  follow-up" phrasing; a persistent memo needs `bdd`-valued keys.
+  `MtnfaProduct`, worth pinning before it lands. Deferred: Overleaf-only
+  `main.tex` edit, only load-bearing once `MtnfaProduct` lands.
+  **F2** (`underspecified`, latent) — **DONE 2026-07-17:** `mtnfa_to_mtdfa`
+  silently dropped an accepting *initial* state (unreachable via `ltlf_to_mtnfa`,
+  fresh $s_{N,0}$, but the public functions take arbitrary `twa_graph`s).
+  Fixed: precondition documented in `mtnfa.hpp` + `assert(!nfa.accepting[nfa.initial])`
+  at the top of `mtnfa_to_mtdfa`.
+  **F3** (`underspecified`) — **DONE 2026-07-17:** `nfa_to_mtnfa`'s two unstated
+  `state_is_accepting` preconditions (throws without `prop_state_acc()`; returns
+  **false** for an $F_N$ state with no out-edges, defended today only by accident
+  of `reverse_dfa_to_nfa`'s `bddfalse`-guarded self-loop) are now documented in
+  the `nfa_to_mtnfa` header doc-comment.
+  **F4** (note) — **DONE 2026-07-17:** the PRD's floated cross-call `set_union`
+  memo is **unsound**, not merely a perf tweak (the id-keyed memo is safe *only*
+  because per-call scoping keeps operands GC-reachable). The "compatible
+  follow-up" phrasing in the Phase-1 developer comment is struck; a persistent
+  memo would need `bdd`-valued keys.
 - [x] code-review     — domain (/code-reviewer) *closed 2026-07-17*: **clean, no
   must-fix.** Shared-dict usage, mtdfa terminal encoding (`2j+b` / `bddfalse`
   sink), the `register_proposition` ownership fix (idempotent, `~mtdfa()`-paired),
   and per-call memo scoping all confirmed sound; glossary-conformant. One
-  *consider* (non-blocking): `mtnfa.cpp:133` `const unsigned i` is `assert`-only →
-  `-Wunused-variable` under `NDEBUG`; add `(void)i;`. Theory-review already ran
+  *consider* (non-blocking) — **DONE 2026-07-17:** `mtnfa.cpp` `const unsigned i`
+  was `assert`-only → `-Wunused-variable` under `NDEBUG`; resolved by inlining
+  `subset_index.at(R)` into the `assert` so the lookup vanishes entirely under
+  `NDEBUG` (no dangling `(void)i;`). Theory-review already ran
   clean separately (not re-spawned). Generic `/code-review` lens: not separately
   run — recommend before committing, though the domain pass covered the semantic
   surface.
@@ -151,9 +158,19 @@ The representation is code-only, but its two operations must be faithful:
    backed by the reachability invariant `main.tex:241`.)
 
 3. **Empty word / non-empty traces.** $L(\varphi)$ excludes $\varepsilon$
-   (`1` rejects the empty word; project commitment). $s_{N,0}\notin F_N$
-   (`F_N=\{s_{D,0}\}\neq\{s_{N,0}\}`), so the initial DFA state $\{s_{N,0}\}$ is
-   non-accepting and $\varepsilon$ is rejected — matching `ltlf_to_mtdfa(φ)`.
+   (`1` rejects the empty word; project commitment). **Corrected argument
+   (theory-review 2026-07-17):** the output mtdfa uses *transition-based*
+   acceptance, so it rejects $\varepsilon$ **unconditionally and structurally**
+   — there is no per-state initial-acceptance bit that could ever accept the
+   empty run, regardless of $F_N$. What $s_{N,0}\notin F_N$
+   (`F_N=\{s_{D,0}\}\neq\{s_{N,0}\}`) buys is the *converse*: because the
+   initial subset $\{s_{N,0}\}$ contains no final state, **no acceptance is
+   lost** by the mtdfa's inability to mark $\varepsilon$ — the language it
+   should reject on the empty word is exactly the language it does. Both facts
+   together match `ltlf_to_mtdfa(φ)`. (The earlier phrasing had this backwards,
+   attributing the $\varepsilon$-rejection *to* $s_{N,0}\notin F_N$; the
+   rejection is prior to it — see also F2, which is the same structural fact
+   biting when the initial state *is* accepting.)
 
 ## Interfaces & types
 
@@ -448,8 +465,15 @@ types". Two implementation choices the PRD left open (both within the
   requirement ("polynomial in the input MTBDDs' node counts, not exponential
   in letters") for a single call; it does not additionally amortize repeated
   `set_union` calls across different top-level pairs (e.g. across the BFS in
-  Phase 2's determinizer). If Phase 2's profiling shows that matters, a
-  member-scoped memo is a compatible follow-up (same public signature).
+  Phase 2's determinizer). **NOT a safe follow-up (theory-review F4,
+  2026-07-17):** a member-scoped memo persisted across calls would be
+  *unsound*, not merely a perf tweak. The memo keys on `bdd::id()`, and BuDDy
+  recycles a node id once its last `bdd` handle is released; per-call scoping
+  is what guarantees every operand (hence every keyed id) stays GC-reachable
+  for the memo's whole lifetime. A cross-call memo could return a stale MTBDD
+  for a recycled id. Amortizing across calls would require `bdd`-valued keys
+  (handles that pin the nodes), not `id()` ints — a different design, not a
+  drop-in.
 - **Explicit `LevelOf` helper for "a terminal counts as below every
   variable".** Rather than relying on `bdd_level()`'s own (undocumented in
   the installed header) treatment of terminal nodes, `set_union`'s topmost-

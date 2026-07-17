@@ -492,8 +492,14 @@ TEST(MtnfaGeneratedCorpus, NegativeControlDetectsCorruptedAcceptingFlags) {
 
   Mtnfa mtnfa = ltlf_to_mtnfa(phi, dict);
   ASSERT_FALSE(mtnfa.accepting.empty());
+  // Flip every accepting flag EXCEPT the initial state's: mtnfa_to_mtdfa's F2
+  // precondition (asserted) forbids an accepting initial state, and corrupting
+  // it would trip that assert rather than exercise the language oracle.  Every
+  // *other* flag flipping still desyncs the determinized language for X[!] a
+  // (which has non-initial accepting states), so the control stays valid.
   for (std::size_t s = 0; s < mtnfa.accepting.size(); ++s)
-    mtnfa.accepting[s] = !mtnfa.accepting[s];
+    if (s != mtnfa.initial)
+      mtnfa.accepting[s] = !mtnfa.accepting[s];
 
   const spot::mtdfa_ptr broken = mtnfa_to_mtdfa(mtnfa);
   const spot::mtdfa_ptr want = spot::ltlf_to_mtdfa(phi, dict);

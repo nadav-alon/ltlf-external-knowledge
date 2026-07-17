@@ -98,6 +98,16 @@ Mtnfa ltlf_to_mtnfa(const spot::formula& phi, const spot::bdd_dict_ptr& dict) {
 }
 
 spot::mtdfa_ptr mtnfa_to_mtdfa(const Mtnfa& nfa) {
+  // Precondition (theory-review F2): the initial state must NOT be accepting.
+  // R0 = {nfa.initial} is seeded directly at output index 0 and is never
+  // discovered as a *destination* subset, so RelabelRec never reads its
+  // acceptance bit --- an accepting initial state (i.e. an NFA that accepts
+  // the empty word) would be silently dropped.  ltlf_to_mtnfa always satisfies
+  // this: ltlf_to_nfa gives a fresh non-accepting s_{N,0}.  Callers lifting an
+  // arbitrary twa_graph must ensure it too (or split the initial state first).
+  assert(!nfa.accepting[nfa.initial] &&
+         "mtnfa_to_mtdfa: accepting initial state unsupported (see F2)");
+
   auto out = std::make_shared<spot::mtdfa>(nfa.dict);
   out->aps = nfa.aps;
 
@@ -130,7 +140,6 @@ spot::mtdfa_ptr mtnfa_to_mtdfa(const Mtnfa& nfa) {
   while (!pending.empty()) {
     const std::vector<unsigned> R = std::move(pending.front());
     pending.pop_front();
-    const unsigned i = subset_index.at(R);
 
     // rowSet = fold(set_union, {nfa.states[s] : s in R}); R is always
     // non-empty (only non-empty subsets are ever enqueued, see RelabelRec).
@@ -142,8 +151,10 @@ spot::mtdfa_ptr mtnfa_to_mtdfa(const Mtnfa& nfa) {
     const bdd row = RelabelRec(row_set, nfa, subset_index, pending, memo);
 
     // BFS discovery order assigns output indices 0,1,2,... in dequeue
-    // order, so `i` always equals out->states.size() here.
-    assert(i == out->states.size());
+    // order, so R's index always equals out->states.size() here.  Inlined
+    // into the assert so the lookup vanishes entirely under NDEBUG (no
+    // -Wunused-variable, theory-review "consider").
+    assert(subset_index.at(R) == out->states.size());
     out->states.push_back(row);
   }
 
