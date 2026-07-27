@@ -35,13 +35,16 @@ VariablePartition parse_partition_file(std::istream& in);
 
 // Construct the Synthesis method named by a CLI method flag with its leading
 // `--` stripped, e.g. "dfa-product" (docs/GLOSSARY.md "The five methods").
-// Six flags over five methods: "mtdfa-product" is a SECOND implementation of
-// Method 2 (the mtdfa Representation, docs/prd/mtdfa-product.md), not a sixth
-// method --- DfaProduct stays the explicit-Representation implementation of
-// the same method.  "dfa-product", "mtdfa-product", and "nfa-product" are
-// wired today (-> DfaProduct, MtdfaProduct, NfaProduct respectively,
-// docs/prd/nfa-product.md); the other three recognised method names throw
-// std::logic_error("... not yet implemented"); any other name throws
+// Seven flags over five methods: "mtdfa-product" and "mtnfa-product" are
+// SECOND implementations of Methods 2 and 1 respectively (the mtdfa
+// Representation, docs/prd/mtdfa-product.md / docs/prd/mtnfa-product.md),
+// not sixth/seventh methods --- DfaProduct / NfaProduct stay the
+// explicit-Representation implementations of the same methods.
+// "dfa-product", "mtdfa-product", "nfa-product", and "mtnfa-product" are
+// wired today (-> DfaProduct, MtdfaProduct, NfaProduct, MtnfaProduct
+// respectively, docs/prd/nfa-product.md / docs/prd/mtnfa-product.md); the
+// other three recognised method names throw std::logic_error("... not yet
+// implemented"); any other name throws
 // std::invalid_argument("unrecognised method").
 //
 // `minimize_mtdfa` (Phase 2, docs/prd/mtdfa-product.md "Benchmarking") is the

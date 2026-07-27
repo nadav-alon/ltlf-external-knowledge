@@ -1,6 +1,10 @@
 # PRD: `MtnfaProduct` — Method 1 in the mtdfa representation
 
-**Status:** draft
+**Status:** implemented — `include/ltlf_ek/mtnfa_product.hpp` + `src/mtnfa_product.cpp`
+(the fused BFS `mtnfa_product_to_mtdfa` + `MtnfaProduct::synthesize`), wired into
+`CMakeLists.txt` and `src/cli.cpp`/`cli.hpp` (`--mtnfa-product`); tree compiles,
+`ctest` green (381/381, concurrent `/test-writer` suite not yet merged into this
+worktree).
 **Interface:** implements `Synthesis` as `MtnfaProduct` (the **mtdfa** *Representation*
 cell of Method 1, alongside the explicit `NfaProduct`); adds one public free function
 `mtnfa_product_to_mtdfa` and the `--mtnfa-product` CLI flag.
@@ -17,7 +21,8 @@ The mtdfa *Representation* itself has **no `main.tex` symbol** (the `\na` at
 `main.tex:335` gestures at MTDFA, but for Method 3).
 
 **Gates:**
-- [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
+- [x] glossary        — new terms in docs/GLOSSARY.md C++ column (already landed by
+      the grill-prd session that wrote this PRD, 2026-07-27)
 - [ ] tests           — unit + oracle coverage
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex
@@ -297,8 +302,17 @@ so `states[0]` is the initial state, as `solve_mtdfa` and Spot expect. Assert
    reading of the partiality clause.
 3. `row = bddfalse`. For each combination in the cartesian product of
    `taus[k]->delta_edges(q[k])` — element $k$ contributing $(g_k, d_k)$ —
-   let `g = cons & AND_k g_k`. Skip if `g == bddfalse`. Otherwise
-   `row = bdd_ite(g, Relabel(row_set, d), row)`, with `Relabel` as in (c).
+   let `g = cons & AND_k g_k`. Skip if `g == bddfalse`. Otherwise **mask `row_set`
+   to `g` before relabeling**: `row_set_g = bdd_ite(g, row_set, bdd_terminalpp(0))`,
+   then `row = bdd_ite(g, Relabel(row_set_g, d), row)`, with `Relabel` as in (c).
+   **Corrected 2026-07-27** (see *Developer comments / PRD disagreements*):
+   `Relabel` must never be called on the unrestricted `row_set` here — it walks the
+   *whole* MTBDD and interns a `Key{S, d}` at every non-empty set-terminal it
+   reaches, including branches that occur only **outside** `g` (where the true
+   successor vector is a different `d`). Masking to `g` first replaces those
+   out-of-`g` branches with the empty-set terminal, which `Relabel` already maps to
+   `bddfalse` without interning anything — so only genuinely `d`-reachable subsets
+   get enqueued.
 4. `assert(subset_index.at(Key{R,q}) == out->states.size());`
    `out->states.push_back(row);` (BFS dequeue order assigns indices 0,1,2,…, so this
    holds; inline the lookup into the `assert` so it vanishes under `NDEBUG`).
@@ -530,4 +544,45 @@ minterm enumeration anywhere; `LetterAlphabet` is **not** used on this route.
 
 ## Developer comments / PRD disagreements
 
-_(none yet — `/developer` appends here)_
+- **2026-07-27 — "Novel mechanisms" (b).3 over-approximated reachability
+  (PRD-change event, caught in launcher review, not by any test).** The original
+  (b).3 called `Relabel(row_set, d)` on the **unrestricted** `row_set` for every
+  cartesian combination, instead of `row_set` masked to that combination's guard
+  `g`. `Relabel` walks the whole MTBDD and interns a `Key{S, d}` at **every**
+  non-empty set-terminal it reaches — including set-terminals that only occur on
+  branches **outside** `g`, where the letter's actual `cons`-passing successor
+  vector is a *different* `d`. The outer `bdd_ite(g, Relabel(row_set, d), row)`
+  then correctly discards that out-of-`g` branch from the returned row, but by
+  then `Relabel` has already pushed the spurious `Key{S, d}` onto `pending` and
+  it gets processed as if reachable.
+  - **Symptom.** Purely a state-count blowup, not a correctness bug: `states[0]`
+    is still the true initial state, every reachable state's row is still exactly
+    right, and the spurious extra states are dead weight (no combination in
+    `taus` ever actually drives the BFS into them via a `d`-labeled edge from a
+    reachable predecessor — they are discovered but not truly reachable under
+    the product semantics). Worst case the state count degrades toward the
+    unpruned $2^{|S_N|}\times|Q_{in}|\times|Q_{out}|$ bound, which is exactly the
+    blowup Method 1's late determinization exists to avoid. Confirmed on a
+    hand-built fixture (goal row branching `b -> {1}` / `!b -> {2}`, `t_in` with
+    two `delta_edges` `(b, 5)` / `(!b, 6)`, trivial `t_out`): `states.size()`
+    was 5 before the fix (2 spurious states enqueued) and 3 after (the minimal
+    correct count).
+  - **No PRD oracle catches this — do not treat it as covered by the test
+    suite.** Language is invariant under the bug (the spurious states are
+    unreachable, so they never affect a row anyone actually reads), so
+    `product_xor` against `MtdfaProduct`'s intersected product passes either
+    way, every cross-method/cross-representation realizability verdict agrees
+    either way, and `verify_controller`'s metamorphic round-trip accepts either
+    way. Only a **state-count** assertion (or a benchmark comparison against the
+    theoretical bound) can detect a regression here; none of this PRD's *Test
+    oracles* are state-count-sensitive. If `/test-writer` wants coverage for
+    this class of bug, it needs a dedicated reachability-tightness fixture, not
+    an extension of an existing verdict/language oracle.
+  - **The fix.** Mask `row_set` to `g` before relabeling:
+    `row_set_g = bdd_ite(g, row_set, bdd_terminalpp(0))`, then
+    `Relabel(row_set_g, ...)`. Outside `g`, `row_set_g` is the empty-set
+    terminal, which `Relabel`'s existing base case already maps to `bddfalse`
+    without interning anything — no new machinery, same pattern `Relabel` itself
+    already uses for `bdd_ite`. The per-call `memo` scope (F4) is unaffected and
+    stays fresh per combination. Landed in `src/mtnfa_product.cpp`; `ctest` stays
+    green (381/381) since no verdict changes.

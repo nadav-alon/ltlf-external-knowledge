@@ -63,6 +63,7 @@ add_library(ltlf_ek
   src/mtdfa_product.cpp
   src/state_set_pool.cpp
   src/mtnfa.cpp
+  src/mtnfa_product.cpp
   src/synthesis.cpp
   src/verify_controller.cpp
   src/cli.cpp
