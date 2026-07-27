@@ -124,6 +124,45 @@ TEST(LtlfEkSynth, RealizableFormulaPrintsAParsableHoaControllerOnStdout) {
   EXPECT_TRUE(ParsesAsHoa(r.stdout_text)) << r.stdout_text;
 }
 
+// Every WIRED method flag must survive ParseArgs and reach its method.  Wiring
+// a flag takes TWO edits --- make_synthesis_method (src/cli.cpp) AND
+// kMethodFlags (src/ltlf_ek_synth.cpp) --- and only the first is covered by the
+// per-method make_synthesis_method tests, so a flag can be "wired" everywhere
+// except the arg parser and still look green.  That is exactly how
+// --mtnfa-product shipped unreachable (docs/prd/mtnfa-product.md domain-review
+// finding D1); this test is the regression guard.  Kept as one loop so the next
+// wired flag is a one-line addition.
+// The MONA split is deliberate and load-bearing: only the NFA-route methods
+// need mona (via ltlf_to_nfa), so gating the WHOLE loop on MONA_FOUND would
+// make a mona-less build skip the guard entirely --- including for the two
+// flags that need no mona, which is precisely when an unreachable-flag bug
+// would ship unnoticed.
+void ExpectMethodFlagReachesItsMethod(const std::string& flag) {
+  SCOPED_TRACE(flag);
+  const CliResult r = RunCli({flag, "--formula=G(i -> o)", "--inputs", "i",
+                              "--outputs", "o", "--realizable"});
+  EXPECT_EQ(r.stderr_text.find("unrecognised flag"), std::string::npos)
+      << "flag missing from kMethodFlags (src/ltlf_ek_synth.cpp) --- adding it "
+        "to make_synthesis_method alone is not enough";
+  EXPECT_EQ(r.exit_code, 0) << "stderr: " << r.stderr_text;
+  EXPECT_EQ(r.stdout_text, "REALIZABLE\n");
+}
+
+TEST(LtlfEkSynth, EveryWiredMonaFreeMethodFlagIsAcceptedEndToEnd) {
+  for (const std::string& flag : {"--dfa-product", "--mtdfa-product"})
+    ExpectMethodFlagReachesItsMethod(flag);
+}
+
+TEST(LtlfEkSynth, EveryWiredNfaRouteMethodFlagIsAcceptedEndToEnd) {
+#ifndef MONA_FOUND
+  GTEST_SKIP() << "mona not found (CMake find_program(mona)); the NFA-route "
+                  "methods need it via ltlf_to_nfa";
+#else
+  for (const std::string& flag : {"--nfa-product", "--mtnfa-product"})
+    ExpectMethodFlagReachesItsMethod(flag);
+#endif
+}
+
 // ---------------------------------------------------------------------------
 // Verdict codes (PRD "Behaviour" #6).
 // ---------------------------------------------------------------------------

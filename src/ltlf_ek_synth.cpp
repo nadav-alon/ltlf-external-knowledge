@@ -46,13 +46,18 @@ using ltlf_ek::VariablePartition;
 using ltlf_ek::Witness;
 
 // The method flags this CLI recognises: the five methods (docs/GLOSSARY.md
-// "The five methods") plus "mtdfa-product", a second implementation of
-// Method 2 over the mtdfa Representation (docs/prd/mtdfa-product.md) --- six
-// flags over five methods.  "dfa-product" and "mtdfa-product" are wired
-// (ltlf_ek::make_synthesis_method); the rest are not yet implemented.
+// "The five methods") plus "mtdfa-product" and "mtnfa-product", second
+// implementations of Methods 2 and 1 over the mtdfa Representation
+// (docs/prd/mtdfa-product.md / docs/prd/mtnfa-product.md) --- SEVEN flags over
+// five methods.  "dfa-product", "mtdfa-product", "nfa-product" and
+// "mtnfa-product" are wired (ltlf_ek::make_synthesis_method); the other three
+// are not yet implemented.  This list is the SECOND site a new flag must be
+// added to --- make_synthesis_method (src/cli.cpp) alone is not enough, since
+// ParseArgs rejects an unlisted flag before ever consulting the factory (the
+// domain-review D1 finding in docs/prd/mtnfa-product.md).
 const std::vector<std::string> kMethodFlags = {
-    "dfa-product",     "mtdfa-product",     "nfa-product",
-    "otf-dfa-product", "otf-agg-product",   "otf-dyn-agg-product"};
+    "dfa-product",     "mtdfa-product",   "nfa-product",     "mtnfa-product",
+    "otf-dfa-product", "otf-agg-product", "otf-dyn-agg-product"};
 
 // A usage mistake (bad/missing/conflicting flags, malformed input the user
 // supplied) --- distinct from an internal/not-yet-implemented error.  Maps to

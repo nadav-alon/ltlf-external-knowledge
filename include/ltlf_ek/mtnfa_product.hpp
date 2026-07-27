@@ -33,7 +33,12 @@ namespace ltlf_ek {
 //     destination, so an accepting initial state would be silently dropped).
 //     ltlf_to_mtnfa always satisfies it (fresh non-accepting s_{N,0}).
 //   - Every tau is deterministic (delta_edges' guards pairwise disjoint) ---
-//     asserted, see "Novel mechanisms (d)".
+//     CHECKED, not merely asserted: throws std::runtime_error on an overlap,
+//     matching build_product_symbolic and OutputLabeledTransducer::delta.
+//     Transducer is a public virtual interface, so a violating subclass would
+//     otherwise get a silently wrong language under NDEBUG.  Checked per tau
+//     on the raw delta_edges guards, at every reachable state whose `cons` is
+//     satisfiable ("Novel mechanisms (d)").
 // Does NOT check the Turn order AP-ordering contract: that is solve_mtdfa's
 // precondition, discharged by MtnfaProduct::synthesize.  Language equality is
 // independent of the BDD variable order, so a direct caller comparing languages

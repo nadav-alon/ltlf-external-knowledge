@@ -6,6 +6,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -181,23 +182,38 @@ spot::mtdfa_ptr mtnfa_product_to_mtdfa(const Mtnfa& goal,
       // with `cons`; skip a combination whose accumulated guard is
       // bddfalse.
       std::vector<std::vector<std::pair<bdd, unsigned>>> edges(taus.size());
-      for (std::size_t k = 0; k < taus.size(); ++k) edges[k] = taus[k]->delta_edges(q[k]);
+      for (std::size_t k = 0; k < taus.size(); ++k) {
+        edges[k] = taus[k]->delta_edges(q[k]);
+        // (d): the bdd_ite accumulation below is exact only because the
+        // combination guards are pairwise disjoint, and that holds iff each
+        // tau's OWN delta_edges guards are --- so check the precondition at
+        // its source rather than inferring it from the combined guards.
+        // A runtime THROW, not an assert: Transducer is a public virtual
+        // interface, so a subclass with overlapping guards would otherwise
+        // silently overwrite an earlier combination's successors and yield a
+        // WRONG language under NDEBUG, with no diagnostic (generic
+        // code-review, 2026-07-27).  Same check, same wording and the same
+        // std::runtime_error as build_product_symbolic (src/product.cpp) and
+        // OutputLabeledTransducer::delta's per-letter throw.  Checked on the
+        // RAW guards, so an overlap that `cons` happens to mask apart still
+        // trips.  Reached only when cons != bddfalse, which is exactly when
+        // it can matter: a cons-dead state's row is bddfalse whatever the
+        // transducer does, so (b).2's shortcut stays a pure shortcut.
+        bdd seen = bddfalse;
+        for (const auto& [g, d] : edges[k]) {
+          if ((g & seen) != bddfalse)
+            throw std::runtime_error(
+                "mtnfa_product_to_mtdfa: non-deterministic transducer delta "
+                "(overlapping delta_edges guards) at state " +
+                std::to_string(q[k]));
+          seen |= g;
+        }
+      }
 
       std::vector<unsigned> dst(taus.size());
-      bdd covered = bddfalse;  // (d): disjointness accumulator
       ForEachCombination(
           edges, 0, cons, dst,
           [&](bdd g, const std::vector<unsigned>& d) {
-            // (d): the bdd_ite accumulation below is correct BECAUSE the
-            // combination guards are pairwise disjoint --- each tau is
-            // deterministic, so its delta_edges guards partition the
-            // region it covers.  If two combinations overlapped, this
-            // block would silently overwrite an earlier one; make that
-            // explicit rather than trusting it.
-            assert((g & covered) == bddfalse &&
-                  "mtnfa_product_to_mtdfa: nondeterministic transducer "
-                  "(overlapping delta_edges guards)");
-            covered |= g;
             // PRD-change event, 2026-07-27 (see "Developer comments / PRD
             // disagreements"): Relabel must walk `row_set` MASKED to `g`,
             // not the unrestricted `row_set` --- otherwise it interns

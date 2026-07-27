@@ -649,8 +649,8 @@ the existing term or update this file via `/glossary` — do not let drift happe
   cross-checked on **realizability verdicts** instead.
   Method **1**'s product in the mtdfa representation is
   `mtnfa_product_to_mtdfa(goal, taus, vars)` → `spot::mtdfa_ptr`
-  (`include/ltlf_ek/mtnfa_product.hpp`; `docs/prd/mtnfa-product.md`, **not yet
-  implemented**): the $\cons$-filtered product of the Goal *MTNFA* with the
+  (`include/ltlf_ek/mtnfa_product.hpp`; `docs/prd/mtnfa-product.md`, **landed**):
+  the $\cons$-filtered product of the Goal *MTNFA* with the
   transducers, **fused** with its subset determinization (see *Goal automaton
   determinization*) into one symbolic BFS whose state is $(R,q_{in},q_{out})$ — a
   subset of $S_N$ plus one state per transducer, legitimate by the reachability
@@ -739,7 +739,7 @@ Common interface: `Synthesis::synthesize(phi, vars, t_in, t_out)`.
 **Five rows, five methods.** The last two columns are the *Representation* axis
 (below), **not** more methods — a sixth row would assert a sixth method, which is
 exactly what `MtdfaProduct` is not. Methods 1 and 2 have mtdfa implementations
-(`docs/prd/mtnfa-product.md` — `MtnfaProduct`, **not yet implemented**;
+(`docs/prd/mtnfa-product.md` — `MtnfaProduct`, landed;
 `docs/prd/mtdfa-product.md` — `MtdfaProduct`, landed); `main.tex:335`'s `\na`
 anticipates one for Method 3.
 `make_synthesis_method` (`cli.hpp`) selects a **cell**: `--dfa-product` →

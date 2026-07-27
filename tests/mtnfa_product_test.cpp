@@ -224,8 +224,13 @@ TEST_F(MtnfaProductHandFixture, ApsEqualVarsUniverseEvenThoughGoalSupportIsStric
 
 // Determinism (PRD "Test oracles"): no seed, FIFO discovery -- two runs on
 // the same inputs must produce BDD-EQUAL rows state-for-state (BuDDy
-// canonicalises, so `==` is a semantic + structural check at once), which
-// also pins that the cartesian-product iteration order is stable.
+// canonicalises, so `==` is a semantic + structural check at once).
+//
+// This fixture's transducers are single-edge, so the (b).3 cartesian product
+// has exactly ONE combination here and this test says nothing about its
+// iteration order (it previously claimed to "pin" it -- corrected per the
+// domain-review D3 finding, docs/prd/mtnfa-product.md).  SECTION A2 below
+// carries the out-degree > 1 coverage.
 TEST_F(MtnfaProductHandFixture, TwoRunsOnTheSameInputsAreBddEqualStateForState) {
   const spot::mtdfa_ptr d1 = mtnfa_product_to_mtdfa(goal_, taus_, vars_);
   const spot::mtdfa_ptr d2 = mtnfa_product_to_mtdfa(goal_, taus_, vars_);
@@ -272,6 +277,249 @@ TEST_F(MtnfaProductHandFixture, MembershipMatchesTheHandDerivedConsAndGoalAnalys
   EXPECT_FALSE(MtdfaAccepts(d, {TTT, TFT}))
       << "a non-cons SECOND letter still kills the run, regardless of the "
         "first letter's outcome";
+}
+
+// ---------------------------------------------------------------------------
+// SECTION A2 -- the ONLY out-degree > 1 coverage in this file.
+//
+// Every other fixture here (and `trivial_transducer`, which is one state with
+// one bddtrue self-loop) gives each transducer state out-degree <= 1, so
+// ForEachCombination yields exactly ONE combination and the whole of "Novel
+// mechanisms" (b).3 and (d) -- the delta_edges x delta_edges cartesian product,
+// the multi-block bdd_ite accumulation, and the disjointness assert -- never
+// runs.  Domain-review finding D3 (docs/prd/mtnfa-product.md).
+//
+// The fixture is the one the (b).3 "Developer comments / PRD disagreements"
+// entry describes, so it is also the ONLY state-count-sensitive test in the
+// suite: the entry records that the pre-fix over-approximated reachability was
+// LANGUAGE-INVARIANT, so product_xor, the cross-method verdicts and the
+// metamorphic round-trip all pass either way.  Only the EXPECT_EQ on
+// states.size() below can catch a regression in the g-masking of row_set.  If
+// that assertion ever fails while the language oracles stay green, the mask in
+// src/mtnfa_product.cpp is what regressed -- do NOT relax the count.
+//
+// Goal N (APs a, b): 0 --a&b--> 1, 0 --a&!b--> 2; 1 and 2 accepting with
+// bddtrue self-loops.  t_in: TWO out-edges from state 0, (b -> 1) / (!b -> 2),
+// lambda trivially true everywhere (Sigma1 empty), so cons == bddtrue and the
+// combination guards are exactly the two delta_edges guards.  t_out trivial.
+//
+// Reachable product states, by hand: R0 = ({0}, q_in=0, q_out=0); on a&b the
+// goal moves to {1} and t_in to 1, giving ({1}, 1, 0); on a&!b, ({2}, 2, 0).
+// Nothing else is reachable -- 3 states.  Pre-fix this was 5: Relabel walked
+// the UNMASKED row_set for each combination, so the b-combination also
+// interned ({2}, 1, 0) and the !b-combination ({1}, 2, 0), neither of which any
+// letter reaches.
+// ---------------------------------------------------------------------------
+
+TEST(MtnfaProductMultiBlock, OutDegreeTwoTransducerExercisesTheCartesianPathAndStaysReachabilityTight) {
+  const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+
+  auto goal_g = spot::make_twa_graph(dict);
+  const int a = goal_g->register_ap("a");
+  const int b = goal_g->register_ap("b");
+  goal_g->set_buchi();
+  goal_g->prop_state_acc(true);
+  const spot::acc_cond::mark_t kFinal = {0};
+  const spot::acc_cond::mark_t kNone = {};
+  goal_g->new_states(3);
+  goal_g->set_init_state(0);
+  goal_g->new_edge(0, 1, bdd_ithvar(a) & bdd_ithvar(b), kNone);
+  goal_g->new_edge(0, 2, bdd_ithvar(a) & bdd_nithvar(b), kNone);
+  goal_g->new_edge(1, 1, bddtrue, kFinal);
+  goal_g->new_edge(2, 2, bddtrue, kFinal);
+  const Mtnfa goal = nfa_to_mtnfa(goal_g);
+
+  // The load-bearing shape: state 0 has TWO delta_edges with disjoint guards.
+  auto tin_g = spot::make_twa_graph(dict);
+  tin_g->register_ap("a");  // idempotent
+  tin_g->register_ap("b");
+  tin_g->new_states(3);
+  tin_g->set_init_state(0);
+  tin_g->new_edge(0, 1, bdd_ithvar(b));
+  tin_g->new_edge(0, 2, bdd_nithvar(b));
+  tin_g->new_edge(1, 1, bddtrue);
+  tin_g->new_edge(2, 2, bddtrue);
+  // Sigma1 empty (lambda == bddtrue at every state) => emits_region == bddtrue,
+  // so cons does not mask anything and the combination guards ARE the two
+  // delta_edges guards -- the point being tested.
+  const OutputLabeledTransducer t_in(tin_g, {bddtrue, bddtrue, bddtrue},
+                                     /*sigma0=*/bddtrue, /*sigma1=*/bddtrue);
+
+  auto tout_g = spot::make_twa_graph(dict);
+  tout_g->new_states(1);
+  tout_g->set_init_state(0);
+  tout_g->new_edge(0, 0, bddtrue);
+  const OutputLabeledTransducer t_out(tout_g, {bddtrue}, /*sigma0=*/bddtrue,
+                                      /*sigma1=*/bddtrue);
+
+  const VariablePartition vars =
+      VariablePartition::split({"a", "b"}, {"o"}, /*governed=*/{});
+  const std::vector<const Transducer*> taus{&t_in, &t_out};
+
+  const spot::mtdfa_ptr d = mtnfa_product_to_mtdfa(goal, taus, vars);
+  ASSERT_NE(d, nullptr);
+
+  // THE assertion this test exists for (see the header comment): exactly the
+  // reachable states, no dead weight from an unmasked Relabel walk.
+  EXPECT_EQ(d->states.size(), 3u)
+      << "reachability tightness: 3 = R0 + the two genuinely reachable "
+        "(R, q_in, q_out) triples. 5 means row_set is being relabeled "
+        "UNMASKED per combination -- restore the bdd_ite(g, row_set, "
+        "terminal(0)) mask in src/mtnfa_product.cpp ((b).3)";
+
+  // Language spot-check, so a wrong-but-3-state construction cannot pass:
+  // both branches reach an accepting goal state, and !a kills the run.
+  const bdd ab = bdd_ithvar(a) & bdd_ithvar(b);
+  const bdd anb = bdd_ithvar(a) & bdd_nithvar(b);
+  const bdd nab = bdd_nithvar(a) & bdd_ithvar(b);
+  EXPECT_TRUE(MtdfaAccepts(d, {ab})) << "goal 0 --a&b--> 1, accepting";
+  EXPECT_TRUE(MtdfaAccepts(d, {anb})) << "goal 0 --a&!b--> 2, accepting";
+  EXPECT_FALSE(MtdfaAccepts(d, {nab})) << "no goal edge on !a";
+  EXPECT_TRUE(MtdfaAccepts(d, {ab, nab}))
+      << "goal state 1 self-loops on bddtrue and t_in state 1 likewise, so "
+        "the second letter cannot kill an already-accepting run";
+}
+
+// The companion the test above cannot be: there, t_in has Sigma1 EMPTY, so
+// emits_region == bddtrue and `cons` masks nothing -- the combination guards
+// are the bare delta_edges guards.  That checks the cartesian path structurally
+// but never with a non-trivial cons, and the MONA corpus cannot cover the gap
+// either (its transducers are all out-degree 1), so the primary product_xor
+// oracle never reaches the multi-block path at all.  Generic-code-review
+// follow-up to D3 (docs/prd/mtnfa-product.md).
+//
+// Here t_in has out-degree 2 AND a state-dependent lambda, so cons is a proper
+// restriction at every state and each combination guard is cons & delta-guard:
+//   Sigma0={a}, Sigma1={k}; state 0 commits k<->a and branches a -> 1 / !a -> 2;
+//   state 1 commits k, state 2 commits !k, both self-looping.
+// Goal N over {a}: 0 --a--> 1, state 1 accepting with a bddtrue self-loop.
+// t_out trivial.
+//
+// By hand: R0 = ({0}, 0, 0).  Combination (a -> 1) has guard (k<->a)&a = a&k,
+// under which the goal's successor set is {1} => state ({1}, 1, 0).  Combination
+// (!a -> 2) has guard (k<->a)&!a = !a&!k, under which the goal is DEAD (no edge
+// on !a) => the empty set => bddfalse, no state.  From ({1},1,0): cons = k, the
+// goal self-loops, so it re-enters itself.  Two states total.
+//
+// This fixture is ALSO a second negative control for the (b).3 mask, and a
+// sharper one than the test above: unmasked, the (!a -> 2) combination would
+// walk row_set's `a`-branch and intern the spurious ({1}, 2, 0) -- a key with a
+// destination transducer state that combination's guard makes unreachable --
+// giving 3 states instead of 2.
+TEST(MtnfaProductMultiBlock, MultiBlockPathIsCorrectWhenConsAlsoRestrictsEachCombination) {
+  const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+
+  auto goal_g = spot::make_twa_graph(dict);
+  const int a = goal_g->register_ap("a");
+  goal_g->set_buchi();
+  goal_g->prop_state_acc(true);
+  goal_g->new_states(2);
+  goal_g->set_init_state(0);
+  goal_g->new_edge(0, 1, bdd_ithvar(a), {});
+  goal_g->new_edge(1, 1, bddtrue, {0});
+  const Mtnfa goal = nfa_to_mtnfa(goal_g);
+
+  auto tin_g = spot::make_twa_graph(dict);
+  tin_g->register_ap("a");  // idempotent
+  const int k = tin_g->register_ap("k");
+  tin_g->new_states(3);
+  tin_g->set_init_state(0);
+  tin_g->new_edge(0, 1, bdd_ithvar(a));   // out-degree 2, disjoint guards
+  tin_g->new_edge(0, 2, bdd_nithvar(a));
+  tin_g->new_edge(1, 1, bddtrue);
+  tin_g->new_edge(2, 2, bddtrue);
+  const bdd commits_k_iff_a =
+      (bdd_ithvar(a) & bdd_ithvar(k)) | (bdd_nithvar(a) & bdd_nithvar(k));
+  const OutputLabeledTransducer t_in(
+      tin_g, {commits_k_iff_a, bdd_ithvar(k), bdd_nithvar(k)},
+      /*sigma0=*/bdd_ithvar(a), /*sigma1=*/bdd_ithvar(k));
+
+  auto tout_g = spot::make_twa_graph(dict);
+  tout_g->new_states(1);
+  tout_g->set_init_state(0);
+  tout_g->new_edge(0, 0, bddtrue);
+  const OutputLabeledTransducer t_out(tout_g, {bddtrue}, /*sigma0=*/bddtrue,
+                                      /*sigma1=*/bddtrue);
+
+  const VariablePartition vars =
+      VariablePartition::split({"a", "k"}, {"o"}, /*governed=*/{"k"});
+  const std::vector<const Transducer*> taus{&t_in, &t_out};
+
+  const spot::mtdfa_ptr d = mtnfa_product_to_mtdfa(goal, taus, vars);
+  ASSERT_NE(d, nullptr);
+
+  EXPECT_EQ(d->states.size(), 2u)
+      << "reachability tightness under a RESTRICTING cons: 3 means the "
+        "(!a -> 2) combination interned ({1}, 2, 0) off row_set's a-branch, "
+        "i.e. Relabel is walking row_set UNMASKED ((b).3)";
+
+  // Hand-derived membership; `o` is free so it never affects the verdict.
+  const auto letter = [&](bool av, bool kv, bool ov) {
+    const int o = dict->varnum(spot::formula::ap("o"));
+    return (av ? bdd_ithvar(a) : bdd_nithvar(a)) &
+           (kv ? bdd_ithvar(k) : bdd_nithvar(k)) &
+           (ov ? bdd_ithvar(o) : bdd_nithvar(o));
+  };
+  EXPECT_TRUE(MtdfaAccepts(d, {letter(true, true, true)}))
+      << "cons holds (k<->a at a=k=true) and the goal reaches its accepting "
+        "state on a -- the (a -> 1) combination";
+  EXPECT_FALSE(MtdfaAccepts(d, {letter(true, false, true)}))
+      << "non-cons: t_in state 0 commits k<->a, so a&!k is filtered out";
+  EXPECT_FALSE(MtdfaAccepts(d, {letter(false, false, true)}))
+      << "cons HOLDS here (!a&!k) -- this is the (!a -> 2) combination -- but "
+        "the goal has no edge on !a, so the successor subset is empty";
+  EXPECT_TRUE(MtdfaAccepts(d, {letter(true, true, true), letter(true, true, false)}))
+      << "from ({1},1,0) cons is k alone and the goal self-loops on bddtrue";
+  EXPECT_FALSE(MtdfaAccepts(d, {letter(true, true, true), letter(true, false, true)}))
+      << "t_in state 1 commits k, so a second letter with !k is non-cons and "
+        "kills the run even though the goal would have survived";
+}
+
+// The (d) disjointness check rejects a NONDETERMINISTIC transducer.  It is a
+// THROW, not an assert, so this test runs in release builds too -- which is
+// the point: Transducer is a public virtual interface, and under NDEBUG an
+// assert would have let a violating subclass through with a silently wrong
+// language (generic code-review, 2026-07-27; the check mirrors
+// build_product_symbolic's, src/product.cpp).
+TEST(MtnfaProductMultiBlock, OverlappingDeltaEdgeGuardsThrowInsteadOfCorruptingTheLanguage) {
+  const auto build_and_run = [] {
+    const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+
+    auto goal_g = spot::make_twa_graph(dict);
+    const int a = goal_g->register_ap("a");
+    goal_g->register_ap("b");
+    goal_g->set_buchi();
+    goal_g->prop_state_acc(true);
+    goal_g->new_states(2);
+    goal_g->set_init_state(0);
+    goal_g->new_edge(0, 1, bdd_ithvar(a), {});
+    goal_g->new_edge(1, 1, bddtrue, {0});
+    const Mtnfa goal = nfa_to_mtnfa(goal_g);
+
+    auto tin_g = spot::make_twa_graph(dict);
+    tin_g->register_ap("a");
+    const int b = tin_g->register_ap("b");
+    tin_g->new_states(3);
+    tin_g->set_init_state(0);
+    tin_g->new_edge(0, 1, bdd_ithvar(b));
+    tin_g->new_edge(0, 2, bddtrue);  // OVERLAPS the (b -> 1) edge
+    tin_g->new_edge(1, 1, bddtrue);
+    tin_g->new_edge(2, 2, bddtrue);
+    const OutputLabeledTransducer t_in(tin_g, {bddtrue, bddtrue, bddtrue},
+                                       /*sigma0=*/bddtrue, /*sigma1=*/bddtrue);
+
+    auto tout_g = spot::make_twa_graph(dict);
+    tout_g->new_states(1);
+    tout_g->set_init_state(0);
+    tout_g->new_edge(0, 0, bddtrue);
+    const OutputLabeledTransducer t_out(tout_g, {bddtrue}, bddtrue, bddtrue);
+
+    const VariablePartition vars =
+        VariablePartition::split({"a", "b"}, {"o"}, /*governed=*/{});
+    const std::vector<const Transducer*> taus{&t_in, &t_out};
+    (void)mtnfa_product_to_mtdfa(goal, taus, vars);
+  };
+  EXPECT_THROW(build_and_run(), std::runtime_error);
 }
 
 // "Cons empty at the initial state" edge case (PRD "Edge cases"):
