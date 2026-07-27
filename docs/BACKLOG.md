@@ -11,31 +11,18 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Top priority (added 2026-07-17): the two Method-1 build items below — explicit
-`NfaProduct` then `MtnfaProduct` — which the MTNFA-representation PRD being drafted
-now (`docs/prd/mtnfa.md`) feeds into. The $\Tout$ oracle (former #1) sits behind
-them._
-
-### Explicit `NfaProduct` — Method 1 (`alg:nfa_product`), the paper's NFA route — **top priority**
-- **Intent:** build Method 1 explicitly (`NfaProduct`, glossary *the five
-  methods*): the explicit NFA×transducer product over `ltlf_to_nfa` (landed),
-  `NfaToDfa` subset determinization into a `twa_graph`, then `solve_dfa`. This is
-  the paper's actual Method 1 and, downstream, the **reference oracle +
-  representation baseline** the mtdfa route (`MtnfaProduct`) is graded against.
-  Independent — needs only `ltlf_to_nfa` + the existing
-  `build_product`/`solve_dfa` machinery; does **not** depend on the MTNFA PRD.
-- **Seeds for grilling:**
-  - `NfaToDfa` = subset construction; every reachable subset has the form
-    $R\times\{q_{in}\}\times\{q_{out}\}$ (`main.tex:241`) — reuse the per-letter
-    `build_product` driver or a dedicated subset BFS? Output a complete DFA for
-    `solve_dfa`.
-  - Stage mapping: determinization runs *after* the product — its own `Stage` or
-    folded into `product_construction`? (the open benchmarking question, tracked
-    under *Later*).
-  - Non-completion of $N$ (partial $\delta_N$, `alg:nfa_product` tolerates empty)
-    vs `solve_dfa` wanting a complete DFA arena.
+_Top priority (updated 2026-07-27): **`MtnfaProduct` first, then Method 3
+(on-the-fly)** — both high. Explicit `NfaProduct` and the MTNFA representation
+(`docs/prd/mtnfa.md`) have both landed, so `MtnfaProduct` is unblocked; Method 3 is
+the next method after it. The $\Tout$ oracle (former #1) sits behind both._
 
 ### `MtnfaProduct` — Method 1 in the mtdfa representation (the rest after MTNFA) — **top priority**
+- **PRD:** `docs/prd/mtnfa-product.md` (draft, grilled 2026-07-27) — ready for
+  `/glossary` then concurrent `/developer` + `/test-writer`. Both seeds below were
+  settled in the grill: the product stays symbolic and the transducer states are
+  **tracked alongside** the goal subset (the `(R,q_{in},q_{out})` key, `main.tex:241`),
+  **not** folded into the terminal; `turn_order.hpp` is reused exactly as
+  `MtdfaProduct` does.
 - **Intent:** once the MTNFA representation lands (`docs/prd/mtnfa.md` — the data
   structure + construction + determinize-to-`mtdfa` + isolated `product_xor`
   oracle), build the full Method-1 mtdfa synthesis method: the **symbolic**
@@ -58,6 +45,29 @@ them._
     axis).
   - Reuse `turn_order.hpp` (`require_turn_order_aps`) as the `solve_mtdfa`
     precondition, exactly as `MtdfaProduct` does.
+
+### Method 3 — on-the-fly DFA products (`otf`, `main.tex` §332) — **high priority**
+- **Intent:** build Method 3, the next method after `MtnfaProduct`: the product DFA
+  constructed **on the fly** by formula progression instead of materialised up front,
+  skipping $\cons$-inconsistent letters as it goes. Three sub-methods in the glossary's
+  *five methods* table — 3.1 `OtfDfaProduct` (no aggregation, `alg:otfdfa_product`),
+  3.2 `OtfAggProduct` (§otfagg), 3.3 `OtfDynAggProduct` (§dynamicagg) — scope
+  (all three? 3.1 first?) to be settled in the grill.
+- **Seeds for grilling:**
+  - **`FP` (Forward Progression, `alg:fp`) is a `TODO` in `main.tex`** — the
+    algorithm Method 3 is built on is unspecified. Settle it before or during the PRD;
+    likely the first blocking question.
+  - `main.tex:333`'s `\na`: as written this is on-the-fly product construction with
+    the game still solved **at the end**. Is on-the-fly *solving* in scope, or a
+    follow-up?
+  - Aggregated final-state overwrite (3.2) — inserting into $F_P$ keyed on $[\psi']$
+    may be overwritten when the same $[\psi']$ later returns $b=\bot$; unresolved in
+    the paper.
+  - Representation: `main.tex:335` anticipates an mtdfa variant for Method 3
+    (*"likely requires adjusting the definitions for MTDFA usage"*) — explicit first,
+    or straight to mtdfa?
+  - Benchmark stage mapping: does on-the-fly construction collapse
+    `automaton_construction` + `product_construction` into one span?
 
 _Then: #1 $\Tout$ oracle. (The former #1, the MTDFA
 scaffolding replacement, **shipped 2026-07-16** — see Done; it removed the explicit
@@ -422,6 +432,25 @@ oracle rounds out the external `ltlfsynt` cross-check._
   parse; also drops the temp-file write + `-w` table parsing, or keep those?
 
 ## Done
+
+### Explicit `NfaProduct` — Method 1 (`alg:nfa_product`), the paper's NFA route
+- **Intent:** build Method 1 explicitly (`NfaProduct`, glossary *the five
+  methods*): the explicit NFA×transducer product over `ltlf_to_nfa` (landed),
+  `NfaToDfa` subset determinization into a `twa_graph`, then `solve_dfa`. This is
+  the paper's actual Method 1 and, downstream, the **reference oracle +
+  representation baseline** the mtdfa route (`MtnfaProduct`) is graded against.
+  Independent — needs only `ltlf_to_nfa` + the existing
+  `build_product`/`solve_dfa` machinery; does **not** depend on the MTNFA PRD.
+- **Outcome:** shipped 2026-07-17 (`41af246` implementation, gates closed in
+  `df232a6`, merged `c2fb7a9`). PRD `docs/prd/nfa-product.md` **implemented** —
+  `nfa_to_dfa` + `build_product_nondet` (Phase 1) then `NfaProduct` +
+  `--nfa-product` + the canonical bench stages with `determinize` as a nested
+  sub-span under `product_construction` (settling the stage-mapping seed). $N$ is
+  completed before the product (`complete_here`), which is also what exposed the
+  `main.tex` `\algname{NfaToDfa}` empty-subset gap now tracked under **Later**.
+  Its domain review also found the `materialize_product` acceptance-mark bug
+  (pre-existing, deferred to **Later**).
+- **Seeds for grilling:** _(resolved in the PRD grill)_
 
 ### Replace the explicit-DFA scaffolding with MTDFA — `MtdfaProduct` (2nd impl of Method 2)
 - **Intent:** `ltlf_to_dfa` already builds a `spot::mtdfa` via `ltlf_to_mtdfa`,

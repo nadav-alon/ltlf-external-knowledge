@@ -318,9 +318,17 @@ the existing term or update this file via `/glossary` — do not let drift happe
   $\delta_N(s,v)$). Determinized into a *MTDFA* by `mtnfa_to_mtdfa` (see *Goal
   automaton determinization*).
 - **C++:** `Mtnfa` (`include/ltlf_ek/mtnfa.hpp`) — `std::vector<bdd> states`,
-  `std::vector<bool> accepting`, `unsigned initial`, an owned `detail::StateSetPool`
-  interpreting the set-terminals, `spot::bdd_dict_ptr`, `aps`. Introduced by
-  `docs/prd/mtnfa.md` (**not yet implemented**). The set-terminal substrate
+  `std::vector<bool> accepting`, `unsigned initial`, an owned **`mutable`**
+  `detail::StateSetPool` interpreting the set-terminals, `spot::bdd_dict_ptr`, `aps`,
+  and `spot::twa_graph_ptr source_nfa`. Introduced by `docs/prd/mtnfa.md`, **landed
+  2026-07-17**. The last two members are not free-standing domain data: `pool` is
+  `mutable` because `mtnfa_to_mtdfa` takes `const Mtnfa&` yet must intern newly-unioned
+  successor sets into *this* pool (the terminals in `states` are meaningful only
+  relative to it — logical constness), and `source_nfa` keeps the source `twa_graph`
+  alive so the AP variables `states`' BDDs reference stay registered on `dict` for the
+  `Mtnfa`'s lifetime (the `OutputLabeledTransducer::delta_dfa_` pattern; a `bdd_dict`
+  frees an owner's variables when that owner's last reference dies). The set-terminal
+  substrate
   (interning + the memoized union apply) is `detail::StateSetPool`
   (`include/ltlf_ek/detail/state_set_pool.hpp`) — internal plumbing, **no domain
   entry of its own** (cf. the `bench.hpp` `BenchTimer`/`BenchScope` infra).
@@ -415,7 +423,9 @@ the existing term or update this file via `/glossary` — do not let drift happe
   nondeterministic and **not** completed (`\cref{alg:nfa_product}` tolerates an
   empty $\delta_N(s,v)$).
 - **C++:** `ltlf_to_nfa(phi, dict)` → `spot::twa_graph_ptr` (see *NFA / DFA for
-  the Goal*). Draft PRD `docs/prd/ltlf-to-nfa.md`; **not yet implemented**.
+  the Goal*). PRD `docs/prd/ltlf-to-nfa.md`, **landed** (all three phases). The
+  mtdfa-representation counterpart is `ltlf_to_mtnfa` (see *Goal MTNFA construction*),
+  which composes this with the `Mtnfa` lift.
 - **Do not call it:** to_nfa, ltlf2nfa, build_nfa, translate; **not** `NfaToDfa`
   (that is the later product-determinization step, `nfa_to_dfa` — see *Goal
   automaton determinization*).
@@ -446,9 +456,10 @@ the existing term or update this file via `/glossary` — do not let drift happe
   exponential in $|\varphi|$. Because the *Formula mirror* is folded into the
   encoder, the C++ entry point takes the **future** $\varphi$ and applies the
   mirror internally (the composition of `PastLtlfToDfa` after the *Formula mirror*).
-- **C++:** `past_ltlf_to_dfa(phi, dict)` → `spot::twa_graph_ptr` — **tentative**
-  name (draft PRD `docs/prd/ltlf-to-nfa.md`, internal, may be renamed on
-  implementation; the MONA-output parser is a separate `detail` helper).
+- **C++:** `past_ltlf_to_dfa(phi, dict)` → `spot::twa_graph_ptr` — **settled** by the
+  implementation (`src/past_ltlf_to_dfa.cpp`, PRD `docs/prd/ltlf-to-nfa.md` landed);
+  no longer tentative. Internal; the MONA-output parser is a separate `detail` helper
+  (`src/mona_dfa.cpp`).
 - **Do not call it:** mona (bare), to_dfa, `ltlf_to_dfa` (that is Method 2's
   *future* DFA $A$, double-exponential), reverse_dfa, ltlf2dfa.
 
@@ -461,8 +472,11 @@ the existing term or update this file via `/glossary` — do not let drift happe
   $\delta_N(s_{N,0},v)=\{s:\delta_D(s,v)\in F_D\}$, and taking $F_N=\{s_{D,0}\}$.
   The result is **not** completed (an NFA may have an empty $\delta_N(s,v)$);
   dead / unreachable states left by reversing MONA's complete $D$ are purged.
-- **C++:** `reverse_dfa_to_nfa(dfa)` → `spot::twa_graph_ptr` — **tentative** name
-  (draft PRD `docs/prd/ltlf-to-nfa.md`, internal, may be renamed on implementation).
+- **C++:** `reverse_dfa_to_nfa(dfa)` → `spot::twa_graph_ptr` — **settled** by the
+  implementation (`src/reverse_dfa_to_nfa.cpp`, PRD `docs/prd/ltlf-to-nfa.md` landed);
+  no longer tentative. Internal. It gives an edgeless final state an explicit
+  `bddfalse`-guarded self-loop so its $F_N$-membership survives a later
+  `state_is_accepting` read — the precondition `nfa_to_mtnfa` documents.
 - **Do not call it:** transpose, flip, `mirror` (that is the *formula* mirror
   above), `NfaToDfa` (opposite direction, later step), determinize.
 
@@ -479,7 +493,13 @@ the existing term or update this file via `/glossary` — do not let drift happe
   shape and shared-`bdd_dict` precondition as `ltlf_to_nfa`; APs come from
   $\varphi$'s support.
 - **C++:** `ltlf_to_mtnfa(phi, dict)` / `nfa_to_mtnfa(nfa)` → `Mtnfa` (see *MTNFA*)
-  (`include/ltlf_ek/mtnfa.hpp`; `docs/prd/mtnfa.md`, **not yet implemented**).
+  (`include/ltlf_ek/mtnfa.hpp`; `docs/prd/mtnfa.md`, **landed 2026-07-17**).
+  `nfa_to_mtnfa` carries two acceptance preconditions inherited from
+  `spot::twa_graph::state_is_accepting`: `nfa` must use state-based acceptance
+  (`prop_state_acc()`, else it **throws**), and an accepting state with **no**
+  out-edges reads back as non-accepting — so an edgeless final state needs an explicit
+  `bddfalse`-guarded self-loop first, as `reverse_dfa_to_nfa` emits. `ltlf_to_nfa`
+  satisfies both.
 - **Do not call it:** to_mtnfa, ltlf2mtnfa, build_mtnfa, translate, `twanfa_to_mtnfa`
   (no such Spot primitive — our lift is `nfa_to_mtnfa`); **not** `mtnfa_to_mtdfa`
   (the reverse-direction determinization below).
@@ -514,8 +534,18 @@ the existing term or update this file via `/glossary` — do not let drift happe
     subset is **kept** as `bddfalse` (the mtdfa rejecting sink — completion is
     implicit, cf. *MTDFA*), *not* skipped: that substrate difference is why the
     explicit route needs `spot::complete_here` and this one does not.
-    `include/ltlf_ek/mtnfa.hpp`; `docs/prd/mtnfa.md`, **not yet implemented**; never
-    returns `nullptr`.
+    `include/ltlf_ek/mtnfa.hpp`; `docs/prd/mtnfa.md`, **landed 2026-07-17**; never
+    returns `nullptr`. **Precondition:** the initial state must not be accepting —
+    $R_0=\{s_{N,0}\}$ is seeded at output index 0 and never rediscovered as a
+    destination subset, so its acceptance bit is never read (asserted;
+    `ltlf_to_mtnfa` always satisfies it).
+
+    Applied to the **product** $P$ — which is where `\cref{alg:nfa_product}` actually
+    calls `\algname{NfaToDfa}` — the mtdfa form is `mtnfa_product_to_mtdfa` (see
+    *Product*), which **fuses** `alg:nfa_product`'s `:cons` and `:determinize` lines
+    into a single symbolic pass rather than building $P$ and then determinizing it.
+    So one C++ identifier realizes two `main.tex` steps here; the two entries are
+    deliberately cross-referenced rather than merged.
 - **Do not call it:** determinize (bare — direction-specific; cf. *Automaton
   reversal*'s rejected `determinize`), powerset (Spot's explicit primitive),
   subset_construction, `NfaToDfa` (bare CamelCase — that is the algorithm name;
@@ -617,11 +647,28 @@ the existing term or update this file via `/glossary` — do not let drift happe
   the state numbering and terminal encoding, so the *Build-equivalence metamorphic
   oracle* does not apply to it (nothing to diff), and the two representations are
   cross-checked on **realizability verdicts** instead.
+  Method **1**'s product in the mtdfa representation is
+  `mtnfa_product_to_mtdfa(goal, taus, vars)` → `spot::mtdfa_ptr`
+  (`include/ltlf_ek/mtnfa_product.hpp`; `docs/prd/mtnfa-product.md`, **not yet
+  implemented**): the $\cons$-filtered product of the Goal *MTNFA* with the
+  transducers, **fused** with its subset determinization (see *Goal automaton
+  determinization*) into one symbolic BFS whose state is $(R,q_{in},q_{out})$ — a
+  subset of $S_N$ plus one state per transducer, legitimate by the reachability
+  invariant at `main.tex:241`. $\cons$ is applied as the region
+  $\bigwedge_k$ `emits_region(q[k])` and the letter space is carved by the
+  `delta_edges` guards, so no letter is ever enumerated; `taus` is the same
+  N-transducer generalization `build_product*` uses. Like the Method-2 mtdfa route it
+  has **no** `ProductState`/`ProductGuards`/`materialize_product` — and, being fused,
+  **no intermediate product object at all**, which is why it emits no separable
+  `determinize` benchmarking sub-span (contrast `NfaProduct`, which does).
 - **Do not call it:** composition, join, cross; for the symbolic pieces, not
   `symbolic_product`/`product_symbolic` (build), `GuardMap`/`product_map`
   (`ProductGuards`), `materialize`/`to_twa` (bare, for `materialize_product`);
   for the nondeterministic build, not `nondet_product`, `build_nfa_product`,
-  `build_product_nfa` (for `build_product_nondet`).
+  `build_product_nfa` (for `build_product_nondet`); for the Method-1 mtdfa build, not
+  `build_product_mtnfa`, `mtnfa_product` (bare — it *returns* an `spot::mtdfa`, and
+  the name must say so), `product_mtnfa_to_mtdfa`, `mtnfa_to_mtdfa` (that is the
+  Goal-NFA-alone determinization, a different function).
 
 ### Forward progression
 - **`main.tex`:** `FP`$(\psi,w)$ returning $(\psi',b)$ (Alg. Forward Progression).
@@ -681,7 +728,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
 
 | Term | `main.tex` | C++ (explicit) | C++ (mtdfa) |
 |---|---|---|---|
-| NFA product | Method 1 (§nfa) | `NfaProduct` | — |
+| NFA product | Method 1 (§nfa) | `NfaProduct` | `MtnfaProduct` |
 | DFA product | Method 2 (§fulldfa) | `DfaProduct` | `MtdfaProduct` |
 | On-the-fly DFA product | Method 3.1 (§otfdfa) | `OtfDfaProduct` | — |
 | On-the-fly aggregated | Method 3.2 (§otfagg) | `OtfAggProduct` | — |
@@ -691,14 +738,20 @@ Common interface: `Synthesis::synthesize(phi, vars, t_in, t_out)`.
 
 **Five rows, five methods.** The last two columns are the *Representation* axis
 (below), **not** more methods — a sixth row would assert a sixth method, which is
-exactly what `MtdfaProduct` is not. Only Method 2 has an mtdfa implementation today
-(`docs/prd/mtdfa-product.md`); `main.tex:335`'s `\na` anticipates one for Method 3.
+exactly what `MtdfaProduct` is not. Methods 1 and 2 have mtdfa implementations
+(`docs/prd/mtnfa-product.md` — `MtnfaProduct`, **not yet implemented**;
+`docs/prd/mtdfa-product.md` — `MtdfaProduct`, landed); `main.tex:335`'s `\na`
+anticipates one for Method 3.
 `make_synthesis_method` (`cli.hpp`) selects a **cell**: `--dfa-product` →
-`DfaProduct`, `--mtdfa-product` → `MtdfaProduct`. That flag shape names a
+`DfaProduct`, `--mtdfa-product` → `MtdfaProduct`, `--nfa-product` → `NfaProduct`,
+`--mtnfa-product` → `MtnfaProduct`. That flag shape names a
 method×representation cell rather than a method, and is a **known wart** — it does
 not scale (a Method-3 mtdfa route would want `--mtdfa-otf-dfa-product`). Accepted
-deliberately over an orthogonal `--representation=` selector; revisit if a second
-method gains an mtdfa route.
+deliberately over an orthogonal `--representation=` selector; **revisited 2026-07-27**
+when `MtnfaProduct` made a second method gain an mtdfa route, and **kept**: the two
+mtdfa flags stay unambiguous because each representation has its own automaton type
+in the name (`mtdfa` / `mtnfa`), so the wart is still latent rather than live. It
+becomes live at Method 3, whose three sub-methods would need six flags.
 
 ### Representation
 - **`main.tex`:** — (no symbol; the `\na` at `main.tex:335` gestures at MTDFA for
@@ -708,9 +761,11 @@ method gains an mtdfa route.
   (`spot::twa_graph`, see *NFA / DFA for the Goal*) or **mtdfa** (`spot::mtdfa`, see
   *MTDFA*). It is **orthogonal to the method**: `main.tex` has five methods, and a
   representation changes *how* one is executed, never *which* one it is.
-  `MtdfaProduct` is Method 2 in the mtdfa representation — **not** a sixth method.
-  The axis reaches three entries: *Goal DFA construction*, *Product*, and *Game
-  solving* each name a per-representation C++ identifier.
+  `MtdfaProduct` is Method 2 in the mtdfa representation and `MtnfaProduct` is
+  Method 1 in it — **not** a sixth and seventh method.
+  The axis reaches **four** entries: *Goal DFA construction*, *Goal automaton
+  determinization*, *Product*, and *Game solving* each name a per-representation C++
+  identifier.
 - **C++:** — (no identifier; a modifier, not a type. There is deliberately **no**
   `enum class Representation`: the axis is selected per-method by CLI flag, and each
   cell is its own `Synthesis` class.)
