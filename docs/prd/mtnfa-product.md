@@ -27,6 +27,28 @@ The mtdfa *Representation* itself has **no `main.tex` symbol** (the `\na` at
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex
 
+**Review passes attempted 2026-07-27 — ALL THREE ABORTED, no findings produced.**
+`/code-reviewer` (domain), `/code-review` (generic) and `/theory-review` were launched
+concurrently against `4a1e997..f043912` and all three were killed mid-run by an API
+session limit, so the gates above stay unchecked and **nothing was reviewed**. Do not
+read the aborted state as a clean pass. Two salvageable leads, recorded only so the
+re-run does not re-derive them — these are *where each reviewer was*, **not** findings:
+
+- **Domain review** was checking `trivial_transducer`'s **out-degree** in order to
+  assess a coverage claim in `tests/mtnfa_product_test.cpp`. The likely concern: the
+  `delta_edges` × `delta_edges` cartesian product in *Novel mechanisms* (b).3 is only
+  meaningfully exercised when a transducer has out-degree > 1, so fixtures built on
+  `trivial_transducer` may leave the multi-block path (and hence the disjointness
+  assert) untested. Worth confirming on re-run.
+- **Theory review** had reached *"I have everything I need"* and was doing a final
+  check on **how the explicit route's game reads a missing move**, having concluded
+  that the sink-vs-skip argument (*Behaviour* §3) turns on exactly that. That is a
+  sharper framing than this PRD's own: it says the claim's soundness hinges on
+  comparing `solve_dfa`'s treatment of an absent arena move against `solve_mtdfa`'s
+  `bddfalse`. Start the re-run there.
+
+Re-run all three after the limit resets; the generic `/code-review` is user-triggered.
+
 ## Goal
 
 Method 1 (`\cref{alg:nfa_product}`) keeps the Goal automaton **nondeterministic** and
