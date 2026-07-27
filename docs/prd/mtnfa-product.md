@@ -1,10 +1,22 @@
 # PRD: `MtnfaProduct` — Method 1 in the mtdfa representation
 
-**Status:** implemented — `include/ltlf_ek/mtnfa_product.hpp` + `src/mtnfa_product.cpp`
+**Status:** **DONE — landed, all gates closed, benchmark-validated (and the benchmark
+verdict is negative).** `include/ltlf_ek/mtnfa_product.hpp` + `src/mtnfa_product.cpp`
 (the fused BFS `mtnfa_product_to_mtdfa` + `MtnfaProduct::synthesize`), wired into
-`CMakeLists.txt` and `src/cli.cpp`/`cli.hpp` (`--mtnfa-product`); tree compiles,
-`ctest` green (381/381, concurrent `/test-writer` suite not yet merged into this
-worktree).
+`CMakeLists.txt`, `src/cli.cpp`/`cli.hpp` **and `src/ltlf_ek_synth.cpp`'s
+`kMethodFlags`** (`--mtnfa-product`); `ctest` green (400/400). Glossary, tests,
+code-review (domain + generic) and theory-review all closed; see the three findings
+sections below.
+
+**The benchmark answers this PRD's central question in the negative: Method 1's late
+determinization does NOT pay.** `MtdfaProduct` beats `MtnfaProduct` on every instance
+measured, 9×–3000×, and `mtnfa_product_to_mtdfa` never produces *fewer* states than
+`spot::ltlf_to_mtdfa` (exactly 2× more on the family where the NFA is genuinely small).
+The mtdfa *Representation* of Method 1 is still worth having — it beats explicit
+`NfaProduct` ~1.7× when the Goal NFA is small, and 12× at `game_solving` — but it is
+16× **slower** than `NfaProduct` when the NFA is not small. Keep `MtnfaProduct` as the
+paper's NFA route and as a differential oracle; do not make it a default. Full numbers,
+instance design and a trap to avoid on re-run: "Benchmark results, 2026-07-28".
 **Interface:** implements `Synthesis` as `MtnfaProduct` (the **mtdfa** *Representation*
 cell of Method 1, alongside the explicit `NfaProduct`); adds one public free function
 `mtnfa_product_to_mtdfa` and the `--mtnfa-product` CLI flag.
@@ -575,12 +587,96 @@ minterm enumeration anywhere; `LetterAlphabet` is **not** used on this route.
 - `code-review` (domain + generic) and `theory-review` gates ticked; the
   `\algname{NfaToDfa}` definition gap (F1) and the sink-both soundness claim are
   dispositioned.
-- A live benchmark run comparing `MtnfaProduct` against `MtdfaProduct` (method axis)
+- ~~A live benchmark run comparing `MtnfaProduct` against `MtdfaProduct` (method axis)
   and `NfaProduct` (representation axis) on realizable **and** unrealizable instances,
   as `docs/prd/mtdfa-product.md` Phase 2 did — this is the comparison the method exists
-  to enable, and it is what tells us whether Method 1's late determinization pays.
+  to enable, and it is what tells us whether Method 1's late determinization pays.~~
+  **DONE 2026-07-28 — see "Benchmark results" below. The answer is no.**
 - `docs/BACKLOG.md`'s `MtnfaProduct` item moves to **Done** with its outcome; the
   Method 3 item becomes top priority.
+
+## Benchmark results, 2026-07-28 — **late determinization does not pay**
+
+Live `--benchmark` sweep over the CLI, three methods × two scaling families × three
+knowledge regimes, realizable **and** unrealizable in every family; min of 2 runs,
+20 s timeout. Harness and raw JSON are not committed (throwaway); everything needed
+to reproduce is below.
+
+**Headline: on the method axis `MtdfaProduct` wins on every single instance measured,
+by 9× to 3000×.** Method 1's late determinization is not merely a wash here — it is
+the dominant cost. On the representation axis the answer is *conditional*: the mtdfa
+route beats the explicit one when the Goal NFA is genuinely small, and loses badly
+when it is not.
+
+**Instance design — the first family was WRONG, and the state counts caught it.** The
+obvious pick, $\varphi_n = F(v \wedge X[!]^n\,v)$, is the textbook NFA-vs-DFA blowup —
+but `ltlf_to_nfa` is *mirror*-based (`reverse_dfa_to_nfa`), so a small NFA needs a small
+**reverse**-language DFA, which that family does not have. Measured directly: its NFA is
+**1027 states at $n=10$**, the same order as its DFA, so it never tested the hypothesis
+at all. The family that does is
+
+$$\varphi_n \;=\; F\bigl(v \wedge X[!]^n(\neg X[!]\,\mathbf{1})\bigr)
+\qquad\text{“}v\text{ holds exactly } n \text{ strong-steps before the LAST position”}$$
+
+whose reverse language ("the $(n{+}1)$-th letter is $v$") is deterministic in $O(n)$.
+Measured: NFA $n{+}3$, `spot::ltlf_to_mtdfa` $2^n$. **Anyone re-running this must check
+the NFA size first — the intuitive family silently degenerates.**
+
+**State counts (the decisive number; timing alone cannot separate "slower" from
+"builds more").** On the mirror-small family, `mtnfa_product_to_mtdfa` produces
+**exactly $2\times$** the states of `spot::ltlf_to_mtdfa` at every $n$ (2049 vs 1024 at
+$n=10$); on the degenerate family it produces the *same* count (1026 vs 1024). It never
+produces fewer. The hoped-for win — $\cons$-filtering prunes the subset space *before*
+determinization — never materializes, because the subset construction is unminimized
+while Spot's DFA is not.
+
+| family, $n$ | NFA | `ltlf_to_mtdfa` | `mtnfa_product_to_mtdfa` |
+|---|---|---|---|
+| mirror-small, 10 | 13 | 1024 | 2049 |
+| degenerate, 10 | 1027 | 1024 | 1026 |
+
+**Stage breakdown — Method 1's promise is real but small, and it is swamped.**
+Mirror-small, $n=12$ (ms):
+
+| | `automaton_construction` | `product_construction` | `game_solving` | total |
+|---|---|---|---|---|
+| `MtnfaProduct` | **4.1** | 126.2 | 1.1 | 135.0 |
+| `MtdfaProduct` | 8.4 | **1.0** | **0.6** | **12.5** |
+| `NfaProduct` | 3.6 | 215.4 (`determinize` 215.3) | 13.1 | 235.2 |
+
+Method 1 *does* build its Goal automaton ~2× cheaper than Method 2 (4.1 vs 8.4 ms) —
+the linear NFA vs the exponential DFA, exactly as predicted. But it defers the
+exponential work into `product_construction`, where it costs 126 ms, and the net is a
+**11× loss**. Method 2's `ltlf_to_mtdfa` stays symbolic and never pays for the blowup
+at all.
+
+**Representation axis — conditional, and worth keeping.** Against `NfaProduct` on the
+same method, the mtdfa route wins where it should: the fused pass is 1.7× faster than
+the explicit `determinize` (126 vs 215 ms) and `game_solving` is **12× faster** (1.1 vs
+13.1 ms), for ~1.7× overall. **But on the degenerate family it is 16× SLOWER** (16.4 s
+vs 0.98 s at $n=10$): (b).1's per-state `set_union` fold over $R$ costs
+$O(|R|\times\text{MTBDD})$, and when the NFA is itself exponential the subsets are
+large. `NfaProduct` is the better Method-1 implementation whenever the Goal NFA is not
+small.
+
+**External knowledge did not rescue it.** Three regimes: (A) trivial transducers;
+(B) `t_in` commits $k \leftrightarrow i$ — this one is a **null test**, since the goal
+never mentions $k$, so $\cons$ restricts letters without killing any goal branch, and
+timings match regime A to within noise; (C) `t_in` pins $k=\text{false}$ with goal
+$F(k \wedge X[!]^n k)$, so $\cons$ kills **every** goal branch — the maximally
+Method-1-favourable case. `MtdfaProduct` still won regime C (13 vs 216 ms at $n=12$).
+
+**Verdict agreement: perfect.** All three methods agreed on every instance of every
+family in every regime (~100 instances) — the cross-method oracle passing live, at
+sizes the unit corpus never reaches.
+
+**What this means for the method.** `MtnfaProduct` is correct, and it is the right
+implementation of Method 1 when the Goal NFA is small — but Method 1 itself is not
+competitive with Method 2 in this toolchain, because `spot::ltlf_to_mtdfa` never
+materializes the blowup that Method 1 exists to defer. Keep it as the paper's NFA route
+and as the differential oracle it already serves as; do not make it a default. The
+`thm:nfa-mirror-size` proof being "To be determined" is now more interesting, not less:
+the mirror construction is what decides whether Method 1 has a favourable regime at all.
 
 ## Domain code-review findings, 2026-07-27 (`/code-reviewer`, `4a1e997..f043912`)
 

@@ -11,42 +11,12 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Top priority (updated 2026-07-27): **`MtnfaProduct` first, then Method 3
-(on-the-fly)** — both high. Explicit `NfaProduct` and the MTNFA representation
-(`docs/prd/mtnfa.md`) have both landed, so `MtnfaProduct` is unblocked; Method 3 is
-the next method after it. The $\Tout$ oracle (former #1) sits behind both._
+_Top priority (updated 2026-07-28): **Method 3 (on-the-fly)** — `MtnfaProduct` is
+DONE (see Done; it landed, closed every gate, and benchmarked *negative* — Method 1's
+late determinization does not pay), so Method 3 is now the next method. The $\Tout$
+oracle (former #1) sits behind it._
 
-### `MtnfaProduct` — Method 1 in the mtdfa representation (the rest after MTNFA) — **top priority**
-- **PRD:** `docs/prd/mtnfa-product.md` (draft, grilled 2026-07-27) — ready for
-  `/glossary` then concurrent `/developer` + `/test-writer`. Both seeds below were
-  settled in the grill: the product stays symbolic and the transducer states are
-  **tracked alongside** the goal subset (the `(R,q_{in},q_{out})` key, `main.tex:241`),
-  **not** folded into the terminal; `turn_order.hpp` is reused exactly as
-  `MtdfaProduct` does.
-- **Intent:** once the MTNFA representation lands (`docs/prd/mtnfa.md` — the data
-  structure + construction + determinize-to-`mtdfa` + isolated `product_xor`
-  oracle), build the full Method-1 mtdfa synthesis method: the **symbolic**
-  NFA×transducer product (cons filter + transducer-state tracking), determinize the
-  product MTNFA into a `spot::mtdfa`, wired to `solve_mtdfa` (landed). Ships as a
-  `Synthesis` class `MtnfaProduct` + `--mtnfa-product` CLI + the three canonical
-  benchmark stages. **Depends on:** the MTNFA PRD, explicit `NfaProduct` (reference
-  oracle), `solve_mtdfa`.
-- **Why split off:** the MTNFA PRD de-risks the bespoke set-terminal apply +
-  determinizer in isolation on the goal NFA alone; this item then adds the
-  well-understood product/cons layer (mirrors `MtdfaProduct`'s route) + method
-  wiring on top.
-- **Seeds for grilling:**
-  - Product stays symbolic: cons = `emits_region(q_in) & emits_region(q_out)`
-    restricting live letters; the reachability invariant makes determinized states
-    $(R, q_{in}, q_{out})$. Fold transducer successors into the terminal, or track
-    them alongside?
-  - Comparisons this unlocks: vs `MtdfaProduct` (method axis — does NFA-product's
-    determinize step beat DFA-product avoiding it?), vs `NfaProduct` (representation
-    axis).
-  - Reuse `turn_order.hpp` (`require_turn_order_aps`) as the `solve_mtdfa`
-    precondition, exactly as `MtdfaProduct` does.
-
-### Method 3 — on-the-fly DFA products (`otf`, `main.tex` §332) — **high priority**
+### Method 3 — on-the-fly DFA products (`otf`, `main.tex` §332) — **top priority**
 - **Intent:** build Method 3, the next method after `MtnfaProduct`: the product DFA
   constructed **on the fly** by formula progression instead of materialised up front,
   skipping $\cons$-inconsistent letters as it goes. Three sub-methods in the glossary's
@@ -460,6 +430,55 @@ oracle rounds out the external `ltlfsynt` cross-check._
   parse; also drops the temp-file write + `-w` table parsing, or keep those?
 
 ## Done
+
+### `MtnfaProduct` — Method 1 in the mtdfa representation — **DONE 2026-07-28**
+- **Outcome: landed, fully reviewed, and benchmarked — the benchmark verdict is
+  NEGATIVE.** `MtnfaProduct` + `mtnfa_product_to_mtdfa` + `--mtnfa-product` all ship;
+  glossary / tests / code-review (domain + generic) / theory-review all closed;
+  `ctest` 400/400. **Method 1's late determinization does not pay:** `MtdfaProduct`
+  wins every measured instance by 9×–3000×, and the fused product determinization
+  never yields fewer states than `spot::ltlf_to_mtdfa` (exactly 2× more on the family
+  where the Goal NFA is genuinely small). The mtdfa *representation* of Method 1 is
+  still worth keeping — ~1.7× over explicit `NfaProduct` when the NFA is small, 12× at
+  `game_solving` — but 16× **slower** than `NfaProduct` when it is not. Keep it as the
+  paper's NFA route and as a differential oracle; not a default. Numbers, instance
+  design and a re-run trap (the intuitive NFA-blowup family degenerates — its NFA is
+  as big as its DFA, because `ltlf_to_nfa` is mirror-based) in
+  `docs/prd/mtnfa-product.md` "Benchmark results, 2026-07-28".
+- **Follow-ups it leaves open** (all recorded in that PRD): the F2 precondition is
+  still `assert`-only; the generated corpus never reaches the multi-block
+  `delta_edges` path (its transducers are all out-degree 1); `--minimize-mtdfa` is
+  silently ignored for `--mtnfa-product`; `README.md`'s wired-flag list is stale.
+- **History (as-planned):**
+- **PRD:** `docs/prd/mtnfa-product.md` (draft, grilled 2026-07-27) — ready for
+  `/glossary` then concurrent `/developer` + `/test-writer`. Both seeds below were
+  settled in the grill: the product stays symbolic and the transducer states are
+  **tracked alongside** the goal subset (the `(R,q_{in},q_{out})` key, `main.tex:241`),
+  **not** folded into the terminal; `turn_order.hpp` is reused exactly as
+  `MtdfaProduct` does.
+- **Intent:** once the MTNFA representation lands (`docs/prd/mtnfa.md` — the data
+  structure + construction + determinize-to-`mtdfa` + isolated `product_xor`
+  oracle), build the full Method-1 mtdfa synthesis method: the **symbolic**
+  NFA×transducer product (cons filter + transducer-state tracking), determinize the
+  product MTNFA into a `spot::mtdfa`, wired to `solve_mtdfa` (landed). Ships as a
+  `Synthesis` class `MtnfaProduct` + `--mtnfa-product` CLI + the three canonical
+  benchmark stages. **Depends on:** the MTNFA PRD, explicit `NfaProduct` (reference
+  oracle), `solve_mtdfa`.
+- **Why split off:** the MTNFA PRD de-risks the bespoke set-terminal apply +
+  determinizer in isolation on the goal NFA alone; this item then adds the
+  well-understood product/cons layer (mirrors `MtdfaProduct`'s route) + method
+  wiring on top.
+- **Seeds for grilling:**
+  - Product stays symbolic: cons = `emits_region(q_in) & emits_region(q_out)`
+    restricting live letters; the reachability invariant makes determinized states
+    $(R, q_{in}, q_{out})$. Fold transducer successors into the terminal, or track
+    them alongside?
+  - Comparisons this unlocks: vs `MtdfaProduct` (method axis — does NFA-product's
+    determinize step beat DFA-product avoiding it?), vs `NfaProduct` (representation
+    axis).
+  - Reuse `turn_order.hpp` (`require_turn_order_aps`) as the `solve_mtdfa`
+    precondition, exactly as `MtdfaProduct` does.
+
 
 ### Explicit `NfaProduct` — Method 1 (`alg:nfa_product`), the paper's NFA route
 - **Intent:** build Method 1 explicitly (`NfaProduct`, glossary *the five
