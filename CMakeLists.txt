@@ -126,6 +126,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/mtdfa_bench_test.cpp
     tests/state_set_pool_test.cpp
     tests/mtnfa_test.cpp
+    tests/mtnfa_product_test.cpp
     tests/verify_controller_test.cpp
     tests/cli_test.cpp
     tests/ltlf_ek_synth_test.cpp
