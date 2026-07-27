@@ -24,10 +24,28 @@ The mtdfa *Representation* itself has **no `main.tex` symbol** (the `\na` at
 - [x] glossary        — new terms in docs/GLOSSARY.md C++ column (already landed by
       the grill-prd session that wrote this PRD, 2026-07-27)
 - [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] code-review     — domain (/code-reviewer) + generic (/code-review), **both
+      re-run 2026-07-27.** Domain: three must-fix, **all three fixed** (D1 CLI flag,
+      D2 glossary, D3 out-degree coverage). Generic: **no correctness bug**; two of
+      its findings were defects in those same-day fixes and were fixed immediately.
+      See the two findings sections below. Its sharpest finding — the
+      transducer-determinism precondition being `assert`-only — was **also fixed**:
+      it is now a `std::runtime_error` on the raw `delta_edges` guards, matching
+      `build_product_symbolic`. A few documentation-level *consider* items remain.
+- [x] theory-review   — code ↔ math faithfulness vs main.tex, **re-run 2026-07-27,
+      clean: no `code-bug`.** Findings below ("Theory-review findings, 2026-07-27"):
+      one `doc-bug` (this PRD's *Behaviour* §3 justification, and the
+      already-drafted-but-unapplied `\cl` in `docs/prd/nfa-product.md` it agrees
+      with, both assert a sink-vs-skip distinction the *game* erases) and two
+      `underspecified` (F1 `\algname{NfaToDfa}`, plus the state-based-vs-
+      transition-based $F_P$ gap). One `\cl` note drafted for `main.tex`, unapplied.
 
 **Review passes attempted 2026-07-27 — ALL THREE ABORTED, no findings produced.**
+**(Superseded for `/theory-review` and the *domain* `/code-reviewer`, both re-run
+2026-07-27 — see their findings sections below. Only the generic `/code-review`
+is still genuinely unreviewed. Both salvaged leads below are now CLOSED: the
+out-degree lead was real, see domain finding D3; the sink-vs-skip lead is
+settled, see F5.)**
 `/code-reviewer` (domain), `/code-review` (generic) and `/theory-review` were launched
 concurrently against `4a1e997..f043912` and all three were killed mid-run by an API
 session limit, so the gates above stay unchecked and **nothing was reviewed**. Do not
@@ -563,6 +581,270 @@ minterm enumeration anywhere; `LetterAlphabet` is **not** used on this route.
   to enable, and it is what tells us whether Method 1's late determinization pays.
 - `docs/BACKLOG.md`'s `MtnfaProduct` item moves to **Done** with its outcome; the
   Method 3 item becomes top priority.
+
+## Domain code-review findings, 2026-07-27 (`/code-reviewer`, `4a1e997..f043912`)
+
+Delivered: three must-fix, four *consider*. **All three must-fix were fixed the same
+day, 2026-07-27** (resolutions recorded inline below); the four *consider* are left
+open as non-blocking. The gate box stays unticked because the generic `/code-review`
+is a separate, user-triggered gate and is still owed. `ctest` green after the fixes
+(398/398).
+
+**D1 (must fix) — `--mtnfa-product` is unreachable from the CLI.**
+`src/ltlf_ek_synth.cpp:53`'s `kMethodFlags` was never extended, so `ParseArgs`
+(`src/ltlf_ek_synth.cpp:136`) throws `UsageError` before `make_synthesis_method` is
+ever consulted: `build/ltlf-ek-synth --mtnfa-product …` → `usage error: unrecognised
+flag: --mtnfa-product`, exit 2. `include/ltlf_ek/cli.hpp:43` claims the flag is "wired
+today" and this PRD puts it in scope (*Interfaces & types*, **CLI**), so the claim is
+currently false. It is invisible to `ctest`: `tests/mtnfa_product_test.cpp:383` exercises
+`make_synthesis_method("mtnfa-product")` directly, and `tests/ltlf_ek_synth_test.cpp` has
+no end-to-end run for it. Note the *Definition of done* names only `src/cli.cpp`, which
+is why the second site was missed — fix the DoD wording too. While there,
+`src/ltlf_ek_synth.cpp:48-52`'s comment still says "six flags" and that only
+`dfa-product`/`mtdfa-product` are wired (the `nfa-product` half of that staleness
+pre-dates this PRD).
+
+  - **FIXED 2026-07-27.** `"mtnfa-product"` added to `kMethodFlags`, and the comment
+    above it rewritten to say out loud that a new flag needs **two** edits and that
+    `ParseArgs` rejects an unlisted flag before the factory is consulted. Regression
+    guard added: `LtlfEkSynth.EveryWiredMethodFlagIsAcceptedEndToEndAndAgreesOnThe`
+    `Verdict` (`tests/ltlf_ek_synth_test.cpp`) drives **all four** wired flags through
+    the real binary and asserts `REALIZABLE` + exit 0, so the next second-implementation
+    flag is one line and cannot ship unreachable. The *Definition of done*'s "`src/cli.cpp`
+    updated" wording is what misled the implementer — read it as *both* CLI sites.
+  - **Follow-up from the generic `/code-review`, same day:** that guard was written as
+    one `MONA_FOUND`-gated loop, so a mona-less build skipped it **entirely** — including
+    for `--dfa-product` / `--mtdfa-product`, which need no mona, i.e. exactly the
+    configuration where an unreachable-flag bug would ship unnoticed. Split into
+    `EveryWiredMonaFreeMethodFlagIsAcceptedEndToEnd` (unconditional) and
+    `EveryWiredNfaRouteMethodFlagIsAcceptedEndToEnd` (`MONA_FOUND`-gated) over a shared
+    helper. When adding a flag, put it in the loop that matches its mona dependency.
+
+**D2 (must fix) — the glossary entries are derelict.** `docs/GLOSSARY.md:652` and `:742`
+still mark `mtnfa_product_to_mtdfa` / `MtnfaProduct` **not yet implemented**; both landed
+in `04462b1`. This is the *Definition of done*'s own open glossary bullet — fix via
+`/glossary`.
+
+  - **FIXED 2026-07-27.** Both markers now read **landed**. The rest of that DoD bullet
+    was already satisfied at PRD time and was re-checked: `mtnfa_product_to_mtdfa` is
+    entered against *Product* (`docs/GLOSSARY.md:650`) **and** *Goal automaton
+    determinization* applied to $P$ (`:543`), cross-referenced rather than merged, with
+    the rejected-synonym line in place. No "not yet implemented" marker remains anywhere
+    in the glossary.
+
+**D3 (must fix, test debt) — the (b).3 cartesian path is structurally untested; the
+salvaged out-degree lead was REAL.** No fixture anywhere gives a transducer out-degree
+> 1: `trivial_transducer` is one state with one `bddtrue` self-loop
+(`src/output_labeled_transducer.cpp:93-101`), and every hand-built transducer in
+`tests/mtnfa_product_test.cpp` — including `MtnfaProductCorpusTin` and the
+expected-divergence `t_in` — uses a single `new_edge` per state. So `ForEachCombination`
+always yields exactly **one** combination, and the cartesian product, the multi-block
+`bdd_ite` accumulation and the (d) disjointness assert are never exercised.
+`tests/mtnfa_product_test.cpp:228`'s claim that the determinism test "also pins that the
+cartesian-product iteration order is stable" is therefore **vacuous** — there is one
+block to order.
+
+  - **It is test debt, not a latent bug — verified, do not re-derive.** Probed directly
+    with this PRD's own fixture shape (goal row branching `b -> {1}` / `!b -> {2}`, a
+    `t_in` with two `delta_edges` `(b,1)`/`(!b,2)`, trivial `t_out`): the multi-block
+    path produces the **tight** 3 states and does not trip the assert; inserting an
+    overlapping guard *does* trip it at `src/mtnfa_product.cpp:197`. Both halves of (d)
+    behave as specified.
+  - **FIXED 2026-07-27.** New **SECTION A2** in `tests/mtnfa_product_test.cpp`:
+    `MtnfaProductMultiBlock.OutDegreeTwoTransducerExercisesTheCartesianPathAndStays`
+    `ReachabilityTight` builds the (b).3 *Developer comments* fixture (goal branching
+    `a&b -> {1}` / `a&!b -> {2}`, `t_in` with two `delta_edges`, trivial `t_out`) and
+    asserts **`states.size() == 3`** plus a language spot-check, and
+    `MtnfaProductMultiBlockDeathTest.OverlappingDeltaEdgeGuardsTripTheDisjointnessAssert`
+    (`#ifndef NDEBUG`) pins the (d) assert on a nondeterministic `t_in`. The false
+    coverage claim at the determinism test was rewritten to say plainly that this
+    fixture has one combination and points at A2.
+  - **The state-count assertion was negative-controlled, not just written.** Reverting
+    the `(b).3` mask to the unmasked `Relabel(row_set, …)` makes it fail with exactly
+    the predicted 5, **and nothing else in the suite fails** — which is the first
+    empirical confirmation of the *Developer comments* claim that the bug is
+    language-invariant. These are now the only state-count-sensitive tests in the
+    suite; if one fails while the language oracles stay green, the mask is what
+    regressed.
+  - **Follow-up from the generic `/code-review`, same day: A2 closed D3 structurally
+    but not semantically.** The first fixture gives `t_in` an empty $\Sigma_1$, so
+    `emits_region == bddtrue` and $\cons$ masks nothing — the combination guards are
+    the bare `delta_edges` guards. Added
+    `MtnfaProductMultiBlock.MultiBlockPathIsCorrectWhenConsAlsoRestrictsEach`
+    `Combination`: out-degree 2 **and** a state-dependent $\lambda$ ($\Sigma_1=\{k\}$,
+    state 0 commits $k \leftrightarrow a$), so every combination guard is
+    $\cons\ \&$ delta-guard, with a hand-derived membership oracle. It is a sharper
+    negative control than the first — unmasked it interns $(\{1\},2,0)$, a key whose
+    destination transducer state that combination's guard makes unreachable, giving 3
+    states instead of 2. **Still open (not blocking):** the MONA corpus's transducers
+    are all out-degree 1, so the primary `product_xor` oracle still never reaches the
+    multi-block path; a corpus variant with an out-degree-2, $\cons$-restricting
+    `t_in` would close that. The generic reviewer closed it out-of-tree (140 random
+    differential cases, all agreeing) — evidence of correctness, but not a
+    regression guard.
+
+**Consider (non-blocking).**
+- `src/mtnfa_product.cpp:187` — `covered` is `assert`-only, but `covered |= g` survives
+  `NDEBUG` as a live BDD op per combination. Same class as the `b7cc9b3` follow-up;
+  `#ifndef NDEBUG` it.
+- `src/mtnfa_product.cpp:201-213` — 13 lines re-litigating the (b).3 PRD-change event in
+  source. The argument already lives in *Developer comments*; keep ~3 lines ("mask to
+  `g`, or `Relabel` interns keys off branches outside `g`") plus the pointer.
+- `out->aps = vars.universe()` is sound only under the *Closed universe of APs*
+  commitment, and `validate_product_inputs` (`src/product.cpp:348`) checks $\varphi$'s
+  APs but never the transducers'. On **this** route specifically an out-of-universe
+  transducer AP yields an mtdfa whose rows branch on a variable absent from `aps`; the
+  other routes only get a strange guard. Worth naming in the header's precondition list.
+- `README.md:47` still says only `--dfa-product` is wired (pre-existing).
+
+**Checked and sound — recorded so no later pass re-derives it.** Terminal encoding
+`2j+b` / `bddfalse` sink matches `mtnfa_to_mtdfa`; the per-call `memo` scope honours F4;
+the `register_proposition` ownership pattern matches `src/mtnfa.cpp`'s and is
+`~mtdfa()`-paired; the BFS-index assert uses the inlined `b7cc9b3` form;
+$\cons=\bigwedge_k$ `emits_region` is valid *as a guard* because the relation ranges only
+over $\Sigma_0\cup\Sigma_1$; `bdd_terminalpp(0)` = the empty set is guaranteed by
+`StateSetPool`'s constructor; `Synthesis` conformance and `BenchTimer` stage ordering
+match `MtdfaProduct`. Suite green (28/28 on the `Mtnfa*` filters after a rebuild).
+
+## Generic code-review findings, 2026-07-27 (`/code-review 4a1e997`)
+
+**No correctness bug in the core algorithm.** The reviewer re-derived the load-bearing
+invariants independently (terminal 0 = empty set; BFS index ↔ `states.size()` because
+insert order = index order = FIFO; the per-call `Relabel` memo is F4-safe because its
+keys are ids of nodes kept alive by `row_set_g`; `spot::formula::operator<` is id-based
+so the `aps` sort honours `mtdfa`'s convention; `~mtdfa` pairs the
+`register_proposition` stake) and added one this PRD had not recorded:
+**`spot::mtdfa::is_empty()`'s "all states reachable" assumption holds precisely because
+of the (b).3 `g`-mask** — a second, independent reason the mask is load-bearing rather
+than an optimization.
+
+It also attacked the D3 gap empirically out-of-tree: 140 random differential cases
+against `ltlf_to_mtdfa × twadfa_to_mtdfa(emits_dfa(τ))` with multi-state, out-degree-2,
+$\cons$-restricting transducers (60) and partial-δ transducers (80) — `product_xor`
+empty in all 140 — plus $n = 0$ and $n = 3$ transducer counts (nothing in the suite
+tests $n \neq 2$, though the header claims the generalization). All correct. That is
+evidence, not a regression guard; see the corpus follow-up under D3.
+
+**Two findings were defects in the same-day D1/D3 fixes and were fixed immediately**
+(recorded inline above): the MONA-gating of the CLI guard, and A2's structural-only
+coverage. One was a stale SHA in D2's text (`04262b1` → `04462b1`), fixed.
+
+**FIXED 2026-07-27 — the determinism precondition is now enforced, not asserted.**
+The `assert` on the *combined* combination guards, plus its `covered` accumulator, is
+replaced by a `std::runtime_error` thrown per tau on the **raw** `delta_edges` guards
+as `edges[k]` is built. This is strictly stronger than what it replaced, in three ways
+beyond surviving `NDEBUG`:
+- it checks each transducer's own guards directly instead of inferring disjointness
+  from the combined guards, so an overlap that `cons` or another tau's guards happen to
+  mask apart still trips (the same reasoning `build_product_symbolic` records);
+- it names the offending transducer state in the message;
+- it deletes `covered` outright, which also resolves the "assert-only work survives
+  `NDEBUG`" finding raised by both review passes — nothing is now computed for an
+  assert's benefit.
+
+Wording, exception type and check shape are copied from `build_product_symbolic`
+(`src/product.cpp`), which performs the identical check on the identical data;
+`OutputLabeledTransducer::delta` throws the per-letter analogue. The check sits inside
+the `cons != bddfalse` branch on purpose: a `cons`-dead state's row is `bddfalse`
+whatever the transducer does, so no language can be wrong there and (b).2's shortcut
+stays a pure shortcut. `tests/mtnfa_product_test.cpp`'s death test became a plain
+`EXPECT_THROW` and now runs in release builds too — which was the whole point.
+
+**Open, non-blocking — left for a decision rather than fixed:**
+- `src/mtnfa_product.cpp` — the F2 precondition (`!goal.accepting[goal.initial]`) is
+  still `assert`-only and has the same release-silence shape. Consistent with
+  `mtnfa_to_mtdfa`, but this is a newly-public entry point, so the two should probably
+  move together rather than diverge.
+- `src/cli.cpp:88` — `--minimize-mtdfa` is silently ignored for `--mtnfa-product`, so a
+  benchmark run with the knob is indistinguishable from one without it (no
+  `minimize_mtdfa` span, no minimisation, no error). *Interfaces & types* **CLI** does
+  settle the knob as `MtdfaProduct`-only, so this is PRD-sanctioned — but the silence is
+  not: rejecting the combination would cost nothing and is the honest reading.
+- `README.md:46` — still says only `--dfa-product` is wired, and its
+  recognised-but-unimplemented list omits both mtdfa-representation flags, so it now
+  understates *and* misclassifies. Pre-existing drift this PRD widens.
+
+**Not a finding:** the reviewer flagged the uncommitted `.claude/settings.json` reduction
+to `{}` as an accidental carry-over. It is intentional and unrelated to this PRD — the
+project-level `claude-opus-4-8` pin was removed on request so the user-level model
+setting applies. Ignore it when reading this diff.
+
+## Theory-review findings, 2026-07-27 (faithfulness mode, `4a1e997..f043912`)
+
+**No `code-bug`.** `mtnfa_product_to_mtdfa` realizes `\cref{alg:nfa_product}` faithfully:
+$\cons$ as the region $\bigwedge_k$ `emits_region` (blessed by `main.tex:213`'s `\cl`),
+$\delta_{prod}$'s goal component as `goal.pool.set_union` over $R$,
+$F_P=F_N\times Q_{in}\times Q_{out}$ as `any(goal.accepting[s] for s in S)` on the
+**goal** slice alone, and `\algname{NfaToDfa}`'s subset step as the interned
+$(R,q_{in},q_{out})$ key. The (b).3 masking fix is faithful and **tight**, not merely
+sound: $\mathtt{bdd\_ite}(g,\ \mathtt{row\_set},\ \mathtt{terminal}(0))$ is a *reduced*
+MTBDD, so a non-empty set-terminal survives in it iff it is the function's value at some
+$v\models g$ — hence every interned `Key{S,d}` is a genuine $\delta_D((R,q),v)$ and the
+reachable state count is exactly within `main.tex:241`'s
+$2^{|S_N|}\cdot|Q_{in}|\cdot|Q_{out}|$ bound. That is positive evidence for the
+`\cref{alg:nfa_product}` complexity theorem (whose own proof is still "To be determined")
+in the mtdfa representation.
+
+**F5 — sink-both is SOUND; the dilemma it was thought to escape does not exist.**
+(`doc-bug`, in this PRD's *Behaviour* §3 and in the unapplied `\cl` draft in
+`docs/prd/nfa-product.md` / `docs/BACKLOG.md`; **the code is right either way**.)
+Settled by reading how `solve_dfa` treats an *absent* arena move, which is the
+comparison the aborted run had reached. `solve_dfa` calls
+`split_2step(game, complete_env=true)` (`src/solve_dfa.cpp:57`), and Spot's
+`split_2step_expl_impl` (`spot/twaalgos/synthesis.cc:574`) completes the **environment**
+into a player-losing sink: `all_letters` is the union of the out-edges' input
+projections, and `bddtrue - all_letters` is routed to `sink_con`, which loops with the
+`unsat_mark`. On the **system** side there is no completion at all: an uncovered output
+is simply a move that is never offered. So the explicit route already reads a missing
+move exactly the way `bddfalse` reads in the mtdfa game — env branch to `bddfalse` = the
+rejecting sink = system loses; controllable branch to `bddfalse` = a move the system
+never takes. Consequently:
+- **skip-both is *not* "spuriously realizable"** — `complete_env` turns the skip back
+  into a losing sink for every environment move.
+- **sink-both is *not* "spuriously unrealizable"** — $\cons$ pins $\Iknown,\Oknown$ to
+  exactly one live value, so a non-$\cons$ letter can never be forced on the system
+  (this PRD's reason (a), **confirmed**), and a $\cons$-dead letter is a genuine loss.
+- The real difference between the two routes is **not** sink-vs-skip but **where the
+  governed variables live**: `solve_dfa` `bdd_exist`s $\Iknown,\Oknown$ out of the arena
+  *before* splitting, so a non-$\cons$ letter is not a move at all; `solve_mtdfa` keeps
+  them as forced controllable moves, so it *is* a (losing) move the system simply never
+  picks. Both quantify the pinned variables **existentially for the system**, so they
+  coincide — even if some $\lambda$ were non-functional and pinned more than one value.
+- Therefore this PRD's inference *"neither reason transfers to the explicit route, which
+  is exactly why `NfaProduct` needs completion and this does not"* is **wrong**:
+  `spot::complete_here` in `NfaProduct` is **verdict-neutral**, a state-count cost rather
+  than a correctness requirement. The *conclusion* ("do not call `complete_here` here")
+  is right, and `NfaProduct` needs **no** change — but do not apply the
+  `docs/prd/nfa-product.md` `\cl` draft as written, it would put a false distinction into
+  `main.tex`. Superseded by the F1 note drafted below.
+
+**F1 — `\algname{NfaToDfa}` is undefined in `main.tex`** (`underspecified`, still OPEN,
+inherited from `docs/prd/mtnfa.md`; now load-bearing in **three** ways, not one). `grep`
+finds the name only at `main.tex:146` (prose) and `main.tex:265` (the algorithm line).
+Missing: (i) the subset-construction rule itself, (ii) the $\emptyset$ rule, and (iii)
+the fact that the reachability invariant at `main.tex:241` — stated only as a *proof
+note* on a theorem whose proof is "To be determined" — is what licenses carrying
+$(R,q_{in},q_{out})$ as the state instead of a subset of $S_P$. A drafted `\cl` for after
+`main.tex:241` is in the review report; **Overleaf-only, batched, does not block code**.
+
+**F6 — $F_P$ is state-based in `main.tex`, transition-based in the mtdfa realization**
+(`underspecified`). `\cref{alg:nfa_product}` line `alg:nfa_product:final_def` makes $F_P$
+a set of *states*; `Relabel` puts the acceptance bit on the terminal of the transition
+*entering* $R$. The two agree on non-empty traces **iff the empty trace is not accepted**
+— i.e. exactly the `!goal.accepting[goal.initial]` (F2) precondition, which is therefore
+load-bearing for more than index bookkeeping. This equivalence is nowhere in `main.tex`,
+and it is precisely the axis on which the *expected-divergence* fixture makes
+`MtnfaProduct` the correct method. Folded into the same drafted `\cl`.
+
+**Nit (non-blocking, style).** `main.tex:213`'s `\cl` names only
+`\texttt{build\_product\_symbolic}` as the region-intersection consumer; there are now
+three (`build_product_symbolic`, `emits_dfa`, `mtnfa_product_to_mtdfa`). Its argument
+(minterm distributivity) is generic and still covers this route; only the example is
+stale. Batch with the F1 note.
+
+**Also noted, benign.** `main.tex:254` initializes $\delta_{prod}$ to an "undefined
+mapping" while the display at `main.tex:222–228` gives $\emptyset$ for a non-$\cons$
+letter; for an NFA the two are the same object, so no verdict.
 
 ## Developer comments / PRD disagreements
 
