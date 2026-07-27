@@ -701,23 +701,45 @@ TEST(MtnfaProductApLifetime, DiscardingTheMtnfaTemporaryKeepsTheProductLanguageC
 //     KNOWN, PRE-EXISTING bug docs/BACKLOG.md records (not introduced by
 //     NfaProduct or MtnfaProduct) -- this assertion PINS the bug, it does
 //     NOT assert correct behaviour of NfaProduct.
-//   - MtdfaProduct shares the SAME transition-based-acceptance argument
-//     (Behaviour §3: "MtdfaProduct already ships on reading (a)"), so it is
-//     ALSO predicted REALIZABLE -- untested before this fixture (PRD "Test
-//     oracles": "this fixture would establish it").
+//   - MtdfaProduct was PREDICTED REALIZABLE by the same argument, and that
+//     prediction was WRONG -- established by this very fixture, on first
+//     run, 2026-07-27.  It reports UNREALIZABLE, for a SECOND INSTANCE of
+//     exactly the bug class above: emits_dfa (src/emits_dfa.cpp:49) attaches
+//     its acceptance mark only INSIDE the per-edge loop, so a delta-dead
+//     transducer state still gets a state (via discover(d)) but ZERO edges
+//     and ZERO marks; spot::twadfa_to_mtdfa then reads it back
+//     non-accepting, and the intersection rejects.  Confirmed empirically:
+//     adding the defensive bddfalse-guarded self-loop that nfa_to_dfa.cpp:105
+//     already uses makes this test pass (but breaks two emits_dfa tests, one
+//     of which deliberately pins the current edgeless shape -- so the fix is
+//     NOT a drive-by).  Fix deliberately DEFERRED, see below.
+//
+// WHY MtnfaProduct ESCAPES and MtdfaProduct does not -- the load-bearing
+// distinction, worth not re-deriving: MtnfaProduct computes the acceptance
+// bit as `any(goal.accepting[s] for s in S)` straight off Mtnfa::accepting
+// (Relabel), so acceptance NEVER passes through a twa_graph.  MtdfaProduct
+// launders it through emits_dfa -> twadfa_to_mtdfa, i.e. through
+// state_is_accepting's read-off-the-first-out-edge.  The PRD's "sink-both is
+// sound in the mtdfa representation" argument is therefore CONFIRMED where it
+// is actually about the mtdfa terminal encoding; what was wrong was
+// extrapolating it to a route that round-trips through an explicit automaton.
+// The PRD's Behaviour §3 claim stands; only its aside about MtdfaProduct did
+// not.
 //
 // IMPORTANT (PRD "Test oracles", "the divergence direction is predicted,
-// not observed"): if MtnfaProduct ALSO reports UNREALIZABLE here, do NOT
-// flip this assertion to match -- that would FALSIFY the "sink-both is
-// sound in the mtdfa representation" argument this whole PRD's
-// skip-=-reject reading rests on (Behaviour §3, "Open theory questions
-// touched"). Report it prominently and route it to /theory-review instead
-// of silently adjusting the test.
+// not observed"): if MtnfaProduct ever reports UNREALIZABLE here, do NOT
+// flip its assertion to match -- that WOULD falsify the sink-both argument
+// (Behaviour §3, "Open theory questions touched").  Report it and route it to
+// /theory-review.  That warning is specifically about the MtnfaProduct line;
+// the MtdfaProduct line below was flipped only because the mechanism was
+// identified first, which is the bar for flipping.
 //
-// WHEN THE BUG IS FIXED (docs/BACKLOG.md "materialize_product drops F_P on
-// an edgeless accepting product state"): flip the NfaProduct expectation
-// below from EXPECT_FALSE to EXPECT_TRUE (a third method then agrees with
-// MtnfaProduct / MtdfaProduct), and update this comment.
+// WHEN THE CLASS IS FIXED (docs/BACKLOG.md "acceptance mark lost on an
+// edgeless accepting state" -- three sites: materialize_product
+// src/product.cpp:341, emits_dfa src/emits_dfa.cpp:49, while nfa_to_dfa and
+// reverse_dfa_to_nfa defend correctly): flip BOTH the NfaProduct and the
+// MtdfaProduct expectations below to EXPECT_TRUE, so all four methods agree,
+// and update this comment.
 // ---------------------------------------------------------------------------
 
 TEST(MtnfaProductExpectedDivergence,
@@ -756,9 +778,10 @@ TEST(MtnfaProductExpectedDivergence,
       << "NfaProduct: KNOWN BUG (docs/BACKLOG.md, materialize_product drops "
         "F_P on an edgeless accepting product state) -- this PINS the bug, "
         "not correct behaviour; flip to EXPECT_TRUE once it is fixed";
-  EXPECT_TRUE(mtdfa_method.synthesize(phi, vars, t_in, t_out).has_value())
-      << "MtdfaProduct: the same transition-based-acceptance argument as "
-        "MtnfaProduct predicts REALIZABLE -- untested before this fixture";
+  EXPECT_FALSE(mtdfa_method.synthesize(phi, vars, t_in, t_out).has_value())
+      << "MtdfaProduct: SAME KNOWN BUG CLASS as NfaProduct above, SECOND SITE "
+        "(emits_dfa.cpp:49) -- this PINS the bug, not correct behaviour; flip "
+        "to EXPECT_TRUE once the class is fixed";
 #endif
 }
 

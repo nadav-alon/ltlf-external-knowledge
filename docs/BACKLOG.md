@@ -99,16 +99,36 @@ oracle rounds out the external `ltlfsynt` cross-check._
 
 ## Later
 
-### `materialize_product` drops $F_P$ on an edgeless accepting product state — **known live bug** (found 2026-07-17)
-- **Intent:** fix, and decide the semantics first. `materialize_product`
-  (`src/product.cpp:341`) only attaches the acceptance mark **inside** its
-  per-destination guard loop, so an accepting product state with **zero** outgoing
-  guards emits no edges at all — and Spot's `state_is_accepting` reads a
-  state-based mark off a state's *first out-edge*, so the flag
-  `build_product`/`build_product_nondet` computed is **lost in transit** and reads
-  back `false`. Same hazard class `nfa_to_dfa` (`src/nfa_to_dfa.cpp:105`) and
-  `reverse_dfa_to_nfa` (`:40`) already defend against with a `bddfalse`-guarded
-  self-loop carrying the mark; `materialize_product` is the one that doesn't.
+### Acceptance mark lost on an edgeless accepting state — **known live bug, TWO sites** (found 2026-07-17; widened from one site to a class 2026-07-27)
+- **The class:** a builder computes acceptance correctly, then attaches the mark
+  **only inside a per-edge loop** — so a state with **zero** out-edges emits no edges
+  and no marks, and Spot's `state_is_accepting` (which reads a state-based mark off a
+  state's *first out-edge*) reads the flag back as `false`. **Lost in transit**, not
+  deliberately reinterpreted. Four builders, two broken:
+  - `materialize_product` (`src/product.cpp:341`) — **broken.** Affects `DfaProduct`
+    and `NfaProduct`.
+  - `emits_dfa` (`src/emits_dfa.cpp:49`) — **broken; found 2026-07-27** by the
+    `MtnfaProduct` expected-divergence fixture on its first run. A $\delta$-dead
+    transducer state still gets a state (via `discover(d)`) but zero edges, so
+    `spot::twadfa_to_mtdfa` reads it non-accepting and the product intersection
+    rejects. Affects **`MtdfaProduct`** — which this item previously implied was
+    immune, because acceptance in the mtdfa representation rides the *incoming*
+    terminal. The correction: that is true only when acceptance never passes through
+    a `twa_graph`. `MtdfaProduct` launders it through `emits_dfa`
+    → `twadfa_to_mtdfa`, so it is exposed; `MtnfaProduct` reads
+    `any(goal.accepting[s])` straight off `Mtnfa::accepting` and is genuinely immune.
+  - `nfa_to_dfa` (`src/nfa_to_dfa.cpp:105`) and `reverse_dfa_to_nfa` (`:40`) —
+    **defend correctly**, with a `bddfalse`-guarded self-loop carrying the mark. That
+    is the known-good idiom the two broken sites are missing.
+- **Intent:** fix, and decide the semantics first. Fixing `emits_dfa` alone is a
+  *partial* fix (the mtdfa route becomes right while the explicit route stays wrong —
+  the methods still disagree, just along a different line), so the class wants fixing
+  together, which is what makes the semantics call below load-bearing.
+- **Confirmed fix shape, verified 2026-07-27:** adding the defensive self-loop to
+  `emits_dfa` makes the divergence fixture pass — but breaks two existing tests,
+  `EmitsDfa.UndefinedAtStateHasNoOutgoingEdgesForAnyLetter` (which deliberately pins
+  the current edgeless shape) and `EmitsDfa.AcceptsTheEmptyWordAcrossEveryFixture`.
+  So the fix is **not a drive-by**: it re-opens `emits_dfa`'s contract.
 - **Reachability:** needs a **partial transducer** — a $\cons$-passing product state
   whose $\delta$ is undefined on every letter. Legal (`transducer.hpp:24`,
   `main.tex:107`) and explicitly handled by `build_product_nondet`. Reproduced end
@@ -120,15 +140,23 @@ oracle rounds out the external `ltlfsynt` cross-check._
   PRD's scope to Method 1 explicit). It affects `DfaProduct` equally, so fixing it
   **changes shipped `DfaProduct` verdicts on partial transducers** — a semantic
   change worth its own grill, which is why it isn't a drive-by.
-- **Why both oracles are blind to it — the load-bearing lesson:**
-  - the **cross-method** oracle can't see it: `DfaProduct` and `NfaProduct` share
-    `materialize_product` + `solve_dfa`, so they fail **identically and agree**;
+- **Why the oracles were blind to it — the load-bearing lesson:**
+  - the **cross-method** oracle couldn't see it while only the explicit route existed:
+    `DfaProduct` and `NfaProduct` share `materialize_product` + `solve_dfa`, so they
+    fail **identically and agree**. This changed on 2026-07-27: `MtnfaProduct` is
+    genuinely immune, so the cross-method oracle now *would* catch the class — but only
+    on a partial transducer, which is the next bullet;
   - the **generated corpus** can't see it: `random_tin` is deterministic + **total**
     by construction (the committed Case-A regime,
     `tests/ltlfsynt_oracle_test.cpp:1337`) and `t_out` is `trivial_transducer`, so
     the partial-transducer regime is simply unexercised at corpus scale.
-  A green suite is fully consistent with this bug. Any fix **must** ship a
-  partial-transducer test, or it is untested by construction.
+  A green suite was fully consistent with this bug, and that is how it survived from
+  2026-07-17 to 2026-07-27 with a second site undiscovered. **Now pinned:**
+  `MtnfaProductExpectedDivergence.*` (`tests/mtnfa_product_test.cpp`) asserts the
+  current wrong verdicts of **both** broken sites, so the class can no longer regress
+  silently and the eventual fix has its regression test ready — flip both
+  `EXPECT_FALSE`s to `EXPECT_TRUE`. Any fix must still ship coverage for a partial
+  `t_out` too (the fixture only exercises a $\delta$-dead `t_in`).
 - **Seeds for grilling:**
   - **Semantics first:** is a $\cons$-dead transducer state reached *after*
     acceptance a **win**? LTLf acceptance is at the end of a finite trace, so an
