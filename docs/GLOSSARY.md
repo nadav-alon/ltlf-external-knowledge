@@ -661,6 +661,26 @@ the existing term or update this file via `/glossary` — do not let drift happe
   has **no** `ProductState`/`ProductGuards`/`materialize_product` — and, being fused,
   **no intermediate product object at all**, which is why it emits no separable
   `determinize` benchmarking sub-span (contrast `NfaProduct`, which does).
+  Method **3.1**'s product is `otf_product_to_mtdfa(phi, taus, vars, dict)` →
+  `spot::mtdfa_ptr` (`include/ltlf_ek/otf_mtdfa_product.hpp`;
+  `docs/prd/otf-mtdfa-product.md`): the $\cons$-filtered product of the Goal with
+  the transducers, where the **Goal side is built on the fly** by *Forward
+  progression* — so `\cref{alg:otfdfa_product}`'s $\cons$ filter is fused with the
+  Goal **construction** itself, and **no Goal automaton object ever exists**. Its
+  BFS state is $\langle[\psi], q_{in}, q_{out}\rangle$ interned on
+  `(progress_row([\psi]), q)`; $\cons$ is the region
+  $\bigwedge_k$ `emits_region(q[k])` and the letter space is carved by the
+  `delta_edges` guards, exactly as in `mtnfa_product_to_mtdfa`, whose skeleton it
+  mirrors. Two deviations from `\cref{alg:otfdfa_product}` are deliberate and
+  documented in the PRD: acceptance is **transition**-based (the pseudocode's
+  state-keyed $F_P$ over-accepts, I4), and a `bddtrue` leaf **collapses to the
+  accepting sink**, pruning that branch — which makes $L(P)$ enforce $\cons$ only
+  *up to* irrevocable satisfaction, so **there is no language-equality oracle on
+  $P$** (verdicts are cross-checked instead, as on every mtdfa build). This is the
+  third sibling of `build_product_symbolic` / `mtnfa_product_to_mtdfa`; like them
+  it has no `ProductState`/`ProductGuards`/`materialize_product`, and like the
+  Method-1 mtdfa build it needs **no** final terminal-remap pass (the destination
+  index is known when the terminal is emitted).
 - **Do not call it:** composition, join, cross; for the symbolic pieces, not
   `symbolic_product`/`product_symbolic` (build), `GuardMap`/`product_map`
   (`ProductGuards`), `materialize`/`to_twa` (bare, for `materialize_product`);
@@ -668,20 +688,66 @@ the existing term or update this file via `/glossary` — do not let drift happe
   `build_product_nfa` (for `build_product_nondet`); for the Method-1 mtdfa build, not
   `build_product_mtnfa`, `mtnfa_product` (bare — it *returns* an `spot::mtdfa`, and
   the name must say so), `product_mtnfa_to_mtdfa`, `mtnfa_to_mtdfa` (that is the
-  Goal-NFA-alone determinization, a different function).
+  Goal-NFA-alone determinization, a different function); for the Method-3.1 build,
+  not `build_product_otf`, `otf_product` (bare — same rule: it *returns* an
+  `spot::mtdfa`), `on_the_fly_product`, `otf_mtdfa_product` (that is how the
+  `Synthesis` **class** `OtfMtdfaProduct` would be spelled, not the builder).
 
 ### Forward progression
-- **`main.tex`:** `FP`$(\psi,w)$ returning $(\psi',b)$ (Alg. Forward Progression).
-- **Definition:** advance a formula by one letter; $b$ = satisfied-now bit.
-  Note: `FP` is a **TODO stub** in `main.tex` — see open questions.
-- **C++:** `progress(psi, w)`.
-- **Do not call it:** derivative, unfold, step.
+- **`main.tex`:** `FP`$(\psi,w)$ returning $(\psi',b)$ (`\cref{alg:fp}`, §`otf`);
+  the algorithm **body** is a `TODO` stub — see *Open theory questions*.
+- **Definition:** advance a formula by one letter, returning the progressed
+  formula $\psi'$ and the bit $b$ = "the trace **ending at** this letter satisfies
+  $\psi$". Realized **symbolically**: one MTBDD covering *every* letter at once —
+  a **row**, in the *MTDFA* sense of one MTBDD per state — never a per-letter
+  call. A leaf of that row is `bddfalse` ($\varphi$ irrevocably violated),
+  `bddtrue` (irrevocably satisfied), or a terminal $2\cdot\mathrm{idx}(\psi')+b$;
+  so $b$ rides on the **transition**, not on $\psi'$ (two different sources can
+  reach the same $\psi'$ with different $b$ — the finding behind
+  `docs/prd/otf-mtdfa-product.md` I4).
+- **C++:** `ForwardProgression` (`include/ltlf_ek/progression.hpp`), with
+  `progress_row(psi)` → `bdd` (the row) and `decode(terminal)` →
+  `std::pair<spot::formula,bool>` (the leaf decode); `docs/prd/otf-mtdfa-product.md`.
+  A deliberately **single-file** wrapper over
+  `spot::ltlf_translator::ltlf_to_mtbdd`: Spot's own header marks that class
+  *"Semi-internal… Do not rely on the interface to be stable"*, so confining it to
+  one seam — rather than spreading the $2\cdot\mathrm{idx}+b$ decode through the
+  product build — **is the point of the type**. `simplify_terms` is pinned true
+  and not exposed (see *Canonical representative*).
+  **There is no per-letter entry point.** `\cref{alg:fp}`'s per-letter form is
+  *derived* — `bdd_restrict(row, v)` then `decode` — the same
+  symbolic-vs-per-letter split as `emits`/`emits_region` and `delta`/`delta_edges`,
+  except that here only the symbolic form is an API.
+- **Do not call it:** derivative, unfold, step; **`progress(psi, w)`** (the name
+  this entry reserved until 2026-07-28 — no such function exists or will),
+  `progress` (bare), `progress_region` (it returns a **row**, a
+  letter→destination map, *not* a region of letters — contrast `emits_region`),
+  `ltlf_to_mtbdd` (Spot's own primitive, the same rule that rejects `ltlf2dfa`),
+  `FP` / `Fp` as a C++ identifier.
 
 ### Canonical representative
-- **`main.tex`:** $[\psi]$ — the class of $\psi$ after progression.
-- **Definition:** semantically-equal progressed formulae collapse to one state.
-- **C++:** `canonical(psi)`.
-- **Do not call it:** normal form, key, hash.
+- **`main.tex`:** $[\psi]$ (`main.tex:337`, §`otf`) — the representative of $\psi$
+  after progression, *"so that semantically equal progressed formulae collapse to
+  the same state"*.
+- **Definition:** what makes two progressed formulae the **same** state.
+  **Inherited from Spot, never computed by us:** it is `propeq_representative` —
+  light rewrites ($G\alpha\wedge\alpha\equiv G\alpha$,
+  $F\alpha\vee\alpha\equiv F\alpha$, $(\alpha U\beta)\vee\beta\equiv\alpha U\beta$,
+  …), then the formula encoded as a BDD over its maximal **temporal** subformulas
+  as atoms and interned by that encoding, first-seen-wins. Spot applies it when it
+  **mints a terminal**, so `ForwardProgression::decode` already *returns* $[\psi]$.
+  It is **propositional** equivalence, weaker than the semantic equivalence
+  `main.tex:337` literally claims — flagged for `/theory-review`.
+  A second, coarser merge sits **on top** of it in the *Product*: states whose
+  **row** is identical are fused (Spot's `fuse_same_bdds`, applied componentwise
+  on the goal part).
+- **C++:** — (**no identifier**, deliberately. Re-canonicalizing on top of Spot's
+  representative would coarsen differently from `spot::ltlf_to_mtdfa` and so
+  de-sync state counts from the `MtdfaProduct` baseline that Method 3.1 is
+  measured against; `docs/prd/otf-mtdfa-product.md` I7.)
+- **Do not call it:** normal form, key, hash; **`canonical(psi)`** (the name this
+  entry reserved until 2026-07-28 — retired, no such function), propeq (bare, in
+  prose — that names Spot's mechanism, not the concept), equivalence class.
 
 ### Aggregation
 - **`main.tex`:** Method 3.2 / 3.3 — key states on $[\psi]$ alone, collapsing
@@ -711,6 +777,15 @@ the existing term or update this file via `/glossary` — do not let drift happe
     variable order alone, and a violation returns a wrong verdict rather than
     failing.
 
+  Both **solve a product that already exists**. Method 3.1 Phase 2
+  (`docs/prd/otf-mtdfa-product.md`) anticipates a **third** shape — solving *fused
+  into* the construction, feeding `spot::backprop_graph` as rows are discovered and
+  aborting once the initial state is determined, which is what `main.tex:333`'s
+  `\na` calls the missing *"hanging fruit optimization"*. Its C++ name is
+  **not canonical yet** (the PRD's `otf_solve_fused` is explicitly tentative and
+  its design is deferred to that phase's own grill) — recorded here only so no
+  competing name is invented in the meantime.
+
   They differ in **where the governed variables are projected**, and that is the
   interesting part: `solve_dfa` projects **arena-side** (`bdd_exist` per edge
   guard, `src/solve_dfa.cpp:49`), which `solve_mtdfa` **cannot** do — an MTDFA's
@@ -730,7 +805,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
 |---|---|---|---|
 | NFA product | Method 1 (§nfa) | `NfaProduct` | `MtnfaProduct` |
 | DFA product | Method 2 (§fulldfa) | `DfaProduct` | `MtdfaProduct` |
-| On-the-fly DFA product | Method 3.1 (§otfdfa) | `OtfDfaProduct` | — |
+| On-the-fly DFA product | Method 3.1 (§otfdfa) | `OtfDfaProduct` (unbuilt) | `OtfMtdfaProduct` |
 | On-the-fly aggregated | Method 3.2 (§otfagg) | `OtfAggProduct` | — |
 | Dynamic aggregation | Method 3.3 (§dynamicagg) | `OtfDynAggProduct` | — |
 
@@ -738,13 +813,20 @@ Common interface: `Synthesis::synthesize(phi, vars, t_in, t_out)`.
 
 **Five rows, five methods.** The last two columns are the *Representation* axis
 (below), **not** more methods — a sixth row would assert a sixth method, which is
-exactly what `MtdfaProduct` is not. Methods 1 and 2 have mtdfa implementations
+exactly what `MtdfaProduct` is not. Methods 1, 2 **and 3.1** have mtdfa
+implementations
 (`docs/prd/mtnfa-product.md` — `MtnfaProduct`, landed;
-`docs/prd/mtdfa-product.md` — `MtdfaProduct`, landed); `main.tex:335`'s `\na`
-anticipates one for Method 3.
+`docs/prd/mtdfa-product.md` — `MtdfaProduct`, landed;
+`docs/prd/otf-mtdfa-product.md` — `OtfMtdfaProduct`). `main.tex:335`'s `\na`
+anticipated one for Method 3, and that PRD **is** the anticipated adjustment,
+made in code first — `main.tex` still commits to no MTDFA definition. Method 3.1
+is the first cell where the **explicit** column is deliberately left unbuilt:
+*Forward progression* yields an MTBDD natively, so flattening it into a
+`twa_graph` only to re-solve would be pure loss.
 `make_synthesis_method` (`cli.hpp`) selects a **cell**: `--dfa-product` →
 `DfaProduct`, `--mtdfa-product` → `MtdfaProduct`, `--nfa-product` → `NfaProduct`,
-`--mtnfa-product` → `MtnfaProduct`. That flag shape names a
+`--mtnfa-product` → `MtnfaProduct`, `--otf-mtdfa-product` → `OtfMtdfaProduct`.
+That flag shape names a
 method×representation cell rather than a method, and is a **known wart** — it does
 not scale (a Method-3 mtdfa route would want `--mtdfa-otf-dfa-product`). Accepted
 deliberately over an orthogonal `--representation=` selector; **revisited 2026-07-27**
@@ -752,6 +834,13 @@ when `MtnfaProduct` made a second method gain an mtdfa route, and **kept**: the 
 mtdfa flags stay unambiguous because each representation has its own automaton type
 in the name (`mtdfa` / `mtnfa`), so the wart is still latent rather than live. It
 becomes live at Method 3, whose three sub-methods would need six flags.
+**Revisited again 2026-07-28** at Method 3.1 — the predicted moment — and **kept a
+third time**, on the same test: `--otf-mtdfa-product` keeps the automaton type in
+the name, so it names its cell unambiguously, and the still-unbuilt explicit cell
+keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
+`kRecognisedNotWired`). The six-flag scenario is **not** discharged — it returns at
+3.2/3.3, which would want `--otf-mtdfa-agg-product` and
+`--otf-mtdfa-dyn-agg-product`. Re-decide there, not here.
 
 ### Representation
 - **`main.tex`:** — (no symbol; the `\na` at `main.tex:335` gestures at MTDFA for
@@ -761,11 +850,14 @@ becomes live at Method 3, whose three sub-methods would need six flags.
   (`spot::twa_graph`, see *NFA / DFA for the Goal*) or **mtdfa** (`spot::mtdfa`, see
   *MTDFA*). It is **orthogonal to the method**: `main.tex` has five methods, and a
   representation changes *how* one is executed, never *which* one it is.
-  `MtdfaProduct` is Method 2 in the mtdfa representation and `MtnfaProduct` is
-  Method 1 in it — **not** a sixth and seventh method.
+  `MtdfaProduct` is Method 2 in the mtdfa representation, `MtnfaProduct` is
+  Method 1 in it, and `OtfMtdfaProduct` is Method 3.1 in it — **not** a sixth,
+  seventh and eighth method.
   The axis reaches **four** entries: *Goal DFA construction*, *Goal automaton
   determinization*, *Product*, and *Game solving* each name a per-representation C++
-  identifier.
+  identifier. *Forward progression* is **not** a fifth: it exists only in the mtdfa
+  representation (there is no explicit counterpart to pair it against), so it names
+  one identifier, not a per-representation pair.
 - **C++:** — (no identifier; a modifier, not a type. There is deliberately **no**
   `enum class Representation`: the axis is selected per-method by CLI flag, and each
   cell is its own `Synthesis` class.)
@@ -886,15 +978,39 @@ becomes live at Method 3, whose three sub-methods would need six flags.
 These are the author's own `\na` notes / stubs in `main.tex`; `/theory-review`
 is seeded with them:
 
-- **`FP` is unspecified** — Algorithm "Forward Progression" is a `TODO`.
+- **`FP` is unspecified** — `\cref{alg:fp}`'s body is still a `TODO` in
+  `main.tex`. **The code now commits to an answer** (`docs/prd/otf-mtdfa-product.md`):
+  `FP` is Spot's own LTLf progression, reached through *Forward progression*'s
+  wrapper. `/theory-review` should confirm that is the intended `FP` — in
+  particular the **weak `X`** reading it carries (`FP`$(Xb,\ \{\lnot b\})=(b,\top)$,
+  verified against the linked libspot), which matches this project's committed
+  semantics but is nowhere written in `main.tex`. The *paper* stub is untouched.
 - **Aggregated final-state overwrite** — Alg. "On The Fly Aggregated DFA
   Product": inserting into $F_P$ keyed on $[\psi']$ may be overwritten when the
   same $[\psi']$ later returns $b=\bot$; unresolved whether to remove.
+  **Sharpened 2026-07-28 and no longer confined to 3.2** — the same defect is
+  present in **un-aggregated** Method 3.1, `\cref{alg:otfdfa_product}` line
+  `alg:otfdfa_product:final_insert`, because $b$ is **not a function of**
+  $[\psi']$. Witness, verified against the linked libspot: both
+  `G(a -> Xb)` and `X[!]G(a -> Xb)` progress under $\{\lnot a,\lnot b\}$ to the
+  successor `G(a -> Xb)`, with $b=\top$ and $b=\bot$ respectively — so a
+  state-keyed $F_P$ marks that state accepting and the product **over-accepts**.
+  The author's uncertainty was therefore well-founded, and the answer is that
+  $F_P$ must be **transition**-keyed, not state-keyed. `OtfMtdfaProduct` gets this
+  right for free (mtdfa's $2d+b$ terminals), i.e. the implementation is strictly
+  more faithful to $\text{LTL}_f$ than the pseudocode. Likely a **doc-bug**;
+  `/theory-review` to rule.
 - **On-the-fly game solving** — Method 3 builds the product on the fly but still
   solves at the end; the hanging-fruit on-the-fly *solving* is not done. The same
   `\na` continues (`main.tex:335`): *"This likely requires adjusting the definitions
   for MTDFA usage"* — i.e. the author anticipates a *Representation* change for
-  Method 3. Only Method 2 has one today (`docs/prd/mtdfa-product.md`).
+  Method 3. **Updated 2026-07-28** (the old "only Method 2 has one today" went
+  stale when `MtnfaProduct` landed): Methods 1, 2 and 3.1 all have mtdfa routes
+  now, and `docs/prd/otf-mtdfa-product.md` is the Method-3 adjustment the `\na`
+  anticipated. Its **Phase 2** implements on-the-fly *solving* (`backprop_graph`,
+  early abort) behind a knob — so the *engineering* half of this `\na` is being
+  discharged, while the **definitional** half stays open: `main.tex` still solves
+  at the end and still commits to no MTDFA definition.
 - **Governed-variable projection** (`main.tex:300` `\na`) — *"Because the resulting
   game is being limited to transitions consistent with the external knowledge
   transducers, which govern the variable set $\mathcal{V}$, it can project these
@@ -930,6 +1046,11 @@ is seeded with them:
   cross-method agreement between the two *Representation*s fails semantically
   rather than as a bug. Weak evidence it agrees: `ltlfsynt` runs that machinery and
   the existing differential already passes for `DfaProduct`.
+  **Newly load-bearing 2026-07-28:** Method 3.1's accepting-sink collapse (a
+  `bddtrue` leaf prunes its branch, *Product*) is sound **only** under the
+  system-controlled-termination reading — the system reaching irrevocable
+  satisfaction may stop there and win. If that reading changed, the collapse would
+  have to be revisited, not merely re-benchmarked.
 
 **Resolved (kept here so they are not re-flagged as novel):**
 
