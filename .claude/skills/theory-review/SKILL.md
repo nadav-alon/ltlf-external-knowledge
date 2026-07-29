@@ -76,8 +76,25 @@ Report each mismatch with one of:
 
 You may edit `main.tex`, but **only** using the `\cl{...}` note command
 (green, "CL:") already defined in the preamble — never `\na`, `\sz`, `\spc`,
-`\df`, and never impersonate the author. Prefer a `\cl` note flagging the issue;
-make substantive prose/definition edits only when the user asked you to.
+`\df`, and never impersonate the author. Make substantive prose/definition
+edits only when the user asked you to.
+
+**Write the notes — do not merely propose them.** A `\cl` note you decided to
+write is an edit you make, in the file, by default. Reporting a note as a
+patch-to-be-applied is the *exception*, and it needs a reason beyond caution
+(the surrounding block is mid-rewrite, the placement genuinely depends on an
+answer only the user has). "It's the author's paper" is not that reason —
+`\cl` exists precisely so Claude-authored text is visible and trivially
+revertable, which is what makes writing it the safe default rather than the
+bold one. A note that lives only in a chat message or a PRD appendix is lost
+the moment the session ends; a note in `main.tex` is one `git checkout` from
+being undone. Say plainly in your report what you wrote and where.
+
+**Writing is not landing.** `latex/` is the Overleaf submodule, so do **not**
+`git commit` or `git push` it — that is outward-facing and the user's call.
+Leave the edit in the working tree, tell the user the submodule is dirty, and
+flag that added lines shift the `main.tex:NNN` refs other docs cite (the
+`\cref`/§-number resync lesson in `docs/BACKLOG.md`).
 
 Every such edit must stay clearly visible, per the **`latex-style`** skill: wrap
 new/changed **prose** directly inside `\cl[inline]{...}` (the note *is* the
@@ -93,8 +110,10 @@ line** (never appended to a prose sentence, a display `\]`, or an
 short one-line flag (multi-clause notes, adjacent math, `\cref`s) so it does not
 overflow the margin.
 
-When **spawned by `/code-reviewer`**: report verdicts and any proposed `\cl`
-patch back to the caller; do **not** commit LaTeX edits mid-review.
+When **spawned by `/code-reviewer`**: write the `\cl` notes as above, then
+report the verdicts *and* what you wrote (file + placement) back to the caller
+so it can fold them into the review summary. Still no `git commit`/`git push`
+of the submodule mid-review.
 
 ## LaTeX writing conventions
 

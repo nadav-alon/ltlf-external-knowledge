@@ -50,9 +50,14 @@ progression, product construction, final-state logic, the `Synthesis`/
 - Use the Agent tool with `subagent_type: "theory-reviewer"`.
 - It starts cold — **hand it the scope**: the changed files and the diff/summary,
   and note it should run in *faithfulness* mode (code ↔ math).
-- Fold its verdicts (`code-bug` / `doc-bug` / `underspecified`) and any proposed
-  `\cl` `main.tex` patch into your review summary. Do **not** let it commit
-  LaTeX edits mid-review — surface them for the user.
+- Fold its verdicts (`code-bug` / `doc-bug` / `underspecified`) into your review
+  summary. It **writes** its `\cl` notes into `main.tex` by default rather than
+  proposing them (see `/theory-review`), so report what it wrote and where —
+  do not re-apply them yourself, and do not downgrade a written note back to a
+  "proposed patch" in your summary.
+- It must **not** `git commit`/`git push` the `latex/` submodule mid-review.
+  Leave the edit in the working tree, say the submodule is dirty, and note that
+  added lines shift any `main.tex:NNN` refs other docs cite.
 
 Skip the spawn for build-system / test-harness / formatting-only diffs.
 
@@ -61,7 +66,8 @@ Skip the spawn for build-system / test-harness / formatting-only diffs.
 - A concise findings list, most-severe first, each tied to `file:line`.
 - Separate "must fix" (broken invariant, wrong Spot usage, glossary violation)
   from "consider".
-- If you spawned theory review, include its verdicts and any `\cl` patch inline.
+- If you spawned theory review, include its verdicts inline, plus the `\cl`
+  notes it wrote into `main.tex` and where they landed.
 
 ## Definition of done
 
