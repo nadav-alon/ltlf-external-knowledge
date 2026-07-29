@@ -138,7 +138,8 @@ plus `\cref{alg:fp}` (the `FP` stub this realizes), `\cref{def:consistency}`
       `alg:otfdfa_product:final_insert` is *unsound as written* (state-keyed
       $F_P$ over-accepts; witness $\varphi = (c \wedge G(a \rightarrow Xb))
       \vee (\lnot c \wedge X[!]G(a \rightarrow Xb))$ with trivial
-      transducers), which answers `main.tex:434`'s open `\na` — re-key on the
+      transducers), which answers the open `\na` after `\cref{alg:otfdfa_agg_product}`
+      (`main.tex:449`) — re-key on the
       transition, don't delete the line — and shows the defect is *not*
       confined to aggregation. The mtdfa realization avoids it for free since
       terminal $2d+b$ is transition-keyed. The other three are
@@ -250,7 +251,8 @@ against the linked libspot:
 
 If both transitions occur in one product, a state-keyed $F_P$ marks that state
 accepting and the product **over-accepts**. This is the same hazard the author
-already flagged for Method 3.2 (`main.tex:434`, the "aggregated final-state
+already flagged for Method 3.2 (the `\na` after `\cref{alg:otfdfa_agg_product}`,
+`main.tex:449` — the "aggregated final-state
 overwrite" `\na`), but it bites the **un-aggregated** method too. The mtdfa
 substrate encodes acceptance on the transition ($2d+b$ terminals, see *MTDFA*), so
 this implementation is **strictly more faithful to $\text{LTL}_f$ than the
@@ -662,7 +664,8 @@ Flag, do not resolve — these are `/theory-review`'s.
   this project's committed semantics but is not written in `main.tex`.
 - **State-keyed $F_P$ is lossy** (`alg:otfdfa_product:final_insert`) — the new
   finding of I4. Likely a **doc-bug**; note it also strengthens the existing
-  Method 3.2 `\na` at `main.tex:434` from "am I unsure?" to "demonstrably yes".
+  Method 3.2 `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:449`) from
+  "am I unsure?" to "demonstrably yes".
 - **On-the-fly game solving** (`main.tex:333` `\na`) — Phase 2 implements it; the
   *definitional* half stays open.
 - **MTDFA definitions for Method 3** (`main.tex:335` `\na`) — this PRD is that
@@ -796,7 +799,8 @@ reset. Ordered by how much they matter.
 ### 1. `alg:otfdfa_product:final_insert` is unsound as written — **doc-bug**
 
 The only one that is a *defect* rather than a gap. Place on its own source line
-after `main.tex:392`. Answers `main.tex:434`'s open `\na`: do **not** delete the
+after the prose closing `\cref{alg:otfdfa_product}` (now `main.tex:399`). Answers
+the open `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:449`): do **not** delete the
 line, re-key it — and note the defect is present already without aggregation, so
 `alg:otfdfa_dyn_agg_product` inherits it too.
 
@@ -809,7 +813,7 @@ This is the same defect suspected in the note after \cref{alg:otfdfa_agg_product
 
 ### 2. `\cref{alg:fp}`'s four pinned commitments — *underspecified*
 
-Own source line after `main.tex:350` (after `alg:fp`'s `\end{algorithm}` —
+Own source line after `\cref{alg:fp}`'s `\end{algorithm}` (now `main.tex:352`) —
 adjacent, not nested, so the stub's `\label` and the build are untouched).
 Note `main.tex` has **no LTLf preliminaries at all**, so the weak-`X` reading is
 unwritten paper-wide, not merely unwritten in `alg:fp`.
@@ -824,7 +828,7 @@ Fourth, the returned $\psi'$ is already the canonical representative $[\psi']$ o
 
 ### 3. I5's pruning and its language cost — *underspecified*
 
-Own source line after `main.tex:392` (after the prose paragraph following
+Own source line after the prose paragraph following
 `\cref{alg:otfdfa_product}`).
 
 ```latex

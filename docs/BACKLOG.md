@@ -24,7 +24,7 @@ champion). Its Phase 2 (`otf_solve_fused`) is spun out below._
 - **Blocking, and now PROVEN not merely suspected:** `\cref{alg:otfdfa_product}`'s
   state-keyed $F_P$ **over-accepts** — theory review (2026-07-29) produced a
   one-state witness, $\varphi=(c \wedge G(a \rightarrow Xb)) \vee (\lnot c \wedge
-  X[!]G(a \rightarrow Xb))$ with trivial transducers. `main.tex:434`'s `\na` asked
+  X[!]G(a \rightarrow Xb))$ with trivial transducers. the `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:449`) asked
   whether to drop the $F_P$ insert; the answer is **re-key it on the transition**.
   3.1 dodges this for free (an mtdfa terminal $2d+b$ is transition-keyed); an
   aggregating method must face it. `\cl` note written into `latex/main.tex`,

@@ -676,7 +676,16 @@ the existing term or update this file via `/glossary` — do not let drift happe
   state-keyed $F_P$ over-accepts, I4), and a `bddtrue` leaf **collapses to the
   accepting sink**, pruning that branch — which makes $L(P)$ enforce $\cons$ only
   *up to* irrevocable satisfaction, so **there is no language-equality oracle on
-  $P$** (verdicts are cross-checked instead, as on every mtdfa build). This is the
+  $P$** (verdicts are cross-checked instead, as on every mtdfa build).
+  **This makes the builder unsafe to reuse blind:** $L(P)$ is a strict
+  **over-approximation** of the true $\cons$-filtered product, sound *only* for a
+  consumer that stops at the first accepting transition — `solve_mtdfa` under
+  system-controlled termination, and `verify_controller`, whose $Bad$ fixpoint
+  never propagates through an accepting state. Any consumer that reads $L(P)$
+  itself — **Method 3.2's aggregation above all**, a language-equality oracle,
+  model checking over $P$ — gets wrong answers with no diagnostic. The caveat is
+  on the declaration in `include/ltlf_ek/otf_mtdfa_product.hpp`, not only here.
+  This is the
   third sibling of `build_product_symbolic` / `mtnfa_product_to_mtdfa`; like them
   it has no `ProductState`/`ProductGuards`/`materialize_product`, and like the
   Method-1 mtdfa build it needs **no** final terminal-remap pass (the destination
@@ -875,9 +884,18 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   that are **comparable across methods** — `automaton_construction` (*Goal DFA
   construction*, or the future NFA build), `product_construction` (*Product*),
   `game_solving` (*Game solving / SolveDfa*), `aggregation` (*Aggregation*,
-  Methods 3.2/3.3 only). Two methods' same-named canonical stages are defined to
-  be comparable; a stage only *some* methods emit is fine (comparability means
-  "when both emit it, they compare"). The registry is **soft**: adding, renaming,
+  Methods 3.2/3.3 only). Two methods' same-named canonical stages are comparable
+  **only when they charge the same work to it**; a stage only *some* methods emit
+  is fine (comparability means "when both emit it, they compare").
+  **One live exception, and it is not a bug** (`docs/prd/otf-mtdfa-product.md`,
+  2026-07-29): `OtfMtdfaProduct` fuses the Goal construction into the product, so
+  it emits **no** `automaton_construction` and its `product_construction` absorbs
+  work every other method charges to `automaton_construction`. Comparing
+  `product_construction` alone across that boundary is *wrong* — it flatters the
+  eager method by exactly the Goal-build cost. Compare
+  `automaton_construction + product_construction` **summed**; `game_solving`
+  still compares directly. Expect the same of Methods 3.2/3.3, which fuse at
+  least as much. The registry is **soft**: adding, renaming,
   or re-mapping a value touches only the enum + its name table + this entry
   (never the generic collector/emitter) and is **not** a PRD-change event. Its
   counterpart is the **free-form sub-span** — an arbitrary-string nested span
@@ -981,10 +999,21 @@ is seeded with them:
 - **`FP` is unspecified** — `\cref{alg:fp}`'s body is still a `TODO` in
   `main.tex`. **The code now commits to an answer** (`docs/prd/otf-mtdfa-product.md`):
   `FP` is Spot's own LTLf progression, reached through *Forward progression*'s
-  wrapper. `/theory-review` should confirm that is the intended `FP` — in
-  particular the **weak `X`** reading it carries (`FP`$(Xb,\ \{\lnot b\})=(b,\top)$,
-  verified against the linked libspot), which matches this project's committed
-  semantics but is nowhere written in `main.tex`. The *paper* stub is untouched.
+  wrapper. **`/theory-review` has now ruled (2026-07-29): `underspecified`, not a
+  code-bug** — the commitment is sound, but `main.tex` must record four things it
+  already depends on. (1) The **weak `X`** reading
+  (`FP`$(X\psi,w)=(\psi,\top)$, `FP`$(X[!]\psi,w)=(\psi,\bot)$) — and note
+  `main.tex` has **no $\text{LTL}_f$ preliminaries at all**, so this is unwritten
+  paper-wide, not merely unwritten in `\cref{alg:fp}`. (2) $b$ rides the
+  **transition**, not $\psi'$ (see the next entry). (3) All four corners of
+  $\psi'\in\{\mathtt{tt},\mathtt{ff}\}$ against $b$ are reachable —
+  $(\mathtt{tt},\bot)$ from `X[!]tt`, $(\mathtt{ff},\top)$ from `!X[!]tt` — so no
+  rule may key on $\psi'$ alone; this is exactly why the mtdfa collapse is safe,
+  since Spot's constant leaves replace only the *pairs*
+  $(\mathtt{tt},\top)$/$(\mathtt{ff},\bot)$. (4) The returned $\psi'$ is already
+  $[\psi']$, so `\cref{alg:otfdfa_product}` must not re-apply $[\cdot]$. A `\cl`
+  note carrying all four is **written into `latex/main.tex`** (unpushed); the
+  `\cref{alg:fp}` *stub itself* is still untouched.
 - **Aggregated final-state overwrite** — Alg. "On The Fly Aggregated DFA
   Product": inserting into $F_P$ keyed on $[\psi']$ may be overwritten when the
   same $[\psi']$ later returns $b=\bot$; unresolved whether to remove.
@@ -998,8 +1027,22 @@ is seeded with them:
   The author's uncertainty was therefore well-founded, and the answer is that
   $F_P$ must be **transition**-keyed, not state-keyed. `OtfMtdfaProduct` gets this
   right for free (mtdfa's $2d+b$ terminals), i.e. the implementation is strictly
-  more faithful to $\text{LTL}_f$ than the pseudocode. Likely a **doc-bug**;
-  `/theory-review` to rule.
+  more faithful to $\text{LTL}_f$ than the pseudocode.
+  **`/theory-review` has now RULED (2026-07-29): confirmed `doc-bug` — the
+  pseudocode is unsound as written**, and it produced a strictly stronger
+  witness than the one above, needing only a **single source state**:
+  $\varphi=(c \wedge G(a \rightarrow Xb)) \vee (\lnot c \wedge X[!]G(a \rightarrow
+  Xb))$ with trivial total $\Tin,\Tout$. The letters $\{c,\lnot a,\lnot b\}$ and
+  $\{\lnot c,\lnot a,\lnot b\}$ both leave the **initial** state for
+  $G(a \rightarrow Xb)$ with $b=\top$ and $b=\bot$; a state-keyed $F_P$ then
+  accepts the one-letter word $\{\lnot c,\lnot a,\lnot b\}$, which does not
+  satisfy $\varphi$. Under system-controlled termination that is not cosmetic:
+  it tells the system it may stop and win where $\varphi$ is false, so
+  `SolveDfa` can return a controller *Controller verifier* rejects. Repair:
+  either $F_P \subseteq S_P \times 2^{\mathcal{I} \cup \mathcal{O}}$, or widen the
+  state with $b$. A `\cl` note is **written into `latex/main.tex`** (unpushed);
+  the pseudocode itself is untouched, so **Method 3.2 must fix this before it can
+  be built** — it is the first method that cannot dodge it.
 - **On-the-fly game solving** — Method 3 builds the product on the fly but still
   solves at the end; the hanging-fruit on-the-fly *solving* is not done. The same
   `\na` continues (`main.tex:335`): *"This likely requires adjusting the definitions
@@ -1007,10 +1050,16 @@ is seeded with them:
   Method 3. **Updated 2026-07-28** (the old "only Method 2 has one today" went
   stale when `MtnfaProduct` landed): Methods 1, 2 and 3.1 all have mtdfa routes
   now, and `docs/prd/otf-mtdfa-product.md` is the Method-3 adjustment the `\na`
-  anticipated. Its **Phase 2** implements on-the-fly *solving* (`backprop_graph`,
-  early abort) behind a knob — so the *engineering* half of this `\na` is being
-  discharged, while the **definitional** half stays open: `main.tex` still solves
-  at the end and still commits to no MTDFA definition.
+  anticipated. Its **Phase 2** *would* implement on-the-fly *solving*
+  (`backprop_graph`, early abort) behind a knob, but **Phase 2 is NOT started**
+  (2026-07-29): only the construction half landed, and `OtfMtdfaProduct`'s
+  `otf_solve` knob throws `std::logic_error` rather than silently falling back.
+  So **both** halves of this `\na` stay open — the engineering half is merely
+  scoped, and the **definitional** half is untouched: `main.tex` still solves at
+  the end and still commits to no MTDFA definition. Phase 2 also has a
+  counter-argument on record now: 3.1's benchmark win is already ~5000× *and
+  flat* where $\cons$ prunes, so on-the-fly solving would optimize a term that is
+  no longer the bottleneck there.
 - **Governed-variable projection** (`main.tex:300` `\na`) — *"Because the resulting
   game is being limited to transitions consistent with the external knowledge
   transducers, which govern the variable set $\mathcal{V}$, it can project these
