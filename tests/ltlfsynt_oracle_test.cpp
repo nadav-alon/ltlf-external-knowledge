@@ -60,6 +60,7 @@
 #include "ltlf_ek/mtdfa_product.hpp"
 #include "ltlf_ek/nfa_product.hpp"
 #include "ltlf_ek/nfa_to_dfa.hpp"
+#include "ltlf_ek/otf_mtdfa_product.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/product.hpp"
 #include "ltlf_ek/transducer_io.hpp"
@@ -85,6 +86,7 @@ using ltlf_ek::detail::past_ltlf_to_dfa;
 using ltlf_ek::MtdfaProduct;
 using ltlf_ek::NfaProduct;
 using ltlf_ek::nfa_to_dfa;
+using ltlf_ek::OtfMtdfaProduct;
 using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::parse_transducer;
 using ltlf_ek::ProductGuards;
@@ -1967,21 +1969,26 @@ std::string DumpTinForReplay(const OutputLabeledTransducer& t_in,
 
 // Metamorphic round-trip (PRD "Test oracles" #1, Phase 2's green checkpoint;
 // extended by docs/prd/mtdfa-product.md "Test oracles" #1 to a SECOND
-// method): for every generated case, DfaProduct::synthesize (a) and
-// MtdfaProduct::synthesize (b) must AGREE on realizability (cross-method
-// metamorphic -- route (a) leans on Spot semantics Phase 0 probes but does
-// not prove, so this "roughly doubles corpus runtime; earns it"), and
-// whichever of a/b returns a Controller must pass verify_controller on that
-// same (phi, Tin, trivial Tout, T_C) -- the standing "every ...Product
-// controller verifies" invariant (docs/prd/controller-verifier.md), now
-// exercised on generated phi AND generated Tin, for BOTH methods
-// independently.  Unrealizable cases assert nothing further for that method
-// -- one-directional by design (PRD "Edge cases" "Unrealizable generated
-// case").  Never gated on ltlfsynt: a plain TEST, not under
-// LtlfsyntOracleTest, so it runs even where ltlfsynt is absent (the
-// differential half of oracle #1, "EXPECT_EQ(b.has_value(),
-// ltlfsynt_verdict(...))", lives in GeneratedCorpusDifferential below,
-// which IS gated on ltlfsynt since it drives it as a subprocess).
+// method, and by docs/prd/otf-mtdfa-product.md "Test oracles" Phase 1 green
+// checkpoint to a THIRD): for every generated case, DfaProduct::synthesize
+// (a), MtdfaProduct::synthesize (b) and OtfMtdfaProduct::synthesize (c) must
+// AGREE on realizability (cross-method metamorphic -- route (a) leans on Spot
+// semantics Phase 0 probes but does not prove, so this "roughly doubles
+// corpus runtime; earns it"), and whichever of a/b/c returns a Controller
+// must pass verify_controller on that same (phi, Tin, trivial Tout, T_C) --
+// the standing "every ...Product controller verifies" invariant
+// (docs/prd/controller-verifier.md), now exercised on generated phi AND
+// generated Tin, for all three methods independently.  The (b) vs (c) pair is
+// the load-bearing one for otf-mtdfa-product ("same solver, same substrate,
+// same interning rule, so a disagreement isolates laziness", PRD "Goal"):
+// checked directly (not just transitively through (a)) so a message names it
+// specifically.  Unrealizable cases assert nothing further for that method --
+// one-directional by design (PRD "Edge cases" "Unrealizable generated case").
+// Never gated on ltlfsynt: a plain TEST, not under LtlfsyntOracleTest, so it
+// runs even where ltlfsynt is absent (the differential half of oracle #1,
+// "EXPECT_EQ(b.has_value(), ltlfsynt_verdict(...))", lives in
+// GeneratedCorpusDifferential below, which IS gated on ltlfsynt since it
+// drives it as a subprocess).
 // Phase 2 (soak-mode PRD "The three bodies under soak"): driven by
 // run_corpus, unchanged assertion; the per-case `continue` becomes an early
 // lambda `return`.
@@ -2002,15 +2009,25 @@ TEST(GeneratedCorpus, MetamorphicRoundTrip) {
 
         DfaProduct dfa_method;
         MtdfaProduct mtdfa_method;
+        OtfMtdfaProduct otf_method;
         const std::optional<Controller> a =
             dfa_method.synthesize(c.phi, c.partition, c.t_in, t_out);
         const std::optional<Controller> b =
             mtdfa_method.synthesize(c.phi, c.partition, c.t_in, t_out);
+        const std::optional<Controller> d =
+            otf_method.synthesize(c.phi, c.partition, c.t_in, t_out);
 
         EXPECT_EQ(a.has_value(), b.has_value())
             << "cross-method metamorphic failure: DfaProduct and "
                "MtdfaProduct disagree on realizability -- t_in for replay "
                "(see DumpTinForReplay):\n"
+            << DumpTinForReplay(c.t_in, c.partition);
+        EXPECT_EQ(b.has_value(), d.has_value())
+            << "cross-method metamorphic failure: MtdfaProduct and "
+               "OtfMtdfaProduct disagree on realizability -- same solver, "
+               "same substrate, same interning rule, so this isolates "
+               "laziness (docs/prd/otf-mtdfa-product.md 'Goal') -- t_in for "
+               "replay (see DumpTinForReplay):\n"
             << DumpTinForReplay(c.t_in, c.partition);
 
         if (a.has_value())
@@ -2024,6 +2041,13 @@ TEST(GeneratedCorpus, MetamorphicRoundTrip) {
           EXPECT_TRUE(
               verify_controller(c.phi, c.partition, c.t_in, t_out, *b).ok)
               << "metamorphic round-trip failed: MtdfaProduct returned a "
+                 "controller that verify_controller rejects -- t_in for "
+                 "replay (see DumpTinForReplay):\n"
+              << DumpTinForReplay(c.t_in, c.partition);
+        if (d.has_value())
+          EXPECT_TRUE(
+              verify_controller(c.phi, c.partition, c.t_in, t_out, *d).ok)
+              << "metamorphic round-trip failed: OtfMtdfaProduct returned a "
                  "controller that verify_controller rejects -- t_in for "
                  "replay (see DumpTinForReplay):\n"
               << DumpTinForReplay(c.t_in, c.partition);
@@ -2308,6 +2332,27 @@ TEST_F(LtlfsyntOracleTest, GeneratedCorpusDifferential) {
         EXPECT_EQ(IsRealizable(mtdfa_verdict), IsRealizable(synt_verdict))
             << "MtdfaProduct generated-corpus differential disagreement for "
                "phi="
+            << phi_str
+            << ", partition=" << DescribeGeneratedPartition(c.partition);
+
+        // OtfMtdfaProduct half (docs/prd/otf-mtdfa-product.md "Test oracles",
+        // Phase 1 green checkpoint: "corpus differential against ltlfsynt
+        // passes"): same phi/partition, --otf-mtdfa-product instead of
+        // --dfa-product, compared against the SAME ltlfsynt verdict already
+        // computed above.
+        std::vector<std::string> otf_args = ek_args;
+        otf_args[0] = "--otf-mtdfa-product";
+        bool otf_timed_out = false;
+        const CliResult otf_ek = RunEkSynth(
+            otf_args, cfg.subprocess_timeout_secs, &otf_timed_out);
+        if (otf_timed_out) {
+          ++skipped;
+          return;
+        }
+        const Verdict otf_verdict = ParseEkSynthVerdict(otf_ek);
+        EXPECT_EQ(IsRealizable(otf_verdict), IsRealizable(synt_verdict))
+            << "OtfMtdfaProduct generated-corpus differential disagreement "
+               "for phi="
             << phi_str
             << ", partition=" << DescribeGeneratedPartition(c.partition);
 

@@ -1,6 +1,18 @@
 # PRD: `OtfMtdfaProduct` — Method 3.1, the on-the-fly DFA product (mtdfa representation)
 
-**Status:** draft
+**Status:** implemented — Phase 1 (branch `master`, uncommitted:
+`include/ltlf_ek/progression.hpp` + `src/progression.cpp`,
+`include/ltlf_ek/otf_mtdfa_product.hpp` + `src/otf_mtdfa_product.cpp`, CLI
+wiring in `src/cli.cpp` / `src/ltlf_ek_synth.cpp` / `include/ltlf_ek/cli.hpp`,
+`CMakeLists.txt`). Compiles; `ctest` green (420/420, no regressions); manual
+CLI smoke checks confirm `--otf-mtdfa-product` agrees with `--mtdfa-product`
+on realizability, and `OtfMtdfaProduct(true).synthesize(...)` throws
+`std::logic_error` before building anything. **All four gates closed**
+(2026-07-29) — no code-bug from theory review; four `\cl` patches are proposed
+and parked UNAPPLIED at the end of this file, one of them a genuine doc-bug in
+`alg:otfdfa_product:final_insert`. **Still owed before this is done:** the
+benchmark ("does laziness pay?"), and Phase 2 (`otf_solve_fused`,
+`--otf-solve`) NOT started — deferred to its own grill per this PRD.
 **Interface:** implements `Synthesis` as `OtfMtdfaProduct` (the **mtdfa**
 *Representation* cell of Method 3.1); adds the public wrapper type
 `ForwardProgression` (realizing `\cref{alg:fp}`), the fused builder
@@ -34,9 +46,107 @@ plus `\cref{alg:fp}` (the `FP` stub this realizes), `\cref{def:consistency}`
       **No code renames implied:** both retired names were reserved-only and
       never implemented (grep-verified). `otf_solve_fused` deliberately NOT
       minted — Phase 2's name is not canonical yet.
-- [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] tests           — *closed 2026-07-28* (`/test-writer`, uncommitted,
+      Phase 1 only). `ctest` green, 420/420 (0 regressions; +21 new tests over
+      the 400/400 the PRD's own Status line records pre-test-writer). New:
+      `tests/otf_mtdfa_product_test.cpp` (added to the `unit_tests` CMake
+      target) — the five `ForwardProgression` per-letter fixtures incl. the I4
+      discriminating pair, an isolated `progress_row`-only oracle vs
+      `spot::ltlf_to_mtdfa` (+ negative control), `otf_product_to_mtdfa` unit
+      fixtures (state 0 initial, `aps == vars.universe()` sorted, cons-dead
+      `bddfalse` row, overlapping-`delta_edges` throw), a dedicated
+      fork-then-merge diamond fixture asserting the I7.3 component-wise
+      `(row, q)` fuse (exactly 4 states, not 5) AND the determinism property
+      (two independent builds BDD-equal state-for-state — PRD "Determinism":
+      "assert this rather than assuming it"), `OtfMtdfaProduct(true)` throws
+      `std::logic_error` (never a silent fallback), a turn-order-violation
+      throw, the `phi=1`/`phi=0` collapse edge cases, `make_synthesis_method`
+      dispatch, and the bench-span shape (exactly `product_construction` +
+      `game_solving`, no `automaton_construction`, no nested children).
+      Extended `tests/ltlfsynt_oracle_test.cpp` (the "generated corpus" lives
+      there, per the `MtdfaProduct` precedent, not re-implemented here):
+      `OtfMtdfaProduct` added to `GeneratedCorpus.MetamorphicRoundTrip`
+      (cross-method agreement vs `DfaProduct` AND `MtdfaProduct` specifically
+      — "same solver, same substrate, same interning rule" — plus its own
+      `verify_controller` check) and to
+      `LtlfsyntOracleTest.GeneratedCorpusDifferential` (`--otf-mtdfa-product`
+      vs `ltlfsynt`). Out of scope, not attempted: Phase 2
+      (`otf_solve_fused`/`--otf-solve` don't exist), benchmarking, `main.tex`/
+      glossary edits.
+- [x] code-review     — *closed 2026-07-29*, **both halves**: `/code-reviewer`
+      (domain) and the generic `/code-review`. Generic pass found no
+      correctness bug in the construction — it independently cleared
+      mask-before-`Relabel`, the per-combination `memo`, AP-registration
+      ordering, the leaf-triage order, the BFS index invariant and the
+      disjoint-guard throw against Spot 2.15.1's source, and ran the corpus
+      under `LTLF_EK_SOAK=90` green. Its three non-overlapping findings, all
+      **fixed**: (i) `otf_product_to_mtdfa`'s header promised "the cons-filtered
+      product" while I5 makes it a strict **over-approximation** — the caveat
+      existed in the PRD and in `Relabel`'s body but nowhere a caller reads, so
+      it is now in the declaration's doc block with the concrete
+      `phi = a` witness and a warning naming the consumers that would break
+      (Method 3.2's aggregation, a language-equality oracle, model checking
+      over $P$); (ii) `otf_mtdfa_product.hpp` said "the fifth row's first cell"
+      — wrong twice, it is the **third** row's **mtdfa** cell (the phrasing had
+      drifted out of the glossary's unrelated "first cell where the explicit
+      column is left unbuilt"); (iii) `cli.hpp` called `--otf-mtdfa-product` a
+      "SECOND implementation" of Method 3.1, but `OtfDfaProduct` is unbuilt so
+      it is the **only** one — the same false claim was duplicated in
+      `src/ltlf_ek_synth.cpp`, which the generic pass did not flag, and was
+      fixed there too. Its fourth finding is D5 below (already known,
+      deferred). Domain pass: one **must-fix**, four *consider*,
+      two deferred to the user. Must-fix D1, **fixed**: the flag was never
+      added to `EveryWiredMonaFreeMethodFlagIsAcceptedEndToEnd`
+      (`tests/ltlf_ek_synth_test.cpp:152`) — the very regression guard the
+      `mtnfa-product` D1 finding created for the `kMethodFlags` second-site
+      trap. `MakeSynthesisMethod.OtfMtdfaProductFlagBuildsAnOtfMtdfaProduct`
+      covers only the factory half, i.e. exactly the half D1 says is not
+      enough, and the sole other argv-path exercise
+      (`GeneratedCorpusDifferential`) is gated on `ltlfsynt`, so on a box
+      without it nothing checked the CLI at all. Also fixed: D2 `README.md`'s
+      wired-flag list (stale since `mtnfa-product`, see `docs/BACKLOG.md`),
+      D4 the bench-comparability caveat recorded under "Bench-span shape"
+      below, D6 comment-hygiene in `progression.hpp`. **Left open, user's
+      call:** D3 `--minimize-mtdfa` is silently ignored for
+      `--otf-mtdfa-product` (fixing it changes `--mtnfa-product` too), and D5
+      state numbering depends on unspecified C++ argument-evaluation order in
+      `Relabel`'s `bdd_ite` (inherited verbatim from
+      `src/mtnfa_product.cpp:75`; deterministic per binary, and the
+      determinism fixture passes). Clean and verified: the $\cons$/skip
+      invariant, the raw-guard disjointness throw, mask-before-`Relabel`, the
+      per-call `memo` (F4), `Key` holding the `bdd` handle, AP-ownership
+      ordering, state 0 initial, and the `otf_solve` throw. `ctest` 420/420.
+- [x] theory-review   — *closed 2026-07-29* (`theory-reviewer` agent,
+      faithfulness mode). **No code-bug** — Phase 1 is faithful to
+      `\cref{alg:otfdfa_product}` wherever it agrees with it, and deviates
+      only toward correct LTLf semantics. I5's leaf triage verified against
+      Spot source, not against the PRD's own claim: `bddtrue`/`bddfalse`
+      replace *only* $(\mathtt{tt},\top)$/$(\mathtt{ff},\bot)$
+      (`ltlf2dfa.cc:992-1005`), so pruning fires only on genuine irrevocable
+      satisfaction and the reachable $(\mathtt{ff},\top)$ leaf still emits an
+      accepting transition — the case that could have been a real bug is
+      handled. $L(P) \supsetneq$ the paper's product language, but
+      equirealizable and same controller, resting on system-controlled
+      termination (`main.tex:96`) which `solve_mtdfa`/`verify_controller`
+      already commit to. I7.3's row-key is a *sound* strengthening, and
+      stronger than a bisimulation argument: expansion is a pure function of
+      `(row, q)`. $\cons$'s slice projection rides variable scope, exactly the
+      argument already live as a `\cl` at `main.tex:213-215`.
+      **Four `\cl` patches proposed and NOT applied** (`latex/` is the
+      Overleaf submodule) — one is a genuine **doc-bug**:
+      `alg:otfdfa_product:final_insert` is *unsound as written* (state-keyed
+      $F_P$ over-accepts; witness $\varphi = (c \wedge G(a \rightarrow Xb))
+      \vee (\lnot c \wedge X[!]G(a \rightarrow Xb))$ with trivial
+      transducers), which answers `main.tex:434`'s open `\na` — re-key on the
+      transition, don't delete the line — and shows the defect is *not*
+      confined to aggregation. The mtdfa realization avoids it for free since
+      terminal $2d+b$ is transition-keyed. The other three are
+      *underspecified*: I5's pruning + language cost, `main.tex:337`'s
+      "semantically equal" over-claim, and `\cref{alg:fp}`'s four pinned
+      commitments (weak `X` / strong `X[!]`, $b$ on the transition, all four
+      $(\psi',b)$ corners reachable, $\psi'$ already canonical) — note
+      `main.tex` has no LTLf preliminaries at all, so the `X` semantics is
+      unwritten paper-wide, not merely unwritten in `alg:fp`.
 
 ## Goal
 
@@ -522,6 +632,16 @@ equal rows and equal transducer states occupy **one** product state.
 - **Corpus differential:** `--otf-mtdfa-product` vs `ltlfsynt`.
 - **Bench-span shape:** exactly `product_construction` + `game_solving`, and
   **no** `automaton_construction`.
+  **Comparability caveat (domain review, 2026-07-29) — read this before taking
+  any number.** `docs/GLOSSARY.md` *Canonical benchmarking stage* defines
+  same-named stages to be comparable across methods, and for this method they
+  are **not**: `product_construction` here absorbs the goal construction that
+  every other method charges to `automaton_construction`. So the
+  "does laziness pay?" comparison against `MtdfaProduct` must be
+  `automaton_construction + product_construction` **summed** on both sides;
+  comparing `product_construction` alone would flatter `MtdfaProduct` by
+  exactly the cost of `spot::ltlf_to_mtdfa`, which is the whole quantity under
+  test. `game_solving` compares directly and needs no adjustment.
 - **Phase 2 internal differential:** `--otf-solve` on vs off, same class, same
   inputs — identical verdicts, and states-expanded(on) ≤ states-expanded(off).
 
@@ -570,3 +690,91 @@ Flag, do not resolve — these are `/theory-review`'s.
   above all, with instance families where the $\cons$ filter prunes a lot and
   where it prunes nothing. As with `docs/prd/mtnfa-product.md`, a **negative**
   result is a real result and is recorded in this file, not buried.
+
+## Theory-review `\cl` patches — APPLIED to `latex/main.tex`, unpushed (2026-07-29)
+
+All four are written into `latex/main.tex` as `\cl[inline]` notes, each on its
+own source line per `/latex-style`, +15 lines, nothing else touched:
+after `main.tex:337` (#4), after `alg:fp`'s `\end{algorithm}` (#2), and two
+after the prose closing `\cref{alg:otfdfa_product}` (#1 then #3). Verified by
+reading, not by compiling (the paper builds on Overleaf only): all seven
+`\cl[inline]` blocks brace-balanced, and every `\cref` target pre-existing and
+already cited elsewhere (`def:probDef` ×3, `alg:otfdfa_agg_product` ×3,
+`alg:otfdfa_product` ×5, `otf` a `\section` label).
+
+**Committed and pushed: NO.** `latex/` is the Overleaf submodule
+(`git.overleaf.com/6a209...`), so landing these is an outward-facing push,
+and per the resync lesson in `docs/BACKLOG.md` a `\cref`/§-number recheck is
+owed afterwards. The text is kept verbatim below so it survives a submodule
+reset. Ordered by how much they matter.
+
+### 1. `alg:otfdfa_product:final_insert` is unsound as written — **doc-bug**
+
+The only one that is a *defect* rather than a gap. Place on its own source line
+after `main.tex:392`. Answers `main.tex:434`'s open `\na`: do **not** delete the
+line, re-key it — and note the defect is present already without aggregation, so
+`alg:otfdfa_dyn_agg_product` inherits it too.
+
+```latex
+\cl[inline]{$F_P$ as built in line~\ref{alg:otfdfa_product:final_insert} over-accepts, so \cref{alg:otfdfa_product} is unsound as written: $b$ is a property of the transition, not of the successor state.
+With trivial total $\Tin,\Tout$ and $\varphi=(c\wedge G(a\rightarrow Xb))\vee(\lnot c\wedge X[!]G(a\rightarrow Xb))$, the letters $\{c,\lnot a,\lnot b\}$ and $\{\lnot c,\lnot a,\lnot b\}$ both leave the initial state for $\langle G(a\rightarrow Xb),q_{in}',q_{out}'\rangle$, with $b=\top$ and $b=\bot$ respectively; the state is then in $F_P$ and $P$ accepts the one-letter word $\{\lnot c,\lnot a,\lnot b\}$, which does not satisfy $\varphi$.
+The repair is to key acceptance on the transition --- either let $F_P\subseteq S_P\times2^{\mathcal{I}\cup\mathcal{O}}$ and insert $(\langle[\psi],q_{in},q_{out}\rangle,v)$, or keep $F_P$ state-keyed and widen the state to $\langle[\psi'],q_{in}',q_{out}',b\rangle$.
+This is the same defect suspected in the note after \cref{alg:otfdfa_agg_product}, present already without aggregation; the mtdfa realization avoids it for free, since a terminal $2d+b$ is transition-keyed.}
+```
+
+### 2. `\cref{alg:fp}`'s four pinned commitments — *underspecified*
+
+Own source line after `main.tex:350` (after `alg:fp`'s `\end{algorithm}` —
+adjacent, not nested, so the stub's `\label` and the build are untouched).
+Note `main.tex` has **no LTLf preliminaries at all**, so the weak-`X` reading is
+unwritten paper-wide, not merely unwritten in `alg:fp`.
+
+```latex
+\cl[inline]{The realization commits \algname{FP} to standard $\text{LTL}_f$ formula progression, and the body still to be written must pin down four things it already depends on.
+First, the next-operator reading: $\algname{FP}(X\psi,w)=(\psi,\top)$ (weak --- vacuously satisfied when the trace ends here) and $\algname{FP}(X[!]\psi,w)=(\psi,\bot)$ (strong), a semantics this paper currently fixes nowhere, as it has no $\text{LTL}_f$ preliminaries.
+Second, $b$ is a property of the transition, not of $\psi'$: $\algname{FP}(G(a\rightarrow Xb),\{\lnot a,\lnot b\})=(G(a\rightarrow Xb),\top)$ while $\algname{FP}(X[!]G(a\rightarrow Xb),\{\lnot a,\lnot b\})=(G(a\rightarrow Xb),\bot)$ --- same $[\psi']$, opposite $b$.
+Third, all four corners of $\psi'\in\{\mathtt{tt},\mathtt{ff}\}$ against $b$ occur --- $(\mathtt{tt},\bot)$ from $X[!]\mathtt{tt}$ and $(\mathtt{ff},\top)$ from $\lnot X[!]\mathtt{tt}$ --- so no rule may treat $\psi'=\mathtt{tt}$ alone as acceptance or $\psi'=\mathtt{ff}$ alone as rejection.
+Fourth, the returned $\psi'$ is already the canonical representative $[\psi']$ of~\cref{otf}; \cref{alg:otfdfa_product} must not be read as applying $[\cdot]$ a second time.}
+```
+
+### 3. I5's pruning and its language cost — *underspecified*
+
+Own source line after `main.tex:392` (after the prose paragraph following
+`\cref{alg:otfdfa_product}`).
+
+```latex
+\cl[inline]{The mtdfa realization prunes a branch as soon as \algname{FP} returns $(\mathtt{tt},\top)$, emitting an accepting sink in place of $\langle\mathtt{tt},q_{in}',q_{out}'\rangle$ and all of its successors; symmetrically $(\mathtt{ff},\bot)$ becomes a rejecting sink.
+\cref{alg:otfdfa_product} has no counterpart, and the two are not language-equal: the pruned product accepts every continuation of an irrevocably satisfying prefix, whereas \cref{alg:otfdfa_product} keeps enforcing $\cons$ past that point, so $L(P_{\mathrm{pruned}}) \supsetneq L(P)$ in general.
+They are nonetheless equirealizable and give the same controller up to behaviour after $\varphi$ is fulfilled: the transition \emph{into} the sink carries $b=\top$ in both, every continuation from it satisfies $\varphi$, and the system may stop there.
+That last step is exactly the system-controlled-termination reading left open by the note after \cref{def:probDef}, so this pruning would have to be revisited --- not merely re-measured --- if that reading changed.}
+```
+
+### 4. `main.tex:337`'s "semantically equal" over-claims — *underspecified*
+
+Own source line after `main.tex:337`. Nothing depends on completeness; only the
+state count does.
+
+```latex
+\cl[inline]{``Semantically equal'' over-states both what is needed and what is implemented: any \emph{sound} equivalence (identified formulae have the same language) preserves $L(P)$, and only the state count depends on how coarse it is.
+The realization uses Spot's propositional-equivalence representative over maximal temporal subformulas, coarsened further by fusing states whose whole-alphabet \algname{FP} row is identical --- equal rows imply equal languages, so the fuse is sound; neither step is complete for $\text{LTL}_f$ equivalence.}
+```
+
+### Non-blocking, no patch drafted
+
+- **Complexity.** The single-exponential-in-$\varphi$ / polynomial-in-transducers
+  theorem is stated only for `alg:nfa_product` (`main.tex:233-241`). The
+  reachable-state bound here is
+  $|\{\text{reachable rows}\}|\cdot|Q_{in}|\cdot|Q_{out}|$ and the same claim
+  holds, but the paper never states it for Method 3.
+- **`alg:otfdfa_product:states:insert` nit.** It only ever inserts *successors*
+  into $S_P$, so the initial tuple is in $S_P$ only if rediscovered, yet the
+  `$P \gets$` line names it as initial regardless. One-word fix if that block is
+  touched anyway.
+- **Inherited dependency, now with a third consumer.** "The system never plays
+  into that `bddfalse`" rests on $\Iknown,\Oknown$ being *controllable* in
+  `solve_mtdfa` (`src/solve_mtdfa.cpp:38-42`), i.e. on the `main.tex:300`
+  governed-variable-projection `\na`, whose drafted argument is still commented
+  out at `main.tex:302-303`.
+- **Wasted state (efficiency, not theory).** An $(\mathtt{ff},\top)$ leaf interns
+  a state whose row is provably `bddfalse`, one per reachable $q$-vector,
+  instead of emitting $2j+1$ into a shared dead index.

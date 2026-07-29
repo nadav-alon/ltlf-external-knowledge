@@ -16,13 +16,16 @@ The five methods of `main.tex` share one interface —
 `Synthesis::synthesize(phi, vars, t_in, t_out)` returning
 `std::optional<Controller>`:
 
-1. NFA product (`NfaProduct`) — §nfa
-2. **DFA product (`DfaProduct`) — §fulldfa  *(implemented)***
-3. On-the-fly: no aggregation / aggregated / dynamic aggregation — §otf
+1. **NFA product (`NfaProduct`, `MtnfaProduct`) — §nfa  *(implemented)***
+2. **DFA product (`DfaProduct`, `MtdfaProduct`) — §fulldfa  *(implemented)***
+3. On-the-fly: **no aggregation (`OtfMtdfaProduct`) *(implemented)*** /
+   aggregated / dynamic aggregation — §otf
 
-Only `DfaProduct` is implemented today. It builds the DFA product
-symbolically (BDD-guarded product, materialized on demand) and solves the
-resulting reachability game; the other four are stubs at the CLI (see below).
+A method may have two *representations* — an explicit one (a materialized
+automaton) and an **mtdfa** one (Spot's shared multi-terminal BDDs), which is
+a second implementation of the same method, not a further method. Methods 1,
+2 and 3.1 are implemented today in both or in mtdfa alone; Methods 3.2 and
+3.3 are stubs at the CLI (see below).
 
 ## Build
 
@@ -43,9 +46,12 @@ oracle in the tests; a clean box without it still builds and tests green
 
 `ltlf-ek-synth` is a thin command-line front end over `Synthesis::synthesize`
 (`docs/prd/cli-wrapper.md`) — no new synthesis semantics, just argument
-assembly and output formatting. Today only `--dfa-product` is wired; the other
-four method flags (`--nfa-product`, `--otf-dfa-product`, `--otf-agg-product`,
-`--otf-dyn-agg-product`) are recognised but report "not yet implemented".
+assembly and output formatting. Eight method flags over the five methods:
+`--dfa-product`, `--mtdfa-product`, `--nfa-product`, `--mtnfa-product` and
+`--otf-mtdfa-product` are wired; the remaining three (`--otf-dfa-product`,
+`--otf-agg-product`, `--otf-dyn-agg-product`) are recognised but report "not
+yet implemented". The `--nfa-product` / `--mtnfa-product` routes additionally
+need `mona` on `PATH`.
 
 ```sh
 build/ltlf-ek-synth --dfa-product --formula="G(i -> o)" \

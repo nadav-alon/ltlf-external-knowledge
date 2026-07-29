@@ -134,7 +134,7 @@ TEST(LtlfEkSynth, RealizableFormulaPrintsAParsableHoaControllerOnStdout) {
 // wired flag is a one-line addition.
 // The MONA split is deliberate and load-bearing: only the NFA-route methods
 // need mona (via ltlf_to_nfa), so gating the WHOLE loop on MONA_FOUND would
-// make a mona-less build skip the guard entirely --- including for the two
+// make a mona-less build skip the guard entirely --- including for the three
 // flags that need no mona, which is precisely when an unreachable-flag bug
 // would ship unnoticed.
 void ExpectMethodFlagReachesItsMethod(const std::string& flag) {
@@ -149,7 +149,8 @@ void ExpectMethodFlagReachesItsMethod(const std::string& flag) {
 }
 
 TEST(LtlfEkSynth, EveryWiredMonaFreeMethodFlagIsAcceptedEndToEnd) {
-  for (const std::string& flag : {"--dfa-product", "--mtdfa-product"})
+  for (const std::string& flag :
+       {"--dfa-product", "--mtdfa-product", "--otf-mtdfa-product"})
     ExpectMethodFlagReachesItsMethod(flag);
 }
 

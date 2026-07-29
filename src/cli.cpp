@@ -10,6 +10,7 @@
 #include "ltlf_ek/mtdfa_product.hpp"
 #include "ltlf_ek/mtnfa_product.hpp"
 #include "ltlf_ek/nfa_product.hpp"
+#include "ltlf_ek/otf_mtdfa_product.hpp"
 
 namespace ltlf_ek {
 
@@ -86,6 +87,8 @@ std::unique_ptr<Synthesis> make_synthesis_method(
     return std::make_unique<MtdfaProduct>(minimize_mtdfa);
   if (method_flag == "nfa-product") return std::make_unique<NfaProduct>();
   if (method_flag == "mtnfa-product") return std::make_unique<MtnfaProduct>();
+  if (method_flag == "otf-mtdfa-product")
+    return std::make_unique<OtfMtdfaProduct>();
 
   static const std::set<std::string> kRecognisedNotWired = {
       "otf-dfa-product", "otf-agg-product", "otf-dyn-agg-product"};
