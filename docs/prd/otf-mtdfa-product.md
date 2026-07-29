@@ -1,18 +1,19 @@
 # PRD: `OtfMtdfaProduct` — Method 3.1, the on-the-fly DFA product (mtdfa representation)
 
-**Status:** implemented — Phase 1 (branch `master`, uncommitted:
-`include/ltlf_ek/progression.hpp` + `src/progression.cpp`,
-`include/ltlf_ek/otf_mtdfa_product.hpp` + `src/otf_mtdfa_product.cpp`, CLI
-wiring in `src/cli.cpp` / `src/ltlf_ek_synth.cpp` / `include/ltlf_ek/cli.hpp`,
-`CMakeLists.txt`). Compiles; `ctest` green (420/420, no regressions); manual
-CLI smoke checks confirm `--otf-mtdfa-product` agrees with `--mtdfa-product`
-on realizability, and `OtfMtdfaProduct(true).synthesize(...)` throws
-`std::logic_error` before building anything. **All four gates closed**
-(2026-07-29) — no code-bug from theory review; four `\cl` patches are proposed
-and parked UNAPPLIED at the end of this file, one of them a genuine doc-bug in
-`alg:otfdfa_product:final_insert`. **Still owed before this is done:** the
-benchmark ("does laziness pay?"), and Phase 2 (`otf_solve_fused`,
-`--otf-solve`) NOT started — deferred to its own grill per this PRD.
+**Status:** **Phase 1 LANDED** (`0ce5fab` on `master`), all four gates closed
+2026-07-29, `ctest` 420/420. **Benchmarked — the answer is YES, laziness
+pays:** up to **5488×** faster than `MtdfaProduct` where the $\cons$ filter
+prunes (and *flat* where `MtdfaProduct` is exponential), at a **shrinking**
+1.4×–2.7× cost where it prunes nothing. See "Benchmark results, 2026-07-29".
+That is the opposite of `docs/prd/mtnfa-product.md`'s negative verdict.
+Theory review found **no code-bug**; the four `\cl` notes it produced are
+**written into `latex/main.tex`** but **not pushed to Overleaf** (submodule
+left dirty on purpose) — one is a genuine doc-bug in
+`alg:otfdfa_product:final_insert`. **Still owed:** push those notes + a
+`/glossary` resync for the `main.tex:NNN` drift they cause, and Phase 2
+(`otf_solve_fused`, `--otf-solve`), which is NOT started and deferred to its
+own grill per this PRD. Phase 2 now has a concrete lead: the ~2× `game_solving`
+gap recorded under "Open observation" in the benchmark section.
 **Interface:** implements `Synthesis` as `OtfMtdfaProduct` (the **mtdfa**
 *Representation* cell of Method 3.1); adds the public wrapper type
 `ForwardProgression` (realizing `\cref{alg:fp}`), the fused builder
@@ -690,6 +691,90 @@ Flag, do not resolve — these are `/theory-review`'s.
   above all, with instance families where the $\cons$ filter prunes a lot and
   where it prunes nothing. As with `docs/prd/mtnfa-product.md`, a **negative**
   result is a real result and is recorded in this file, not buried.
+
+## Benchmark results, 2026-07-29 — **laziness pays, decisively, when $\cons$ prunes**
+
+Live `--benchmark` sweep over the CLI against the standing champion `MtdfaProduct`;
+min of 3 runs, 20 s timeout, realizable **and** unrealizable in both families.
+Harness and raw JSON are throwaway (not committed); everything needed to reproduce
+is below.
+
+**Headline: `OtfMtdfaProduct` wins by up to 5000x when the $\cons$ filter prunes, and
+loses by a shrinking 1.5x-2.6x when it prunes nothing.** This is the *opposite* of
+`docs/prd/mtnfa-product.md`'s negative result, and the win is not a constant factor:
+where `MtdfaProduct` is exponential in $n$, this method is **flat**.
+
+**Reported as `automaton_construction + product_construction` summed**, per the
+comparability caveat under "Bench-span shape" — this method has no
+`automaton_construction` span, so comparing `product_construction` alone would
+flatter `MtdfaProduct` by exactly the `spot::ltlf_to_mtdfa` cost under test.
+
+**Instance design — a controlled pair, validated by state counts before timing.**
+Both families use the same $\varphi_n = F(k \wedge X[!]^n\,k)$ and the same game:
+$k$ is system-controllable either way (`solve_mtdfa` makes $\Iknown \cup \Oknown \cup
+\Ofree$ controllable), so the *only* thing that varies is how much $\cons$ prunes.
+
+- **Family A, $\cons$ prunes hard:** $k \in \Iknown$, with a one-state $\Tin$ whose
+  $\lambda$ pins $k$ true at every step.
+- **Family B, $\cons$ prunes nothing:** $k \in \Ofree$, trivial transducers. A
+  *functional* $\lambda$ over a non-empty $\Sigma_1$ always prunes something, so
+  "no pruning" is only reachable with an empty $\Sigma_1$ — this is why B moves $k$
+  rather than weakening $\lambda$.
+
+State counts (throwaway probe on `otf_product_to_mtdfa` vs
+`spot::product(product(goal, emits_in), emits_out)`) confirm the pair discriminates,
+which is the check `docs/prd/mtnfa-product.md` learned to run *first*:
+
+| $n$ | goal mtdfa | A: mtdfa\_product | A: otf\_product | B: mtdfa\_product | B: otf\_product |
+|---|---|---|---|---|---|
+| 8  | 256  | 10 | 9  | 257  | 256  |
+| 12 | 4096 | 14 | 13 | 4097 | 4096 |
+
+In A the goal is $2^n$ but the product is $n+1$; in B nothing is pruned at all.
+
+**Family A — realizable (ms, min of 3):**
+
+| $n$ | `MtdfaProduct` aut | prod | **build** | `Otf` **build** | **speedup** |
+|---|---|---|---|---|---|
+| 12 | 6.99 | 0.12 | **7.11** | **0.68** | 10x |
+| 14 | 29.33 | 0.95 | **30.27** | **0.76** | 40x |
+| 16 | 157.21 | 7.48 | **164.70** | **0.83** | 198x |
+| 18 | 965.57 | 43.40 | **1008.97** | **0.88** | 1146x |
+| 20 | 4965.48 | 193.38 | **5158.86** | **0.94** | **5488x** |
+
+`OtfMtdfaProduct` is essentially **flat** across the whole range (0.68 ms -> 0.94 ms
+while the goal grows from $2^{12}$ to $2^{20}$); `MtdfaProduct` is exponential.
+
+**Family B — realizable (ms, min of 3):**
+
+| $n$ | `MtdfaProduct` build | `Otf` build | penalty | `Mtdfa` solve | `Otf` solve |
+|---|---|---|---|---|---|
+| 14 | 32.48 | 88.18 | 2.7x | 2.15 | 3.22 |
+| 16 | 185.27 | 424.14 | 2.3x | 9.64 | 18.65 |
+| 18 | 1205.36 | 2038.21 | 1.7x | 45.20 | 106.99 |
+| 20 | 6628.43 | 9555.29 | **1.4x** | 248.68 | 501.19 |
+
+The penalty **shrinks** as $n$ grows (2.7x -> 1.4x): it is a per-state constant that
+amortizes, not a divergence. Unrealizable variants ($\varphi_n \wedge X[!]\,i$, $i \in
+\Ifree$) reproduce both tables within noise, since the cost is construction, not
+solving.
+
+**Why the A win is what it is.** `MtdfaProduct`'s *product* in family A is already
+small (14 states at $n=12$) — `spot::product` prunes perfectly well. The entire
+difference is that it must **materialize the $2^n$-state goal first**. So this method
+does not beat the product; it beats the **materialization**, which is exactly the
+claim `\cref{alg:otfdfa_product}` makes and exactly what `main.tex:335`'s `\na`
+anticipated.
+
+**Open observation, not chased.** In family B, `game_solving` is consistently ~2x
+slower for `OtfMtdfaProduct` despite an *identical* state count (501 ms vs 249 ms at
+$n=20$). Same solver, same substrate, so the rows themselves must differ in sharing
+or variable order between a fused build and `spot::product`'s output. Worth a look
+before Phase 2, since Phase 2 fuses solving into that same build.
+
+**Verdict cross-check, free of charge:** the two methods agreed on every one of the
+22 instances measured, realizable and unrealizable, extending
+`GeneratedCorpus.MetamorphicRoundTrip` to instances far larger than the corpus reaches.
 
 ## Theory-review `\cl` patches — APPLIED to `latex/main.tex`, unpushed (2026-07-29)
 

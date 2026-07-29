@@ -11,33 +11,42 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Top priority (updated 2026-07-28): **Method 3 (on-the-fly)** — `MtnfaProduct` is
-DONE (see Done; it landed, closed every gate, and benchmarked *negative* — Method 1's
-late determinization does not pay), so Method 3 is now the next method. The $\Tout$
-oracle (former #1) sits behind it._
+_Top priority (updated 2026-07-29): **Method 3.2 (aggregation)** or the $\Tout$
+oracle — **Method 3.1 is DONE** (see Done; it landed as `OtfMtdfaProduct` in
+`0ce5fab`, closed every gate, and benchmarked **POSITIVE** — up to 5488x over
+`MtdfaProduct` where $\cons$ prunes, the first method to beat the standing
+champion). Its Phase 2 (`otf_solve_fused`) is spun out below._
 
-### Method 3 — on-the-fly DFA products (`otf`, `main.tex` §332) — **top priority**
-- **Intent:** build Method 3, the next method after `MtnfaProduct`: the product DFA
-  constructed **on the fly** by formula progression instead of materialised up front,
-  skipping $\cons$-inconsistent letters as it goes. Three sub-methods in the glossary's
-  *five methods* table — 3.1 `OtfDfaProduct` (no aggregation, `alg:otfdfa_product`),
-  3.2 `OtfAggProduct` (§otfagg), 3.3 `OtfDynAggProduct` (§dynamicagg) — scope
-  (all three? 3.1 first?) to be settled in the grill.
-- **Seeds for grilling:**
-  - **`FP` (Forward Progression, `alg:fp`) is a `TODO` in `main.tex`** — the
-    algorithm Method 3 is built on is unspecified. Settle it before or during the PRD;
-    likely the first blocking question.
-  - `main.tex:333`'s `\na`: as written this is on-the-fly product construction with
-    the game still solved **at the end**. Is on-the-fly *solving* in scope, or a
-    follow-up?
-  - Aggregated final-state overwrite (3.2) — inserting into $F_P$ keyed on $[\psi']$
-    may be overwritten when the same $[\psi']$ later returns $b=\bot$; unresolved in
-    the paper.
-  - Representation: `main.tex:335` anticipates an mtdfa variant for Method 3
-    (*"likely requires adjusting the definitions for MTDFA usage"*) — explicit first,
-    or straight to mtdfa?
-  - Benchmark stage mapping: does on-the-fly construction collapse
-    `automaton_construction` + `product_construction` into one span?
+### Method 3.2 — on-the-fly **aggregated** product (`otfagg`, `\cref{alg:otfdfa_agg_product}`)
+- **Intent:** the next unbuilt cell after 3.1. Aggregate on $[\psi]$ alone
+  (collapsing transducer states), bounding the product by the size of the original
+  DFA at the cost of losing knowledge on each aggregation.
+- **Blocking, and now PROVEN not merely suspected:** `\cref{alg:otfdfa_product}`'s
+  state-keyed $F_P$ **over-accepts** — theory review (2026-07-29) produced a
+  one-state witness, $\varphi=(c \wedge G(a \rightarrow Xb)) \vee (\lnot c \wedge
+  X[!]G(a \rightarrow Xb))$ with trivial transducers. `main.tex:434`'s `\na` asked
+  whether to drop the $F_P$ insert; the answer is **re-key it on the transition**.
+  3.1 dodges this for free (an mtdfa terminal $2d+b$ is transition-keyed); an
+  aggregating method must face it. `\cl` note written into `latex/main.tex`,
+  unpushed.
+- **Hazard, flagged in the header:** `otf_product_to_mtdfa` is deliberately NOT
+  language-exact (I5 collapses to the accepting sink once $\varphi$ is irrevocably
+  satisfied, dropping $\cons$ on continuations). Sound for `solve_mtdfa` under
+  system-controlled termination; **not** sound for a consumer that reads $L(P)$.
+  Aggregation is exactly such a consumer — do not reuse the builder blind.
+
+### Method 3.1 Phase 2 — fused construct-and-solve (`otf_solve_fused`, `--otf-solve`)
+- **Intent:** feed the Phase 1 BFS into a `spot::backprop_graph` and abort as soon
+  as the initial state is decided. Spec'd in `docs/prd/otf-mtdfa-product.md`;
+  **needs its own grill** before coding.
+- **Concrete lead from the benchmark:** in the no-pruning family, `game_solving` is
+  consistently ~2x slower for `OtfMtdfaProduct` than `MtdfaProduct` at an
+  *identical* state count (501 ms vs 249 ms at $n=20$) — same solver, same
+  substrate, so the fused build's rows must differ in sharing or variable order.
+  Worth understanding **before** Phase 2 fuses solving into that same build.
+- **Worth weighing first:** 3.1's win is already 5488x where it matters, and it is
+  *flat* — Phase 2 optimizes a term that is no longer the bottleneck in family A.
+  The honest question is whether it beats 3.2 or the $\Tout$ oracle for the next slot.
 
 _Then: #1 $\Tout$ oracle. (The former #1, the MTDFA
 scaffolding replacement, **shipped 2026-07-16** — see Done; it removed the explicit
@@ -430,6 +439,30 @@ oracle rounds out the external `ltlfsynt` cross-check._
   parse; also drops the temp-file write + `-w` table parsing, or keep those?
 
 ## Done
+
+### `OtfMtdfaProduct` — Method 3.1, the on-the-fly DFA product — **DONE 2026-07-29**
+- **Outcome: POSITIVE — the first method to beat the standing champion.** Landed in
+  `0ce5fab` with all four gates closed and `ctest` 420/420. Benchmarked against
+  `MtdfaProduct` over two controlled families (same $\varphi_n$, same game, only the
+  $\cons$ pruning differs, state counts validated *before* timing per the
+  `MtnfaProduct` lesson): **up to 5488x faster** where $\cons$ prunes — and *flat*
+  (0.68 ms -> 0.94 ms) while `MtdfaProduct` goes exponential — at a **shrinking**
+  1.4x-2.7x cost where it prunes nothing. Full tables in
+  `docs/prd/otf-mtdfa-product.md` "Benchmark results, 2026-07-29".
+- **What it actually beats:** not the product — `spot::product` prunes fine (14
+  states at $n=12$) — but the **materialization** of the $2^n$-state goal that
+  Method 2 must build first. Exactly `main.tex:335`'s `\na`.
+- **What it cost:** one deliberate deviation from `\cref{alg:otfdfa_product}` (I5:
+  collapse to the accepting sink once $\varphi$ is irrevocably satisfied), which
+  makes $L(P)$ a strict superset of the paper's product language — equirealizable,
+  same controller, but **only** because termination is system-controlled. Now
+  documented on the declaration itself.
+- **Left open:** Phase 2 and Method 3.2, both in Now/next; `--minimize-mtdfa`
+  silently ignored for `--otf-mtdfa-product`; state numbering depends on
+  unspecified C++ argument-evaluation order (shared with `src/mtnfa_product.cpp`).
+- **Theory review found no code-bug**, but did find one in the *paper*: the
+  state-keyed $F_P$ of `\cref{alg:otfdfa_product}` is unsound. Four `\cl` notes
+  written into `latex/main.tex`, **unpushed**.
 
 ### `MtnfaProduct` — Method 1 in the mtdfa representation — **DONE 2026-07-28**
 - **Outcome: landed, fully reviewed, and benchmarked — the benchmark verdict is
