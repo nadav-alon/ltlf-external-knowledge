@@ -14,6 +14,11 @@
     "\\psiout": "\\psi_{\\mathit{Out}}",
     "\\Sin": "S_{\\mathit{Inp}}",
     "\\Sout": "S_{\\mathit{Out}}",
-    "\\cons": "\\mathrm{cons}"
+    "\\cons": "\\mathrm{cons}",
+    "\\mirror": "\\widetilde{#1}",
+    "\\rev": "#1^{\\mathrm{R}}",
+    "\\Xdep": "\\mathcal{X}",
+    "\\Ydep": "\\mathcal{Y}",
+    "\\liveset": "R_{#1}"
   }
 }

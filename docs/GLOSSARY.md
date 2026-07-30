@@ -49,7 +49,15 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **`main.tex`:** $\mathcal{V}\subseteq(\mathcal{I}\cup\mathcal{O})$, $\mathcal{V}=\Iknown\cup\Oknown$.
 - **Definition:** the variables decided by external knowledge strategies.
 - **C++:** `VariablePartition::known()`.
-- **Do not call it:** external vars, dependent vars, known set (as a bare noun).
+- **Do not call it:** external vars, known set (as a bare noun); **dependent
+  variables** — but note this is now a *distinction*, not a ban: since
+  `\cref{def:outdep}` (see *Dependent output set*) "dependent" is a technical
+  term, and the two are related but not equal. $\Xdep$ is an analysis **result**
+  that *becomes* $\Oknown\subseteq\mathcal{V}$ once extraction has run, whereas
+  $\mathcal{V}$ is a partition **input** the caller supplies. So a variable may
+  be governed without being dependent (a hand-authored $\Tout$), and calling
+  $\mathcal{V}$ "the dependent variables" wrongly asserts it came from
+  `dependent_outputs`.
 
 ### Free inputs / Known inputs / Free outputs / Known outputs
 - **`main.tex`:** $\Ifree,\Iknown,\Ofree,\Oknown$ (§Problem Definition align block).
@@ -376,6 +384,26 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **C++:** `parse_transducer(in, partition, role, dict)`.
 - **Do not call it:** load, read (bare), deserialize, from_hoa.
 
+### Print a transducer
+- **`main.tex`:** — (no symbol; serialization of $\tau$, §Transducers) — the
+  exact inverse of *Parse a transducer* above.
+- **Definition:** write one transducer to its file representation — the HOA for
+  $\delta$, then `--END--`, then the `%%LAMBDA` block with one boolean formula
+  per state. As with the reader, $\Sigma_0/\Sigma_1$ are **not** written: the
+  format does not carry them (see *Transducer file format*), so a $\Tout$ file
+  is unusable without the part file naming $\Oknown$ — which is why
+  *Output-dependency extraction* must emit both artifacts, not just the
+  transducer.
+- **C++:** `print_transducer(out, t)` (`transducer_io.hpp`, beside
+  `parse_transducer`; `docs/prd/output-dependencies-tool.md` Phase 1). Reads
+  $\delta$ through `OutputLabeledTransducer::delta_dfa()`, whose $\omega$-acceptance
+  is **meaningless** (see *Output-labeled transducer*) — the accessor exists for
+  this writer and carries the same warning. Round-trips by construction:
+  `parse_transducer(print_transducer(t))` reproduces $t$ (same states, BDD-equal
+  guards and $\lambda$).
+- **Do not call it:** write, dump, serialize, to_hoa, save_transducer,
+  `print_hoa` (Spot's own primitive, the same rule that rejects `ltlf2dfa`).
+
 ## Algorithms
 
 ### Goal DFA construction (LtlfToDfa)
@@ -606,6 +634,35 @@ the existing term or update this file via `/glossary` — do not let drift happe
   $\cons$, which has no automaton form — this object takes **one** transducer),
   `lambda_dfa`, `agreement_dfa` (that is per-trace *Agreement*), filter automaton.
 
+### Determinacy witness
+- **`main.tex`:** — (no symbol; it *decides* the $\lambda$-functionality
+  requirement implicit in $\lambda:Q\times\Sigma_0\to\Sigma_1$ being a function,
+  §103 / `\cref{def:probDefTransducer}`, and the dependency condition of
+  `\cref{lem:outdep-diagonal}` — the same predicate serves both).
+- **Definition:** decide whether a `bdd` relation, read as a relation **from** its
+  observed variables **to** a named produced set, is **functional** — and if not,
+  return *which* produced variable some observation leaves undetermined.
+  Per-variable cofactor form: no observation may admit a produced variable both
+  true and false,
+  `bdd_exist(R & x, cube) & bdd_exist(R & !x, cube) != bddfalse` ⇒ not functional.
+  Two properties make it the right primitive rather than a convenience. It is
+  correct for **sets**, not only singletons: two distinct produced tuples over one
+  observation must differ in some coordinate, and that coordinate then admits both
+  polarities — so $|{\rm produced}|$ tests suffice. And it needs **no fresh BDD
+  variables and no renamed copy** of the relation, unlike the textbook
+  $R\wedge R'\wedge(X\not\equiv X')$ encoding.
+- **C++:** `undetermined_variable(relation, produced, produced_cube, aut)` →
+  `std::optional<std::string>` (`nullopt` ⟺ functional)
+  (`transducer_io.hpp`; `docs/prd/output-dependencies-tool.md` Phase 1). **Two
+  callers, one implementation:** `parse_transducer`'s λ-functionality validation
+  (extracted from the former inline loop at `src/transducer_io.cpp:191–203`, whose
+  error text it preserves) and *Output-dependency extraction*'s dependency test,
+  which passes a *Live-letter region* rather than a λ.
+- **Do not call it:** `is_functional` / `functional` (it returns a **witness**, not
+  a bool), `check_lambda` (it is λ-agnostic — the dependency caller passes a letter
+  region, not an output function), `lambda_functional`, non-functional (that names
+  the failure, not the predicate), `undetermined_var` (abbreviated).
+
 ### Product
 - **`main.tex`:** $P$ (Methods 1 & 2); states $S\times Q_{in}\times Q_{out}$
   (generalized in code to $S\times Q_1\times\cdots\times Q_n$).
@@ -807,6 +864,99 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Do not call it:** solve (bare), `solve_game` / `mtdfa_winning_strategy` (those
   are Spot's primitives, not our wrappers), synthesize (that is the `Synthesis`
   method), realize.
+
+## Dependency extraction
+
+The terms below belong to a **separate binary**, `ltlf-ek-deps`
+(`docs/prd/output-dependencies-tool.md`), not to any `Synthesis` method: it
+*produces* the external knowledge the five methods *consume*. The notion is
+adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
+`DepSynt`) from infinite-word LTL to $\text{LTL}_f$; both `main.tex` anchors are
+**unproved lemmas** (see *Open theory questions*).
+
+### Dependent output set
+- **`main.tex`:** $\Xdep$ (`\cref{def:outdep}`, §`outdep`).
+- **Definition:** a set of output variables whose value at every step is forced by
+  the history together with the current values of *all* other variables — i.e.
+  dependent on the *Dependency set* $\Ydep$. It is **subset-maximal, not
+  maximum** (finding a maximum one is intractable), so the greedy scan's
+  iteration order selects *which* maximal set is returned; that order is
+  lexicographic and is a **contract**, since changing it changes the tool's
+  output. Distinct from *Governed variables (V)*: $\Xdep$ is an analysis
+  **result** that becomes $\Oknown$, not a partition input.
+- **C++:** `DependentOutputs::dependent` (`std::set<std::string>`), one member of
+  the `dependent_outputs` result alongside the updated `VariablePartition` and the
+  emitted $\Tout$.
+- **Do not call it:** governed variables / $\mathcal{V}$ / the known set (those are
+  the partition notion — see *Governed variables (V)*), dependencies (bare),
+  dependent variables (bare — the term is **output**-specific; the input notion is
+  strictly stronger and unbuilt, see *Open theory questions*), maximal set (bare),
+  maximum dependent set (it is not maximum).
+
+### Dependency set
+- **`main.tex`:** $\Ydep=(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ (`\cref{def:outdep}`).
+- **Definition:** the variables $\Xdep$ is dependent **on**. Once $\Oknown=\Xdep$
+  it equals $\mathcal{I}\cup\Ofree$ — which is exactly $\Sigma_0$ for `Role::t_out`
+  (`main.tex:125`). **That coincidence is the whole reason extraction emits a
+  $\Tout$** rather than some new object, and it is emphatically *not* a
+  coincidence for `t_in`: a $\Tin$ observes only $\Ifree$, so $\Ydep$ would let
+  $\lambda_{in}$ read $\mathcal{O}$ and break the *Turn order*.
+- **C++:** — (no identifier; derived as `partition.inputs()` ∪
+  `partition.output_free` and never stored, since the partition already determines
+  it).
+- **Do not call it:** observed slice / $\Sigma_0$ (they coincide for `t_out`
+  **only** — conflating them is what makes the input case look like a parameter
+  change), the free variables, the remaining variables, $Y$ (bare, in prose).
+
+### Live-letter region
+- **`main.tex`:** $\liveset{s}$ (`\cref{lem:outdep-diagonal}`).
+- **Definition:** at a state $s$ of the Goal DFA, the region of letters whose
+  successor is **live** (some accepting state is still reachable from it). It is
+  the object both halves of extraction run on: dependency holds iff every
+  reachable live $s$ has $\liveset{s}$ **functional** from $\Ydep$ to $\Xdep$
+  (*Determinacy witness*), and $\liveset{s}$ **totalised** with a default cube
+  *is* the emitted $\lambda_{out}$ (`\cref{lem:outdep-transducer}`). Liveness is
+  our own backward BFS from `state_is_accepting`, **not** `spot::purge_dead_states`
+  — that primitive is Büchi ("reaches an accepting *cycle*") and `ltlf_to_dfa`
+  gives final states no absorbing self-loops, so it would purge $F_D$ outright.
+  Independent of $\Xdep$, hence computed once outside the greedy loop.
+- **C++:** — (no public identifier; file-local to the extraction, computed from
+  the Goal DFA's out-edges and the live-state set).
+- **Do not call it:** `emits_region` (that is a **transducer**'s λ-agreement
+  region over $\Sigma_0\cup\Sigma_1$ — a different object on a different automaton;
+  see *Output agreement*), live edges, useful letters, surviving letters, the
+  guard union (that would ignore liveness, which is precisely the load-bearing
+  part).
+
+### Output-dependency extraction
+- **`main.tex`:** `\cref{lem:outdep-transducer}` (the construction);
+  `\cref{def:outdep}`, `\cref{lem:outdep-diagonal}` (what it decides). No
+  algorithm name — it is not one of *The five methods*.
+- **Definition:** find a *Dependent output set* of $\varphi$ and materialise it as
+  external knowledge: greedy lexicographic accumulation over $\mathcal{O}$, each
+  candidate $\Xdep\cup\{z\}$ tested by the *Determinacy witness* on every
+  reachable live state's *Live-letter region*. **The accumulated $\Xdep$ must be
+  used** — dependence of singletons does not compose ($G(x\leftrightarrow y)$:
+  each of $\{x\},\{y\}$ is dependent, $\{x,y\}$ is not). Emits $\delta_{out}$ =
+  the **complete** Goal DFA and $\lambda_{out}$ = the totalised
+  $\liveset{s}$; **both totalities are soundness requirements**, since by
+  `\cref{def:consistency}`'s partiality clause a missing $\delta$ or $\lambda$
+  makes a letter inconsistent for *every* party — so a partial $\Tout$ would
+  delete $\Ifree$ letters and illegally constrain the environment, which is
+  $\Tout$'s single most dangerous failure mode.
+- **C++:** `dependent_outputs(phi, partition, dict)` → `DependentOutputs`
+  (`include/ltlf_ek/dependent_outputs.hpp`), driven by the `ltlf-ek-deps` binary
+  (`docs/prd/output-dependencies-tool.md`). Emits **two** artifacts — the
+  transducer file and an updated part file — because the format stores no
+  $\Sigma_0/\Sigma_1$ (see *Print a transducer*). The binary **owns** the
+  `output_free`/`output_known` keys and passes `input_free`/`input_known` through
+  verbatim, so a future input-dependency tool composes on disjoint keys.
+- **Do not call it:** `find_dependencies`, `extract_knowledge`,
+  `maximal_dependent_set` (it also returns the partition and the $\Tout$, not just
+  the set), `depsynt` (that is the LTL tool this adapts, not ours — the same rule
+  that rejects `ltlf2dfa`), `output_dependencies` (the PRD *file* name is prose;
+  the identifier names the **result** — the dependent outputs), `OutputDependencies`
+  (for the struct — it holds the dependent outputs, hence `DependentOutputs`).
 
 ## The five methods
 
@@ -1100,6 +1250,29 @@ is seeded with them:
   system-controlled-termination reading — the system reaching irrevocable
   satisfaction may stop there and win. If that reading changed, the collapse would
   have to be revisited, not merely re-benchmarked.
+
+- **Both dependency-extraction lemmas are unproved** (§`outdep`, written
+  2026-07-30 under `\cl` notes; `docs/prd/output-dependencies-tool.md`).
+  `\cref{lem:outdep-diagonal}` claims the compatible-pair search of
+  arXiv:2401.11290 collapses to the diagonal when the Goal automaton is
+  deterministic, making the check per-state and linear in $|A|$;
+  `\cref{lem:outdep-transducer}` claims the totalised construction is a valid
+  $\Tout$ **and** that `\cref{def:probDefTransducer}` with it is equirealizable
+  with plain $\text{LTL}_f$ synthesis of $\varphi$. The second is the load-bearing
+  one — it is what licenses the end-to-end `ltlfsynt` oracle — and its only
+  evidence is that oracle passing, which is empirical, not a proof. Note the
+  totality argument **depends on the trace-termination reading** below: the
+  defaulted letters lose the system the game only under system-controlled
+  termination.
+- **Input dependencies need a different notion** — `\cref{def:outdep}` is
+  output-only, and $\Ydep$ cannot simply be re-pointed: `Role::t_in` observes only
+  $\Ifree$, so a dependent *input* must be dependent on $\mathcal{I}\setminus\Xdep$
+  **alone**, ignoring $\mathcal{O}$ — a strictly stronger condition and a
+  different algorithm. This is the notion the **commented-out**
+  `latex/main.tex:498–503` block gropes toward ("a potential set of dependent
+  input variables $D\subseteq I$"), including its own alternative of deciding
+  dependence by *counting synthesis strategies*. Left commented — the author's
+  call, not to be uncommented by a skill.
 
 **Resolved (kept here so they are not re-flagged as novel):**
 
