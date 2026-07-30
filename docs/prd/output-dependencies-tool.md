@@ -369,9 +369,20 @@ follow-up PRD (see *Open theory questions*).
   must not destroy the co-managed file).
 - **An AP of $\varphi$ outside `universe()`**: `std::invalid_argument`, per the
   closed-universe rule.
-- **A state whose $\liveset{s}$ is empty** (a live state all of whose successors
-  are dead — impossible by definition of live, so **assert** rather than
-  handle; if it fires, liveness is computed wrong).
+- **A state whose $\liveset{s}$ is empty** — **legal, not impossible**
+  (corrected 2026-07-30; this bullet previously claimed it was impossible "by
+  definition of live" and prescribed an unconditional assert, which aborted
+  Debug builds on every finite-language $\varphi$). I2's `live` is **reflexive**
+  ("including $s$ itself"), so an **accepting** state all of whose successors
+  are dead is live with an empty $\liveset{s}$ — precisely the terminal
+  accepting state of a finite-language formula, e.g. $\varphi = a \wedge \lnot
+  X[!]\mathtt{tt}$ giving $s_0 \xrightarrow{a} s_1(\text{acc})
+  \xrightarrow{\top} \text{sink}$. It carries **no constraint**: no trace of
+  $L(\varphi)$ reads a letter at $s_1$, so I1's condition is vacuous there
+  (`undetermined_variable(bddfalse, ...)` correctly reports functional) and I5
+  defaults every letter. The surviving invariant, which *is* asserted, is the
+  disjunction: a live **non-accepting** state must have a live successor. A
+  *non*-live state likewise has $\liveset{s} = \emptyset$ (next bullet).
 - **Every letter defaulted at a dead state**: dead states are still emitted (I3
   keeps the complete DFA) and their $\lambda$ is wholly the default cube. Not an
   error; exercised by U4.

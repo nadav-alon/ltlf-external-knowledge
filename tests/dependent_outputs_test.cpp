@@ -261,4 +261,83 @@ TEST(DependentOutputs, NonEmptyInputKnownPassesThroughVerbatim) {
   EXPECT_TRUE(result.partition.output_free.empty());
 }
 
+// ---------------------------------------------------------------------------
+// Finite-language formulas: a live state whose live-letter region is EMPTY.
+//
+// Every fixture above is a G(...) formula, so every live state has a live
+// successor and \liveset{s} is never empty.  `!X[!]1` ("the trace ends here")
+// makes L(phi) finite, and the Goal DFA then has a TERMINAL ACCEPTING state:
+// s0 --guard--> s1(acc) --true--> sink.  s1 is live (live = "an accepting
+// state is reachable from s, INCLUDING s itself") yet all its successors are
+// dead, so \liveset{s1} = bddfalse.  compute_live_regions used to assert this
+// away as "impossible by definition of live"; the reasoning was wrong and the
+// assertion aborted the process on these perfectly satisfiable formulas.
+//
+// Both consumers of an empty region are pinned below: is_dependent must read
+// it as carrying NO constraint (not as "everything is dependent"), and the I5
+// totalisation must still emit a total lambda at that state.
+// ---------------------------------------------------------------------------
+
+// The soundness direction.  phi = !X[!]1 over I={a}, O={x}: L(phi) is every
+// one-letter word, so x is wholly unconstrained and Xdep must be EMPTY.  The
+// terminal accepting state contributes bddfalse; reading that as vacuously
+// functional at s1 is correct (no word continues past it), but it must not be
+// mistaken for evidence that x is determined -- s0's live-letter region is
+// `true`, which leaves x undetermined and rejects the candidate.
+TEST(DependentOutputs, TerminalAcceptingStateDoesNotVacuouslyInflateXdep) {
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x"},
+                                              /*governed=*/{});
+  const DependentOutputs result =
+      dependent_outputs(spot::parse_formula("!X[!]1"), part, dict);
+
+  EXPECT_TRUE(result.dependent.empty());
+  EXPECT_EQ(result.t_out, std::nullopt);
+}
+
+// The liveness direction, plus totality at the empty-region state.  phi =
+// (a <-> x) & !X[!]1 over I={a}, O={x}: the single step pins x := a, so
+// Xdep={x}.  s0's region is (a <-> x); s1 (terminal, accepting) has region
+// bddfalse and every letter there must still be defaulted to default_X
+// (= !x), never left nullopt.
+TEST(DependentOutputs, FiniteLanguageLambdaIsTotalAtTerminalAcceptingState) {
+  auto dict = spot::make_bdd_dict();
+  auto probe = spot::make_twa_graph(dict);
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x"},
+                                              /*governed=*/{});
+  const DependentOutputs result =
+      dependent_outputs(spot::parse_formula("(a <-> x) & !X[!]1"), part, dict);
+
+  EXPECT_EQ(result.dependent, (std::set<std::string>{"x"}));
+  ASSERT_TRUE(result.t_out.has_value());
+  const OutputLabeledTransducer& t_out = *result.t_out;
+  const bdd xv = bdd_ithvar(probe->register_ap("x"));
+
+  // s0: lambda commits x := a, exactly as in the infinite-language U1.
+  const unsigned s0 = t_out.initial_state();
+  EXPECT_EQ(t_out.lambda(s0, Letter(probe, {{"a", true}})),
+            std::optional<bdd>(xv));
+  EXPECT_EQ(t_out.lambda(s0, Letter(probe, {{"a", false}})),
+            std::optional<bdd>(!xv));
+
+  // Step to the terminal accepting state on the accepted letter (a & x), and
+  // assert lambda there is TOTAL (I5) -- defaulted, not undefined, even though
+  // its live-letter region is empty.
+  const auto s1 = t_out.delta(s0, Letter(probe, {{"a", true}, {"x", true}}));
+  ASSERT_TRUE(s1.has_value());
+  ASSERT_NE(*s1, s0);
+  // Pin that *s1 really is the TERMINAL ACCEPTING state and not the dead sink.
+  // Without this the test is vacuous: a dead state's lambda is defaulted to the
+  // same !x (I3), so every assertion below would still pass on the sink, and a
+  // regression that zeroed the live regions at accepting states would go
+  // unnoticed here and in U1 (which only probes initial_state()).
+  ASSERT_TRUE(t_out.delta_dfa()->state_is_accepting(*s1));
+  EXPECT_EQ(t_out.lambda(*s1, Letter(probe, {{"a", true}})),
+            std::optional<bdd>(!xv));
+  EXPECT_EQ(t_out.lambda(*s1, Letter(probe, {{"a", false}})),
+            std::optional<bdd>(!xv));
+}
+
 }  // namespace
