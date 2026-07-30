@@ -3,6 +3,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 #include <bddx.h>
@@ -24,6 +25,7 @@ namespace {
 using ltlf_ek::consistent;
 using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::parse_transducer;
+using ltlf_ek::print_transducer;
 using ltlf_ek::Role;
 using ltlf_ek::sigma_slices;
 using ltlf_ek::SigmaSlices;
@@ -48,6 +50,104 @@ State: 1
 %%LAMBDA
 state 0: a <-> k        /* observe a, produce k = a */
 state 1: false          /* lambda undefined at q1   */
+)";
+
+// The remaining fixture texts, hoisted to namespace scope (rather than their
+// original TEST-local scope) so the O2 round-trip section below can reuse
+// them BY REFERENCE instead of re-typing the HOA text --- each still backs
+// its original TEST unchanged.
+
+// EmptySigma1ProducesEmptyCube: V = empty set ==> Sigma1 = empty set.
+constexpr const char* kEmptySigma1Text = R"(HOA: v1
+States: 1
+Start: 0
+AP: 1 "a"
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0
+  [t] 0
+--END--
+%%LAMBDA
+state 0: true
+)";
+
+// EmptySigma0GivesConstantOutput: Ifree = empty set ==> Sigma0 = empty set.
+constexpr const char* kEmptySigma0Text = R"(HOA: v1
+States: 1
+Start: 0
+AP: 1 "a"
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0
+  [t] 0
+--END--
+%%LAMBDA
+state 0: a
+)";
+
+// HoaAcceptanceIsIgnored: a Buchi acceptance condition parses but is never
+// read as transducer finality (main.tex §101).
+constexpr const char* kBuchiAcceptanceText = R"(HOA: v1
+States: 1
+Start: 0
+AP: 1 "a"
+acc-name: Buchi
+Acceptance: 1 Inf(0)
+--BODY--
+State: 0
+  [t] 0 {0}
+--END--
+%%LAMBDA
+state 0: a
+)";
+
+// SharedDictFeedsConsistent: t_in governs k (produces k := a).
+constexpr const char* kSharedDictTinText = R"(HOA: v1
+States: 1
+Start: 0
+AP: 2 "a" "k"
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0
+  [t] 0
+--END--
+%%LAMBDA
+state 0: a <-> k
+)";
+
+// SharedDictFeedsConsistent: t_out governs e (produces e := true).
+constexpr const char* kSharedDictToutText = R"(HOA: v1
+States: 1
+Start: 0
+AP: 3 "a" "k" "e"
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0
+  [t] 0
+--END--
+%%LAMBDA
+state 0: e
+)";
+
+// EndTokenInsideCommentDoesNotSplitEarly: a decoy `--END--` lives inside an
+// HOA comment and must not split the file early.
+constexpr const char* kEndTokenInCommentText = R"(HOA: v1
+States: 1
+Start: 0
+AP: 2 "a" "k"
+acc-name: all
+/* a decoy --END-- lives inside this comment */
+Acceptance: 0 t
+--BODY--
+State: 0
+  [t] 0
+--END--
+%%LAMBDA
+state 0: a <-> k
 )";
 
 OutputLabeledTransducer Parse(const std::string& text,
@@ -238,24 +338,11 @@ TEST(ParseTransducer, LambdaIgnoresVariablesOutsideSigma0) {
 
 // V = ∅ ⇒ Sigma1 = ∅: `state 0: true` produces the empty cube (bddtrue).
 TEST(ParseTransducer, EmptySigma1ProducesEmptyCube) {
-  constexpr const char* kFile = R"(HOA: v1
-States: 1
-Start: 0
-AP: 1 "a"
-acc-name: all
-Acceptance: 0 t
---BODY--
-State: 0
-  [t] 0
---END--
-%%LAMBDA
-state 0: true
-)";
   auto dict = spot::make_bdd_dict();
   auto probe = spot::make_twa_graph(dict);
   // a free input, nothing governed ⇒ Sigma0={a}, Sigma1=∅.
   auto part = VariablePartition::split({"a"}, {}, {});
-  auto t = Parse(kFile, part, Role::t_in, dict);
+  auto t = Parse(kEmptySigma1Text, part, Role::t_in, dict);
   EXPECT_EQ(t.sigma1_cube(), bddtrue);
   const bdd v = VarBdd(probe, "a");
   EXPECT_EQ(t.lambda(0, v), std::optional<bdd>(bddtrue));
@@ -264,24 +351,11 @@ state 0: true
 
 // Ifree = ∅ ⇒ Sigma0 = ∅: lambda is a constant per state, independent of input.
 TEST(ParseTransducer, EmptySigma0GivesConstantOutput) {
-  constexpr const char* kFile = R"(HOA: v1
-States: 1
-Start: 0
-AP: 1 "a"
-acc-name: all
-Acceptance: 0 t
---BODY--
-State: 0
-  [t] 0
---END--
-%%LAMBDA
-state 0: a
-)";
   auto dict = spot::make_bdd_dict();
   auto probe = spot::make_twa_graph(dict);
   // a known input, nothing free ⇒ Sigma0=∅, Sigma1={a}.
   auto part = VariablePartition::split({"a"}, {}, {"a"});
-  auto t = Parse(kFile, part, Role::t_in, dict);
+  auto t = Parse(kEmptySigma0Text, part, Role::t_in, dict);
   EXPECT_EQ(t.sigma0_cube(), bddtrue);
   const bdd av = VarBdd(probe, "a");
   // `state 0: a` fixes a := true regardless of the (empty) observation.
@@ -292,23 +366,10 @@ state 0: a
 // HOA acceptance is parsed but never read as finality (main.tex §101): a Büchi
 // automaton parses and its delta works exactly as an `all`-acceptance one.
 TEST(ParseTransducer, HoaAcceptanceIsIgnored) {
-  constexpr const char* kFile = R"(HOA: v1
-States: 1
-Start: 0
-AP: 1 "a"
-acc-name: Buchi
-Acceptance: 1 Inf(0)
---BODY--
-State: 0
-  [t] 0 {0}
---END--
-%%LAMBDA
-state 0: a
-)";
   auto dict = spot::make_bdd_dict();
   auto probe = spot::make_twa_graph(dict);
   auto part = VariablePartition::split({"a"}, {}, {"a"});
-  auto t = Parse(kFile, part, Role::t_in, dict);
+  auto t = Parse(kBuchiAcceptanceText, part, Role::t_in, dict);
   EXPECT_EQ(t.delta(0, VarBdd(probe, "a")), std::optional<unsigned>(0));
 }
 
@@ -319,38 +380,12 @@ state 0: a
 
 TEST(ParseTransducer, SharedDictFeedsConsistent) {
   // t_in governs k (produces k := a); t_out governs e (produces e := true).
-  constexpr const char* kTin = R"(HOA: v1
-States: 1
-Start: 0
-AP: 2 "a" "k"
-acc-name: all
-Acceptance: 0 t
---BODY--
-State: 0
-  [t] 0
---END--
-%%LAMBDA
-state 0: a <-> k
-)";
-  constexpr const char* kTout = R"(HOA: v1
-States: 1
-Start: 0
-AP: 3 "a" "k" "e"
-acc-name: all
-Acceptance: 0 t
---BODY--
-State: 0
-  [t] 0
---END--
-%%LAMBDA
-state 0: e
-)";
   auto dict = spot::make_bdd_dict();
   auto probe = spot::make_twa_graph(dict);
   // inputs={a,k}, outputs={e}, governed V={k,e}.
   auto part = VariablePartition::split({"a", "k"}, {"e"}, {"k", "e"});
-  auto t_in = Parse(kTin, part, Role::t_in, dict);
-  auto t_out = Parse(kTout, part, Role::t_out, dict);
+  auto t_in = Parse(kSharedDictTinText, part, Role::t_in, dict);
+  auto t_out = Parse(kSharedDictToutText, part, Role::t_out, dict);
 
   auto L = [&](bool a, bool k, bool e) {
     return (a ? VarBdd(probe, "a") : !VarBdd(probe, "a")) &
@@ -580,23 +615,9 @@ state 1: a <-> k
 // A `--END--` inside an HOA block comment must NOT split the file early: the
 // real terminator is the one on its own line.
 TEST(ParseTransducer, EndTokenInsideCommentDoesNotSplitEarly) {
-  constexpr const char* kFile = R"(HOA: v1
-States: 1
-Start: 0
-AP: 2 "a" "k"
-acc-name: all
-/* a decoy --END-- lives inside this comment */
-Acceptance: 0 t
---BODY--
-State: 0
-  [t] 0
---END--
-%%LAMBDA
-state 0: a <-> k
-)";
   auto dict = spot::make_bdd_dict();
   auto probe = spot::make_twa_graph(dict);
-  auto t = Parse(kFile, InFreeKnown(), Role::t_in, dict);
+  auto t = Parse(kEndTokenInCommentText, InFreeKnown(), Role::t_in, dict);
   // Parsed past the decoy: delta and lambda come from the real body.
   EXPECT_EQ(t.delta(0, LetterAK(probe, /*a=*/true, /*k=*/true)),
             std::optional<unsigned>(0));
@@ -614,6 +635,148 @@ state 0: a <-> k
   auto dict = spot::make_bdd_dict();
   EXPECT_THROW(Parse(kFile, InFreeKnown(), Role::t_in, dict),
                std::invalid_argument);
+}
+
+// ---------------------------------------------------------------------------
+// O2 --- round-trip oracle (Phase 1, docs/prd/output-dependencies-tool.md
+// "Test oracles"): parse_transducer(print_transducer(t)) == t, for every
+// transducer fixture above that successfully PARSES into a `t` (the
+// rejection fixtures throw during parsing and produce no `t` to round-trip;
+// out of scope here).  U1/U4's emitted transducers are Phase 2, also out of
+// scope --- Phase 1 only exercises the fixtures parse_transducer already had.
+//
+// "==" is checked structurally rather than via an operator==, since
+// OutputLabeledTransducer has none: same state count (delta_dfa()'s new
+// accessor), same initial state, BDD-equal edge guards per (src,dst)
+// (delta_edges), BDD-equal lambda per state (emits_region, documented as
+// exactly the stored Sigma0∪Sigma1 relation --- transducer.hpp).  BuDDy
+// canonicalises bdd values, so `==` on them is semantic equality (same
+// argument as the Build-equivalence metamorphic oracle).
+// ---------------------------------------------------------------------------
+
+// delta_edges(q) as one guard per destination state, ORing together any
+// (src,dst) pair split across several HOA edges --- comparison is over
+// (src,dst), not raw edge count.
+std::vector<bdd> GuardsByDst(const OutputLabeledTransducer& t, unsigned q,
+                              unsigned n_states) {
+  std::vector<bdd> by_dst(n_states, bddfalse);
+  for (const auto& [guard, dst] : t.delta_edges(q)) by_dst[dst] |= guard;
+  return by_dst;
+}
+
+void ExpectRoundTrips(const OutputLabeledTransducer& t,
+                      const VariablePartition& part, Role role,
+                      const spot::bdd_dict_ptr& dict) {
+  std::ostringstream printed;
+  print_transducer(printed, t);
+  std::istringstream in(printed.str());
+  const OutputLabeledTransducer t2 = parse_transducer(in, part, role, dict);
+
+  const unsigned n = t.delta_dfa()->num_states();
+  ASSERT_EQ(t2.delta_dfa()->num_states(), n) << "state count";
+  EXPECT_EQ(t2.initial_state(), t.initial_state());
+
+  for (unsigned q = 0; q < n; ++q) {
+    EXPECT_EQ(GuardsByDst(t2, q, n), GuardsByDst(t, q, n))
+        << "edge guards at state " << q;
+    EXPECT_EQ(t2.emits_region(q), t.emits_region(q))
+        << "lambda at state " << q;
+  }
+}
+
+TEST(RoundTrip, KExampleUnderTIn) {
+  auto dict = spot::make_bdd_dict();
+  ExpectRoundTrips(Parse(kExample, InFreeKnown(), Role::t_in, dict),
+                   InFreeKnown(), Role::t_in, dict);
+}
+
+// Same text, Role::t_c orientation (RoleTcSigma0IsInputsSigma1IsOutputFree's
+// partition) --- a distinct lambda shape from the t_in case above.
+TEST(RoundTrip, KExampleUnderTC) {
+  auto dict = spot::make_bdd_dict();
+  auto part = VariablePartition::split(/*inputs=*/{"a"}, /*outputs=*/{"k"},
+                                       /*governed=*/{});
+  ExpectRoundTrips(Parse(kExample, part, Role::t_c, dict), part, Role::t_c,
+                   dict);
+}
+
+// Same text again, the orientation-swapped partition from
+// OrientationComesFromPartitionNotFormula --- lambda is transposed relative
+// to KExampleUnderTIn above.
+TEST(RoundTrip, KExampleUnderSwappedPartition) {
+  auto dict = spot::make_bdd_dict();
+  auto part = VariablePartition::split({"a", "k"}, {}, {"a"});
+  ExpectRoundTrips(Parse(kExample, part, Role::t_in, dict), part, Role::t_in,
+                   dict);
+}
+
+TEST(RoundTrip, EmptySigma1Fixture) {
+  auto dict = spot::make_bdd_dict();
+  auto part = VariablePartition::split({"a"}, {}, {});
+  ExpectRoundTrips(Parse(kEmptySigma1Text, part, Role::t_in, dict), part,
+                   Role::t_in, dict);
+}
+
+TEST(RoundTrip, EmptySigma0Fixture) {
+  auto dict = spot::make_bdd_dict();
+  auto part = VariablePartition::split({"a"}, {}, {"a"});
+  ExpectRoundTrips(Parse(kEmptySigma0Text, part, Role::t_in, dict), part,
+                   Role::t_in, dict);
+}
+
+// HOA acceptance (Buchi, in this fixture) is meaningless to a transducer, so
+// print_transducer normalises it away and emits the canonical `Acceptance: 0 t`
+// instead.  The round-trip holds on delta/lambda alone --- and would hold even
+// if acceptance were copied through verbatim, since parse_transducer never
+// reads it (see HoaAcceptanceIsIgnored).
+TEST(RoundTrip, BuchiAcceptanceFixture) {
+  auto dict = spot::make_bdd_dict();
+  auto part = VariablePartition::split({"a"}, {}, {"a"});
+  ExpectRoundTrips(Parse(kBuchiAcceptanceText, part, Role::t_in, dict), part,
+                   Role::t_in, dict);
+}
+
+// The normalisation itself, which ExpectRoundTrips cannot see (it compares
+// delta/lambda, and parse_transducer never reads acceptance either way).  A
+// transducer has no F, so the emitted file must not advertise one --- see
+// docs/prd/output-dependencies-tool.md "Developer comments": once Phase 2
+// builds a Tout on the Goal DFA, copy-through would publish F_D as
+// omega-acceptance for what is finite-word reachability.
+TEST(PrintTransducer, NormalisesAcceptanceAway) {
+  auto dict = spot::make_bdd_dict();
+  auto part = VariablePartition::split({"a"}, {}, {"a"});
+  std::ostringstream out;
+  print_transducer(out, Parse(kBuchiAcceptanceText, part, Role::t_in, dict));
+  const std::string text = out.str();
+  EXPECT_NE(text.find("Acceptance: 0 t"), std::string::npos) << text;
+  EXPECT_EQ(text.find("Inf(0)"), std::string::npos) << text;
+  // The state's `{0}` acceptance mark must be gone too, or the emitted HOA
+  // would name a set its Acceptance line does not declare.
+  EXPECT_EQ(text.find("{0}"), std::string::npos) << text;
+}
+
+TEST(RoundTrip, SharedDictTinFixture) {
+  auto dict = spot::make_bdd_dict();
+  auto part = VariablePartition::split({"a", "k"}, {"e"}, {"k", "e"});
+  ExpectRoundTrips(Parse(kSharedDictTinText, part, Role::t_in, dict), part,
+                   Role::t_in, dict);
+}
+
+TEST(RoundTrip, SharedDictToutFixture) {
+  auto dict = spot::make_bdd_dict();
+  auto part = VariablePartition::split({"a", "k"}, {"e"}, {"k", "e"});
+  ExpectRoundTrips(Parse(kSharedDictToutText, part, Role::t_out, dict), part,
+                   Role::t_out, dict);
+}
+
+// The decoy `--END--` inside a comment only matters to the FIRST parse; the
+// printed form has no such comment, so this also guards that print_transducer
+// does not itself reintroduce anything ambiguous.
+TEST(RoundTrip, EndTokenInCommentFixture) {
+  auto dict = spot::make_bdd_dict();
+  ExpectRoundTrips(Parse(kEndTokenInCommentText, InFreeKnown(), Role::t_in,
+                        dict),
+                   InFreeKnown(), Role::t_in, dict);
 }
 
 }  // namespace

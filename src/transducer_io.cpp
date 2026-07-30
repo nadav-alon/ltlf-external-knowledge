@@ -1,5 +1,7 @@
 #include "ltlf_ek/transducer_io.hpp"
 
+#include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <set>
 #include <sstream>
@@ -12,6 +14,7 @@
 #include <spot/tl/formula.hh>
 #include <spot/tl/parse.hh>
 #include <spot/twa/formula2bdd.hh>
+#include <spot/twaalgos/hoa.hh>
 #include <spot/twaalgos/isdet.hh>
 
 #include "ltlf_ek/detail/util.hpp"
@@ -173,7 +176,7 @@ OutputLabeledTransducer parse_transducer(std::istream& in,
           "parse_transducer: unparsable lambda formula for state " +
           std::to_string(q) + ": " + e.what());
     }
-    // lambda is a boolean output relation (main.tex §103); a temporal operator
+    // lambda is a boolean output relation (main.tex §110); a temporal operator
     // is meaningless here and cannot become a BDD.
     if (!f.is_boolean())
       throw std::invalid_argument(
@@ -189,18 +192,17 @@ OutputLabeledTransducer parse_transducer(std::istream& in,
     const bdd out = spot::formula_to_bdd(f, dict, aut.get());
 
     // Validation 2: lambda functional --- fixing any Sigma0 observation leaves
-    // at most one Sigma1 completion (main.tex §103).  Per-variable form: no
-    // observation may admit a Sigma1 variable both true and false.
-    for (const auto& x : slices.sigma1) {
-      const int xv = aut->register_ap(x);
-      const bdd with1 = bdd_exist(out & bdd_ithvar(xv), sigma1_cube);
-      const bdd with0 = bdd_exist(out & bdd_nithvar(xv), sigma1_cube);
-      if ((with1 & with0) != bddfalse)
-        throw std::invalid_argument(
-            "parse_transducer: non-functional lambda at state " +
-            std::to_string(q) + " (an observation leaves output '" + x +
-            "' undetermined)");
-    }
+    // at most one Sigma1 completion --- "at most", not "exactly": lambda is not
+    // assumed total (main.tex §110 for the signature, §114-115 for
+    // non-totality).  Delegates to the shared determinacy witness
+    // (docs/GLOSSARY.md); see \cref{lem:outdep-diagonal}'s reuse of the same
+    // predicate on a letter region.
+    if (const std::optional<std::string> bad =
+            undetermined_variable(out, slices.sigma1, sigma1_cube, aut))
+      throw std::invalid_argument(
+          "parse_transducer: non-functional lambda at state " +
+          std::to_string(q) + " (an observation leaves output '" + *bad +
+          "' undetermined)");
 
     lambda_by_state[q] = out;
     seen[q] = true;
@@ -220,6 +222,84 @@ OutputLabeledTransducer parse_transducer(std::istream& in,
 
   return OutputLabeledTransducer(aut, std::move(lambda_by_state), sigma0_cube,
                                  sigma1_cube);
+}
+
+std::optional<std::string> undetermined_variable(
+    bdd relation, const std::set<std::string>& produced, bdd produced_cube,
+    const spot::twa_graph_ptr& aut) {
+  // Two preconditions, both of which fail SILENTLY and one of which fails in
+  // the unsound direction, so pin them in debug builds rather than trusting the
+  // caller.  (Release builds pay nothing: NDEBUG drops the cube_of call too.)
+  //
+  // 1. Every `produced` name is already an AP of `aut`.  register_ap below
+  //    APPENDS an unknown one, silently mutating the caller's automaton --- and
+  //    for the dependency caller that automaton is the Goal DFA which is itself
+  //    emitted as delta_out, so a candidate Xdep variable absent from phi would
+  //    grow an AP the automaton never constrains.
+  // 2. `produced_cube` is the cube of exactly `produced`.  A mismatch does not
+  //    merely weaken the test, it flips the verdict, in either direction: a
+  //    variable missing from the cube stays in both cofactors, so with1 & with0
+  //    is unconditionally empty and an unconstrained variable reads as
+  //    functional (the unsound direction --- a wrong "dependent" verdict with
+  //    no diagnostic); an extra observed variable in the cube reports a
+  //    determined variable as undetermined.
+#ifndef NDEBUG
+  for (const auto& x : produced)
+    assert(std::find(aut->ap().begin(), aut->ap().end(), spot::formula::ap(x)) !=
+               aut->ap().end() &&
+           "undetermined_variable: every `produced` name must already be an AP "
+           "of `aut` (the query must not mutate its input automaton)");
+  assert(produced_cube == detail::cube_of(produced, aut) &&
+         "undetermined_variable: produced_cube must be the cube of exactly "
+         "`produced`");
+#endif
+
+  // Per-variable cofactor form (docs/GLOSSARY.md "Determinacy witness"): no
+  // observation may admit a `produced` variable both true and false.  Correct
+  // for sets, not just singletons --- two distinct produced tuples over one
+  // observation differ in some coordinate, and that coordinate then admits
+  // both polarities.
+  for (const auto& x : produced) {
+    const int xv = aut->register_ap(x);
+    const bdd with1 = bdd_exist(relation & bdd_ithvar(xv), produced_cube);
+    const bdd with0 = bdd_exist(relation & bdd_nithvar(xv), produced_cube);
+    if ((with1 & with0) != bddfalse) return x;
+  }
+  return std::nullopt;
+}
+
+void print_transducer(std::ostream& out, const OutputLabeledTransducer& t) {
+  // delta: the HOA half of the file format.  A transducer has no F (main.tex
+  // §108; see OutputLabeledTransducer::delta_dfa()), but print_hoa copies
+  // whatever acceptance the delta twa happens to carry --- for a Tout built on
+  // the Goal DFA that is F_D, i.e. an omega-acceptance advertising finality for
+  // what is really finite-word reachability.  Emit the canonical `Acceptance: 0
+  // t` of docs/prd/transducer-file-format.md instead, so the artifact cannot be
+  // read (by a human or by autfilt) as claiming a finality it does not have.
+  // Nothing is lost: parse_transducer ignores acceptance on the way back in.
+  const spot::twa_graph_ptr delta =
+      spot::make_twa_graph(t.delta_dfa(), spot::twa::prop_set::all());
+  delta->set_acceptance(0, spot::acc_cond::acc_code::t());
+  for (auto& e : delta->edges()) e.acc = {};
+
+  // print_hoa does not emit a trailing newline after `--END--`, so the newline
+  // that starts the %%LAMBDA block below also terminates delta's --END-- line.
+  // split_at_hoa_end (parse_transducer, above) matches that line exactly; it
+  // also skips blank lines, so a Spot that did emit its own newline would still
+  // parse.
+  spot::print_hoa(out, delta);
+  out << "\n%%LAMBDA\n";
+
+  // lambda: one boolean formula per state, the inverse of the %%LAMBDA parse
+  // loop above.  emits_region(q) is exactly lambda_by_state_[q] (docs/GLOSSARY.md
+  // "Output agreement (emits)"), bddfalse when lambda is undefined at q; that
+  // round-trips through bdd_to_formula/parse_formula/formula_to_bdd regardless
+  // of which literal token Spot prints for false.
+  const spot::bdd_dict_ptr dict = t.dict();
+  const unsigned n_states = delta->num_states();
+  for (unsigned q = 0; q < n_states; ++q)
+    out << "state " << q << ": "
+        << spot::bdd_to_formula(t.emits_region(q), dict) << "\n";
 }
 
 }  // namespace ltlf_ek

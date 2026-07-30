@@ -19,13 +19,13 @@ namespace ltlf_ek {
 // Sigma0 ∪ Sigma1.  See docs/GLOSSARY.md ("output-labeled transducer").
 //
 // IMPORTANT: the twa_graph is used *purely as a deterministic transition
-// structure*.  A Transducer has NO acceptance condition (main.tex §101), so the
+// structure*.  A Transducer has NO acceptance condition (main.tex §108), so the
 // twa's ω-acceptance is IGNORED entirely --- never read it as transducer
 // finality.  Only the state graph, initial state, and edge guards are used.
 //
 // delta navigates the unique edge out of q whose guard is satisfied by the full
 // letter v; if none is satisfied, delta is undefined (nullopt) --- this is how
-// an incomplete twa expresses a partial delta (main.tex §107).  More than one
+// an incomplete twa expresses a partial delta (main.tex §114-115).  More than one
 // satisfied guard violates the deterministic-delta contract and throws.
 //
 // Precondition: delta_dfa's edge guards, the lambda_by_state / sigma0_cube /
@@ -60,6 +60,18 @@ class OutputLabeledTransducer final : public Transducer {
   // can be checked against the align block.
   bdd sigma0_cube() const { return sigma0_cube_; }
   bdd sigma1_cube() const { return sigma1_cube_; }
+
+  // The delta transition structure ONLY.  As with the constructor argument, the
+  // twa's omega-acceptance is MEANINGLESS here --- never read it as transducer
+  // finality (see the class comment).  Exposed so print_transducer
+  // (docs/GLOSSARY.md: "Print a transducer") can emit the HOA half of the file
+  // format.
+  //
+  // Const so the graph cannot be mutated through it: adding states behind this
+  // class's back would break the constructor's invariant
+  // lambda_by_state_.size() == num_states(), after which lambda(q, v) indexes
+  // out of range.  A caller needing a mutable copy makes one (spot::make_twa_graph).
+  spot::const_twa_graph_ptr delta_dfa() const { return delta_dfa_; }
 
  private:
   spot::twa_graph_ptr delta_dfa_;

@@ -1,10 +1,14 @@
 #pragma once
 
 #include <istream>
+#include <optional>
+#include <ostream>
 #include <set>
 #include <string>
 
+#include <bddx.h>
 #include <spot/twa/bdddict.hh>
+#include <spot/twa/twagraph.hh>
 
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/role.hpp"
@@ -26,9 +30,9 @@ namespace ltlf_ek {
 //                 tests across them are meaningless.
 //
 // The HOA acceptance condition is parsed by Spot but IGNORED --- a transducer
-// has no F (main.tex §101); only states, initial state, and edge guards are
+// has no F (main.tex §108); only states, initial state, and edge guards are
 // used.  delta and lambda may be partial: a missing HOA edge is an undefined
-// delta, a `state q: false` entry an undefined lambda (main.tex §107,
+// delta, a `state q: false` entry an undefined lambda (main.tex §114-115,
 // \cref{def:consistency}).
 //
 // Throws std::invalid_argument (with context) on any malformed input:
@@ -38,5 +42,48 @@ namespace ltlf_ek {
 OutputLabeledTransducer parse_transducer(std::istream& in,
                                          const VariablePartition& partition,
                                          Role role, spot::bdd_dict_ptr dict);
+
+// The determinacy witness (docs/GLOSSARY.md): decide whether `relation`, read
+// as a relation from its non-`produced` variables to `produced`, is
+// functional --- and if not, return the name of a `produced` variable that
+// some observation leaves undetermined (both polarities reachable).  nullopt
+// iff functional.  Per-variable cofactor form: no fresh BDD variables, no
+// renamed copy of `relation`, |produced| operations.
+//
+// relation      --- a bdd over (observed ∪ produced) only.
+// produced      --- variable NAMES of the produced slice (Sigma1, or Xdep).
+// produced_cube --- the variable-cube of the same set (docs/GLOSSARY.md
+//                   "Cube"), used to project the cofactors back onto
+//                   `produced`.
+// aut           --- supplies register_ap / the shared bdd_dict `produced`'s
+//                   variables live on.
+//
+// Two callers, one implementation: parse_transducer's lambda-functionality
+// validation below (extracted from the former inline loop at
+// src/transducer_io.cpp:191-203, whose error text it preserves) and
+// docs/prd/output-dependencies-tool.md's output-dependency test, which passes
+// a live-letter region rather than a lambda.
+std::optional<std::string> undetermined_variable(
+    bdd relation, const std::set<std::string>& produced, bdd produced_cube,
+    const spot::twa_graph_ptr& aut);
+
+// Print a transducer (docs/GLOSSARY.md): the exact inverse of parse_transducer
+// above --- write `t` to its file representation, a Spot HOA automaton for
+// delta (acceptance ignored, via OutputLabeledTransducer::delta_dfa()), then
+// --- after HOA's `--END--` --- a `%%LAMBDA` block giving lambda as one
+// boolean formula per state.  As with the reader, Sigma0/Sigma1 are NOT
+// written: the format does not carry them (they come from role + partition).
+// Acceptance is normalised away (a transducer has no F): the emitted HOA always
+// carries the canonical `Acceptance: 0 t`, never whatever the delta twa held.
+//
+// Round-trips --- parse_transducer(print_transducer(t)) reproduces t (same
+// states, BDD-equal guards and lambda) --- under two preconditions, which hold
+// for every t this project builds but are worth stating for the first caller
+// that constructs one by hand rather than by parsing:
+//   1. it is re-parsed under the SAME (partition, role), since those and not the
+//      file supply Sigma0/Sigma1; and
+//   2. every AP of t.delta_dfa() lies in partition.universe(), or the reader's
+//      closed-universe check rejects the file it just wrote.
+void print_transducer(std::ostream& out, const OutputLabeledTransducer& t);
 
 }  // namespace ltlf_ek

@@ -5,11 +5,31 @@
 **Recommended workflow:** concurrent — the *Interfaces & types* freeze is **high**: every signature is a thin composition of existing glossary types (`spot::formula`, `VariablePartition`, `OutputLabeledTransducer`), and the one genuinely new predicate already exists in-tree as inline code at `src/transducer_io.cpp:191-203`.
 **main.tex ref:** `\cref{outdep}` — `\cref{def:outdep}`, `\cref{lem:outdep-diagonal}`, `\cref{lem:outdep-transducer}` (all written this session, propositions **unproved**)
 
-**Gates:**
-- [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
-- [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+**Gates:** (Phases 2-3 are unimplemented, so the three phase-scoped gates stay
+open; each records what Phase 1 closed.)
+- [x] glossary        — *closed 2026-07-30*, in the commit that wrote this PRD.
+      All four gaps landed at once (*Dependent output set*, *Dependency set*,
+      *Live-letter region*, *Determinacy witness*), plus *Print a transducer*;
+      nothing phase-scoped is outstanding.
+- [ ] tests           — **Phase 1 closed 2026-07-30**, written concurrently
+      against the frozen *Interfaces & types* block: U6 (6 cases, incl. the
+      set-vs-singleton linchpin) and O2 (9 round-trip fixtures), plus
+      `PrintTransducer.NormalisesAcceptanceAway` locking the acceptance
+      decision below. Suite 437/437. **Open:** U1-U5 (Phase 2), O1/O3/O4
+      (Phase 3).
+- [ ] code-review     — **Phase 1 closed 2026-07-30**, domain + generic, both
+      clean of must-fix. Fixed in-diff: `delta_dfa()` const-correctness, the
+      two `undetermined_variable` preconditions, acceptance normalisation, the
+      untracked-test/CMake mismatch, a missing `<vector>`, the round-trip
+      preconditions, and the stale `main.tex` §-anchors in the touched files
+      (§101→§108, §103→§110, §107→§114-115). See *Developer comments*.
+- [ ] theory-review   — **Phase 1 closed 2026-07-30**: no `code-bug`. The
+      cofactor predicate is sound *and complete* for sets, and the "at most
+      one" reading is sanctioned by `main.tex` §114-115. One `\cl` sentence
+      written into `main.tex` under `\cref{lem:outdep-diagonal}` distinguishing
+      the shared at-most-one half from `\cref{def:probDefTransducer}`'s total
+      λ. **Open:** `\cref{lem:outdep-transducer}` and the equirealizability
+      claim, which only Phase 2-3 code can evidence.
 
 ## Goal
 
@@ -467,3 +487,38 @@ assert a non-empty `output_known` input is refused with exit `2`; assert
 - `/theory-review` run against `main.tex` §`outdep` — both lemmas are unproved
   and the code is their only evidence.
 - The four gates in the header ticked by the skills that perform them.
+
+## Developer comments / PRD disagreements
+
+**2026-07-30 — `delta_dfa()` returns `spot::const_twa_graph_ptr`, not
+`spot::twa_graph_ptr`.** The *Interfaces & types* Phase 1 block froze the
+mutable form. Both consumers are read-only (`spot::print_hoa` takes a
+`const_twa_ptr`; O2 reads `num_states()`), and the mutable form is a hole in the
+class: `OutputLabeledTransducer` checks
+`lambda_by_state_.size() == num_states()` only in its constructor and indexes
+with unchecked `operator[]`, so `t.delta_dfa()->new_states(1)` through a `const`
+reference makes `emits_region(q)` read past the end with no diagnostic. Const
+closes it at no cost to any caller. Phase 2 must therefore copy
+(`spot::make_twa_graph`) if it wants a mutable delta.
+
+**2026-07-30 — `print_transducer` normalises acceptance away.** Not specified
+either way in the PRD. `spot::print_hoa` copies whatever acceptance the delta
+twa carries, and by I3 the emitted $\Tout$'s $\delta_{out}$ *is* the Goal DFA,
+whose acceptance marks $F_D$. Copying it through would publish an artifact
+advertising $\omega$-acceptance for what is finite-word reachability without
+absorbing self-loops — the same $\omega$-vs-finite confusion I2 warns about for
+`purge_dead_states`, but baked into a file a user or `autfilt` may read. The
+writer therefore emits the canonical `Acceptance: 0 t` of
+`docs/prd/transducer-file-format.md`. Nothing is lost: `parse_transducer`
+ignores acceptance on the way back in.
+
+**2026-07-30 — `undetermined_variable` asserts its two preconditions.** The
+frozen signature takes `produced` and `produced_cube` separately (deliberately —
+Phase 2's greedy loop reuses one cube per candidate) and takes `aut` for
+`register_ap`. Both are silent-failure surfaces, and one fails in the *unsound*
+direction: a `produced_cube` missing a member of `produced` makes
+`with1 & with0` unconditionally empty, so an unconstrained variable reads as
+functional and Phase 2 emits a **wrong "dependent" verdict with no diagnostic**;
+and `register_ap` silently *appends* an unknown AP to the caller's automaton,
+which by I3 is the automaton about to be emitted as $\delta_{out}$. The
+signature is unchanged; both are pinned by `assert` under `#ifndef NDEBUG`.
