@@ -365,7 +365,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   observed/produced slices: `t_in` ⇒ $\Sigma_0=\Ifree,\Sigma_1=\Iknown$; `t_out`
   ⇒ $\Sigma_0=\mathcal{I}\cup\Ofree,\Sigma_1=\Oknown$; `t_c` ⇒
   $\Sigma_0=\mathcal{I},\Sigma_1=\Ofree$ — the **controller** row of the align
-  block (`main.tex:125`, $\lambda_C:Q_C\times2^{\mathcal I}\to2^{\Ofree}$). Unlike
+  block (`main.tex:130`, $\lambda_C:Q_C\times2^{\mathcal I}\to2^{\Ofree}$). Unlike
   `t_in`/`t_out` (external knowledge from a file), a `t_c` transducer is usually
   the synthesized `Controller` viewed as a transducer (see *Controller-as-transducer
   view*), or a controller read from a `--controller` file.
@@ -582,16 +582,16 @@ the existing term or update this file via `/glossary` — do not let drift happe
   (and Spot owns no `mtnfa_to_mtdfa` — it is ours).
 
 ### Consistency (cons)
-- **`main.tex`:** $\cons(q_{in},q_{out},v)$ (`\cref{def:consistency}`, §203) — the per-letter filter.
+- **`main.tex`:** $\cons(q_{in},q_{out},v)$ (`\cref{def:consistency}`, §206) — the per-letter filter.
 - **Definition:** $v$'s V-variables are exactly what $\Tin,\Tout$ output.
 - **C++:** `consistent(t_in, q_in, t_out, q_out, v)` — the two-transducer
   conjunction `emits(t_in, q_in, v) && emits(t_out, q_out, v)` (see *Output
-  agreement*); same §203 concept, delegating the λ-agreement to `emits`.
+  agreement*); same §206 concept, delegating the λ-agreement to `emits`.
 - **Do not call it:** agrees, valid, matches, feasible.
 
 ### Output agreement (emits)
 - **`main.tex`:** — (no symbol; code-only) — one conjunct of $\cons$
-  (`\cref{def:consistency}`, §203), applied per transducer.
+  (`\cref{def:consistency}`, §206), applied per transducer.
 - **Definition:** a full letter $v$ *agrees with* one transducer $\tau$'s
   committed output at state $q$: $\tau$'s $\lambda$ is defined at $(q,v)$ **and**
   $v$ lies in the $\Sigma_1$ cube it commits to (`(v & lambda) != bddfalse`).
@@ -650,7 +650,12 @@ the existing term or update this file via `/glossary` — do not let drift happe
   observation must differ in some coordinate, and that coordinate then admits both
   polarities — so $|{\rm produced}|$ tests suffice. And it needs **no fresh BDD
   variables and no renamed copy** of the relation, unlike the textbook
-  $R\wedge R'\wedge(X\not\equiv X')$ encoding.
+  $R\wedge R'\wedge(X\not\equiv X')$ encoding. The **empty relation `bddfalse` is
+  functional**, vacuously — both cofactors are empty, so no variable is ever
+  reported. That is not a degenerate corner to guard against but the mechanism by
+  which a state with an empty *Live-letter region* correctly imposes no
+  dependency constraint; `\cref{lem:outdep-diagonal}` is likewise vacuous there,
+  since it quantifies over pairs drawn **from** $\liveset{s}$.
 - **C++:** `undetermined_variable(relation, produced, produced_cube, aut)` →
   `std::optional<std::string>` (`nullopt` ⟺ functional)
   (`transducer_io.hpp`; `docs/prd/output-dependencies-tool.md` Phase 1). **Two
@@ -668,7 +673,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   (generalized in code to $S\times Q_1\times\cdots\times Q_n$).
 - **Definition:** the Goal automaton crossed with both knowledge transducers,
   keeping only consistent transitions (a non-consistent letter is skipped, as in
-  all methods — `\cref{def:consistency}`, §203; partiality note §211).
+  all methods — `\cref{def:consistency}`, §206; partiality note §214).
 - **C++:** `ProductState` (a struct — `unsigned goal` + `std::vector<unsigned>
   taus` — generalized to N transducers), the reusable `agreeing_successor`
   (lazy per-letter step) and `build_product` (eager per-letter driver → neutral
@@ -897,7 +902,7 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
 - **`main.tex`:** $\Ydep=(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ (`\cref{def:outdep}`).
 - **Definition:** the variables $\Xdep$ is dependent **on**. Once $\Oknown=\Xdep$
   it equals $\mathcal{I}\cup\Ofree$ — which is exactly $\Sigma_0$ for `Role::t_out`
-  (`main.tex:125`). **That coincidence is the whole reason extraction emits a
+  (`main.tex:127`). **That coincidence is the whole reason extraction emits a
   $\Tout$** rather than some new object, and it is emphatically *not* a
   coincidence for `t_in`: a $\Tin$ observes only $\Ifree$, so $\Ydep$ would let
   $\lambda_{in}$ read $\mathcal{O}$ and break the *Turn order*.
@@ -911,15 +916,36 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
 ### Live-letter region
 - **`main.tex`:** $\liveset{s}$ (`\cref{lem:outdep-diagonal}`).
 - **Definition:** at a state $s$ of the Goal DFA, the region of letters whose
-  successor is **live** (some accepting state is still reachable from it). It is
-  the object both halves of extraction run on: dependency holds iff every
-  reachable live $s$ has $\liveset{s}$ **functional** from $\Ydep$ to $\Xdep$
-  (*Determinacy witness*), and $\liveset{s}$ **totalised** with a default cube
-  *is* the emitted $\lambda_{out}$ (`\cref{lem:outdep-transducer}`). Liveness is
-  our own backward BFS from `state_is_accepting`, **not** `spot::purge_dead_states`
-  — that primitive is Büchi ("reaches an accepting *cycle*") and `ltlf_to_dfa`
-  gives final states no absorbing self-loops, so it would purge $F_D$ outright.
-  Independent of $\Xdep$, hence computed once outside the greedy loop.
+  successor is **live**. It is the object both halves of extraction run on:
+  dependency holds iff every reachable live $s$ has $\liveset{s}$ **functional**
+  from $\Ydep$ to $\Xdep$ (*Determinacy witness*), and $\liveset{s}$ **totalised**
+  with a default cube *is* the emitted $\lambda_{out}$
+  (`\cref{lem:outdep-transducer}`).
+- **Liveness is reflexive, and that is load-bearing.** Some accepting state is
+  reachable from $s$ **including $s$ itself**, so an accepting $s$ is live even
+  when every successor of $s$ is dead. Reflexivity is what places the **last**
+  letter of a trace in the $\liveset{s}$ of the state that emits it: under an
+  irreflexive reading, $\varphi=\lnot X[!]\mathtt{tt}$ over $\mathcal{I}=\{a\}$,
+  $\mathcal{O}=\{x\}$ gives every state an empty region and so reports $\{x\}$
+  dependent, which `\cref{def:outdep}` denies. The price is that $\liveset{s}$
+  may be **empty at a live $s$** — exactly at a *terminal accepting state*, where
+  $L(\varphi)$ is finite (e.g. $\varphi=a\wedge\lnot X[!]\mathtt{tt}$). That is
+  **legal, not a contradiction**: no trace of $L(\varphi)$ reads a letter there,
+  so the state carries no constraint (vacuously functional — see *Determinacy
+  witness*) and $\lambda_{out}$ defaults every letter. Read
+  $\liveset{s}=\emptyset$ at non-live $s$ too, so $\lambda_{out}$ is defined at
+  every state of the complete $\delta_{out}$. Asserting the *negation* of this
+  — "a live state must have a live successor" — aborts Debug builds on any
+  finite-language $\varphi$ (fixed `9f8d295`); the strongest true invariant is
+  the disjunction *live **non-accepting** ⇒ has a live successor*.
+- **Computed by:** our own backward BFS from `state_is_accepting`, **not**
+  `spot::purge_dead_states` — that primitive is Büchi ("reaches an accepting
+  *cycle*") and `ltlf_to_dfa` gives final states no absorbing self-loops, so it
+  would purge $F_D$ outright. The BFS must **skip `bddfalse` edges**: an
+  unsatisfiable guard can never be taken, so it must not propagate liveness, and
+  such edges do occur here (the terminal accepting state of
+  $(a\leftrightarrow x)\wedge\lnot X[!]\mathtt{tt}$ carries a `bddfalse`
+  self-loop). Independent of $\Xdep$, hence computed once outside the greedy loop.
 - **C++:** — (no public identifier; file-local to the extraction, computed from
   the Goal DFA's out-edges and the live-state set).
 - **Do not call it:** `emits_region` (that is a **transducer**'s λ-agreement
@@ -1263,13 +1289,23 @@ is seeded with them:
   evidence is that oracle passing, which is empirical, not a proof. Note the
   totality argument **depends on the trace-termination reading** below: the
   defaulted letters lose the system the game only under system-controlled
-  termination.
+  termination. Separately, `\cref{lem:outdep-diagonal}` is **underspecified on
+  liveness** (found 2026-07-30, via a Debug abort on finite-language $\varphi$):
+  it never says whether "reachable" is reflexive, never notes that $\liveset{s}$
+  can be **empty at a live $s$**, and leaves $\liveset{s}$ undefined at non-live
+  $s$ even though `\cref{lem:outdep-transducer}` needs $\lambda_{out}$ at every
+  state of a total $\delta_A$. All three are now settled in *Live-letter region*
+  above and in the code (`9f8d295`); the `\cl` note stating them in `main.tex` is
+  **drafted but not written** — it is parked in `docs/BACKLOG.md`, because the
+  worktree that produced it had no initialised `latex/` submodule. Applying it
+  adds 4 lines at `main.tex:528` and so shifts every later `main.tex:NNN`
+  citation, including this file's `latex/main.tex:548–553` below.
 - **Input dependencies need a different notion** — `\cref{def:outdep}` is
   output-only, and $\Ydep$ cannot simply be re-pointed: `Role::t_in` observes only
   $\Ifree$, so a dependent *input* must be dependent on $\mathcal{I}\setminus\Xdep$
   **alone**, ignoring $\mathcal{O}$ — a strictly stronger condition and a
   different algorithm. This is the notion the **commented-out**
-  `latex/main.tex:498–503` block gropes toward ("a potential set of dependent
+  `latex/main.tex:548–553` block gropes toward ("a potential set of dependent
   input variables $D\subseteq I$"), including its own alternative of deciding
   dependence by *counting synthesis strategies*. Left commented — the author's
   call, not to be uncommented by a skill.
