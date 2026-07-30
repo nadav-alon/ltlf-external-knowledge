@@ -488,6 +488,50 @@ assert a non-empty `output_known` input is refused with exit `2`; assert
   and the code is their only evidence.
 - The four gates in the header ticked by the skills that perform them.
 
+## Where this stands (as of 2026-07-30, after Phase 1)
+
+**Landed:** Phase 1 only, as commit `30c39cd` on branch
+`feat/output-dependencies` — `undetermined_variable`, `print_transducer`,
+`OutputLabeledTransducer::delta_dfa()`, plus U6 and O2. Suite 437/437.
+
+**Branch topology, since it is not obvious from the log.** `feat/output-dependencies`
+sits on `master`, whose tip `529a564` is a *cherry-pick* of the commit that wrote
+this PRD (the original `43dd79e` was authored on `docs/bootcamp` and is now
+orphaned; `docs/bootcamp` was reset to `74b3275`, the bootcamp doc alone).
+Nothing is pushed: `master` is 11 commits ahead of `origin/master` and
+`feat/output-dependencies` is local-only. Note agent worktrees branch from
+**`origin/master`**, not local `master`, so an agent's base can be well behind
+the branch it will be merged into — check before assuming a file is identical
+across the gap.
+
+**Loose ends, in the order worth taking them:**
+
+1. **Phase 2 — `dependent_outputs`.** The substantive next step, and where the
+   two preconditions asserted in Phase 1 stop being theoretical: the greedy loop
+   calls `undetermined_variable` once per candidate with a freshly built cube,
+   against the Goal DFA that I3 also emits as $\delta_{out}$. See the third
+   *Developer comments* entry for why `register_ap`'s mutation is only *pinned*
+   here, not eliminated — removing it means changing the frozen signature to take
+   a `bdd_dict_ptr` plus pre-registered vars, which is Phase 2's call to make.
+2. **The `latex/` submodule is dirty and uncommitted.** `/theory-review` wrote a
+   `\cl` sentence into `main.tex` under `\cref{lem:outdep-diagonal}` separating
+   the at-most-one half shared with `\cref{def:probDefTransducer}` from that
+   definition's total $\lambda$. Per the Overleaf workflow it needs a **fetch
+   first** (never force). The insert shifts `main.tex` line numbers after 526
+   by +1.
+3. **The `main.tex` §-anchor resync is partial.** Phase 1 fixed only the files it
+   touched (§101→§108, §103→§110, §107→§114-115, and the align block
+   §124-133→§121-131). Still stale: `include/ltlf_ek/transducer.hpp:24,47`,
+   `include/ltlf_ek/role.hpp:11,24`, `docs/GLOSSARY.md`'s *Determinacy witness*
+   entry, and **this file's** own citation of `latex/main.tex:498-503` for the
+   commented-out input-dependency block, which now lives at 550-554. Prefer
+   `\cref` labels over § numbers where possible — this drift is out-of-band and
+   recurs on every Overleaf pull.
+4. **Two agent worktrees are still on disk** under `.claude/worktrees/`
+   (`agent-ac7f2089d5d620d08` = the developer's, `agent-a4e09005d5ed06878` = the
+   test-writer's). Both are fully merged into `30c39cd` and safe to remove.
+   `.claude/worktrees/` is untracked, so **never `git add -A`** while they exist.
+
 ## Developer comments / PRD disagreements
 
 **2026-07-30 — `delta_dfa()` returns `spot::const_twa_graph_ptr`, not
