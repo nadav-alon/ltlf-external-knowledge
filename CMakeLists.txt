@@ -114,6 +114,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/symbolic_transducer_contract_test.cpp
     tests/transducer_io_test.cpp
     tests/undetermined_variable_test.cpp
+    tests/dependent_outputs_test.cpp
     tests/ltlf_to_dfa_test.cpp
     tests/mona_dfa_test.cpp
     tests/reverse_dfa_to_nfa_test.cpp

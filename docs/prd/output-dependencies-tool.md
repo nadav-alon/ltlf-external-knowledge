@@ -15,8 +15,13 @@ open; each records what Phase 1 closed.)
       against the frozen *Interfaces & types* block: U6 (6 cases, incl. the
       set-vs-singleton linchpin) and O2 (9 round-trip fixtures), plus
       `PrintTransducer.NormalisesAcceptanceAway` locking the acceptance
-      decision below. Suite 437/437. **Open:** U1-U5 (Phase 2), O1/O3/O4
-      (Phase 3).
+      decision below. Suite 437/437. **Phase 2 — U1-U5 authored** (same
+      concurrent shape) in `tests/dependent_outputs_test.cpp`, against the
+      frozen Phase 2 block, on a branch where `include/ltlf_ek/dependent_outputs.hpp`
+      does not exist yet; not built, not run — the developer branch lands the
+      header and the launcher merges + builds + runs `ctest`. Gate stays open
+      until that merge is green. **Still open:** the Phase 2 merge/build/ctest
+      step, and O1/O3/O4 (Phase 3).
 - [ ] code-review     — **Phase 1 closed 2026-07-30**, domain + generic, both
       clean of must-fix. Fixed in-diff: `delta_dfa()` const-correctness, the
       two `undetermined_variable` preconditions, acceptance normalisation, the
