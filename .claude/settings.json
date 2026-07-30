@@ -1,1 +1,29 @@
-{}
+{
+  "permissions": {
+    "defaultMode": "acceptEdits",
+    "allow": [
+      "Bash(cmake --build:*)",
+      "Bash(cmake -S:*)",
+      "Bash(ctest:*)",
+      "Bash(./unit_tests:*)",
+      "Bash(./build/unit_tests:*)",
+      "Bash(./ltlf-ek-synth:*)",
+      "Bash(./build/ltlf-ek-synth:*)",
+      "Bash(./ltlf-ek-deps:*)",
+      "Bash(./build/ltlf-ek-deps:*)",
+      "Bash(ltlfsynt:*)",
+      "Bash(autfilt:*)",
+      "Bash(ltl2tgba:*)",
+      "Bash(pkg-config:*)",
+      "Bash(ldd:*)",
+      "Bash(nm:*)",
+      "Bash(objdump:*)",
+      "Bash(readelf:*)",
+      "Bash(git merge-tree:*)",
+      "Read(//home/cowclaw/opt/spot-2.15.1/**)",
+      "Read(//home/cowclaw/spot/**)",
+      "Read(//home/cowclaw/.claude/**)",
+      "Read(//tmp/**)"
+    ]
+  }
+}

@@ -15,13 +15,13 @@ open; each records what Phase 1 closed.)
       against the frozen *Interfaces & types* block: U6 (6 cases, incl. the
       set-vs-singleton linchpin) and O2 (9 round-trip fixtures), plus
       `PrintTransducer.NormalisesAcceptanceAway` locking the acceptance
-      decision below. Suite 437/437. **Phase 2 — U1-U5 authored** (same
-      concurrent shape) in `tests/dependent_outputs_test.cpp`, against the
-      frozen Phase 2 block, on a branch where `include/ltlf_ek/dependent_outputs.hpp`
-      does not exist yet; not built, not run — the developer branch lands the
-      header and the launcher merges + builds + runs `ctest`. Gate stays open
-      until that merge is green. **Still open:** the Phase 2 merge/build/ctest
-      step, and O1/O3/O4 (Phase 3).
+      decision below. Suite 437/437. **Phase 2 closed 2026-07-30** — U1-U5 plus
+      five edge-case tests in `tests/dependent_outputs_test.cpp`, authored
+      concurrently against the frozen Phase 2 block on a branch where
+      `include/ltlf_ek/dependent_outputs.hpp` did not yet exist, then merged
+      against the independently-written implementation: **clean merge, zero
+      contract drift, all 10 green on the first integrated build.** Suite
+      447/447. **Open:** O1/O3/O4 (Phase 3).
 - [ ] code-review     — **Phase 1 closed 2026-07-30**, domain + generic, both
       clean of must-fix. Fixed in-diff: `delta_dfa()` const-correctness, the
       two `undetermined_variable` preconditions, acceptance normalisation, the
@@ -137,7 +137,7 @@ $\lambda^X = \bot$ when the successor set is empty. Ported literally that is
 $\delta$ or $\lambda$ makes the letter **inconsistent**, and an inconsistent
 letter is skipped for *every* party — so a partial $\Tout$ deletes $\Ifree$
 letters and constrains the **environment**, which $\Tout$ has no right to do
-($\Sigma_1 = \Oknown$, `main.tex:125`). Witness, and a required test fixture:
+($\Sigma_1 = \Oknown$, `main.tex:127`). Witness, and a required test fixture:
 $\varphi = G(\lnot a)\wedge G(x)$, $\mathcal{I}=\{a\}$, $\mathcal{O}=\{x\}$. One
 live state, $\liveset{s} = (\lnot a \wedge x)$, which *is* functional from
 $\{a\}$ to $\{x\}$, so $x$ is reported dependent with
@@ -192,7 +192,7 @@ error text.
 **I8 — scope is outputs only, and that is a turn-order constraint.** For
 $\Xdep\subseteq\mathcal{O}$, DepSynt's $\Ydep=(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$
 **equals** $\mathcal{I}\cup\Ofree$, which is exactly $\Sigma_0$ for
-`Role::t_out` (`main.tex:125`) — a verbatim fit. Input dependencies are **out of
+`Role::t_out` (`main.tex:127`) — a verbatim fit. Input dependencies are **out of
 scope** and are *not* a parameter change: `Role::t_in` has
 $\Sigma_0=\Ifree$, so a $\Tin$'s $\lambda$ may never observe $\mathcal{O}$, and
 $\Ydep=(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ would let it — violating the
@@ -450,7 +450,7 @@ assert a non-empty `output_known` input is refused with exit `2`; assert
   dependent on $\mathcal{I}\setminus\Xdep$ *alone* — strictly stronger than
   `\cref{def:outdep}`, since $\Sigma_0=\Ifree$ for `Role::t_in` forbids
   observing $\mathcal{O}$. This is the notion the **commented-out**
-  `latex/main.tex:498-503` block gropes toward ("a potential set of dependent
+  `latex/main.tex:550` block gropes toward ("a potential set of dependent
   input variables $D\subseteq I$"), including its own suggestion of deciding
   dependence by *counting synthesis strategies*. Left commented (author's call);
   a separate PRD.
@@ -500,9 +500,9 @@ commit `30c39cd` (`undetermined_variable`, `print_transducer`,
 `OutputLabeledTransducer::delta_dfa()`, plus U6 and O2); Phase 2 as commit
 `498ff63` (`include/ltlf_ek/dependent_outputs.hpp`, `src/dependent_outputs.cpp`
 — `DependentOutputs`, `dependent_outputs`), verbatim against the frozen
-*Interfaces & types* Phase 2 block. Suite still 437/437 (Phase 2 adds no
-tests of its own — library-only per its Green checkpoint, `/test-writer`'s
-job next). Hand-checked against the four *Test oracles* fixtures (U1 `G(a<->x)`,
+*Interfaces & types* Phase 2 block, with U1-U5 as commit `15e3ab7` from the
+concurrent `/test-writer` branch. **Suite 447/447** after integration. Also
+hand-checked against the four *Test oracles* fixtures (U1 `G(a<->x)`,
 U2 `G(a->x)`, U3/U5 `G(x<->y)`, U4 `G(!a)&G(x)`) plus the I9/unsat edge cases
 with a throwaway scratch program (not committed — a diligence check, not a
 substitute for `/test-writer`'s U1-U6): all match the PRD's hand-worked
@@ -514,10 +514,14 @@ sits on `master`, whose tip `529a564` is a *cherry-pick* of the commit that wrot
 this PRD (the original `43dd79e` was authored on `docs/bootcamp` and is now
 orphaned; `docs/bootcamp` was reset to `74b3275`, the bootcamp doc alone).
 Nothing is pushed: `master` is 11 commits ahead of `origin/master` and
-`feat/output-dependencies` is local-only. Note agent worktrees branch from
-**`origin/master`**, not local `master`, so an agent's base can be well behind
-the branch it will be merged into — check before assuming a file is identical
-across the gap.
+`feat/output-dependencies` is local-only. Agent worktrees used to branch from
+**`origin/master`**, not local `master`, putting an agent's base well behind the
+branch it would be merged into — for Phase 2 this was fixed by setting
+`worktree.baseRef: "head"` in `.claude/settings.local.json`, so worktrees now
+branch from the current tip. Note that file is **globally gitignored**
+(`~/.config/git/ignore`), so it does *not* propagate into worktrees: an agent
+sees only the tracked `.claude/settings.json`, which is why agents get no
+permission allowlist.
 
 **Loose ends, in the order worth taking them:**
 
@@ -526,27 +530,31 @@ across the gap.
    target, and O1/O3/O4. `dependent_outputs` is ready to drive it; see
    *Developer comments* for the one design call Phase 2 made in the space
    Phase 1 left open (`register_ap` pre-registration).
-2. **U1-U5 unit tests (Phase 2) are not yet written.** They are `/test-writer`'s
-   job, not the developer's; the scratch check above is evidence the code is
-   ready for them, not a substitute.
+2. **`/code-review` + `/code-reviewer` on the Phase 2 diff** — not yet run; the
+   integration was merge + build + `ctest` only.
 3. **The `latex/` submodule is dirty and uncommitted.** `/theory-review` wrote a
    `\cl` sentence into `main.tex` under `\cref{lem:outdep-diagonal}` separating
    the at-most-one half shared with `\cref{def:probDefTransducer}` from that
    definition's total $\lambda$. Per the Overleaf workflow it needs a **fetch
    first** (never force). The insert shifts `main.tex` line numbers after 526
    by +1.
-4. **The `main.tex` §-anchor resync is partial.** Phase 1 fixed only the files it
-   touched (§101→§108, §103→§110, §107→§114-115, and the align block
-   §124-133→§121-131). Still stale: `include/ltlf_ek/transducer.hpp:24,47`,
-   `include/ltlf_ek/role.hpp:11,24`, `docs/GLOSSARY.md`'s *Determinacy witness*
-   entry, and **this file's** own citation of `latex/main.tex:498-503` for the
-   commented-out input-dependency block, which now lives at 550-554. Prefer
-   `\cref` labels over § numbers where possible — this drift is out-of-band and
-   recurs on every Overleaf pull.
-5. **Two agent worktrees are still on disk** under `.claude/worktrees/`
-   (`agent-ac7f2089d5d620d08` = the developer's, `agent-a4e09005d5ed06878` = the
-   test-writer's). Both are fully merged into `30c39cd` and safe to remove.
-   `.claude/worktrees/` is untracked, so **never `git add -A`** while they exist.
+4. **The `main.tex` §-anchor resync is still partial, but wider than thought.**
+   Phase 2 closed the files Phase 1 left stale (`transducer.hpp:24,47`,
+   `role.hpp:11,16,24`, `synthesis.hpp:40`, `src/role.cpp:20`,
+   `tests/transducer_io_test.cpp`, `tests/ltlfsynt_oracle_test.cpp:666`, and
+   `docs/GLOSSARY.md`'s *Determinacy witness* entry) using §101→§108,
+   §107→§114-115, §124-133→§121-131, and **:125→:130** — note the last: `λ_C` is
+   at line **130**; line 125 is the `\Tout` row, so every "Σ0 = I, Σ1 = Ofree
+   (main.tex:125)" citation was pointing at the wrong row. A repo-wide sweep
+   shows the drift is much broader than this PRD's loose-end list (`main.tex:96`,
+   `:133`, `:241`, `:300`, `:335` and friends recur across ~10 `docs/prd/` files
+   and several headers) — that is a `/glossary` sweep, not a phase task. Prefer
+   `\cref` labels over § numbers; this drift is out-of-band and recurs on every
+   Overleaf pull.
+5. **Worktrees:** Phase 1's two are gone. Phase 2's (`agent-a0ec80d23d8f0868f`
+   = developer, `agent-a7470f27bd33d6d57` = test-writer) are fully merged and
+   removed. `.claude/worktrees/` is untracked, so **never `git add -A`** while
+   any exist.
 
 ## Developer comments / PRD disagreements
 

@@ -88,7 +88,7 @@ state 0: a
 )";
 
 // HoaAcceptanceIsIgnored: a Buchi acceptance condition parses but is never
-// read as transducer finality (main.tex §101).
+// read as transducer finality (main.tex §108).
 constexpr const char* kBuchiAcceptanceText = R"(HOA: v1
 States: 1
 Start: 0
@@ -203,7 +203,7 @@ TEST(SigmaSlicesDirect, EmptyKnownSetGivesEmptySigma1) {
   EXPECT_TRUE(s.sigma1.empty());
 }
 
-// Role::t_c (docs/prd/controller-verifier.md, main.tex:125): Sigma0 = I,
+// Role::t_c (docs/prd/controller-verifier.md, main.tex:130): Sigma0 = I,
 // Sigma1 = Ofree --- the controller's own align-block row.
 TEST(SigmaSlicesDirect, TCIsIAndOfree) {
   // I = {a, k}, Ofree = {x}, Oknown = {y}.
@@ -238,7 +238,7 @@ TEST(ParseTransducer, MissingHoaEdgeIsNulloptDelta) {
   auto dict = spot::make_bdd_dict();
   auto probe = spot::make_twa_graph(dict);
   auto t = Parse(kExample, InFreeKnown(), Role::t_in, dict);
-  // s0 has an edge only on a; !a satisfies no guard (partial delta, main.tex §107).
+  // s0 has an edge only on a; !a satisfies no guard (partial delta, main.tex §114-115).
   EXPECT_EQ(t.delta(0, LetterAK(probe, /*a=*/false, /*k=*/false)), std::nullopt);
 }
 
@@ -273,7 +273,7 @@ TEST(ParseTransducer, RoleTcSigma0IsInputsSigma1IsOutputFree) {
   auto t = Parse(kExample, part, Role::t_c, dict);
   EXPECT_EQ(t.sigma0_cube(), VarBdd(probe, "a"));
   EXPECT_EQ(t.sigma1_cube(), VarBdd(probe, "k"));
-  // state 0: a <-> k --- lambda_C commits Ofree k := a (main.tex:125).
+  // state 0: a <-> k --- lambda_C commits Ofree k := a (main.tex:130).
   EXPECT_EQ(t.lambda(0, LetterAK(probe, /*a=*/true, /*k=*/false)),
             std::optional<bdd>(VarBdd(probe, "k")));
 }
@@ -363,7 +363,7 @@ TEST(ParseTransducer, EmptySigma0GivesConstantOutput) {
   EXPECT_EQ(t.lambda(0, !av), std::optional<bdd>(av));
 }
 
-// HOA acceptance is parsed but never read as finality (main.tex §101): a Büchi
+// HOA acceptance is parsed but never read as finality (main.tex §108): a Büchi
 // automaton parses and its delta works exactly as an `all`-acceptance one.
 TEST(ParseTransducer, HoaAcceptanceIsIgnored) {
   auto dict = spot::make_bdd_dict();

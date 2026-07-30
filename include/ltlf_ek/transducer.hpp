@@ -21,7 +21,7 @@ namespace ltlf_ek {
 // This lambda-split shape has no native Spot equivalent, so we model it
 // explicitly.  See docs/GLOSSARY.md ("transducer", "lambda").
 //
-// Both delta and lambda are *partial* (main.tex §107, \cref{def:consistency}):
+// Both delta and lambda are *partial* (main.tex §114-115, \cref{def:consistency}):
 // either may be undefined at an argument, signalled by `std::nullopt`.  A letter
 // is *enabled* at a pair of states iff delta and lambda are defined at it on
 // both transducers AND `consistent(...)` holds; a nullopt from delta OR lambda
@@ -44,7 +44,7 @@ class Transducer {
   virtual spot::bdd_dict_ptr dict() const = 0;
 
   // delta(q, v): successor of q under the full letter v (a cube over I∪O).
-  // nullopt = undefined (partial transducer, main.tex §107).
+  // nullopt = undefined (partial transducer, main.tex §114-115).
   virtual std::optional<unsigned> delta(unsigned q, bdd v) const = 0;
 
   // lambda(q, v): the Sigma1-valued output committed at state q.  Passed the

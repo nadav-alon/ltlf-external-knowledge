@@ -637,7 +637,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
 ### Determinacy witness
 - **`main.tex`:** — (no symbol; it *decides* the $\lambda$-functionality
   requirement implicit in $\lambda:Q\times\Sigma_0\to\Sigma_1$ being a function,
-  §103 / `\cref{def:probDefTransducer}`, and the dependency condition of
+  §110 / `\cref{def:probDefTransducer}`, and the dependency condition of
   `\cref{lem:outdep-diagonal}` — the same predicate serves both).
 - **Definition:** decide whether a `bdd` relation, read as a relation **from** its
   observed variables **to** a named produced set, is **functional** — and if not,

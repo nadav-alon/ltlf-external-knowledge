@@ -663,7 +663,7 @@ constexpr unsigned kGuardSampleSeed = 20260705;   // fixed seed (deterministic).
 // slice is materialised: none of the four Tin fixtures' transducer files or
 // psi_in strings mention an Ofree AP, so there is nothing to fix to a
 // canonical value for this corpus (PRD "Edge cases" "Ofree don't-cares").  A
-// step whose delta/lambda is undefined (partial transducer, main.tex §107)
+// step whose delta/lambda is undefined (partial transducer, main.tex §114-115)
 // yields no trace for that sequence -- signalled by nullopt, so the caller
 // can skip it (PRD "Edge cases" "Partial transducer").
 std::optional<std::vector<bdd>> run_transducer(
