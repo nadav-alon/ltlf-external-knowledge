@@ -28,7 +28,17 @@ std::vector<bool> compute_live(const spot::twa_graph_ptr& dfa) {
   const unsigned n = dfa->num_states();
   std::vector<std::vector<unsigned>> preds(n);
   for (unsigned s = 0; s < n; ++s)
-    for (const auto& e : dfa->out(s)) preds[e.dst].push_back(s);
+    for (const auto& e : dfa->out(s)) {
+      // Skip unsatisfiable guards: a bddfalse edge can never be taken, so it
+      // must not propagate liveness.  These edges really do occur here (the
+      // terminal accepting state of `(a<->x) & !X[!]1` carries s1 --F--> s1
+      // beside s1 --true--> sink).  Guard-blind liveness would also break the
+      // agreement between `live` and the live-letter region below, whose
+      // `region |= e.cond` ignores such an edge either way: a state reachable
+      // as live ONLY across a bddfalse edge would be live with an empty
+      // region, which is the very shape compute_live_regions asserts against.
+      if (e.cond != bddfalse) preds[e.dst].push_back(s);
+    }
 
   std::vector<bool> live(n, false);
   std::deque<unsigned> queue;
@@ -54,9 +64,19 @@ std::vector<bool> compute_live(const spot::twa_graph_ptr& dfa) {
 // The live-letter region \liveset{s} (docs/GLOSSARY.md "Live-letter region",
 // \cref{lem:outdep-diagonal}): the union of out-edge guards out of s whose
 // successor is live.  Independent of Xdep, so computed once outside the
-// greedy loop (I6).  A live state's live-letter region is never empty ---
-// that would mean a live state all of whose successors are dead, impossible
-// by definition of live (Edge cases) --- so this is asserted, not handled.
+// greedy loop (I6).
+//
+// An EMPTY region at a live state is legitimate, not a contradiction: `live`
+// means "an accepting state is reachable from s, INCLUDING s itself", so an
+// accepting state whose every successor is dead is live yet has no live
+// letter.  That is precisely the terminal accepting state of a formula with a
+// finite language --- phi = a & !X[!]1 gives s0 --a--> s1(acc) --true--> sink,
+// and \liveset{s1} = bddfalse.  Such a state carries no constraint (no word
+// continues past it), which is exactly how both consumers read bddfalse:
+// is_dependent finds it vacuously functional, and the I5 totalisation defaults
+// every letter there.  So the invariant is only the weaker disjunction below;
+// a NON-accepting live state must still have a live successor, since that is
+// the only way it could have become live.
 std::vector<bdd> compute_live_regions(const spot::twa_graph_ptr& dfa,
                                       const std::vector<bool>& live) {
   const unsigned n = dfa->num_states();
@@ -66,9 +86,9 @@ std::vector<bdd> compute_live_regions(const spot::twa_graph_ptr& dfa,
     bdd region = bddfalse;
     for (const auto& e : dfa->out(s))
       if (live[e.dst]) region |= e.cond;
-    assert(region != bddfalse &&
-          "compute_live_regions: a live state must have a live successor "
-          "(impossible by definition of live)");
+    assert((dfa->state_is_accepting(s) || region != bddfalse) &&
+           "compute_live_regions: a live NON-accepting state must have a live "
+           "successor (that is the only way it could have become live)");
     regions[s] = region;
   }
   return regions;
