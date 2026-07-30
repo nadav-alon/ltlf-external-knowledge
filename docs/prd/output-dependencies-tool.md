@@ -492,9 +492,9 @@ assert a non-empty `output_known` input is refused with exit `2`; assert
 
 **Landed:** Phases 1-2, on branch `feat/output-dependencies` — Phase 1 as
 commit `30c39cd` (`undetermined_variable`, `print_transducer`,
-`OutputLabeledTransducer::delta_dfa()`, plus U6 and O2); Phase 2 adds
-`include/ltlf_ek/dependent_outputs.hpp` and `src/dependent_outputs.cpp`
-(`DependentOutputs`, `dependent_outputs`), verbatim against the frozen
+`OutputLabeledTransducer::delta_dfa()`, plus U6 and O2); Phase 2 as commit
+`498ff63` (`include/ltlf_ek/dependent_outputs.hpp`, `src/dependent_outputs.cpp`
+— `DependentOutputs`, `dependent_outputs`), verbatim against the frozen
 *Interfaces & types* Phase 2 block. Suite still 437/437 (Phase 2 adds no
 tests of its own — library-only per its Green checkpoint, `/test-writer`'s
 job next). Hand-checked against the four *Test oracles* fixtures (U1 `G(a<->x)`,
