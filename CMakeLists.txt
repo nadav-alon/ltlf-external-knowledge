@@ -70,6 +70,7 @@ add_library(ltlf_ek
   src/verify_controller.cpp
   src/cli.cpp
   src/bench.cpp
+  src/dependent_outputs.cpp
 )
 target_include_directories(ltlf_ek
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)

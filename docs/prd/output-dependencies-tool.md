@@ -488,11 +488,21 @@ assert a non-empty `output_known` input is refused with exit `2`; assert
   and the code is their only evidence.
 - The four gates in the header ticked by the skills that perform them.
 
-## Where this stands (as of 2026-07-30, after Phase 1)
+## Where this stands (as of 2026-07-30, after Phase 2)
 
-**Landed:** Phase 1 only, as commit `30c39cd` on branch
-`feat/output-dependencies` — `undetermined_variable`, `print_transducer`,
-`OutputLabeledTransducer::delta_dfa()`, plus U6 and O2. Suite 437/437.
+**Landed:** Phases 1-2, on branch `feat/output-dependencies` — Phase 1 as
+commit `30c39cd` (`undetermined_variable`, `print_transducer`,
+`OutputLabeledTransducer::delta_dfa()`, plus U6 and O2); Phase 2 adds
+`include/ltlf_ek/dependent_outputs.hpp` and `src/dependent_outputs.cpp`
+(`DependentOutputs`, `dependent_outputs`), verbatim against the frozen
+*Interfaces & types* Phase 2 block. Suite still 437/437 (Phase 2 adds no
+tests of its own — library-only per its Green checkpoint, `/test-writer`'s
+job next). Hand-checked against the four *Test oracles* fixtures (U1 `G(a<->x)`,
+U2 `G(a->x)`, U3/U5 `G(x<->y)`, U4 `G(!a)&G(x)`) plus the I9/unsat edge cases
+with a throwaway scratch program (not committed — a diligence check, not a
+substitute for `/test-writer`'s U1-U6): all match the PRD's hand-worked
+verdicts, including U4's totalised `lambda(s,a)` and U5's same-process
+determinism.
 
 **Branch topology, since it is not obvious from the log.** `feat/output-dependencies`
 sits on `master`, whose tip `529a564` is a *cherry-pick* of the commit that wrote
@@ -506,20 +516,21 @@ across the gap.
 
 **Loose ends, in the order worth taking them:**
 
-1. **Phase 2 — `dependent_outputs`.** The substantive next step, and where the
-   two preconditions asserted in Phase 1 stop being theoretical: the greedy loop
-   calls `undetermined_variable` once per candidate with a freshly built cube,
-   against the Goal DFA that I3 also emits as $\delta_{out}$. See the third
-   *Developer comments* entry for why `register_ap`'s mutation is only *pinned*
-   here, not eliminated — removing it means changing the frozen signature to take
-   a `bdd_dict_ptr` plus pre-registered vars, which is Phase 2's call to make.
-2. **The `latex/` submodule is dirty and uncommitted.** `/theory-review` wrote a
+1. **Phase 3 — `ltlf-ek-deps`, `print_partition_file`.** The substantive next
+   step: the binary, part-file co-management (I9), exit codes, the CMake
+   target, and O1/O3/O4. `dependent_outputs` is ready to drive it; see
+   *Developer comments* for the one design call Phase 2 made in the space
+   Phase 1 left open (`register_ap` pre-registration).
+2. **U1-U5 unit tests (Phase 2) are not yet written.** They are `/test-writer`'s
+   job, not the developer's; the scratch check above is evidence the code is
+   ready for them, not a substitute.
+3. **The `latex/` submodule is dirty and uncommitted.** `/theory-review` wrote a
    `\cl` sentence into `main.tex` under `\cref{lem:outdep-diagonal}` separating
    the at-most-one half shared with `\cref{def:probDefTransducer}` from that
    definition's total $\lambda$. Per the Overleaf workflow it needs a **fetch
    first** (never force). The insert shifts `main.tex` line numbers after 526
    by +1.
-3. **The `main.tex` §-anchor resync is partial.** Phase 1 fixed only the files it
+4. **The `main.tex` §-anchor resync is partial.** Phase 1 fixed only the files it
    touched (§101→§108, §103→§110, §107→§114-115, and the align block
    §124-133→§121-131). Still stale: `include/ltlf_ek/transducer.hpp:24,47`,
    `include/ltlf_ek/role.hpp:11,24`, `docs/GLOSSARY.md`'s *Determinacy witness*
@@ -527,7 +538,7 @@ across the gap.
    commented-out input-dependency block, which now lives at 550-554. Prefer
    `\cref` labels over § numbers where possible — this drift is out-of-band and
    recurs on every Overleaf pull.
-4. **Two agent worktrees are still on disk** under `.claude/worktrees/`
+5. **Two agent worktrees are still on disk** under `.claude/worktrees/`
    (`agent-ac7f2089d5d620d08` = the developer's, `agent-a4e09005d5ed06878` = the
    test-writer's). Both are fully merged into `30c39cd` and safe to remove.
    `.claude/worktrees/` is untracked, so **never `git add -A`** while they exist.
@@ -555,6 +566,24 @@ absorbing self-loops — the same $\omega$-vs-finite confusion I2 warns about fo
 writer therefore emits the canonical `Acceptance: 0 t` of
 `docs/prd/transducer-file-format.md`. Nothing is lost: `parse_transducer`
 ignores acceptance on the way back in.
+
+**2026-07-30 — Phase 2 pins `register_ap`'s mutation by pre-registering the
+whole universe up front, rather than changing the frozen signature.** The
+first Developer comment below flags that `undetermined_variable`'s
+`register_ap` call silently appends an unknown AP to the automaton it is
+handed — for the greedy loop, that automaton is `dfa`, which I3 also emits as
+$\delta_{out}$ — and asks Phase 2 to decide whether to eliminate it (a
+signature change) or merely keep it pinned. `dependent_outputs` keeps the
+signature and pins it harder: right after building `dfa`, it registers every
+AP of `partition.universe()` on `dfa` once, before the greedy loop runs. This
+makes the mutation independent of which candidate is tested and in what
+order (the only alternative was letting each per-candidate `detail::cube_of`
+call register whichever output happens not to occur in $\varphi$, contingent
+on greedy order) — and it is semantically inert either way: a produced
+variable outside `relation`'s support reads as *undetermined* (both polarities
+reachable, since nothing pins it), which is the mathematically correct
+verdict for a variable $\varphi$ never constrains, not a bug the
+pre-registration papers over.
 
 **2026-07-30 — `undetermined_variable` asserts its two preconditions.** The
 frozen signature takes `produced` and `produced_cube` separately (deliberately —
