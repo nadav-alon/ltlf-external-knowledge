@@ -1,0 +1,264 @@
+#include <optional>
+#include <set>
+#include <stdexcept>
+#include <string>
+
+#include <gtest/gtest.h>
+#include <bddx.h>
+#include <spot/tl/formula.hh>
+#include <spot/tl/parse.hh>
+#include <spot/twa/bdddict.hh>
+#include <spot/twa/twagraph.hh>
+
+#include "ltlf_ek/dependent_outputs.hpp"
+#include "ltlf_ek/output_labeled_transducer.hpp"
+#include "ltlf_ek/variables.hpp"
+
+// Phase 2 unit fixtures U1-U5 (docs/prd/output-dependencies-tool.md "Test
+// oracles") for `dependent_outputs` (docs/GLOSSARY.md "extract dependent
+// outputs"), the greedy-lexicographic search for a maximally *Dependent output
+// set* $\Xdep$ and its materialisation as a $\Tout$.
+//
+// CONCURRENT WORKFLOW: this file is written against the PRD's frozen
+// *Interfaces & types* -> Phase 2 block, BEFORE a developer agent has landed
+// include/ltlf_ek/dependent_outputs.hpp on its own branch.  It will not
+// compile or link standalone on this branch -- that is the expected,
+// documented state (see /test-writer's "Before writing"), not a bug to fix
+// here.  No stub/mock of the missing header is provided.
+namespace {
+
+using ltlf_ek::DependentOutputs;
+using ltlf_ek::dependent_outputs;
+using ltlf_ek::OutputLabeledTransducer;
+using ltlf_ek::VariablePartition;
+
+// A full letter over the shared dict: `names` true, everything else in the
+// pair false. Built via a probe twa_graph the way transducer_io_test.cpp and
+// undetermined_variable_test.cpp do, so AP registration happens on the SAME
+// dict `dependent_outputs` is given.
+bdd Letter(const spot::twa_graph_ptr& probe,
+           const std::set<std::pair<std::string, bool>>& assignment) {
+  bdd v = bddtrue;
+  for (const auto& [name, value] : assignment) {
+    const bdd var = bdd_ithvar(probe->register_ap(name));
+    v &= value ? var : !var;
+  }
+  return v;
+}
+
+// ---------------------------------------------------------------------------
+// U1 -- dependent, non-vacuous.  phi = G(a <-> x), I={a}, O={x}.
+// Xdep={x}; one live state (the initial state, per the PRD's "one live
+// state" framing -- this class of G(...) formula has exactly one live and
+// reachable state, the dead-on-violation sink being the other), functional
+// lambda: lambda(s,a)=x, lambda(s,!a)=!x.
+// ---------------------------------------------------------------------------
+
+TEST(DependentOutputs, U1DependentNonVacuous) {
+  auto dict = spot::make_bdd_dict();
+  auto probe = spot::make_twa_graph(dict);
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x"},
+                                              /*governed=*/{});
+  const DependentOutputs result =
+      dependent_outputs(spot::parse_formula("G(a <-> x)"), part, dict);
+
+  EXPECT_EQ(result.dependent, (std::set<std::string>{"x"}));
+  EXPECT_EQ(result.partition.output_known, (std::set<std::string>{"x"}));
+  EXPECT_TRUE(result.partition.output_free.empty());
+  ASSERT_TRUE(result.t_out.has_value());
+
+  const OutputLabeledTransducer& t_out = *result.t_out;
+  const unsigned s = t_out.initial_state();
+  const bdd xv = bdd_ithvar(probe->register_ap("x"));
+  EXPECT_EQ(t_out.lambda(s, Letter(probe, {{"a", true}})),
+            std::optional<bdd>(xv));
+  EXPECT_EQ(t_out.lambda(s, Letter(probe, {{"a", false}})),
+            std::optional<bdd>(!xv));
+}
+
+// ---------------------------------------------------------------------------
+// U2 -- not dependent.  phi = G(a -> x), same partition.  At !a both x and !x
+// stay live, so x is not dependent: Xdep=empty and t_out==nullopt.
+// ---------------------------------------------------------------------------
+
+TEST(DependentOutputs, U2NotDependentHasNoTransducer) {
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x"},
+                                              /*governed=*/{});
+  const DependentOutputs result =
+      dependent_outputs(spot::parse_formula("G(a -> x)"), part, dict);
+
+  EXPECT_TRUE(result.dependent.empty());
+  EXPECT_TRUE(result.partition.output_known.empty());
+  EXPECT_EQ(result.partition.output_free, (std::set<std::string>{"x"}));
+  EXPECT_EQ(result.t_out, std::nullopt);
+}
+
+// ---------------------------------------------------------------------------
+// U3 -- singleton-union is unsound (I6).  phi = G(x <-> y), I={a}, O={x,y}.
+// {x,y} is NOT dependent on {a} (at each a, both x=y=T and x=y=F stay live),
+// but {x} alone is dependent on {a,y} (lexicographic-greedy picks it first).
+// The direct guard: a singleton-union implementation (testing each output
+// alone and unioning the successes, rather than accumulating) would wrongly
+// return {x,y} here and fail this assertion.
+// ---------------------------------------------------------------------------
+
+TEST(DependentOutputs, U3SingletonUnionIsUnsound) {
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x", "y"},
+                                              /*governed=*/{});
+  const DependentOutputs result =
+      dependent_outputs(spot::parse_formula("G(x <-> y)"), part, dict);
+
+  // The set-vs-singleton linchpin: {x} only, never {x,y}.
+  EXPECT_EQ(result.dependent, (std::set<std::string>{"x"}));
+  EXPECT_EQ(result.partition.output_known, (std::set<std::string>{"x"}));
+  EXPECT_EQ(result.partition.output_free, (std::set<std::string>{"y"}));
+}
+
+// ---------------------------------------------------------------------------
+// U4 -- totality (I4).  phi = G(!a) & G(x), I={a}, O={x}.
+// Xdep={x}; the single live state has liveset(s) = (!a & x), so lambda(s,a)
+// is UNCOVERED by liveset(s) and must be totalised to the default cube, not
+// left nullopt.  A partial-lambda implementation returns nullopt at a=true
+// and fails this assertion.
+// ---------------------------------------------------------------------------
+
+TEST(DependentOutputs, U4TotalityDefaultsUncoveredLetters) {
+  auto dict = spot::make_bdd_dict();
+  auto probe = spot::make_twa_graph(dict);
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x"},
+                                              /*governed=*/{});
+  const DependentOutputs result =
+      dependent_outputs(spot::parse_formula("G(!a) & G(x)"), part, dict);
+
+  EXPECT_EQ(result.dependent, (std::set<std::string>{"x"}));
+  ASSERT_TRUE(result.t_out.has_value());
+
+  const OutputLabeledTransducer& t_out = *result.t_out;
+  const unsigned s = t_out.initial_state();
+  const bdd xv = bdd_ithvar(probe->register_ap("x"));
+
+  // Covered letter: !a -> x is directly in liveset(s).
+  EXPECT_EQ(t_out.lambda(s, Letter(probe, {{"a", false}})),
+            std::optional<bdd>(xv));
+
+  // Uncovered letter: a=true has no live successor at all (G(!a) forbids it),
+  // so liveset(s) does not mention it -- I5's default cube (all-negative over
+  // Xdep, i.e. x=false) must fill it in.  This is the assertion a
+  // partial-lambda (nullopt-on-empty-successor-set) implementation fails.
+  const std::optional<bdd> defaulted = t_out.lambda(s, Letter(probe, {{"a", true}}));
+  ASSERT_NE(defaulted, std::nullopt) << "lambda(s, a) must be defined (totalised), not nullopt (I4)";
+  EXPECT_EQ(*defaulted, !xv) << "I5: the default cube is all-negative over Xdep";
+}
+
+// ---------------------------------------------------------------------------
+// U5 -- order determinism (I6).  Reuses U3's phi = G(x <-> y), which has two
+// distinct maximal dependent sets, {x} and {y}; the lexicographic one, {x},
+// must come back -- including on REPEATED calls in one process, guarding
+// against a set/hash-iteration-order bug that only shows up on a re-run.
+// ---------------------------------------------------------------------------
+
+TEST(DependentOutputs, U5LexicographicOrderIsDeterministicAcrossRepeatedCalls) {
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x", "y"},
+                                              /*governed=*/{});
+  const spot::formula phi = spot::parse_formula("G(x <-> y)");
+
+  for (int trial = 0; trial < 5; ++trial) {
+    const DependentOutputs result = dependent_outputs(phi, part, dict);
+    EXPECT_EQ(result.dependent, (std::set<std::string>{"x"}))
+        << "trial " << trial
+        << ": lexicographic order must pick {x}, not {y}, on every call";
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Edge cases (Phase 2 library behaviour).
+// ---------------------------------------------------------------------------
+
+// I9: a non-empty output_known on input is refused -- there is no "compose
+// two Touts" notion.
+TEST(DependentOutputs, RefusesNonEmptyOutputKnownOnInput) {
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x"},
+                                              /*governed=*/{"x"});
+  ASSERT_FALSE(part.output_known.empty());
+  EXPECT_THROW(dependent_outputs(spot::parse_formula("G(a <-> x)"), part, dict),
+               std::invalid_argument);
+}
+
+// Unsatisfiable phi: the initial state is not live, so every Xdep would be
+// vacuously dependent -- detected and refused rather than confidently
+// returning Xdep = O.
+TEST(DependentOutputs, RefusesUnsatisfiableFormula) {
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x"},
+                                              /*governed=*/{});
+  EXPECT_THROW(dependent_outputs(spot::parse_formula("0"), part, dict),
+               std::invalid_argument);
+}
+
+// O = empty: the greedy loop is empty, Xdep=empty -- not an error, same shape
+// as U2 (no transducer, exit-0 case).
+TEST(DependentOutputs, EmptyOutputSetGivesEmptyDependentSet) {
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{},
+                                              /*governed=*/{});
+  const DependentOutputs result =
+      dependent_outputs(spot::parse_formula("G(a)"), part, dict);
+  EXPECT_TRUE(result.dependent.empty());
+  EXPECT_EQ(result.t_out, std::nullopt);
+}
+
+// I = empty: legal.  With no Ydep variables at all, dependence means
+// liveset(s) pins a single Xdep-tuple per state -- phi=G(x) over O={x} alone
+// has exactly one live letter (x=true), trivially functional, so x IS
+// reported dependent.
+TEST(DependentOutputs, EmptyInputSetStillAnalysesOutputs) {
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(/*inputs=*/{},
+                                              /*outputs=*/{"x"},
+                                              /*governed=*/{});
+  const DependentOutputs result =
+      dependent_outputs(spot::parse_formula("G(x)"), part, dict);
+  EXPECT_EQ(result.dependent, (std::set<std::string>{"x"}));
+}
+
+// I10: a non-empty input_known on input is legal, ignored by the analysis,
+// and passed through VERBATIM -- worth its own test so the pass-through does
+// not silently regress (the PRD's explicit call-out).
+TEST(DependentOutputs, NonEmptyInputKnownPassesThroughVerbatim) {
+  auto dict = spot::make_bdd_dict();
+  // inputs={a,b}, b governed (Iknown={b}); outputs={x}, nothing governed yet
+  // (Oknown must start empty per I9).
+  const auto part = VariablePartition::split(/*inputs=*/{"a", "b"},
+                                              /*outputs=*/{"x"},
+                                              /*governed=*/{"b"});
+  ASSERT_EQ(part.input_free, (std::set<std::string>{"a"}));
+  ASSERT_EQ(part.input_known, (std::set<std::string>{"b"}));
+  ASSERT_TRUE(part.output_known.empty());
+
+  // b does not occur in phi at all -- the analysis (I10) ignores T_in/Iknown
+  // entirely and runs on A alone; b is dependency-irrelevant here.
+  const DependentOutputs result =
+      dependent_outputs(spot::parse_formula("G(a <-> x)"), part, dict);
+
+  EXPECT_EQ(result.dependent, (std::set<std::string>{"x"}));
+  // input_free / input_known pass through verbatim (I9); only the two output
+  // keys are repartitioned.
+  EXPECT_EQ(result.partition.input_free, (std::set<std::string>{"a"}));
+  EXPECT_EQ(result.partition.input_known, (std::set<std::string>{"b"}));
+  EXPECT_EQ(result.partition.output_known, (std::set<std::string>{"x"}));
+  EXPECT_TRUE(result.partition.output_free.empty());
+}
+
+}  // namespace
