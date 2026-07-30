@@ -1,16 +1,32 @@
 #!/bin/sh
-# Keep .vscode/settings.json (Markdown-preview KaTeX macros) in sync with the
-# paper's \newcommand notation in latex/main.tex.  See scripts/gen-md-macros.py.
+# Two guards against latex/main.tex drifting away from what the repo says about
+# it.  See scripts/gen-md-macros.py and scripts/check-main-tex-refs.py.
 #
-# Fast path: this hook does nothing unless the staged changes actually touch the
-# latex submodule or the settings file, so ordinary commits pay only one
-# `git diff` + `grep` (~10ms) and never launch Python.
+# Fast path: neither check launches Python unless the staged changes could
+# actually invalidate it, so ordinary commits pay only `git diff` + `grep`.
 
-if git diff --cached --name-only | grep -qE '^(latex|\.vscode/settings\.json)$'; then
+STAGED=$(git diff --cached --name-only)
+
+# 1. Notation macros mirrored into .vscode/settings.json.
+if printf '%s\n' "$STAGED" | grep -qE '^(latex|\.vscode/settings\.json)$'; then
 	if ! python3 scripts/gen-md-macros.py --check; then
 		echo >&2 "pre-commit: notation macros out of sync."
 		echo >&2 "  run: python3 scripts/gen-md-macros.py && git add .vscode/settings.json"
 		exit 1
 	fi
 fi
+
+# 2. `main.tex:NNN` citations still point at the content they named.  Triggered
+#    by a submodule bump (an Overleaf pull shifts lines) or by a staged line
+#    that actually adds/edits a citation (which may need a new anchor).
+if printf '%s\n' "$STAGED" | grep -qE '^(latex|docs/main-tex-anchors\.json)$' \
+	|| git diff --cached -U0 -- docs include src tests README.md 2>/dev/null \
+		| grep -qE '^\+.*main\.tex:[0-9]'; then
+	if ! python3 scripts/check-main-tex-refs.py --check; then
+		echo >&2 "pre-commit: main.tex citations are stale."
+		echo >&2 "  run: python3 scripts/check-main-tex-refs.py --fix && git add -u"
+		exit 1
+	fi
+fi
+
 exit 0
