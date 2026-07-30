@@ -53,7 +53,7 @@ answers* before binding.
 **main.tex ref:** §Method 2 (`\cref{fulldfa}`, `alg:dfa_product`); $\cons$
 (`\cref{def:consistency}`, §203); *enabled* (`\cref{def:consistency}`, §107–116);
 $T_C$'s interface (`\cref{def:probDefTransducer}`, §129); the projection `\na`
-(`main.tex:300`) and its commented-out `\cl` argument (`main.tex:302–303`).
+(`main.tex:303`) and its commented-out `\cl` argument (`main.tex:305–306`).
 No new algorithm — a representation change to an existing one.
 
 **Gates (Phase 2 delta — reopened for the new surface below; Phase 1's closures
@@ -118,7 +118,7 @@ are kept as history in each bullet):**
   controllable then existentially projecting (`solve_mtdfa.cpp:69`) is
   equivalent-in-outcome to `solve_dfa`'s arena-side projection — a forced move is
   invariant to which player owns it, so neither realizability nor a winning
-  strategy changes; discharges the same `main.tex:300` `\na` by a different route.
+  strategy changes; discharges the same `main.tex:303` `\na` by a different route.
   Three low-severity *consider* items only (skipped guard on empty `Ifree` →
   bare `out_of_range`; redundant double `require_turn_order_aps`; shared
   AP-registration order shifted for `DfaProduct` too but correctness-safe as the
@@ -199,7 +199,7 @@ these names as canonical:
   a sixth row would assert a sixth method, the exact claim we are avoiding. Five
   rows still mean five methods; `MtdfaProduct` is the Method-2 × mtdfa **cell**.
 - **`solve_mtdfa`** — added to *Game solving (SolveDfa)* as the mtdfa sibling of
-  `solve_dfa`, recording that the two discharge `main.tex:300`'s projection `\na`
+  `solve_dfa`, recording that the two discharge `main.tex:303`'s projection `\na`
   by different routes.
 - ***Product*** and ***Goal DFA construction*** each gained their mtdfa row. The
   latter's mtdfa wrapper is **deliberately unnamed** pending Phase 0/Q2 — with a
@@ -227,7 +227,7 @@ these names as canonical:
 - *Goal DFA construction*'s "deliberately unnamed wrapper" placeholder (above) is
   **retired**: there is no wrapper to name.
 - ***Open theory questions*** gained **Mealy is baked into the signatures**
-  (`main.tex:100` `\na`) — see *Open theory questions touched* below.
+  (`main.tex:103` `\na`) — see *Open theory questions touched* below.
 
 Still required of `/developer`: reword `cli.hpp:37`'s "the five methods" contract
 comment. No new *Canonical benchmarking stage* — see "Benchmarking" below.
@@ -257,9 +257,9 @@ comment. No new *Canonical benchmarking stage* — see "Benchmarking" below.
    (`synthesis.hpp`) reads $\lambda_C$ off the strategy's edge guards **expecting a
    relation over $\Ifree \times \Ofree$**, so step 5's projection is *mandatory*,
    not cosmetic.
-5. **Projecting the governed variables.** `main.tex:300` (`\na`) asserts the game
+5. **Projecting the governed variables.** `main.tex:303` (`\na`) asserts the game
    "can project these variables out without loss"; the argument is drafted in the
-   commented-out `\cl` at `main.tex:302–303`. `solve_dfa` does this **arena-side**
+   commented-out `\cl` at `main.tex:305–306`. `solve_dfa` does this **arena-side**
    (`bdd_exist` per edge guard, `src/solve_dfa.cpp:49`). This PRD reaches the same
    endpoint **strategy-side** — see decision 2. Same result, different route;
    flagged for `/theory-review`, not claimed as conformance.
@@ -875,9 +875,9 @@ Bind to the frozen contract above; the domain oracles parallelize regardless.
 
 Flagged for `/theory-review`; not resolved here.
 
-- **The projection `\na` (`main.tex:300`)** asserts the game "can project these
+- **The projection `\na` (`main.tex:303`)** asserts the game "can project these
   variables out without loss", argued in the commented-out `\cl` at
-  `main.tex:302–303`. Decision 2 reaches the same endpoint **strategy-side**
+  `main.tex:305–306`. Decision 2 reaches the same endpoint **strategy-side**
   (pin as forced system moves, project from the strategy) rather than **arena-side**
   (project from the guards, as `solve_dfa` does). Same result, different
   justification — needs review, not an assumed conformance.

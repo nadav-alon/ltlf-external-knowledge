@@ -797,7 +797,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   `FP` / `Fp` as a C++ identifier.
 
 ### Canonical representative
-- **`main.tex`:** $[\psi]$ (`main.tex:337`, §`otf`) — the representative of $\psi$
+- **`main.tex`:** $[\psi]$ (`main.tex:340`, §`otf`) — the representative of $\psi$
   after progression, *"so that semantically equal progressed formulae collapse to
   the same state"*.
 - **Definition:** what makes two progressed formulae the **same** state.
@@ -808,7 +808,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   as atoms and interned by that encoding, first-seen-wins. Spot applies it when it
   **mints a terminal**, so `ForwardProgression::decode` already *returns* $[\psi]$.
   It is **propositional** equivalence, weaker than the semantic equivalence
-  `main.tex:337` literally claims — flagged for `/theory-review`.
+  `main.tex:340` literally claims — flagged for `/theory-review`.
   A second, coarser merge sits **on top** of it in the *Product*: states whose
   **row** is identical are fused (Spot's `fuse_same_bdds`, applied componentwise
   on the goal part).
@@ -851,7 +851,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   Both **solve a product that already exists**. Method 3.1 Phase 2
   (`docs/prd/otf-mtdfa-product.md`) anticipates a **third** shape — solving *fused
   into* the construction, feeding `spot::backprop_graph` as rows are discovered and
-  aborting once the initial state is determined, which is what `main.tex:333`'s
+  aborting once the initial state is determined, which is what `main.tex:336`'s
   `\na` calls the missing *"hanging fruit optimization"*. Its C++ name is
   **not canonical yet** (the PRD's `otf_solve_fused` is explicitly tentative and
   its design is deferred to that phase's own grill) — recorded here only so no
@@ -864,7 +864,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   Instead `solve_mtdfa` makes $\Iknown,\Oknown$ **controllable** ($\cons$ pins each
   to exactly one legal value, so it is a *forced* move, not a real choice) and
   projects **strategy-side**, off the `twa_graph` that `mtdfa_strategy_to_mealy`
-  returns. Both discharge the same `main.tex:300` `\na` by different routes — see
+  returns. Both discharge the same `main.tex:303` `\na` by different routes — see
   *Open theory questions*.
 - **Do not call it:** solve (bare), `solve_game` / `mtdfa_winning_strategy` (those
   are Spot's primitives, not our wrappers), synthesize (that is the `Synthesis`
@@ -1236,16 +1236,16 @@ is seeded with them:
   counter-argument on record now: 3.1's benchmark win is already ~5000× *and
   flat* where $\cons$ prunes, so on-the-fly solving would optimize a term that is
   no longer the bottleneck there.
-- **Governed-variable projection** (`main.tex:300` `\na`) — *"Because the resulting
+- **Governed-variable projection** (`main.tex:303` `\na`) — *"Because the resulting
   game is being limited to transitions consistent with the external knowledge
   transducers, which govern the variable set $\mathcal{V}$, it can project these
   variables out without loss."* The supporting argument is drafted but **commented
-  out** (`main.tex:302–303`), so the claim is currently unbacked in the live text.
+  out** (`main.tex:305–306`), so the claim is currently unbacked in the live text.
   Both *Game solving* routes depend on it and discharge it **differently** —
   `solve_dfa` arena-side, `solve_mtdfa` by pinning the variables as forced
   controllable moves and projecting strategy-side. Flagged for `/theory-review`
   (`docs/prd/mtdfa-product.md`). Newly load-bearing; not previously listed here.
-- **Mealy is baked into the signatures; no Moore option** (`main.tex:100` `\na`) —
+- **Mealy is baked into the signatures; no Moore option** (`main.tex:103` `\na`) —
   *"these signatures are commiting to a mealy turn order, and are not ready for
   adding a moore option. For that, the signatures would be dependent on the order
   of players."* Newly listed here because Phase 0/Q2 made it concrete rather than

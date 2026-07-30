@@ -146,14 +146,14 @@ stage*, *Controller verifier*, *Generated corpus*.
 `MtnfaProduct` must realize `\cref{alg:nfa_product}` — every line of it — with the
 Goal automaton, the product, and the game all held in the mtdfa *Representation*.
 
-**1. The product ($P$, `main.tex:217–229`).** For a product state
+**1. The product ($P$, `main.tex:221–232`).** For a product state
 $\langle s, q_{in}, q_{out}\rangle$ and a letter $v$,
 $$\delta_{prod}(\langle s,q_{in},q_{out}\rangle, v) = \begin{cases}\{\langle s', \delta_{in}(q_{in},v), \delta_{out}(q_{out},v)\rangle : s'\in\delta_N(s,v)\} & \text{if } \cons(q_{in},q_{out},v)\\ \emptyset & \text{otherwise,}\end{cases}$$
 with $F_P = F_N \times Q_{in} \times Q_{out}$ — acceptance depends on the **goal**
 component alone. $\cons$ is applied as a **region intersection**
 `emits_region(q_in) & emits_region(q_out)`, never per letter; this is the same
 symbolic reading `build_product_symbolic` uses, already blessed against
-`\cref{def:consistency}` by the `\cl` note at `main.tex:213–215` (minterm
+`\cref{def:consistency}` by the `\cl` note at `main.tex:216–218` (minterm
 distributivity). Generalized to $n$ transducers it is
 $\bigwedge_k$ `taus[k]->emits_region(q[k])`, matching `product.hpp`'s existing
 generalization of $S\times Q_1\times\cdots\times Q_n$.
@@ -560,8 +560,8 @@ minterm enumeration anywhere; `LetterAlphabet` is **not** used on this route.
   representation escapes that dilemma for representation-specific reasons — not a
   claim that the dilemma was wrong. `MtdfaProduct` already depends on the same reading;
   `/theory-review` should bless or refute it **once**, for both methods.
-- **Governed-variable projection** (`main.tex:300` `\na`, supporting argument commented
-  out at `main.tex:302–303`) — inherited unchanged from `solve_mtdfa`; this PRD adds a
+- **Governed-variable projection** (`main.tex:303` `\na`, supporting argument commented
+  out at `main.tex:305–306`) — inherited unchanged from `solve_mtdfa`; this PRD adds a
   second consumer of the strategy-side projection, no new content.
 - **Trace-termination semantics** (`main.tex:96` `\na`) — `solve_mtdfa` carries Spot's
   own reading; this adds a second method depending on it agreeing with
@@ -868,7 +868,7 @@ setting applies. Ignore it when reading this diff.
 ## Theory-review findings, 2026-07-27 (faithfulness mode, `4a1e997..f043912`)
 
 **No `code-bug`.** `mtnfa_product_to_mtdfa` realizes `\cref{alg:nfa_product}` faithfully:
-$\cons$ as the region $\bigwedge_k$ `emits_region` (blessed by `main.tex:213`'s `\cl`),
+$\cons$ as the region $\bigwedge_k$ `emits_region` (blessed by `main.tex:216`'s `\cl`),
 $\delta_{prod}$'s goal component as `goal.pool.set_union` over $R$,
 $F_P=F_N\times Q_{in}\times Q_{out}$ as `any(goal.accepting[s] for s in S)` on the
 **goal** slice alone, and `\algname{NfaToDfa}`'s subset step as the interned
@@ -916,7 +916,7 @@ never takes. Consequently:
 
 **F1 — `\algname{NfaToDfa}` is undefined in `main.tex`** (`underspecified`, still OPEN,
 inherited from `docs/prd/mtnfa.md`; now load-bearing in **three** ways, not one). `grep`
-finds the name only at `main.tex:146` (prose) and `main.tex:265` (the algorithm line).
+finds the name only at `main.tex:149` (prose) and `main.tex:268` (the algorithm line).
 Missing: (i) the subset-construction rule itself, (ii) the $\emptyset$ rule, and (iii)
 the fact that the reachability invariant at `main.tex:241` — stated only as a *proof
 note* on a theorem whose proof is "To be determined" — is what licenses carrying
@@ -932,14 +932,14 @@ load-bearing for more than index bookkeeping. This equivalence is nowhere in `ma
 and it is precisely the axis on which the *expected-divergence* fixture makes
 `MtnfaProduct` the correct method. Folded into the same drafted `\cl`.
 
-**Nit (non-blocking, style).** `main.tex:213`'s `\cl` names only
+**Nit (non-blocking, style).** `main.tex:216`'s `\cl` names only
 `\texttt{build\_product\_symbolic}` as the region-intersection consumer; there are now
 three (`build_product_symbolic`, `emits_dfa`, `mtnfa_product_to_mtdfa`). Its argument
 (minterm distributivity) is generic and still covers this route; only the example is
 stale. Batch with the F1 note.
 
-**Also noted, benign.** `main.tex:254` initializes $\delta_{prod}$ to an "undefined
-mapping" while the display at `main.tex:222–228` gives $\emptyset$ for a non-$\cons$
+**Also noted, benign.** `main.tex:257` initializes $\delta_{prod}$ to an "undefined
+mapping" while the display at `main.tex:225–232` gives $\emptyset$ for a non-$\cons$
 letter; for an NFA the two are the same object, so no verdict.
 
 ## Developer comments / PRD disagreements

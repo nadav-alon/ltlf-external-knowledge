@@ -51,7 +51,7 @@ For a state $s$ that is not live, read $\liveset{s} = \emptyset$ as well, so tha
 - **Blocking, and now PROVEN not merely suspected:** `\cref{alg:otfdfa_product}`'s
   state-keyed $F_P$ **over-accepts** — theory review (2026-07-29) produced a
   one-state witness, $\varphi=(c \wedge G(a \rightarrow Xb)) \vee (\lnot c \wedge
-  X[!]G(a \rightarrow Xb))$ with trivial transducers. the `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:449`) asked
+  X[!]G(a \rightarrow Xb))$ with trivial transducers. the `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:452`) asked
   whether to drop the $F_P$ insert; the answer is **re-key it on the transition**.
   3.1 dodges this for free (an mtdfa terminal $2d+b$ is transition-keyed); an
   aggregating method must face it. `\cl` note written into `latex/main.tex`,
@@ -137,7 +137,7 @@ oracle rounds out the external `ltlfsynt` cross-check._
   So the fix is **not a drive-by**: it re-opens `emits_dfa`'s contract.
 - **Reachability:** needs a **partial transducer** — a $\cons$-passing product state
   whose $\delta$ is undefined on every letter. Legal (`transducer.hpp:24`,
-  `main.tex:107`) and explicitly handled by `build_product_nondet`. Reproduced end
+  `main.tex:114-115`) and explicitly handled by `build_product_nondet`. Reproduced end
   to end: $\varphi=b$, $\Ofree=\{b\}$, `t_in` with a delta-dead state 1 →
   **both** `DfaProduct` and `NfaProduct` say UNREALIZABLE where REALIZABLE is
   expected.
@@ -179,10 +179,10 @@ oracle rounds out the external `ltlfsynt` cross-check._
 
 ### `main.tex` `\algname{NfaToDfa}` empty-subset rule is underspecified (LaTeX-only, from theory-review 2026-07-17)
 - **Intent:** a *documentation* fix in `main.tex` (the latex submodule), not a code
-  change. The `\algname{NfaToDfa}` black box (~main.tex:265) states no rule for the
+  change. The `\algname{NfaToDfa}` black box (~main.tex:268) states no rule for the
   empty subset, and both sources of an empty $\delta_{prod}$ — a **non-$\cons$**
   letter and a **$\cons$-dead** letter ($\delta_N(s,v)=\emptyset$) — collapse to
-  $\emptyset$ in the paper (main.tex:223–228). No uniform reading of the black box is
+  $\emptyset$ in the paper (main.tex:225–232). No uniform reading of the black box is
   sound: skip-both → spuriously realizable; sink-both → spuriously unrealizable. The
   explicit `NfaProduct` already corrects this by completing $N$ before the product
   (`complete_here`), exactly as Method 2 completes $A$ — but the paper is silent.

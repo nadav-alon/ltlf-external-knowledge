@@ -52,7 +52,7 @@ From `docs/GLOSSARY.md` unless flagged:
 **Glossary gaps to close (run `/glossary` before `/developer`):**
 
 - **`Role::t_c`** — a third `Role` value with `$(\Sigma_0,\Sigma_1)=(\mathcal I,\Ofree)$`
-  (the controller's align-block row, `main.tex:123–125`). The glossary "Role"
+  (the controller's align-block row, `main.tex:128–130`). The glossary "Role"
   entry currently lists only `t_in`/`t_out`; add `t_c`.
 - **`controller_as_transducer`** — materialize a synthesized `Controller`'s
   strategy graph as an `OutputLabeledTransducer` (`$\Sigma_0=\mathcal I,\Sigma_1=\Ofree$`).

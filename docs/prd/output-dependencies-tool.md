@@ -5,8 +5,8 @@
 **Recommended workflow:** concurrent — the *Interfaces & types* freeze is **high**: every signature is a thin composition of existing glossary types (`spot::formula`, `VariablePartition`, `OutputLabeledTransducer`), and the one genuinely new predicate already exists in-tree as inline code at `src/transducer_io.cpp:191-203`.
 **main.tex ref:** `\cref{outdep}` — `\cref{def:outdep}`, `\cref{lem:outdep-diagonal}`, `\cref{lem:outdep-transducer}` (all written this session, propositions **unproved**)
 
-**Gates:** (Phases 2-3 are unimplemented, so the three phase-scoped gates stay
-open; each records what Phase 1 closed.)
+**Gates:** (Phase 3 is unimplemented, so the three phase-scoped gates stay open;
+each records what Phases 1-2 closed.)
 - [x] glossary        — *closed 2026-07-30*, in the commit that wrote this PRD.
       All four gaps landed at once (*Dependent output set*, *Dependency set*,
       *Live-letter region*, *Determinacy witness*), plus *Print a transducer*;
@@ -21,20 +21,41 @@ open; each records what Phase 1 closed.)
       `include/ltlf_ek/dependent_outputs.hpp` did not yet exist, then merged
       against the independently-written implementation: **clean merge, zero
       contract drift, all 10 green on the first integrated build.** Suite
-      447/447. **Open:** O1/O3/O4 (Phase 3).
+      447/447, then **449/449** after the two finite-language regression tests
+      below. **Open:** O1/O3/O4 (Phase 3).
 - [ ] code-review     — **Phase 1 closed 2026-07-30**, domain + generic, both
       clean of must-fix. Fixed in-diff: `delta_dfa()` const-correctness, the
       two `undetermined_variable` preconditions, acceptance normalisation, the
       untracked-test/CMake mismatch, a missing `<vector>`, the round-trip
       preconditions, and the stale `main.tex` §-anchors in the touched files
       (§101→§108, §103→§110, §107→§114-115). See *Developer comments*.
+      **Phase 2 closed 2026-07-30** — domain (`/code-reviewer`, which spawned
+      `theory-reviewer`) and generic (`/code-review`), both clean of must-fix.
+      Fixed in-diff: the over-strong `compute_live_regions` assertion, which
+      aborted Debug builds on every finite-language $\varphi$ (`9f8d295`), plus
+      guard-blind liveness (a `bddfalse` edge must not propagate liveness) and a
+      too-weak test assertion that the dead sink could satisfy. Note the root
+      cause was **this PRD**, not the code: the *Edge cases* bullet below
+      specified the bad assert and contradicted I2 — corrected in the same
+      commit. **Open:** Phase 3.
 - [ ] theory-review   — **Phase 1 closed 2026-07-30**: no `code-bug`. The
       cofactor predicate is sound *and complete* for sets, and the "at most
       one" reading is sanctioned by `main.tex` §114-115. One `\cl` sentence
       written into `main.tex` under `\cref{lem:outdep-diagonal}` distinguishing
       the shared at-most-one half from `\cref{def:probDefTransducer}`'s total
-      λ. **Open:** `\cref{lem:outdep-transducer}` and the equirealizability
-      claim, which only Phase 2-3 code can evidence.
+      λ. **Phase 2 closed 2026-07-30**: no `code-bug`. Both consumers of an
+      **empty** $\liveset{s}$ are faithful — `\cref{lem:outdep-diagonal}`
+      quantifies over pairs drawn *from* $\liveset{s}$, so it is vacuously true
+      when empty, and `\cref{lem:outdep-transducer}`'s "a fixed arbitrary element
+      of $2^{\Xdep}$ **otherwise**" branch is exactly I5's default cube.
+      Acceptance at $s$ constrains nothing, because the letter *into* $s$ is
+      already constrained at $s$'s predecessor. `\cref{lem:outdep-diagonal}` is
+      rated **underspecified** on liveness (reflexivity, the empty case, and
+      $\liveset{s}$ at non-live $s$); the `\cl` note is drafted in
+      `docs/BACKLOG.md` but **not yet written**, since the worktree that produced
+      it had no initialised `latex/` submodule. **Open:**
+      `\cref{lem:outdep-transducer}` and the equirealizability claim, which only
+      Phase 3 code can evidence.
 
 ## Goal
 

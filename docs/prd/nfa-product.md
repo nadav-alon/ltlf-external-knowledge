@@ -454,14 +454,14 @@ Both new pieces are bespoke (no Spot analog for our finite-acceptance rule; no
   $\cons$-dead-sink** distinction). No new `\na`.
   **[theory-review 2026-07-17 — RESOLVED, faithful.]** The distinction is correct
   as implemented; the one gap is in *main.tex*, not the code: the `\algname{NfaToDfa}`
-  black box (main.tex:265) states no rule for the empty subset, and both sources of an
+  black box (main.tex:268) states no rule for the empty subset, and both sources of an
   empty $\delta_{prod}$ (non-$\cons$ *and* $\cons$-dead) collapse to $\emptyset$ in the
   paper, so no uniform reading of the black box is sound. The code corrects this by
   completing $N$ (`complete_here`) before the product — exactly as Method 2 completes
   $A$. Drafted `\cl` note to place after the reachability note at ~main.tex:241
   (**not applied — separate LaTeX task, out of scope for this code PRD**):
   > `\cl[inline]{The black box \algname{NfaToDfa} must treat the two sources of an empty $\delta_{prod}$ differently: a non-$\cons$ letter is impossible (its $\mathcal{V}$-bits are pinned by $\Tin,\Tout$) and must be \emph{skipped} (missing edge), whereas a $\cons$ letter on which the Goal dies ($\delta_N(s,v)=\emptyset$) is a legitimate, losing play and must reach a rejecting sink. Since both yield $\emptyset$ here, the explicit realization completes $N$ into $N_c$ (a fresh non-accepting sink, $\delta$ total) before the product --- exactly as Method 2 completes $A$ --- so $\cons$-dead becomes a non-empty subset $\{(\mathrm{sink},q_{in}',q_{out}')\}$ while non-$\cons$ letters are dropped by the $\cons$ filter; the subset construction then safely skips the empty subset.}`
-- **Governed-variable projection** (`main.tex:300` `\na`) and
+- **Governed-variable projection** (`main.tex:303` `\na`) and
   **trace-termination semantics** (`main.tex:96` `\na`) — `NfaProduct` inherits both
   through `solve_dfa` exactly as `DfaProduct` does; no new consumer, no new
   divergence. Listed for completeness; already tracked in the glossary *Open theory
