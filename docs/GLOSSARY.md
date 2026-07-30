@@ -921,7 +921,7 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
   from $\Ydep$ to $\Xdep$ (*Determinacy witness*), and $\liveset{s}$ **totalised**
   with a default cube *is* the emitted $\lambda_{out}$
   (`\cref{lem:outdep-transducer}`).
-- **Liveness is reflexive, and that is load-bearing.** Some accepting state is
+  **Liveness is reflexive, and that is load-bearing:** some accepting state is
   reachable from $s$ **including $s$ itself**, so an accepting $s$ is live even
   when every successor of $s$ is dead. Reflexivity is what places the **last**
   letter of a trace in the $\liveset{s}$ of the state that emits it: under an
@@ -938,7 +938,7 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
   — "a live state must have a live successor" — aborts Debug builds on any
   finite-language $\varphi$ (fixed `9f8d295`); the strongest true invariant is
   the disjunction *live **non-accepting** ⇒ has a live successor*.
-- **Computed by:** our own backward BFS from `state_is_accepting`, **not**
+  Liveness is computed by our own backward BFS from `state_is_accepting`, **not**
   `spot::purge_dead_states` — that primitive is Büchi ("reaches an accepting
   *cycle*") and `ltlf_to_dfa` gives final states no absorbing self-loops, so it
   would purge $F_D$ outright. The BFS must **skip `bddfalse` edges**: an
