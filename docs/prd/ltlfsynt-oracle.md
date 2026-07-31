@@ -52,6 +52,15 @@ subset, where $\psi_{in}=\top$ and there is no transducer to encode). The
 known-**output** $\Tout$ reduction is different (a guarantee/conjunction, not an
 assumption) and is deferred to `docs/BACKLOG.md`.
 
+> **Follow-up spec'd (2026-07-31):** that deferral is now
+> `docs/prd/ltlfsynt-oracle-known-output.md`, which **extends this PRD in place**
+> — Tables A–E below are unchanged and this PRD is **not** superseded. It adds the
+> $\Tout$ guarantee reduction ($\varphi \land \psiout$), the mixed
+> $\psiin \to (\varphi \land \psiout)$ regime, and generalizes
+> `run_faithfulness_guard` over `Role`. Note its central warning: the
+> load-bearing **flip direction inverts** on the guarantee side (bare R → with-
+> guarantee U), because $\Tout$ constrains the system rather than the environment.
+
 ## Why the reduction is equirealizable (the correctness argument)
 Known-input problem: the environment picks $\Ifree$; $\Tin$ forces $\Iknown$
 **deterministically** from the $\Ifree$-history ($\Sigma_0=\Ifree$,

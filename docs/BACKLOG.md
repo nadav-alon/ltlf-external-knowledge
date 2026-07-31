@@ -58,9 +58,22 @@ shared product core, all four PRD gates clean), so the known-**output** $\Tout$
 oracle rounds out the external `ltlfsynt` cross-check._
 
 ### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **#1** (MTDFA replacement shipped 2026-07-16, see Done)
-- **PRD:** the known-**input** ($\Tin$) half is spec'd in
-  `docs/prd/ltlfsynt-oracle.md` (ready for `/developer` + `/test-writer`). This
-  item is the $\Tout$ follow-up it explicitly deferred.
+- **PRD: GRILLED 2026-07-31 → `docs/prd/ltlfsynt-oracle-known-output.md` (draft),
+  ready for `/test-writer`.** The known-**input** ($\Tin$) half remains
+  `docs/prd/ltlfsynt-oracle.md`, which this extends in place (not superseded).
+  Two phases: (1) the corpus, (2) generalize `run_faithfulness_guard` over `Role`.
+  **All 47 corpus rows were verified live against both binaries during the grill**
+  (Spot 2.15.1) — zero divergence — so `/test-writer` does no fixture design.
+  Three seeds settled: the reduction **is** equirealizable ($\psiout$ pins
+  $\Oknown$ to a forced move, same argument `solve_mtdfa` uses; $S_C\circ\Tout$
+  composes to exactly a Mealy pair-choice, so no turn-order loss); the
+  discriminating-fixture discipline **inverts** ($\Tout$ constrains the *system*,
+  so flips run bare-R → guarantee-U, the opposite of Tables A–C); turn order lines
+  up, and the copy-from-$\Ofree$ fixture ($x \leftrightarrow o$) is the only family
+  that can detect a violation — under a wrong $\Sigma_0=\mathcal{I}$ it fails
+  `parse_transducer`'s functionality check outright. Mixed
+  $\psiin \to (\varphi \land \psiout)$ is in scope and shows **both** flip
+  directions in one table.
 - **Intent:** extend the external `ltlfsynt` cross-check to a known **output**
   strategy. Unlike $\Tin$ (an *assumption* $\psi_{in} \rightarrow \varphi$),
   $\Oknown$ is a **system-side** helper ($\Sigma_0=\mathcal{I}\cup\Ofree$), so it
