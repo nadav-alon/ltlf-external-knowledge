@@ -2,6 +2,7 @@
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 #include <gtest/gtest.h>
 #include <bddx.h>
@@ -19,12 +20,8 @@
 // outputs"), the greedy-lexicographic search for a maximally *Dependent output
 // set* $\Xdep$ and its materialisation as a $\Tout$.
 //
-// CONCURRENT WORKFLOW: this file is written against the PRD's frozen
-// *Interfaces & types* -> Phase 2 block, BEFORE a developer agent has landed
-// include/ltlf_ek/dependent_outputs.hpp on its own branch.  It will not
-// compile or link standalone on this branch -- that is the expected,
-// documented state (see /test-writer's "Before writing"), not a bug to fix
-// here.  No stub/mock of the missing header is provided.
+// Asserts the PRD's frozen Phase 2 *Interfaces & types* block; a difference
+// there is a PRD-change event, not something to adjust here.
 namespace {
 
 using ltlf_ek::DependentOutputs;
@@ -204,6 +201,110 @@ TEST(DependentOutputs, RefusesUnsatisfiableFormula) {
                                               /*governed=*/{});
   EXPECT_THROW(dependent_outputs(spot::parse_formula("0"), part, dict),
                std::invalid_argument);
+}
+
+// ...and it throws the DERIVED type, so a caller mapping this one case to its
+// own exit code can catch it precisely instead of grepping what(). The base
+// assertion above still holds (UnsatisfiableFormula IS-A invalid_argument), so
+// existing catch sites are unaffected.
+TEST(DependentOutputs, UnsatisfiableFormulaThrowsItsOwnExceptionType) {
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x"},
+                                              /*governed=*/{});
+  EXPECT_THROW(dependent_outputs(spot::parse_formula("0"), part, dict),
+               ltlf_ek::UnsatisfiableFormula);
+}
+
+// The other two refusals must NOT be that type -- they share exit code 2 with
+// every other usage error. An AP literally named `unsatisfiable` is the case
+// that broke the old what()-substring dispatch.
+TEST(DependentOutputs, OtherRefusalsAreNotUnsatisfiableFormula) {
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x"},
+                                              /*governed=*/{});
+  EXPECT_THROW(
+      dependent_outputs(spot::parse_formula("G(a <-> unsatisfiable)"), part,
+                        dict),
+      std::invalid_argument);
+  try {
+    dependent_outputs(spot::parse_formula("G(a <-> unsatisfiable)"), part,
+                      dict);
+    FAIL() << "expected the closed-universe refusal to throw";
+  } catch (const ltlf_ek::UnsatisfiableFormula&) {
+    FAIL() << "the closed-universe refusal must not be reported as an "
+              "unsatisfiable formula (an AP may be NAMED 'unsatisfiable')";
+  } catch (const std::invalid_argument&) {
+  }
+
+  auto governed = VariablePartition::split(/*inputs=*/{"a"},
+                                            /*outputs=*/{"x"},
+                                            /*governed=*/{"x"});
+  try {
+    dependent_outputs(spot::parse_formula("G(a <-> x)"), governed, dict);
+    FAIL() << "expected the I9 output_known refusal to throw";
+  } catch (const ltlf_ek::UnsatisfiableFormula&) {
+    FAIL() << "the I9 refusal must not be reported as an unsatisfiable formula";
+  } catch (const std::invalid_argument&) {
+  }
+}
+
+// The CandidateObserver hook (I6): fires once per output in the same
+// lexicographic order the greedy loop walks, reports acceptance matching the
+// returned Xdep exactly, and carries the determinacy witness on rejection.
+// This is what lets `ltlf-ek-deps --verbose` narrate the real search instead
+// of re-deriving it from a copy of the algorithm.
+TEST(DependentOutputs, CandidateObserverNarratesTheRealGreedyWalk) {
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x", "y"},
+                                              /*governed=*/{});
+  std::vector<std::string> order;
+  std::vector<bool> accepted;
+  std::vector<std::optional<std::string>> witnesses;
+  const DependentOutputs result = dependent_outputs(
+      spot::parse_formula("G(x <-> y)"), part, dict,
+      [&](const std::string& z, bool ok,
+          const std::optional<std::string>& bad) {
+        order.push_back(z);
+        accepted.push_back(ok);
+        witnesses.push_back(bad);
+      });
+
+  // One call per output, in std::set order (I6's lexicographic order).
+  EXPECT_EQ(order, (std::vector<std::string>{"x", "y"}));
+  // U3/U5: {x} is dependent, {x,y} is not -- so x accepts and y rejects.
+  EXPECT_EQ(accepted, (std::vector<bool>{true, false}));
+  EXPECT_EQ(result.dependent, (std::set<std::string>{"x"}));
+
+  // A witness accompanies exactly the rejections.
+  ASSERT_EQ(witnesses.size(), 2u);
+  EXPECT_EQ(witnesses[0], std::nullopt);
+  ASSERT_TRUE(witnesses[1].has_value());
+  EXPECT_TRUE(*witnesses[1] == "x" || *witnesses[1] == "y")
+      << "the witness must name a variable of the rejected candidate {x, y}, "
+         "got '"
+      << *witnesses[1] << "'";
+}
+
+// The observer is purely observational: passing one must not change the
+// result. Guards against a future refactor routing the verdict through it.
+TEST(DependentOutputs, CandidateObserverDoesNotChangeTheResult) {
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(/*inputs=*/{"a"},
+                                              /*outputs=*/{"x", "y"},
+                                              /*governed=*/{});
+  const spot::formula phi = spot::parse_formula("G(a <-> x)");
+  const DependentOutputs without = dependent_outputs(phi, part, dict);
+  const DependentOutputs with =
+      dependent_outputs(phi, part, dict, [](const std::string&, bool,
+                                            const std::optional<std::string>&) {
+      });
+  EXPECT_EQ(with.dependent, without.dependent);
+  EXPECT_EQ(with.partition.output_known, without.partition.output_known);
+  EXPECT_EQ(with.partition.output_free, without.partition.output_free);
+  EXPECT_EQ(with.t_out.has_value(), without.t_out.has_value());
 }
 
 // O = empty: the greedy loop is empty, Xdep=empty -- not an error, same shape

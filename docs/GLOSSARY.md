@@ -1296,16 +1296,20 @@ is seeded with them:
   $s$ even though `\cref{lem:outdep-transducer}` needs $\lambda_{out}$ at every
   state of a total $\delta_A$. All three are now settled in *Live-letter region*
   above and in the code (`9f8d295`); the `\cl` note stating them in `main.tex` is
-  **drafted but not written** — it is parked in `docs/BACKLOG.md`, because the
-  worktree that produced it had no initialised `latex/` submodule. Applying it
-  adds 4 lines at `main.tex:528` and so shifts every later `main.tex:NNN`
-  citation, including this file's `latex/main.tex:548–553` below.
+  **written into `main.tex`** (2026-07-31, uncommitted and unpushed) by the
+  theory review under `/code-reviewer` on the Phase 3 diff, alongside a second
+  note on `\cref{lem:outdep-transducer}` recording that its "outside
+  $L(\varphi)$" justification is a statement about prefixes and that its
+  equirealizability claim is read under system-controlled termination. The
+  citation shift both notes caused has already been repaired by
+  `scripts/check-main-tex-refs.py --fix`, including this file's
+  `latex/main.tex:556–561` below.
 - **Input dependencies need a different notion** — `\cref{def:outdep}` is
   output-only, and $\Ydep$ cannot simply be re-pointed: `Role::t_in` observes only
   $\Ifree$, so a dependent *input* must be dependent on $\mathcal{I}\setminus\Xdep$
   **alone**, ignoring $\mathcal{O}$ — a strictly stronger condition and a
   different algorithm. This is the notion the **commented-out**
-  `latex/main.tex:548–553` block gropes toward ("a potential set of dependent
+  `latex/main.tex:556–561` block gropes toward ("a potential set of dependent
   input variables $D\subseteq I$"), including its own alternative of deciding
   dependence by *counting synthesis strategies*. Left commented — the author's
   call, not to be uncommented by a skill.

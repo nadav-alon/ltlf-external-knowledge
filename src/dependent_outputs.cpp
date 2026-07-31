@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <deque>
+#include <optional>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -100,24 +101,31 @@ std::vector<bdd> compute_live_regions(const spot::twa_graph_ptr& dfa,
 // are reachable by construction (ltlf_to_mtdfa/as_twa only materialise
 // discovered states, and spot::complete_here's sink is reached from them), so
 // "reachable" needs no separate check here.
-bool is_dependent(const std::vector<bdd>& live_regions,
-                  const std::vector<bool>& live,
-                  const std::set<std::string>& candidate, bdd candidate_cube,
-                  const spot::twa_graph_ptr& dfa) {
+//
+// Returns the first determinacy witness found, i.e. nullopt IFF the candidate
+// is dependent.  Returning the witness rather than a bool costs nothing (the
+// per-state check produces it either way) and is what lets CandidateObserver
+// narrate a rejection without any caller re-deriving this search.
+std::optional<std::string> undetermined_in_candidate(
+    const std::vector<bdd>& live_regions, const std::vector<bool>& live,
+    const std::set<std::string>& candidate, bdd candidate_cube,
+    const spot::twa_graph_ptr& dfa) {
   const unsigned n = dfa->num_states();
   for (unsigned s = 0; s < n; ++s) {
     if (!live[s]) continue;
-    if (undetermined_variable(live_regions[s], candidate, candidate_cube, dfa))
-      return false;
+    if (std::optional<std::string> bad = undetermined_variable(
+            live_regions[s], candidate, candidate_cube, dfa))
+      return bad;
   }
-  return true;
+  return std::nullopt;
 }
 
 }  // namespace
 
 DependentOutputs dependent_outputs(const spot::formula& phi,
                                    const VariablePartition& partition,
-                                   const spot::bdd_dict_ptr& dict) {
+                                   const spot::bdd_dict_ptr& dict,
+                                   const CandidateObserver& on_candidate) {
   // I9: the tool owns output_known --- main.tex:125 has exactly one Sout/Tout,
   // so there is no "compose two Touts" notion, and an already-known output
   // would let lambda_out observe a variable produced in the same turn-order
@@ -155,7 +163,7 @@ DependentOutputs dependent_outputs(const spot::formula& phi,
   // pair w, w' exists to violate functionality), so the greedy loop would
   // confidently return Xdep = O; detect and reject instead.
   if (!live[dfa->get_init_state_number()])
-    throw std::invalid_argument(
+    throw UnsatisfiableFormula(
         "dependent_outputs: phi is unsatisfiable (no accepting state is "
         "reachable from the initial state)");
 
@@ -173,8 +181,10 @@ DependentOutputs dependent_outputs(const spot::formula& phi,
     std::set<std::string> candidate = result.dependent;
     candidate.insert(z);
     const bdd candidate_cube = detail::cube_of(candidate, dfa);
-    if (is_dependent(live_regions, live, candidate, candidate_cube, dfa))
-      result.dependent = std::move(candidate);
+    const std::optional<std::string> bad = undetermined_in_candidate(
+        live_regions, live, candidate, candidate_cube, dfa);
+    if (!bad) result.dependent = std::move(candidate);
+    if (on_candidate) on_candidate(z, !bad.has_value(), bad);
   }
 
   // I9: repartition O = Ofree ⊎ Xdep; I∪ (input_free/input_known) pass through

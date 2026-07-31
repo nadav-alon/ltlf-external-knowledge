@@ -80,6 +80,19 @@ VariablePartition parse_partition_file(std::istream& in) {
   return p;
 }
 
+void print_partition_file(std::ostream& out, const VariablePartition& p) {
+  auto write_line = [&out](const std::string& key,
+                           const std::set<std::string>& values) {
+    out << key << ":";
+    for (const auto& ap : values) out << " " << ap;
+    out << "\n";
+  };
+  write_line("input_free", p.input_free);
+  write_line("input_known", p.input_known);
+  write_line("output_free", p.output_free);
+  write_line("output_known", p.output_known);
+}
+
 std::unique_ptr<Synthesis> make_synthesis_method(
     const std::string& method_flag, bool minimize_mtdfa) {
   if (method_flag == "dfa-product") return std::make_unique<DfaProduct>();

@@ -1,17 +1,27 @@
 # PRD: output-dependency extraction tool (`ltlf-ek-deps`)
 
-**Status:** draft
+**Status:** implemented — all three phases (uncommitted, integrated into the
+main checkout on `feat/output-dependencies`, 2026-07-31): `ltlf-ek-deps`,
+`print_partition_file`, part-file co-management (I9), exit codes, CMake target.
+Both concurrent worktrees (`agent-aa1ef1ac05f88e968` = developer,
+`agent-afa5872053739c0f7` = test-writer) merged clean — disjoint territories,
+with the two independent `CMakeLists.txt` edits (the new executable + its
+`LTLF_EK_DEPS_BINARY` export vs. the `unit_tests` source list) applying without
+conflict. **All four gates are closed** (2026-07-31): `/code-reviewer` +
+`/theory-review` landed last, applying two must-fix and five consider findings
+in-diff. Tree compiles; **`ctest` 477/477**.
 **Interface:** new binary `ltlf-ek-deps` + library entry `dependent_outputs`; does **not** implement `Synthesis`
 **Recommended workflow:** concurrent — the *Interfaces & types* freeze is **high**: every signature is a thin composition of existing glossary types (`spot::formula`, `VariablePartition`, `OutputLabeledTransducer`), and the one genuinely new predicate already exists in-tree as inline code at `src/transducer_io.cpp:191-203`.
 **main.tex ref:** `\cref{outdep}` — `\cref{def:outdep}`, `\cref{lem:outdep-diagonal}`, `\cref{lem:outdep-transducer}` (all written this session, propositions **unproved**)
 
-**Gates:** (Phase 3 is unimplemented, so the three phase-scoped gates stay open;
-each records what Phases 1-2 closed.)
+**Gates: all four closed 2026-07-31.** Each bullet records what every phase
+closed; the Phase 3 entries under *code-review* and *theory-review* are the
+last to land.
 - [x] glossary        — *closed 2026-07-30*, in the commit that wrote this PRD.
       All four gaps landed at once (*Dependent output set*, *Dependency set*,
       *Live-letter region*, *Determinacy witness*), plus *Print a transducer*;
       nothing phase-scoped is outstanding.
-- [ ] tests           — **Phase 1 closed 2026-07-30**, written concurrently
+- [x] tests           — **Phase 1 closed 2026-07-30**, written concurrently
       against the frozen *Interfaces & types* block: U6 (6 cases, incl. the
       set-vs-singleton linchpin) and O2 (9 round-trip fixtures), plus
       `PrintTransducer.NormalisesAcceptanceAway` locking the acceptance
@@ -22,8 +32,41 @@ each records what Phases 1-2 closed.)
       against the independently-written implementation: **clean merge, zero
       contract drift, all 10 green on the first integrated build.** Suite
       447/447, then **449/449** after the two finite-language regression tests
-      below. **Open:** O1/O3/O4 (Phase 3).
-- [ ] code-review     — **Phase 1 closed 2026-07-30**, domain + generic, both
+      below. **Phase 3 closed 2026-07-31** — O1, O3 and O4, again authored
+      concurrently against the frozen Phase 3 block (flags table, stdout line,
+      exit codes, `print_partition_file`) on a worktree where neither the
+      binary nor `print_partition_file` existed: **clean merge, no contract
+      drift, all green on the first integrated build.** Suite **465/465**.
+      O1 is non-vacuous by measurement, not just by assertion: 12 of its 150
+      generated cases yield a non-empty $\Xdep$ (8%, against the PRD's 5%
+      floor) and all 12 were three-way cross-checked against the
+      no-knowledge baseline *and* external `ltlfsynt`, alongside the explicit
+      I4 witness $\varphi = G(\lnot a)\wedge G(x)$. The test-writer also
+      discarded one of its own planned O4 fixtures, $(x \leftrightarrow a)\,U\,b$,
+      on finding the hand-derivation wrong — at $b$ true, $x$ is a don't-care,
+      so $\liveset{s}$ is non-functional and $\Xdep$ is empty, not $\{x\}$.
+- [x] code-review     — **Phase 3 closed 2026-07-31**, domain (`/code-reviewer`,
+      which spawned `theory-reviewer`) and generic. Two **must-fix** and five
+      **consider** findings, all applied in-diff, with regression tests for
+      every behavioural one (suite 465 → 477):
+      **(1)** a failed run destroyed the co-managed part file — the
+      `--emit-part` ≠ `--part-file` guard compared raw argv strings, so
+      `./p` vs `p` slipped through, and artifacts were written sequentially, so
+      a failing `--transducer` left a part file declaring $\Xdep$ with no
+      companion transducer (a pair `ltlf-ek-synth` then *refuses*). Now
+      resolved-path comparison plus a stage-all-then-rename commit.
+      **(2)** exit 3 was dispatched by a `what()` substring, so an AP *named*
+      `unsatisfiable` reported a usage error as an unsatisfiable formula — now
+      its own exception type. **(3)** stale concurrent-workflow narration in
+      three test files claiming the binary "does not yet exist". **(4)**
+      `--verbose` narrated to stdout, against the one-line contract, while the
+      tool's other diagnostic already used stderr. **(5)** the CLI's
+      re-derivation of the analysis, deleted via the new `CandidateObserver`.
+      **(6)** output streams unchecked after writing (a late ENOSPC flush
+      failure exited 0 on a truncated file). **(7)** `--verbose=false` *enabled*
+      narration and a repeated flag silently last-won. See *PRD amendments* and
+      *Developer comments*.
+      **Phase 1 closed 2026-07-30**, domain + generic, both
       clean of must-fix. Fixed in-diff: `delta_dfa()` const-correctness, the
       two `undetermined_variable` preconditions, acceptance normalisation, the
       untracked-test/CMake mismatch, a missing `<vector>`, the round-trip
@@ -38,7 +81,29 @@ each records what Phases 1-2 closed.)
       cause was **this PRD**, not the code: the *Edge cases* bullet below
       specified the bad assert and contradicted I2 — corrected in the same
       commit. **Open:** Phase 3.
-- [ ] theory-review   — **Phase 1 closed 2026-07-30**: no `code-bug`. The
+- [x] theory-review   — **Phase 3 closed 2026-07-31**: no `code-bug`.
+      `\cref{lem:outdep-transducer}`'s λ algebra, its dead-state case and its
+      $\Sigma_0/\Sigma_1$ orientation (computed *after* the I9 repartition) are
+      all faithful, and the CLI's then-duplicated analysis was confirmed
+      mathematically equivalent before it was deleted. Two `underspecified`
+      **doc** findings, both now written into `main.tex` as `\cl` notes: the
+      lemma was silent on $\lambda_{out}$ at non-live states (it defines
+      $\liveset{s}$ only for live $s$, yet needs $\lambda_{out}$ at every state
+      of a total $\delta_A$), and I4's totality argument was loose on two
+      counts — "the defaulted letters lie outside $L(\varphi)$" is a claim about
+      **prefixes**, and "lose the system the game" is only meaningful under the
+      system-controlled-termination reading `\cref{def:probDef}`'s note leaves
+      open. The long-pending `\cref{lem:outdep-diagonal}` note was landed in the
+      same pass. **Both lemmas remain unproved by design**, and the
+      equirealizability claim now explicitly inherits whatever the
+      trace-termination question settles (see *Open theory questions*).
+      The review also observed, without writing it up, that the construction
+      **answers I10's second half**: $\liveset{s}$ and $\lambda_{out}$ never
+      mention $\Tin$, and a winning strategy never leaves the live part, so
+      $\lambda_{out}$ stays valid under any $\Tin$ including replacement —
+      left out of `main.tex` because widening an unproved lemma is the author's
+      call.
+      **Phase 1 closed 2026-07-30**: no `code-bug`. The
       cofactor predicate is sound *and complete* for sets, and the "at most
       one" reading is sanctioned by `main.tex` §114-115. One `\cl` sentence
       written into `main.tex` under `\cref{lem:outdep-diagonal}` distinguishing
@@ -302,17 +367,58 @@ struct DependentOutputs {
   std::optional<OutputLabeledTransducer> t_out;
 };
 
+// Thrown when L(phi) is empty --- a distinct TYPE, because it is the one
+// dependent_outputs failure with its own CLI exit code (3) and message-text
+// dispatch misfires (see "PRD amendments").  IS-A std::invalid_argument, so
+// callers catching the base are unaffected.
+struct UnsatisfiableFormula : std::invalid_argument {
+  using std::invalid_argument::invalid_argument;
+};
+
+// Optional narration hook for I6's greedy loop: called once per z in O in
+// lexicographic order, with the determinacy witness when the candidate is
+// rejected and nullopt when accepted.  Purely observational --- it cannot
+// influence the result.  Exists so `ltlf-ek-deps --verbose` narrates the REAL
+// search instead of re-deriving it (see "PRD amendments").
+using CandidateObserver = std::function<void(
+    const std::string& z, bool accepted,
+    const std::optional<std::string>& undetermined)>;
+
 // Find a maximally dependent output set of `phi` and materialise it as external
 // knowledge.  Built on the shared `dict` (\cref{lem:outdep-diagonal},
 // \cref{lem:outdep-transducer}; docs/prd/output-dependencies-tool.md).
 //
-// Throws std::invalid_argument if `partition.output_known` is non-empty (I9),
+// Throws std::invalid_argument if `partition.output_known` is non-empty (I9) or
 // if an AP of `phi` lies outside `partition.universe()` (the closed-universe
-// rule), or if `phi` is unsatisfiable (Edge cases).
+// rule), and the derived UnsatisfiableFormula if `phi` is unsatisfiable
+// (Edge cases).
 DependentOutputs dependent_outputs(const spot::formula& phi,
                                    const VariablePartition& partition,
-                                   const spot::bdd_dict_ptr& dict);
+                                   const spot::bdd_dict_ptr& dict,
+                                   const CandidateObserver& on_candidate = {});
 ```
+
+**PRD amendments (2026-07-31, from `/code-review` + `/code-reviewer`).** Two
+additions to this frozen block, both made under the "If implementation proves
+this contract wrong" clause below; each existed as a *Developer comments*
+disagreement before it was fixed, and both are additive (the new parameter is
+defaulted, so no existing call site changed).
+
+1. **`CandidateObserver`.** `--verbose` previously re-derived liveness, the
+   live-letter regions and the greedy walk from a **copy** of
+   `src/dependent_outputs.cpp`'s algorithm, because the determinacy witness the
+   loop computes was discarded by an internal `bool`-returning `is_dependent`.
+   The copy had already been correct-by-luck once: the guard-blind-liveness fix
+   `9f8d295` had to be mirrored into it by hand. The loop now returns the
+   witness (`undetermined_in_candidate`) and offers it to an observer, so the
+   narration *is* the search. This also deleted the CLI's reach into
+   `ltlf_ek::detail::cube_of` and its second `ltlf_to_dfa` build.
+2. **`UnsatisfiableFormula`.** Exit 3 was dispatched by searching the
+   `std::invalid_argument` message for `"unsatisfiable"`. An AP literally
+   *named* `unsatisfiable` made the closed-universe refusal exit 3 --- a usage
+   error reported as an unsatisfiable formula. The type also removes the
+   silent-regression risk the original *Developer comments* note flagged in the
+   other direction.
 
 ### Phase 3 — the binary
 
@@ -482,7 +588,7 @@ assert a non-empty `output_known` input is refused with exit `2`; assert
   dependent on $\mathcal{I}\setminus\Xdep$ *alone* — strictly stronger than
   `\cref{def:outdep}`, since $\Sigma_0=\Ifree$ for `Role::t_in` forbids
   observing $\mathcal{O}$. This is the notion the **commented-out**
-  `latex/main.tex:550` block gropes toward ("a potential set of dependent
+  `latex/main.tex:558` block gropes toward ("a potential set of dependent
   input variables $D\subseteq I$"), including its own suggestion of deciding
   dependence by *counting synthesis strategies*. Left commented (author's call);
   a separate PRD.
@@ -525,7 +631,51 @@ assert a non-empty `output_known` input is refused with exit `2`; assert
   and the code is their only evidence.
 - The four gates in the header ticked by the skills that perform them.
 
-## Where this stands (as of 2026-07-30, after Phase 2)
+## Where this stands (as of 2026-07-31, after Phase 3 code)
+
+**Landed:** Phase 3, **uncommitted but integrated** into the main checkout on
+branch `feat/output-dependencies` — code and tests both, from two concurrent
+worktrees since merged. Code: `print_partition_file` (`include/ltlf_ek/cli.hpp`
+/ `src/cli.cpp`), the new binary `src/ltlf_ek_deps.cpp`, and the `ltlf-ek-deps`
+CMake target (linked, and its path exported to `unit_tests` as
+`LTLF_EK_DEPS_BINARY`, mirroring `LTLF_EK_SYNTH_BINARY`). Tests:
+`tests/ltlf_ek_deps_test.cpp` (O1, O3) and
+`tests/output_dependencies_controller_test.cpp` (O4). Tree compiles; **`ctest`
+465/465** green on the first integrated build with no contract drift in either
+direction, then **477/477** after the review fixes below.
+
+**The one thing worth re-checking if this is revisited:** O1's generated-corpus
+case runs 150 cases in ~300 ms, which *looks* too fast to be spawning four
+subprocesses per case and reads at first glance like a vacuous oracle. It is
+not. 12 of the 150 clear the non-empty-$\Xdep$ filter (8%, above the PRD's 5%
+floor) and each spawns `ltlf-ek-deps`, two `ltlf-ek-synth` runs and `ltlfsynt`;
+`ltlfsynt` itself returns in ~5 ms on formulas this small, so ~48 spawns in
+~300 ms is exactly right. Note also that a missing external oracle cannot make
+this pass silently: the fixture `GTEST_SKIP`s wholesale when `ltlfsynt` is not
+runnable, and `ParseLtlfsyntVerdict` calls `ADD_FAILURE()` rather than
+defaulting a verdict when it cannot parse one.
+
+**The `--verbose` and exit-3 design calls** recorded under *Developer comments*
+were both **reversed by review on 2026-07-31** — see *PRD amendments*. Both are
+now covered: exit 3 by
+`LtlfEkDepsExitCodes.UnsatisfiableFormulaExitsThreeAndWritesNothing` plus
+`…ClosedUniverseRefusalExitsTwoEvenWhenAnApIsNamedUnsatisfiable` (the case that
+broke the substring dispatch), and `--verbose` by three `LtlfEkDepsVerbose.*`
+tests plus two library-level `DependentOutputs.CandidateObserver*` tests. The
+narration is worth testing now precisely because it is no longer a re-derivation:
+it is the real greedy loop reporting on itself.
+
+**Still open, and deliberately so:** the corpus vacuousness margin. O1's filter
+clears 12 of 150 cases (8%) against a 5% floor, i.e. a floor of 7 with 12
+measured. The in-process `randltlgenerator` reproducibility hazard that
+`tests/ltlfsynt_oracle_test.cpp:1502-1520` documents (and guards with
+`spot::srand`) does **not** bite here — measured stable at 12/150 across a
+same-seed repeat and after a foreign corpus perturbation, because each case
+constructs a fresh generator with an explicit per-case seed — but the headroom
+is five cases, so a future change to the generator or to `ltlf_to_dfa` could
+push it under the floor.
+
+## Where this stood (as of 2026-07-30, after Phase 2)
 
 **Landed:** Phases 1-2, on branch `feat/output-dependencies` — Phase 1 as
 commit `30c39cd` (`undetermined_variable`, `print_transducer`,
@@ -557,19 +707,34 @@ permission allowlist.
 
 **Loose ends, in the order worth taking them:**
 
-1. **Phase 3 — `ltlf-ek-deps`, `print_partition_file`.** The substantive next
-   step: the binary, part-file co-management (I9), exit codes, the CMake
-   target, and O1/O3/O4. `dependent_outputs` is ready to drive it; see
-   *Developer comments* for the one design call Phase 2 made in the space
-   Phase 1 left open (`register_ap` pre-registration).
-2. **`/code-review` + `/code-reviewer` on the Phase 2 diff** — not yet run; the
-   integration was merge + build + `ctest` only.
-3. **The `latex/` submodule is dirty and uncommitted.** `/theory-review` wrote a
-   `\cl` sentence into `main.tex` under `\cref{lem:outdep-diagonal}` separating
-   the at-most-one half shared with `\cref{def:probDefTransducer}` from that
-   definition's total $\lambda$. Per the Overleaf workflow it needs a **fetch
-   first** (never force). The insert shifts `main.tex` line numbers after 526
-   by +1.
+1. **Phase 3 — `ltlf-ek-deps`, `print_partition_file`.** **Done, integrated and
+   reviewed** (2026-07-31): the binary, part-file co-management (I9), exit
+   codes, the CMake target, and O1/O3/O4, then `/code-reviewer` +
+   `/theory-review` with all findings applied in-diff. Suite **477/477**. Both
+   Phase 3 design calls the frozen Interfaces block left open (the `--verbose`
+   diagnostic and the unsatisfiable-exit-3 dispatch) were **reversed** by that
+   review — see *PRD amendments*. The Phase 2 call in the space Phase 1 left
+   open (`register_ap` pre-registration) stands as written.
+   **Still open:** nothing but the commit — the whole of Phases 1-3 plus the
+   review fixes is uncommitted working tree.
+2. **`/code-review` + `/code-reviewer` on the Phase 2 diff** — **done
+   2026-07-31**, folded into the Phase 3 pass, which reviewed commits `498ff63`
+   / `15e3ab7` / `9f8d295` alongside the uncommitted Phase 3 diff. No must-fix
+   in the Phase 2 code itself; its greedy loop did change, to return the
+   determinacy witness rather than a `bool`, in service of the Phase 3
+   `CandidateObserver` amendment.
+3. **The `latex/` submodule is dirty and uncommitted** — now carrying **three**
+   `\cl` additions, not one: Phase 1's at-most-one sentence, plus the two Phase 3
+   theory-review notes (the long-pending `\cref{lem:outdep-diagonal}` liveness
+   note, landed verbatim from `docs/BACKLOG.md`, and a new
+   `\cref{lem:outdep-transducer}` note on the prefix reading and the
+   termination-semantics dependency). The citation drift they caused is
+   **already repaired** in this same working tree —
+   `scripts/check-main-tex-refs.py --check` is clean at 32 anchors / 145
+   citations — so no separate anchor sweep is owed. The original Phase 1 note
+   separated the at-most-one half shared with `\cref{def:probDefTransducer}`
+   from that definition's total $\lambda$. Per the Overleaf workflow all three
+   need a **fetch first** (never force).
 4. **The `main.tex` §-anchor resync is still partial, but wider than thought.**
    Phase 2 closed the files Phase 1 left stale (`transducer.hpp:24,47`,
    `role.hpp:11,16,24`, `synthesis.hpp:40`, `src/role.cpp:20`,
@@ -640,3 +805,55 @@ functional and Phase 2 emits a **wrong "dependent" verdict with no diagnostic**;
 and `register_ap` silently *appends* an unknown AP to the caller's automaton,
 which by I3 is the automaton about to be emitted as $\delta_{out}$. The
 signature is unchanged; both are pinned by `assert` under `#ifndef NDEBUG`.
+
+**RESOLVED 2026-07-31 by `/code-reviewer` — the hook was added; see *PRD
+amendments* under Phase 2.** `dependent_outputs` now takes a defaulted
+`CandidateObserver`, the CLI's `TraceGreedy`/`VerboseComputeLive`/
+`VerboseComputeLiveRegions` are deleted (76 lines), and `--verbose` narrates the
+real greedy loop. The disagreement below is kept for the record, since its
+reasoning is what made the hook the right call rather than a nicety.
+
+**2026-07-31 — `--verbose` re-runs I2/I6's analysis locally in
+`src/ltlf_ek_deps.cpp` instead of being driven by a hook on `dependent_outputs`.**
+The frozen Phase 3 *Interfaces & types* block adds only `print_partition_file`;
+it gives `--verbose` a one-line description ("per-candidate accept/reject with
+the undetermined variable") but no library signature to drive it. Rather than
+extend the frozen `dependent_outputs`/`DependentOutputs` contract with a
+diagnostic callback or an optional trace field, the CLI's `TraceGreedy` (file-
+local, `src/ltlf_ek_deps.cpp`) rebuilds the DFA (`ltlf_to_dfa`) and re-derives
+liveness/live-regions with the same algorithm as `src/dependent_outputs.cpp`'s
+anonymous-namespace `compute_live`/`compute_live_regions`, then narrates the
+same greedy walk using the public `undetermined_variable`. This is a
+deliberate, presentation-only duplication of ~30 lines of read-only analysis:
+the authoritative `Xdep`/`Tout` still come from one call to `dependent_outputs`,
+and `--verbose`'s trace is cosmetic (no test oracle exercises it — O1/O3/O4 are
+silent on `--verbose`). Flagging it because a future change to I1/I2's
+algorithm must be mirrored in both places, or `--verbose`'s narration will
+silently drift from the real verdict; the cleaner long-term fix is a
+Phase-2-owned diagnostic hook, which is a signature change and out of this
+developer pass's authority to make unilaterally.
+
+**RESOLVED 2026-07-31 by `/code-reviewer` — a distinct exception type
+(`UnsatisfiableFormula`) replaced the substring dispatch; see *PRD amendments*
+under Phase 2.** The note below anticipated the wording-drift direction of the
+risk; review found the *other* direction was already live, since an AP named
+`unsatisfiable` made the closed-universe refusal exit 3. Both directions are now
+closed, and `LtlfEkDepsExitCodes.ClosedUniverseRefusalExitsTwoEvenWhenAnApIsNamedUnsatisfiable`
+pins it.
+
+**2026-07-31 — the unsatisfiable-phi exit code (3) is dispatched by matching
+`dependent_outputs`'s `std::invalid_argument::what()` substring `"unsatisfiable"`,
+not a distinct exception type or an independent liveness check in the CLI.**
+`dependent_outputs` throws `std::invalid_argument` for three unrelated reasons
+(I9's output_known refusal, the closed-universe violation, and phi
+unsatisfiable), and only the last needs its own exit code per the PRD's *Edge
+cases*. Re-deriving "is phi unsatisfiable" independently in the CLI (rebuild
+the DFA, recompute liveness at the initial state) would be exactly the kind of
+Phase-2 re-derivation the `/developer` skill asks not to do; message-substring
+dispatch on the one throw site's own, in-repo, stable string is the smaller
+surface. Risk: if `dependent_outputs`'s wording ever changes, exit 3 silently
+regresses to exit 2 with no test failure unless an oracle specifically checks
+the exit code for the unsatisfiable case (O1's corpus is restricted to
+$\Xdep\neq\emptyset$ cases per the PRD, so it may not cover this). Flagging for
+`/test-writer`/`/code-reviewer` to consider a dedicated unsatisfiable-case exit
+code test.

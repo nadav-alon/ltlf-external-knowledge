@@ -17,33 +17,6 @@ oracle — **Method 3.1 is DONE** (see Done; it landed as `OtfMtdfaProduct` in
 `MtdfaProduct` where $\cons$ prunes, the first method to beat the standing
 champion). Its Phase 2 (`otf_solve_fused`) is spun out below._
 
-### Write the pending `\cl` note on `\cref{lem:outdep-diagonal}` into `main.tex`
-- **Intent:** land the note below. It is **drafted, not written** — unlike the
-  usual workflow, because it was produced from a worktree whose `latex/`
-  submodule is uninitialized, and initializing one there would have shadowed the
-  uncommitted note already sitting in the main checkout. Apply it from the main
-  checkout, leave it uncommitted, push to Overleaf only when asked (fetch first).
-- **Why it is warranted:** theory review (2026-07-30) rated the lemma
-  **underspecified** on three counts, all surfaced by the `compute_live_regions`
-  assert bug: `main.tex` never says whether "reachable" is reflexive, never notes
-  that $\liveset{s}$ can be empty at a live $s$, and leaves $\liveset{s}$
-  *undefined* at non-live $s$ even though `\cref{lem:outdep-transducer}` needs
-  $\lambda_{out}$ at every state of a total $\delta_A$.
-- **Placement:** extend the existing `\cl[inline]{…}` block on
-  `\cref{lem:outdep-diagonal}` — replace the trailing `}` of `main.tex:528` with
-  these four sentences, keeping the closing brace on the last:
-
-```latex
-Reachability in ``some accepting state of $A$ is reachable from $s$'' is \textbf{reflexive}: an accepting $s$ is live, even when every successor of $s$ is dead.
-That is load-bearing and not pedantry, since it is what places the \emph{last} letter of a trace in the $\liveset{s}$ of the state that emits it: with an irreflexive reading, $\varphi = \lnot X[!]\mathtt{tt}$ over $\mathcal{I} = \{a\}$ and $\mathcal{O} = \{x\}$ would give every state an empty $\liveset{s}$ and so report $\{x\}$ dependent, which~\cref{def:outdep} says it is not.
-The price is that $\liveset{s}$ may be \textbf{empty} at a live $s$ --- exactly at a terminal accepting state, where $L(\varphi)$ is finite --- and the condition then holds vacuously, which is correct because no trace of $L(\varphi)$ reads any letter at $s$; acceptance of $s$ constrains nothing here, as the letter \emph{into} $s$ is already constrained at the predecessor of $s$, whose $\liveset{}$ contains it.
-For a state $s$ that is not live, read $\liveset{s} = \emptyset$ as well, so that~\cref{lem:outdep-transducer}'s $\lambda_{out}$ is defined at every state of a total $\delta_A$ and defaults everywhere on the dead part.
-```
-
-- **Seed:** it adds 4 lines, so every `main.tex:NNN` citation past 528 shifts by
-  +4 — including the PRD's `latex/main.tex:550` pointer at the commented-out
-  input-dependency block. Fold that into the next `/glossary` anchor sweep.
-
 ### Method 3.2 — on-the-fly **aggregated** product (`otfagg`, `\cref{alg:otfdfa_agg_product}`)
 - **Intent:** the next unbuilt cell after 3.1. Aggregate on $[\psi]$ alone
   (collapsing transducer states), bounding the product by the size of the original
@@ -466,6 +439,27 @@ oracle rounds out the external `ltlfsynt` cross-check._
   parse; also drops the temp-file write + `-w` table parsing, or keep those?
 
 ## Done
+
+### The pending `\cl` notes on `\cref{lem:outdep-diagonal}` / `\cref{lem:outdep-transducer}` — **DONE 2026-07-31**
+- **Outcome:** both written into `latex/main.tex`, uncommitted, by the
+  `/theory-review` run under `/code-reviewer` on the Phase 3 diff. The
+  diagonal note landed **verbatim** as drafted here (reflexivity of "reachable",
+  the $\lnot X[!]\mathtt{tt}$ witness for why an irreflexive reading is unsound,
+  the empty-$\liveset{s}$-at-a-live-$s$ case, and $\liveset{s}=\emptyset$ at
+  non-live $s$) — the draft is dropped from this file rather than duplicated.
+- **Plus one that was not drafted here:** a second note on
+  `\cref{lem:outdep-transducer}`, recording that "the defaulted letters lie
+  outside $L(\varphi)$" is a statement about **prefixes** (an uncovered
+  observation is one whose every completion goes to a non-live state), that
+  "lose the system the game" is read under the system-controlled-termination
+  semantics `\cref{def:probDef}`'s note leaves open, and a two-direction sketch
+  of equirealizability keyed on totality and on winning strategies never
+  leaving the live part.
+- **Anchor drift, already repaired:** the two notes shifted the commented-out
+  input-dependency block by +8 lines; `scripts/check-main-tex-refs.py --fix`
+  rewrote the affected citations across `docs/GLOSSARY.md` and
+  `docs/prd/output-dependencies-tool.md` in the same working tree. Still
+  **unpushed** to Overleaf (fetch first, never force).
 
 ### `OtfMtdfaProduct` — Method 3.1, the on-the-fly DFA product — **DONE 2026-07-29**
 - **Outcome: POSITIVE — the first method to beat the standing champion.** Landed in

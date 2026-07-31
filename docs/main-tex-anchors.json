@@ -96,13 +96,10 @@
     "452": [
       "\\na[inline]{I am least confident in this part than any other, because of the insertion to $F_P$ in line~\\ref{alg:otfdfa_agg_product:final_insert}, being able to be overwritten. So should i remove it from it if b comes out false? Not certain}"
     ],
-    "528": [
-      "Liveness is what the source discharges by assuming ``wlog all states and edges that are not part of an accepting run are removed''; here it must be stated explicitly, because it is what makes a witness $v \\in \\liveset{s}$ extendable to a trace of $L(\\varphi)$.}"
-    ],
-    "548": [
+    "556": [
       "% I had an idea, its quite unrefined, but it involves using synthesis to compute the external knowledge transducer from the domain/environment assumption/any other external knowledge base."
     ],
-    "550": [
+    "558": [
       "% Say we have the formula $\\Gamma$ as the external knowledge base over variables $I, O$, and a potential set of dependent input variables $D \\subseteq I$. To verify that $D$ are dependent in $\\Gamma$, we can attempt to synthesize $\\Gamma$ with $D$ as the output variables, and count the number of models that satisfy $\\Gamma$. If it is 1, $D$ are dependent, because there is a single strategy that decides their value. If it is 0, the domain is vacuous. If it is $> 1$ then $D$ are not dependent because more than one strategy for their values exists."
     ]
   }

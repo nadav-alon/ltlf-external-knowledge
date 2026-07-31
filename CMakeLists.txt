@@ -80,6 +80,11 @@ target_link_libraries(ltlf_ek PUBLIC PkgConfig::SPOT)
 add_executable(ltlf-ek-synth src/ltlf_ek_synth.cpp)
 target_link_libraries(ltlf-ek-synth PRIVATE ltlf_ek)
 
+# --- ltlf-ek-deps: output-dependency extraction CLI
+# (docs/prd/output-dependencies-tool.md "Phase 3 -- the binary") ---
+add_executable(ltlf-ek-deps src/ltlf_ek_deps.cpp)
+target_link_libraries(ltlf-ek-deps PRIVATE ltlf_ek)
+
 # --- ltlfsynt (Spot's own CLI synthesizer) ---
 # Located for tests/ltlfsynt_oracle_test.cpp's external realizability oracle
 # (docs/prd/ltlfsynt-oracle.md).  Optional: a clean box without Spot's CLI
@@ -116,6 +121,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/transducer_io_test.cpp
     tests/undetermined_variable_test.cpp
     tests/dependent_outputs_test.cpp
+    tests/output_dependencies_controller_test.cpp
     tests/ltlf_to_dfa_test.cpp
     tests/mona_dfa_test.cpp
     tests/reverse_dfa_to_nfa_test.cpp
@@ -137,6 +143,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/cli_test.cpp
     tests/ltlf_ek_synth_test.cpp
     tests/ltlfsynt_oracle_test.cpp
+    tests/ltlf_ek_deps_test.cpp
     tests/bench_test.cpp
   )
   target_link_libraries(unit_tests PRIVATE ltlf_ek GTest::gtest_main)
@@ -146,6 +153,13 @@ if(LTLF_EK_BUILD_TESTS)
   add_dependencies(unit_tests ltlf-ek-synth)
   target_compile_definitions(unit_tests PRIVATE
     "LTLF_EK_SYNTH_BINARY=\"$<TARGET_FILE:ltlf-ek-synth>\"")
+  # tests exercising ltlf-ek-deps as a subprocess (docs/prd/
+  # output-dependencies-tool.md O1/O3: end-to-end equirealizability and
+  # part-file co-management) need the binary built first and its path baked
+  # in, same pattern as LTLF_EK_SYNTH_BINARY above.
+  add_dependencies(unit_tests ltlf-ek-deps)
+  target_compile_definitions(unit_tests PRIVATE
+    "LTLF_EK_DEPS_BINARY=\"$<TARGET_FILE:ltlf-ek-deps>\"")
   # tests/ltlfsynt_oracle_test.cpp drives Spot's own ltlfsynt binary as a
   # subprocess (docs/prd/ltlfsynt-oracle.md); LTLFSYNT_BIN (runtime env)
   # overrides this compile-time path, and the suite GTEST_SKIP()s when

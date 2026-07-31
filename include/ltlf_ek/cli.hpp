@@ -2,6 +2,7 @@
 
 #include <istream>
 #include <memory>
+#include <ostream>
 #include <string>
 
 #include "ltlf_ek/synthesis.hpp"
@@ -32,6 +33,15 @@ namespace ltlf_ek {
 // key repeated across lines, or an AP name listed in more than one of the four
 // sets (the partition-disjointness invariant).
 VariablePartition parse_partition_file(std::istream& in);
+
+// The exact inverse of parse_partition_file above (docs/prd/
+// output-dependencies-tool.md "Phase 3 -- the binary"): write the four keys,
+// one per line, in the same "key: value" shape, so
+// parse_partition_file(print_partition_file(p)) == p.  A key with an empty
+// set is still written (as `key:` with nothing after the colon), matching the
+// reader's "a missing key or an empty value is the empty set" rule --- either
+// spelling round-trips, so the writer always uses the explicit form.
+void print_partition_file(std::ostream& out, const VariablePartition& p);
 
 // Construct the Synthesis method named by a CLI method flag with its leading
 // `--` stripped, e.g. "dfa-product" (docs/GLOSSARY.md "The five methods").
