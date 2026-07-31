@@ -41,5 +41,36 @@
       "Bash(echo:*)",
       "Bash(printf:*)"
     ]
+  },
+  "sandbox": {
+    "enabled": true,
+    "network": { "allowedDomains": [] },
+    "filesystem": {
+      "allowWrite": [
+        "/home/cowclaw/ltlf-external-knowledge",
+        "/home/cowclaw/.claude/jobs"
+      ],
+      "denyRead": [
+        "/home/cowclaw/.ssh",
+        "/home/cowclaw/.config/gh"
+      ],
+      "denyWrite": [
+        "/home/cowclaw/ltlf-external-knowledge/.git"
+      ]
+    }
+  },
+  "hooks": {
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "M=$HOME/backups/ltlf-ek.git; R=$HOME/ltlf-external-knowledge; [ -d $M ] || exit 0; git --git-dir=$M fetch -q --prune origin && W=$(git -C $R stash create) && [ -n \"$W\" ] && git -C $R push -q $M $W:refs/wip/$(date +%Y%m%dT%H%M%S); echo \"$(date -Is) mirror refreshed\" >> $HOME/backups/last-backup.log",
+            "timeout": 60,
+            "statusMessage": "Refreshing mirror backup"
+          }
+        ]
+      }
+    ]
   }
 }
