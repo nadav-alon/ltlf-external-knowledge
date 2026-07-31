@@ -9,7 +9,9 @@ with the two independent `CMakeLists.txt` edits (the new executable + its
 `LTLF_EK_DEPS_BINARY` export vs. the `unit_tests` source list) applying without
 conflict. **All four gates are closed** (2026-07-31): `/code-reviewer` +
 `/theory-review` landed last, applying two must-fix and five consider findings
-in-diff. Tree compiles; **`ctest` 477/477**.
+in-diff, then a **second review round over the fix code itself** found two more
+real bugs in it (see the *code-review* gate). Tree compiles;
+**`ctest` 480/480**.
 **Interface:** new binary `ltlf-ek-deps` + library entry `dependent_outputs`; does **not** implement `Synthesis`
 **Recommended workflow:** concurrent — the *Interfaces & types* freeze is **high**: every signature is a thin composition of existing glossary types (`spot::formula`, `VariablePartition`, `OutputLabeledTransducer`), and the one genuinely new predicate already exists in-tree as inline code at `src/transducer_io.cpp:191-203`.
 **main.tex ref:** `\cref{outdep}` — `\cref{def:outdep}`, `\cref{lem:outdep-diagonal}`, `\cref{lem:outdep-transducer}` (all written this session, propositions **unproved**)
@@ -66,6 +68,33 @@ last to land.
       failure exited 0 on a truncated file). **(7)** `--verbose=false` *enabled*
       narration and a repeated flag silently last-won. See *PRD amendments* and
       *Developer comments*.
+      **Phase 3, second round — 2026-07-31, over the *fix code* of the round
+      above**, which nobody had reviewed (suite 477 → 480). Both of the first
+      round's must-fix mechanisms turned out to be *incompletely* applied, and
+      each gap was reproduced against the built binary before being fixed:
+      **(a)** the resolved-path guard was added for two of the **three** pairs
+      of file flags that can name one path, leaving `--part-file` =
+      `--transducer` unguarded — that run replaced the co-managed part file
+      with a transducer and, having already read the partition into memory,
+      **exited 0** while doing it. The hazard is a property of the path, not of
+      the flag that lands on it. **(b)** staging closed the window across the
+      whole *write* but not the one between the two *renames*, and that window
+      is not symmetric: with the part file installed **first**, a `--transducer`
+      whose rename fails (a target that exists as a directory, a sticky-bit
+      parent) left exactly the orphaned `output_known: <Xdep>` the staging
+      exists to prevent. The part file is now the **keystone** artifact and
+      installs last, written into `CommitArtifacts`'s contract rather than left
+      implicit in push order. Three considers: a stale `--transducer` file from
+      an earlier run survived an empty-$\Xdep$ re-run, contradicting the part
+      file written beside it (now cleared, and the removal reported); a failed
+      write/flush (ENOSPC) exited **2** as a `usage error:` though the caller's
+      flags were fine (now its own `IoError` → exit 1, while open and rename
+      failures stay exit 2, since those *are* the path being wrong); and the
+      first round's own stale-narration fix had missed the header of
+      `tests/ltlf_ek_deps_test.cpp` itself, still calling the binary
+      "not-yet-built". **Nothing was found in the `CandidateObserver` or
+      `UnsatisfiableFormula` amendments** — both are faithful to the amended
+      contract, and the observer really is the greedy loop reporting on itself.
       **Phase 1 closed 2026-07-30**, domain + generic, both
       clean of must-fix. Fixed in-diff: `delta_dfa()` const-correctness, the
       two `undetermined_variable` preconditions, acceptance normalisation, the

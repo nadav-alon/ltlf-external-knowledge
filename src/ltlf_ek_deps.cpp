@@ -41,6 +41,17 @@ class UsageError : public std::runtime_error {
   explicit UsageError(const std::string& msg) : std::runtime_error(msg) {}
 };
 
+// An I/O failure that is NOT attributable to the paths the user gave: the
+// write itself failed (ENOSPC on the final flush, EIO) after the path had
+// already been opened.  Maps to exit code 1, not 2 --- the caller's flags were
+// fine, so reporting `usage error:` would send them looking in the wrong
+// place.  A path that cannot be opened or renamed onto stays a UsageError,
+// because that IS the flag being wrong.
+class IoError : public std::runtime_error {
+ public:
+  explicit IoError(const std::string& msg) : std::runtime_error(msg) {}
+};
+
 struct CliArgs {
   std::optional<std::string> formula;
   std::optional<std::string> part_file;
@@ -215,9 +226,16 @@ struct PendingArtifact {
 // so the old sequential writer destroyed a co-managed file before it knew
 // whether it could fill it --- exactly what I9's edge case forbids.
 //
-// The residual window is between two renames rather than across two whole
-// writes; a same-directory rename of a file we just created is about as close
-// to atomic as the standard library gets.
+// ORDER IS PART OF THE CONTRACT: `artifacts` must be ordered so the KEYSTONE
+// --- the one whose presence makes the others load-bearing --- installs LAST.
+// Staging closes the window across the whole write, but not the one between
+// two renames, and that residual window is not symmetric.  A rename can still
+// fail on a target that exists as a directory, or under a sticky-bit parent,
+// so a failure between the two really is reachable; installing the part file
+// first would leave exactly the orphaned `output_known: Xdep` that this
+// function exists to prevent, whereas a transducer nothing points at is inert.
+// Callers therefore push the part file last (see main), and this function
+// installs in the order it is given.
 void CommitArtifacts(const std::vector<PendingArtifact>& artifacts) {
   namespace fs = std::filesystem;
   std::vector<fs::path> temps;
@@ -238,10 +256,11 @@ void CommitArtifacts(const std::vector<PendingArtifact>& artifacts) {
     out.close();
     // Checked AFTER close: a write can fail late, on the final flush, and an
     // unchecked stream reports success on a file left truncated by ENOSPC.
+    // IoError, not UsageError: the path opened fine, so the flags were right
+    // and only the disk was wrong.
     if (!out) {
       discard_temps();
-      throw UsageError(std::string("failed writing ") + a.what + ": " +
-                       a.path);
+      throw IoError(std::string("failed writing ") + a.what + ": " + a.path);
     }
     temps.push_back(temp);
   }
@@ -257,6 +276,32 @@ void CommitArtifacts(const std::vector<PendingArtifact>& artifacts) {
   }
 }
 
+// Xdep = empty (Edge cases): there is no Tout to write, and a trivial one
+// would break the pipeline this tool feeds (ltlf-ek-synth rejects
+// --known-output-transducer when output_known is empty, "ambiguous").  But
+// writing nothing is not the same as leaving nothing: a file left at that path
+// by an EARLIER run describes a different Xdep than the part file this run
+// just wrote, so the pair on disk contradicts itself and a caller passing both
+// flags every time gets that stale Tout silently paired with a fresh part
+// file.  The path is an output argument of THIS invocation --- the tool would
+// have overwritten it outright had Xdep been non-empty --- so clearing it
+// falls under the same mandate, and the note says out loud when it did.
+//
+// Runs after CommitArtifacts, so a removal that fails cannot strand a
+// half-installed artifact set; the worst case is the stale file staying put,
+// which is where we started.
+void RemoveStaleTransducer(const std::string& path) {
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const bool existed = fs::remove(path, ec);
+  if (ec)
+    throw UsageError("cannot remove the stale --transducer file: " + path +
+                     " (" + ec.message() + ")");
+  std::cerr << "note: dependent outputs is empty; no --transducer file written"
+            << (existed ? " (removed the stale file at that path)" : "")
+            << "\n";
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -264,13 +309,23 @@ int main(int argc, char** argv) {
     const CliArgs args = ParseArgs(argc, argv);
 
     if (!args.formula) throw UsageError("--formula is required");
-    // I9 edge case: a crash mid-write must not destroy the co-managed part
-    // file, so refuse writing --emit-part onto the path we read --part-file
-    // from.  Resolved-path comparison, not string equality (see SameFile).
+    // Three file flags, so THREE pairs can name one file, and all three are
+    // refused.  I9's edge case names only --emit-part vs --part-file, but the
+    // hazard it describes --- destroying the co-managed part file --- is a
+    // property of the path, not of the flag that lands on it: --transducer
+    // aliasing --part-file replaces that file with a transducer just as
+    // thoroughly, and (having read the partition into memory first) reports
+    // success while doing it.  Resolved-path comparison throughout, not string
+    // equality (see SameFile).
     if (args.part_file && args.emit_part &&
         SameFile(*args.part_file, *args.emit_part))
       throw UsageError(
           "--emit-part must differ from --part-file (refusing to overwrite "
+          "the file being read)");
+    if (args.part_file && args.transducer &&
+        SameFile(*args.part_file, *args.transducer))
+      throw UsageError(
+          "--transducer must differ from --part-file (refusing to overwrite "
           "the file being read)");
     // The two outputs would otherwise silently clobber each other.
     if (args.emit_part && args.transducer &&
@@ -316,26 +371,28 @@ int main(int argc, char** argv) {
     }
 
     // Compose both artifacts before writing either (see CommitArtifacts).
+    // The part file is pushed LAST, and that ordering is load-bearing rather
+    // than cosmetic: it is the keystone artifact, the one whose
+    // `output_known: Xdep` makes the transducer mandatory downstream, so it
+    // must be the last thing to appear on disk.  See CommitArtifacts.
     std::vector<PendingArtifact> artifacts;
-    if (args.emit_part) {
-      std::ostringstream part;
-      ltlf_ek::print_partition_file(part, result.partition);
-      artifacts.push_back({*args.emit_part, part.str(), "--emit-part"});
-    }
+    std::optional<std::string> stale_transducer;
     if (args.transducer) {
       if (result.t_out) {
         std::ostringstream t_out;
         ltlf_ek::print_transducer(t_out, *result.t_out);
         artifacts.push_back({*args.transducer, t_out.str(), "--transducer"});
       } else {
-        // Xdep = empty (Edge cases): no Tout to build --- write no file
-        // rather than a trivial one, matching --known-output-transducer's
-        // rejection of an empty output_known in ltlf-ek-synth.
-        std::cerr << "note: dependent outputs is empty; no --transducer file "
-                     "written\n";
+        stale_transducer = *args.transducer;  // see RemoveStaleTransducer
       }
     }
+    if (args.emit_part) {
+      std::ostringstream part;
+      ltlf_ek::print_partition_file(part, result.partition);
+      artifacts.push_back({*args.emit_part, part.str(), "--emit-part"});
+    }
     CommitArtifacts(artifacts);
+    if (stale_transducer) RemoveStaleTransducer(*stale_transducer);
 
     // Printed only once every artifact is on disk, so the success line never
     // outlives a failed run.
@@ -351,6 +408,11 @@ int main(int argc, char** argv) {
   } catch (const UsageError& e) {
     std::cerr << "usage error: " << e.what() << "\n";
     return 2;
+  } catch (const IoError& e) {
+    // Exit 1, the PRD's catch-all: nothing the caller passed was wrong, so
+    // exit 2 would point them at their own flags for a full disk.
+    std::cerr << "error: " << e.what() << "\n";
+    return 1;
   } catch (const std::invalid_argument& e) {
     std::cerr << "error: " << e.what() << "\n";
     return 2;

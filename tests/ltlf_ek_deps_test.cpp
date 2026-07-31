@@ -1,6 +1,6 @@
 // O1 (the linchpin) and O3 -- Phase 3 CLI-level oracles
 // (docs/prd/output-dependencies-tool.md "Test oracles"). Drives the
-// not-yet-built `ltlf-ek-deps` binary as a subprocess, exactly mirroring
+// `ltlf-ek-deps` binary as a subprocess, exactly mirroring
 // tests/ltlf_ek_synth_test.cpp's binary-path plumbing and
 // tests/ltlfsynt_oracle_test.cpp's RunSubprocess/ScopedTempFile harness (both
 // duplicated file-locally per this project's stated one-file-per-suite
@@ -44,7 +44,7 @@
 #error "LTLF_EK_SYNTH_BINARY must be defined by CMake (see CMakeLists.txt)"
 #endif
 #ifndef LTLF_EK_DEPS_BINARY
-#error "LTLF_EK_DEPS_BINARY must be defined by CMake once ltlf-ek-deps exists as a target (mirror LTLF_EK_SYNTH_BINARY's wiring; see this file's header comment)"
+#error "LTLF_EK_DEPS_BINARY must be defined by CMake (see CMakeLists.txt, alongside LTLF_EK_SYNTH_BINARY)"
 #endif
 
 namespace {
@@ -94,6 +94,23 @@ class ScopedTempFile {
     }
   }
   ~ScopedTempFile() { std::remove(path_.c_str()); }
+  const std::string& path() const { return path_; }
+
+ private:
+  std::string path_;
+};
+
+// An existing DIRECTORY at an output path. rename(2) of a file onto a
+// directory always fails (EISDIR), which is the one portable way to make an
+// artifact fail at the INSTALL step rather than the open step -- i.e. after an
+// earlier artifact in the same run has already been renamed into place.
+class ScopedTempDir {
+ public:
+  ScopedTempDir() {
+    path_ = ltlf_ek::detail::temp_template("ltlf_ek_deps_test_dir");
+    EXPECT_NE(mkdtemp(path_.data()), nullptr) << "mkdtemp failed";
+  }
+  ~ScopedTempDir() { rmdir(path_.c_str()); }
   const std::string& path() const { return path_; }
 
  private:
@@ -332,6 +349,31 @@ TEST(LtlfEkDepsPartFile, RefusesEmitPartAliasingPartFileByADifferentSpelling) {
       << "the --part-file must be left byte-identical when the run is refused";
 }
 
+// The same refusal for the OTHER output flag. Assertion 4 names --emit-part,
+// but the hazard is a property of the path, not of the flag that lands on it:
+// --transducer aliasing --part-file replaced the co-managed part file with a
+// transducer and, because the partition had already been read into memory,
+// reported success while doing it (exit 0, `dependent outputs: x`). Only two
+// of the three pairs were guarded.
+TEST(LtlfEkDepsPartFile, RefusesTransducerEqualToPartFileWithExitCode2) {
+  const std::string contents =
+      "input_free:   a\n"
+      "output_free:  x\n"
+      "output_known:\n";
+  const ScopedTempFile input_part(contents);
+
+  const CliResult deps =
+      RunEkDeps({"--formula=G(a <-> x)", "--part-file", input_part.path(),
+                 "--transducer", input_part.path()});
+  EXPECT_EQ(deps.exit_code, 2) << "stdout=[" << deps.stdout_text << "]";
+
+  std::ifstream after(input_part.path());
+  std::ostringstream after_ss;
+  after_ss << after.rdbuf();
+  EXPECT_EQ(after_ss.str(), contents)
+      << "the --part-file must not be overwritten by the emitted transducer";
+}
+
 // All-or-nothing artifact commit. The part file declares output_known = Xdep,
 // and ltlf-ek-synth REFUSES that without a companion
 // --known-output-transducer, so a run that wrote the part file and then failed
@@ -361,6 +403,82 @@ TEST(LtlfEkDepsPartFile, FailedTransducerWriteLeavesNoPartFileBehind) {
 
   // And no staging file may survive the failure.
   EXPECT_FALSE(std::ifstream(emit_part.path() + ".ltlf-ek-deps.tmp").good());
+}
+
+// The same guarantee one step later, at the INSTALL rather than the open. The
+// test above fails while staging, so nothing had been renamed yet; staging
+// alone does not make the commit atomic, because a rename can still fail on
+// its own (here: a target that exists as a directory). With the part file
+// installed FIRST, this left exactly the orphan the staging exists to
+// prevent -- `output_known: x` with no transducer, which ltlf-ek-synth then
+// refuses outright ("output_known is non-empty but --known-output-transducer
+// is missing"). The part file is now the last artifact installed.
+TEST(LtlfEkDepsPartFile, FailedTransducerInstallLeavesNoPartFileBehind) {
+  const ScopedTempFile input_part(
+      "input_free:   a\n"
+      "output_free:  x\n"
+      "output_known:\n");
+  const ScopedTempFile emit_part;
+  const ScopedTempDir transducer_dir;  // rename onto it fails with EISDIR
+
+  const CliResult deps =
+      RunEkDeps({"--formula=G(a <-> x)", "--part-file", input_part.path(),
+                 "--emit-part", emit_part.path(), "--transducer",
+                 transducer_dir.path()});
+  EXPECT_EQ(deps.exit_code, 2) << "stdout=[" << deps.stdout_text << "]";
+
+  std::ifstream emitted_in(emit_part.path());
+  std::ostringstream emitted_contents;
+  emitted_contents << emitted_in.rdbuf();
+  EXPECT_TRUE(emitted_contents.str().empty())
+      << "a --transducer that fails to INSTALL must not leave a committed "
+         "part file: ["
+      << emitted_contents.str() << "]";
+
+  EXPECT_FALSE(std::ifstream(emit_part.path() + ".ltlf-ek-deps.tmp").good());
+  EXPECT_FALSE(
+      std::ifstream(transducer_dir.path() + ".ltlf-ek-deps.tmp").good());
+}
+
+// Xdep = empty writes no transducer (Edge cases) -- but "writes nothing" must
+// not mean "leaves whatever was there". A file from an earlier run at the same
+// path describes a DIFFERENT Xdep than the part file this run just wrote, so
+// the pair on disk contradicts itself, and a caller that passes both flags
+// every time silently gets the stale Tout beside a fresh part file.
+TEST(LtlfEkDepsPartFile, EmptyDependentSetClearsAStaleTransducerFile) {
+  const ScopedTempFile emit_part;
+  const ScopedTempFile transducer;
+
+  // Run 1: Xdep = {x}, so both artifacts land.
+  const CliResult first =
+      RunEkDeps({"--formula=G(a <-> x)", "--inputs", "a", "--outputs", "x",
+                 "--emit-part", emit_part.path(), "--transducer",
+                 transducer.path()});
+  ASSERT_EQ(first.exit_code, 0) << first.stderr_text;
+  {
+    std::ifstream in(emit_part.path());
+    EXPECT_EQ(parse_partition_file(in).output_known,
+              (std::set<std::string>{"x"}));
+  }
+  EXPECT_GT(std::ifstream(transducer.path()).peek(), -1)
+      << "run 1 should have written a transducer";
+
+  // Run 2: same paths, a formula with no dependent output.
+  const CliResult second =
+      RunEkDeps({"--formula=G(a -> x)", "--inputs", "a", "--outputs", "x",
+                 "--emit-part", emit_part.path(), "--transducer",
+                 transducer.path()});
+  ASSERT_EQ(second.exit_code, 0) << second.stderr_text;
+  {
+    std::ifstream in(emit_part.path());
+    EXPECT_TRUE(parse_partition_file(in).output_known.empty());
+  }
+  EXPECT_FALSE(std::ifstream(transducer.path()).good())
+      << "run 1's transducer must not survive beside run 2's part file, which "
+         "declares no known output at all";
+  EXPECT_NE(second.stderr_text.find("removed the stale file"),
+            std::string::npos)
+      << "the removal must be reported; stderr=[" << second.stderr_text << "]";
 }
 
 // ---------------------------------------------------------------------------
