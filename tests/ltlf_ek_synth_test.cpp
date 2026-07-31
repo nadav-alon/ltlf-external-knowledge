@@ -14,6 +14,7 @@
 #include <spot/twa/bdddict.hh>
 
 #include "ltlf_ek/cli.hpp"
+#include "ltlf_ek/detail/util.hpp"
 #include "ltlf_ek/dfa_product.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/synthesis.hpp"
@@ -61,7 +62,7 @@ std::string ShellQuote(const std::string& s) {
 class ScopedTempFile {
  public:
   explicit ScopedTempFile(const std::string& contents = "") {
-    path_ = "/tmp/ltlf_ek_synth_test_XXXXXX";
+    path_ = ltlf_ek::detail::temp_template("ltlf_ek_synth_test");
     const int fd = mkstemp(path_.data());
     EXPECT_GE(fd, 0) << "mkstemp failed for " << path_;
     if (fd >= 0) {

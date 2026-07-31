@@ -54,6 +54,7 @@
 
 #include "ltlf_ek/cli.hpp"
 #include "ltlf_ek/detail/past_ltlf_to_dfa.hpp"
+#include "ltlf_ek/detail/util.hpp"
 #include "ltlf_ek/dfa_product.hpp"
 #include "ltlf_ek/ltlf_to_dfa.hpp"
 #include "ltlf_ek/ltlf_to_nfa.hpp"
@@ -129,7 +130,7 @@ std::string ShellQuote(const std::string& s) {
 class ScopedTempFile {
  public:
   explicit ScopedTempFile(const std::string& contents = "") {
-    path_ = "/tmp/ltlfsynt_oracle_test_XXXXXX";
+    path_ = ltlf_ek::detail::temp_template("ltlfsynt_oracle_test");
     const int fd = mkstemp(path_.data());
     EXPECT_GE(fd, 0) << "mkstemp failed for " << path_;
     if (fd >= 0) {

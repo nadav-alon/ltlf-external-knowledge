@@ -23,7 +23,7 @@ namespace {
 class ScopedTempFile {
  public:
   explicit ScopedTempFile(const std::string& contents = "") {
-    path_ = "/tmp/ltlf_ek_mona_XXXXXX";
+    path_ = temp_template("ltlf_ek_mona");
     const int fd = mkstemp(path_.data());
     if (fd < 0)
       throw std::runtime_error("mona_dfa: mkstemp failed for " + path_);

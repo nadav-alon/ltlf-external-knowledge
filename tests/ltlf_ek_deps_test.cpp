@@ -37,6 +37,7 @@
 
 #include "ltlf_ek/cli.hpp"
 #include "ltlf_ek/dependent_outputs.hpp"
+#include "ltlf_ek/detail/util.hpp"
 #include "ltlf_ek/variables.hpp"
 
 #ifndef LTLF_EK_SYNTH_BINARY
@@ -81,7 +82,7 @@ std::string ShellQuote(const std::string& s) {
 class ScopedTempFile {
  public:
   explicit ScopedTempFile(const std::string& contents = "") {
-    path_ = "/tmp/ltlf_ek_deps_test_XXXXXX";
+    path_ = ltlf_ek::detail::temp_template("ltlf_ek_deps_test");
     const int fd = mkstemp(path_.data());
     EXPECT_GE(fd, 0) << "mkstemp failed for " << path_;
     if (fd >= 0) {
