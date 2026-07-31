@@ -20,10 +20,26 @@
       "Bash(objdump:*)",
       "Bash(readelf:*)",
       "Bash(git merge-tree:*)",
+      "Bash(cd:*)",
+      "Bash(git merge-base:*)",
+      "Bash(scripts/check-main-tex-refs.py --check)",
       "Read(//home/cowclaw/opt/spot-2.15.1/**)",
       "Read(//home/cowclaw/spot/**)",
       "Read(//home/cowclaw/.claude/**)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(grep:*)",
+      "Bash(rg:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(sort:*)",
+      "Bash(uniq:*)",
+      "Bash(cut:*)",
+      "Bash(tr:*)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(echo:*)",
+      "Bash(printf:*)"
     ]
   }
 }
