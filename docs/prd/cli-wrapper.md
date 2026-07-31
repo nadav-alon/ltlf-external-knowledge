@@ -13,7 +13,7 @@
   3 direct `sigma_slices` cases added to `tests/transducer_io_test.cpp`; 118
   tests total, `ctest` green (branch `master`, uncommitted)
 - [x] code-review     — generic /code-review (high, 2026-07-05) clean modulo one optional cleanup (redundant `ap_registrar` in `src/ltlf_ek_synth.cpp`, `DfaProduct::synthesize` already registers I∪O); domain /code-reviewer (2026-07-05) clean after the glossary fix above; no broken invariants / Spot-idiom hazards.
-- [x] theory-review   — theory-reviewer (2026-07-05, faithfulness mode) clean: `sigma_slices` orientation matches the align block (`latex/main.tex:121–131`) and `trivial_transducer`'s empty-Σ1 `consistent`-satisfaction (lambda=bddtrue = empty commitment) is faithful; no code-bug/doc-bug. One optional `underspecified` `\cl` note on the degenerate empty-known-set case surfaced, not applied.
+- [x] theory-review   — theory-reviewer (2026-07-05, faithfulness mode) clean: `sigma_slices` orientation matches the align block (`latex/main.tex:123–133`) and `trivial_transducer`'s empty-Σ1 `consistent`-satisfaction (lambda=bddtrue = empty commitment) is faithful; no code-bug/doc-bug. One optional `underspecified` `\cl` note on the degenerate empty-known-set case surfaced, not applied.
 
 ## Goal
 Give the project a command-line front end so a user can run a synthesis method

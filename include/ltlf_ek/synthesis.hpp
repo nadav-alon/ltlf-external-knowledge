@@ -37,7 +37,7 @@ class Synthesis {
 };
 
 // Materialize a synthesized Controller's strategy graph as a Role::t_c
-// OutputLabeledTransducer: Sigma0 = I, Sigma1 = Ofree (main.tex:130,
+// OutputLabeledTransducer: Sigma0 = I, Sigma1 = Ofree (main.tex:132,
 // docs/GLOSSARY.md "Controller-as-transducer view").  lambda_C is read off
 // the Mealy strategy edges (the union of a state's out-edge guards, already
 // a relation over Ifree x Ofree); delta_C off the edge destinations --- the

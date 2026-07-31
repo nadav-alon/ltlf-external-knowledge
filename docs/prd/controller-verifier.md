@@ -22,7 +22,7 @@ satisfies `$\varphi$`*. Reusable by every method (a post-condition on any
 
 **The verifier is built directly on the `\cref{def:probDefTransducer}`
 agreement postcondition and uses the monolithic-reduction conjecture
-(`main.tex:133`, `$\psiin\rightarrow(\varphi\land\psiout)$`) *nowhere*.** That is
+(`main.tex:135`, `$\psiin\rightarrow(\varphi\land\psiout)$`) *nowhere*.** That is
 deliberate: the conjecture is an *existential/realizability* statement, and it is
 exactly what the **external `ltlfsynt` oracle** (`docs/prd/ltlfsynt-oracle.md`,
 implemented) already exercises. A verifier built on the conjecture would be a
@@ -52,7 +52,7 @@ From `docs/GLOSSARY.md` unless flagged:
 **Glossary gaps to close (run `/glossary` before `/developer`):**
 
 - **`Role::t_c`** — a third `Role` value with `$(\Sigma_0,\Sigma_1)=(\mathcal I,\Ofree)$`
-  (the controller's align-block row, `main.tex:128–130`). The glossary "Role"
+  (the controller's align-block row, `main.tex:130–132`). The glossary "Role"
   entry currently lists only `t_in`/`t_out`; add `t_c`.
 - **`controller_as_transducer`** — materialize a synthesized `Controller`'s
   strategy graph as an `OutputLabeledTransducer` (`$\Sigma_0=\mathcal I,\Sigma_1=\Ofree$`).
@@ -67,7 +67,7 @@ The verifier decides the `\cref{def:probDefTransducer}` postcondition under the
 synthesis — the same semantics `solve_dfa` commits to
 (`docs/prd/dfa-product.md`, 2026-07-04 developer note; the mainstream
 De Giacomo–Vardi reading). This resolves, *by matching `solve_dfa`*, the author's
-`\na` note at `main.tex:96` ("the controller does not decide when the trace
+`\na` note at `main.tex:98` ("the controller does not decide when the trace
 ends") — the two **must** share one termination semantics or the oracle and the
 method disagree by construction (flagged for `/theory-review`).
 
@@ -175,7 +175,7 @@ OutputLabeledTransducer controller_as_transducer(const Controller& controller,
 
 ```cpp
 // include/ltlf_ek/transducer_io.hpp   (extend)
-enum class Role { t_in, t_out, t_c };   // t_c: Σ0 = I, Σ1 = Ofree (main.tex:125)
+enum class Role { t_in, t_out, t_c };   // t_c: Σ0 = I, Σ1 = Ofree (main.tex:127)
 // sigma_slices(partition, Role::t_c) → { sigma0 = inputs(), sigma1 = output_free }
 ```
 
@@ -280,19 +280,19 @@ ltlf-ek-synth --model-check [--controller F] --<method> --formula φ  <partition
 
 ## Open theory questions touched
 
-- **Termination-semantics parity with `solve_dfa` (`main.tex:96` `\na`).** The
+- **Termination-semantics parity with `solve_dfa` (`main.tex:98` `\na`).** The
   verifier commits to system-controlled-termination *reachability*; `solve_dfa`
   commits to the same. `/theory-review` must confirm the two readings coincide —
   if `solve_dfa` ever produced a controller under a *different* stopping
   convention, oracle #2 (positive) would fail for a semantic, not a bug, reason.
   This does not modify `main.tex`; it confirms `def:probDef`/`def:probDefTransducer`
   against the shared reading.
-- **The monolithic conjecture (`main.tex:133`)** is *not* used and *not* resolved
+- **The monolithic conjecture (`main.tex:135`)** is *not* used and *not* resolved
   here; the verifier is independent of it and could later cross-check it (future,
   `docs/BACKLOG.md`).
 - **Method-2 arena input partition (`$\Ifree$` vs full `$\mathcal I$`)** —
   inherited from `docs/prd/dfa-product.md`, not resolved. The verifier reads
-  `$\lambda_C$` over `$2^{\mathcal I}$` per `main.tex:125`, so it is agnostic to
+  `$\lambda_C$` over `$2^{\mathcal I}$` per `main.tex:127`, so it is agnostic to
   that internal solve choice.
 - **Non-empty-trace / weak-`X` convention** — the verifier relies on it (virtual
   start); confirm alignment with `ltlf_to_dfa`'s acceptance marks.

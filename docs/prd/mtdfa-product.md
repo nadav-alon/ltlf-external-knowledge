@@ -53,7 +53,7 @@ answers* before binding.
 **main.tex ref:** §Method 2 (`\cref{fulldfa}`, `alg:dfa_product`); $\cons$
 (`\cref{def:consistency}`, §203); *enabled* (`\cref{def:consistency}`, §107–116);
 $T_C$'s interface (`\cref{def:probDefTransducer}`, §129); the projection `\na`
-(`main.tex:303`) and its commented-out `\cl` argument (`main.tex:305–306`).
+(`main.tex:303`) and its commented-out `\cl` argument (`main.tex:307–308`).
 No new algorithm — a representation change to an existing one.
 
 **Gates (Phase 2 delta — reopened for the new surface below; Phase 1's closures
@@ -227,7 +227,7 @@ these names as canonical:
 - *Goal DFA construction*'s "deliberately unnamed wrapper" placeholder (above) is
   **retired**: there is no wrapper to name.
 - ***Open theory questions*** gained **Mealy is baked into the signatures**
-  (`main.tex:103` `\na`) — see *Open theory questions touched* below.
+  (`main.tex:105` `\na`) — see *Open theory questions touched* below.
 
 Still required of `/developer`: reword `cli.hpp:37`'s "the five methods" contract
 comment. No new *Canonical benchmarking stage* — see "Benchmarking" below.
@@ -259,7 +259,7 @@ comment. No new *Canonical benchmarking stage* — see "Benchmarking" below.
    not cosmetic.
 5. **Projecting the governed variables.** `main.tex:303` (`\na`) asserts the game
    "can project these variables out without loss"; the argument is drafted in the
-   commented-out `\cl` at `main.tex:305–306`. `solve_dfa` does this **arena-side**
+   commented-out `\cl` at `main.tex:307–308`. `solve_dfa` does this **arena-side**
    (`bdd_exist` per edge guard, `src/solve_dfa.cpp:49`). This PRD reaches the same
    endpoint **strategy-side** — see decision 2. Same result, different route;
    flagged for `/theory-review`, not claimed as conformance.
@@ -290,7 +290,7 @@ own terminal encoding, state numbering, and `fuse_same_bdds`.
 shape and is the wrong operator here. Implication is only needed when $\Iknown$ is
 a *free* environment move that could be broken to win vacuously; under decision 2
 it is not an environment move at all. This is **not** blocked on the monolithic
-conjecture (`main.tex:133`) — and the transducer$\to\psiin$ star-free obstruction
+conjecture (`main.tex:135`) — and the transducer$\to\psiin$ star-free obstruction
 does not bite, because it blocks an $\text{LTL}_f$ *formula*, not a DFA
 ($\text{LTL}_f \subsetneq$ regular), and the *Output-agreement automaton* is a DFA.
 
@@ -417,7 +417,7 @@ class MtdfaProduct final : public Synthesis {
 //
 // make_synthesis_method gains "mtdfa-product" -> MtdfaProduct.  The doc comment
 // at cli.hpp:37 ("the five methods") MUST be reworded: this is a sixth *flag*
-// over five methods.  Known trade-off, accepted: if main.tex:335's MTDFA-for-
+// over five methods.  Known trade-off, accepted: if main.tex:337's MTDFA-for-
 // Method-3 ever lands, this shape yields names like "--mtdfa-otf-dfa-product".
 // Out of scope here.
 
@@ -877,7 +877,7 @@ Flagged for `/theory-review`; not resolved here.
 
 - **The projection `\na` (`main.tex:303`)** asserts the game "can project these
   variables out without loss", argued in the commented-out `\cl` at
-  `main.tex:305–306`. Decision 2 reaches the same endpoint **strategy-side**
+  `main.tex:307–308`. Decision 2 reaches the same endpoint **strategy-side**
   (pin as forced system moves, project from the strategy) rather than **arena-side**
   (project from the guards, as `solve_dfa` does). Same result, different
   justification — needs review, not an assumed conformance.
@@ -896,7 +896,7 @@ Flagged for `/theory-review`; not resolved here.
   makes turn order structural and the BDD order is irrelevant. Cross-check that the
   $\Ifree$-above-controllables rule is exactly §83's turn order and not an
   approximation of it.
-- **Trace-termination semantics** (`main.tex:96` `\na`; glossary *Open theory
+- **Trace-termination semantics** (`main.tex:98` `\na`; glossary *Open theory
   questions*). `solve_dfa` and the *Controller verifier* already share the
   system-controlled-termination reading. `mtdfa_winning_strategy` brings **Spot's
   own** reading — if it differs, cross-method agreement fails for a *semantic*, not
@@ -905,7 +905,7 @@ Flagged for `/theory-review`; not resolved here.
 - **`emits_region` ↔ `\cref{def:consistency}` faithfulness** — already flagged by
   `docs/prd/symbolic-dfa-product.md`; `emits_dfa` inherits it, now one level further
   from the definition (region → automaton).
-- **MTDFA for Method 3** (`main.tex:335` `\na`: *"This likely requires adjusting the
+- **MTDFA for Method 3** (`main.tex:337` `\na`: *"This likely requires adjusting the
   definitions for MTDFA usage"*). Out of scope; noted because it is evidence that
   MTDFA is a representation axis crossing methods, which the chosen sixth-flag CLI
   shape does not model.

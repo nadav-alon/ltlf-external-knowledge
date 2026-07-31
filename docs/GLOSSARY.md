@@ -211,10 +211,10 @@ the existing term or update this file via `/glossary` — do not let drift happe
   the name-set form, not `SliceNames` (the former file-private struct).
 
 ### Produced-trace language
-- **`main.tex`:** $\psiin,\psiout$ (conjecture note after `\cref{def:probDefTransducer}`, `main.tex:133`).
+- **`main.tex`:** $\psiin,\psiout$ (conjecture note after `\cref{def:probDefTransducer}`, `main.tex:135`).
 - **Definition:** the $\text{LTL}_f$ language of the traces a transducer
   produces — $\psiin$ for $\Tin$, $\psiout$ for $\Tout$; it is what the
-  monolithic conjecture (`main.tex:133`) feeds in as the assumption (for $\Tin$)
+  monolithic conjecture (`main.tex:135`) feeds in as the assumption (for $\Tin$)
   or guarantee (for $\Tout$) pinning a strategy's governed variables.
 - **C++:** — (no dedicated type; a hand-authored `spot::formula`/string per
   oracle fixture, e.g. `psi_in` in `tests/ltlfsynt_oracle_test.cpp`). **Not**
@@ -284,7 +284,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
 
 ### MTDFA (multi-terminal DFA)
 - **`main.tex`:** — (no symbol; a Spot data structure, `\cite duret.25.ciaa`. The
-  `\na` at `main.tex:335` gestures at it — *"This likely requires adjusting the
+  `\na` at `main.tex:337` gestures at it — *"This likely requires adjusting the
   definitions for MTDFA usage"* — but no definition commits to it.)
 - **Definition:** a DFA held as **one MTBDD per state** (the `states[]` array),
   with each destination encoded in a *terminal* as $2d+b$ ($d$ = destination state,
@@ -311,7 +311,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
 ### MTNFA (multi-terminal NFA)
 - **`main.tex`:** — (no symbol; a **code-only** data structure on the
   *Representation* axis, the nondeterministic sibling of *MTDFA*. The `\na` at
-  `main.tex:335` gestures at MTDFA for Method 3 but commits to no NFA form.)
+  `main.tex:337` gestures at MTDFA for Method 3 but commits to no NFA form.)
 - **Definition:** the NFA $N$ (*NFA / DFA for the Goal*) held as **one MTBDD per
   state** — the same per-state-MTBDD shape as *MTDFA*, except each **terminal
   encodes a set** of destination states (an interned index into a side table,
@@ -365,7 +365,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   observed/produced slices: `t_in` ⇒ $\Sigma_0=\Ifree,\Sigma_1=\Iknown$; `t_out`
   ⇒ $\Sigma_0=\mathcal{I}\cup\Ofree,\Sigma_1=\Oknown$; `t_c` ⇒
   $\Sigma_0=\mathcal{I},\Sigma_1=\Ofree$ — the **controller** row of the align
-  block (`main.tex:130`, $\lambda_C:Q_C\times2^{\mathcal I}\to2^{\Ofree}$). Unlike
+  block (`main.tex:132`, $\lambda_C:Q_C\times2^{\mathcal I}\to2^{\Ofree}$). Unlike
   `t_in`/`t_out` (external knowledge from a file), a `t_c` transducer is usually
   the synthesized `Controller` viewed as a transducer (see *Controller-as-transducer
   view*), or a controller read from a `--controller` file.
@@ -542,7 +542,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   on the **product** $P$; both PRDs also run it on the Goal NFA $N$ **alone** as
   their **isolated oracle** ($L=L(N)=L(\varphi)$, checked against an independent
   DFA), and it generalizes to the $(R,q_{in},q_{out})$ product states under the
-  reachability invariant `main.tex:241` (a single transducer-state pair per
+  reachability invariant `main.tex:243` (a single transducer-state pair per
   reachable subset — the product determinizations `NfaProduct` / `MtnfaProduct`).
 - **C++:** per *Representation* —
   - **explicit:** `nfa_to_dfa(nfa)` → `spot::twa_graph_ptr` — a **generic** subset
@@ -716,7 +716,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   transducers, **fused** with its subset determinization (see *Goal automaton
   determinization*) into one symbolic BFS whose state is $(R,q_{in},q_{out})$ — a
   subset of $S_N$ plus one state per transducer, legitimate by the reachability
-  invariant at `main.tex:241`. $\cons$ is applied as the region
+  invariant at `main.tex:243`. $\cons$ is applied as the region
   $\bigwedge_k$ `emits_region(q[k])` and the letter space is carved by the
   `delta_edges` guards, so no letter is ever enumerated; `taus` is the same
   N-transducer generalization `build_product*` uses. Like the Method-2 mtdfa route it
@@ -797,7 +797,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   `FP` / `Fp` as a C++ identifier.
 
 ### Canonical representative
-- **`main.tex`:** $[\psi]$ (`main.tex:340`, §`otf`) — the representative of $\psi$
+- **`main.tex`:** $[\psi]$ (`main.tex:342`, §`otf`) — the representative of $\psi$
   after progression, *"so that semantically equal progressed formulae collapse to
   the same state"*.
 - **Definition:** what makes two progressed formulae the **same** state.
@@ -808,7 +808,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   as atoms and interned by that encoding, first-seen-wins. Spot applies it when it
   **mints a terminal**, so `ForwardProgression::decode` already *returns* $[\psi]$.
   It is **propositional** equivalence, weaker than the semantic equivalence
-  `main.tex:340` literally claims — flagged for `/theory-review`.
+  `main.tex:342` literally claims — flagged for `/theory-review`.
   A second, coarser merge sits **on top** of it in the *Product*: states whose
   **row** is identical are fused (Spot's `fuse_same_bdds`, applied componentwise
   on the goal part).
@@ -851,7 +851,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   Both **solve a product that already exists**. Method 3.1 Phase 2
   (`docs/prd/otf-mtdfa-product.md`) anticipates a **third** shape — solving *fused
   into* the construction, feeding `spot::backprop_graph` as rows are discovered and
-  aborting once the initial state is determined, which is what `main.tex:336`'s
+  aborting once the initial state is determined, which is what `main.tex:338`'s
   `\na` calls the missing *"hanging fruit optimization"*. Its C++ name is
   **not canonical yet** (the PRD's `otf_solve_fused` is explicitly tentative and
   its design is deferred to that phase's own grill) — recorded here only so no
@@ -902,7 +902,7 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
 - **`main.tex`:** $\Ydep=(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ (`\cref{def:outdep}`).
 - **Definition:** the variables $\Xdep$ is dependent **on**. Once $\Oknown=\Xdep$
   it equals $\mathcal{I}\cup\Ofree$ — which is exactly $\Sigma_0$ for `Role::t_out`
-  (`main.tex:127`). **That coincidence is the whole reason extraction emits a
+  (`main.tex:129`). **That coincidence is the whole reason extraction emits a
   $\Tout$** rather than some new object, and it is emphatically *not* a
   coincidence for `t_in`: a $\Tin$ observes only $\Ifree$, so $\Ydep$ would let
   $\lambda_{in}$ read $\mathcal{O}$ and break the *Turn order*.
@@ -1002,7 +1002,7 @@ exactly what `MtdfaProduct` is not. Methods 1, 2 **and 3.1** have mtdfa
 implementations
 (`docs/prd/mtnfa-product.md` — `MtnfaProduct`, landed;
 `docs/prd/mtdfa-product.md` — `MtdfaProduct`, landed;
-`docs/prd/otf-mtdfa-product.md` — `OtfMtdfaProduct`). `main.tex:335`'s `\na`
+`docs/prd/otf-mtdfa-product.md` — `OtfMtdfaProduct`). `main.tex:337`'s `\na`
 anticipated one for Method 3, and that PRD **is** the anticipated adjustment,
 made in code first — `main.tex` still commits to no MTDFA definition. Method 3.1
 is the first cell where the **explicit** column is deliberately left unbuilt:
@@ -1028,7 +1028,7 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
 `--otf-mtdfa-dyn-agg-product`. Re-decide there, not here.
 
 ### Representation
-- **`main.tex`:** — (no symbol; the `\na` at `main.tex:335` gestures at MTDFA for
+- **`main.tex`:** — (no symbol; the `\na` at `main.tex:337` gestures at MTDFA for
   Method 3, but no definition commits to the axis).
 - **Definition:** *prose note, not a domain entry* — pinned here to fix the spelling
   and stop drift. Which data structure a method holds its automata in: **explicit**
@@ -1108,7 +1108,7 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
 - **Definition:** the internal linchpin oracle — given $\varphi,\Tin,\Tout$ and a
   synthesized controller $T_C$, decide whether **every trace agreeing with
   $\Tin,\Tout,T_C$ satisfies $\varphi$** (`\cref{def:probDefTransducer}`). Built
-  **directly on agreement**, not on the monolithic conjecture (`main.tex:133`);
+  **directly on agreement**, not on the monolithic conjecture (`main.tex:135`);
   checks **reachability of $F_\varphi$ under adversarial env** (a one-player
   $\nu$-fixpoint on the $A_\varphi\times\Tin\times\Tout\times T_C$ product, since
   $T_C$ is fixed), *not* language inclusion. Reuses `ltlf_to_dfa` + `consistent`
@@ -1221,7 +1221,7 @@ is seeded with them:
   be built** — it is the first method that cannot dodge it.
 - **On-the-fly game solving** — Method 3 builds the product on the fly but still
   solves at the end; the hanging-fruit on-the-fly *solving* is not done. The same
-  `\na` continues (`main.tex:335`): *"This likely requires adjusting the definitions
+  `\na` continues (`main.tex:337`): *"This likely requires adjusting the definitions
   for MTDFA usage"* — i.e. the author anticipates a *Representation* change for
   Method 3. **Updated 2026-07-28** (the old "only Method 2 has one today" went
   stale when `MtnfaProduct` landed): Methods 1, 2 and 3.1 all have mtdfa routes
@@ -1240,12 +1240,12 @@ is seeded with them:
   game is being limited to transitions consistent with the external knowledge
   transducers, which govern the variable set $\mathcal{V}$, it can project these
   variables out without loss."* The supporting argument is drafted but **commented
-  out** (`main.tex:305–306`), so the claim is currently unbacked in the live text.
+  out** (`main.tex:307–308`), so the claim is currently unbacked in the live text.
   Both *Game solving* routes depend on it and discharge it **differently** —
   `solve_dfa` arena-side, `solve_mtdfa` by pinning the variables as forced
   controllable moves and projecting strategy-side. Flagged for `/theory-review`
   (`docs/prd/mtdfa-product.md`). Newly load-bearing; not previously listed here.
-- **Mealy is baked into the signatures; no Moore option** (`main.tex:103` `\na`) —
+- **Mealy is baked into the signatures; no Moore option** (`main.tex:105` `\na`) —
   *"these signatures are commiting to a mealy turn order, and are not ready for
   adding a moore option. For that, the signatures would be dependent on the order
   of players."* Newly listed here because Phase 0/Q2 made it concrete rather than
@@ -1260,7 +1260,7 @@ is seeded with them:
   Moore semantics, outputs should be first."*). The *math* is the open part, not
   the plumbing: §100 says the signatures themselves must change. Out of scope for
   `docs/prd/mtdfa-product.md`; `mode` stays reserved for this axis (see *Role*).
-- **Trace-termination semantics** (`main.tex:96` `\na`) — `def:probDef` quantifies
+- **Trace-termination semantics** (`main.tex:98` `\na`) — `def:probDef` quantifies
   over "every trace that agrees" without saying who ends the trace. Both
   `solve_dfa` and the *Controller verifier* commit to the mainstream
   **system-controlled-termination reachability** reading (De Giacomo–Vardi). They
@@ -1303,13 +1303,13 @@ is seeded with them:
   equirealizability claim is read under system-controlled termination. The
   citation shift both notes caused has already been repaired by
   `scripts/check-main-tex-refs.py --fix`, including this file's
-  `latex/main.tex:556–561` below.
+  `latex/main.tex:611–616` below.
 - **Input dependencies need a different notion** — `\cref{def:outdep}` is
   output-only, and $\Ydep$ cannot simply be re-pointed: `Role::t_in` observes only
   $\Ifree$, so a dependent *input* must be dependent on $\mathcal{I}\setminus\Xdep$
   **alone**, ignoring $\mathcal{O}$ — a strictly stronger condition and a
   different algorithm. This is the notion the **commented-out**
-  `latex/main.tex:556–561` block gropes toward ("a potential set of dependent
+  `latex/main.tex:611–616` block gropes toward ("a potential set of dependent
   input variables $D\subseteq I$"), including its own alternative of deciding
   dependence by *counting synthesis strategies*. Left commented — the author's
   call, not to be uncommented by a skill.

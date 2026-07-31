@@ -24,7 +24,7 @@ champion). Its Phase 2 (`otf_solve_fused`) is spun out below._
 - **Blocking, and now PROVEN not merely suspected:** `\cref{alg:otfdfa_product}`'s
   state-keyed $F_P$ **over-accepts** — theory review (2026-07-29) produced a
   one-state witness, $\varphi=(c \wedge G(a \rightarrow Xb)) \vee (\lnot c \wedge
-  X[!]G(a \rightarrow Xb))$ with trivial transducers. the `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:452`) asked
+  X[!]G(a \rightarrow Xb))$ with trivial transducers. the `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:454`) asked
   whether to drop the $F_P$ insert; the answer is **re-key it on the transition**.
   3.1 dodges this for free (an mtdfa terminal $2d+b$ is transition-keyed); an
   aggregating method must face it. `\cl` note written into `latex/main.tex`,
@@ -78,6 +78,29 @@ oracle rounds out the external `ltlfsynt` cross-check._
 
 ## Later
 
+### X-shift second formulation of the input-dependency criterion (cross-check oracle)
+- **Intent:** an independent second derivation of
+  `\cref{lem:indep-diagonal}`'s criterion, to cross-check the shipped one.
+  Rewrite $\varphi$ so every output atom $o$ becomes $X\,o$; position $t$ of the
+  trace then carries $\mathcal{I}_t$ paired with $\mathcal{O}_{t-1}$, so the
+  outputs inside a letter are already-played history and the **Moore restriction
+  becomes structural** — the unprojected criterion (the one
+  `docs/prd/output-dependencies-tool.md` already implements) applies verbatim,
+  with no $\exists\mathcal{O}$ projection. Assert it reports the same $\Xdep$ as
+  `dependent_inputs`.
+- **Why it is deferred, not dropped** (decided while grilling
+  `docs/prd/input-dependencies-tool.md`, 2026-07-31): it needs a `spot::formula`
+  rewriter, an **un-shift register** on the emitted transducer so its $\delta$
+  consumes real letters again ($|Q|\cdot 2^{|\mathcal{O}|}$ states), and a
+  decision on what the extra trailing position means under weak $X$ vs `X[!]` —
+  i.e. more new code in the test than in the shipped path. The shipped route is
+  one `bdd_exist` over the output cube.
+- **Seeds:** does the shift want $X$ or `X[!]`, and what happens at the last
+  position? Is the un-shift register avoidable by reading $\lambda$ off the
+  shifted automaton but $\delta$ off the unshifted one? Does the equivalence of
+  the two formulations have a one-line proof, in which case it belongs in
+  `main.tex` §`indep` rather than in a test?
+
 ### Acceptance mark lost on an edgeless accepting state — **known live bug, TWO sites** (found 2026-07-17; widened from one site to a class 2026-07-27)
 - **The class:** a builder computes acceptance correctly, then attaches the mark
   **only inside a per-edge loop** — so a state with **zero** out-edges emits no edges
@@ -110,7 +133,7 @@ oracle rounds out the external `ltlfsynt` cross-check._
   So the fix is **not a drive-by**: it re-opens `emits_dfa`'s contract.
 - **Reachability:** needs a **partial transducer** — a $\cons$-passing product state
   whose $\delta$ is undefined on every letter. Legal (`transducer.hpp:24`,
-  `main.tex:114-115`) and explicitly handled by `build_product_nondet`. Reproduced end
+  `main.tex:116-117`) and explicitly handled by `build_product_nondet`. Reproduced end
   to end: $\varphi=b$, $\Ofree=\{b\}$, `t_in` with a delta-dead state 1 →
   **both** `DfaProduct` and `NfaProduct` say UNREALIZABLE where REALIZABLE is
   expected.
@@ -152,16 +175,16 @@ oracle rounds out the external `ltlfsynt` cross-check._
 
 ### `main.tex` `\algname{NfaToDfa}` empty-subset rule is underspecified (LaTeX-only, from theory-review 2026-07-17)
 - **Intent:** a *documentation* fix in `main.tex` (the latex submodule), not a code
-  change. The `\algname{NfaToDfa}` black box (~main.tex:268) states no rule for the
+  change. The `\algname{NfaToDfa}` black box (~main.tex:270) states no rule for the
   empty subset, and both sources of an empty $\delta_{prod}$ — a **non-$\cons$**
   letter and a **$\cons$-dead** letter ($\delta_N(s,v)=\emptyset$) — collapse to
-  $\emptyset$ in the paper (main.tex:225–232). No uniform reading of the black box is
+  $\emptyset$ in the paper (main.tex:227–234). No uniform reading of the black box is
   sound: skip-both → spuriously realizable; sink-both → spuriously unrealizable. The
   explicit `NfaProduct` already corrects this by completing $N$ before the product
   (`complete_here`), exactly as Method 2 completes $A$ — but the paper is silent.
 - **Fix:** apply the drafted `\cl[inline]{…}` note (verbatim in
   `docs/prd/nfa-product.md` "Open theory questions touched") after the reachability
-  note at ~main.tex:241. **Verified faithful; code needs no change** — this is purely
+  note at ~main.tex:243. **Verified faithful; code needs no change** — this is purely
   a clarity gap in the write-up.
 - **Why Later:** main.tex is a submodule that only builds on Overleaf; batch it with
   the next LaTeX pass (re-run `/glossary` + `/theory-review` after the Overleaf pull,
@@ -472,7 +495,7 @@ oracle rounds out the external `ltlfsynt` cross-check._
   `docs/prd/otf-mtdfa-product.md` "Benchmark results, 2026-07-29".
 - **What it actually beats:** not the product — `spot::product` prunes fine (14
   states at $n=12$) — but the **materialization** of the $2^n$-state goal that
-  Method 2 must build first. Exactly `main.tex:335`'s `\na`.
+  Method 2 must build first. Exactly `main.tex:337`'s `\na`.
 - **What it cost:** one deliberate deviation from `\cref{alg:otfdfa_product}` (I5:
   collapse to the accepting sink once $\varphi$ is irrevocably satisfied), which
   makes $L(P)$ a strict superset of the paper's product language — equirealizable,
@@ -507,7 +530,7 @@ oracle rounds out the external `ltlfsynt` cross-check._
 - **PRD:** `docs/prd/mtnfa-product.md` (draft, grilled 2026-07-27) — ready for
   `/glossary` then concurrent `/developer` + `/test-writer`. Both seeds below were
   settled in the grill: the product stays symbolic and the transducer states are
-  **tracked alongside** the goal subset (the `(R,q_{in},q_{out})` key, `main.tex:241`),
+  **tracked alongside** the goal subset (the `(R,q_{in},q_{out})` key, `main.tex:243`),
   **not** folded into the terminal; `turn_order.hpp` is reused exactly as
   `MtdfaProduct` does.
 - **Intent:** once the MTNFA representation lands (`docs/prd/mtnfa.md` — the data

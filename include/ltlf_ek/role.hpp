@@ -13,7 +13,7 @@ namespace ltlf_ek {
 //   t_in  --- Sigma0 = Ifree,        Sigma1 = Iknown.
 //   t_out --- Sigma0 = I ∪ Ofree,    Sigma1 = Oknown.
 //   t_c   --- Sigma0 = I,            Sigma1 = Ofree (the controller row,
-//             main.tex:130, lambda_C: Q_C x 2^I -> 2^Ofree).  Unlike t_in/t_out
+//             main.tex:132, lambda_C: Q_C x 2^I -> 2^Ofree).  Unlike t_in/t_out
 //             (external knowledge from a file), a t_c transducer is usually a
 //             synthesized Controller viewed as a transducer
 //             (controller_as_transducer, docs/prd/controller-verifier.md), or

@@ -53,7 +53,7 @@ struct Mtnfa {
 // each state s: fold every out-edge (cond, dst) via pool.set_union of
 // pool.guarded_singleton(cond, dst) --- overlapping guards MERGE (that
 // overlap is nondeterminism, main.tex delta_N : S_N x 2^{I u O} -> 2^{S_N},
-// main.tex:198); an uncovered letter (or a state with no out-edges) stays
+// main.tex:200); an uncovered letter (or a state with no out-edges) stays
 // the empty-set terminal (index 0).  accepting[s] = nfa->state_is_accepting(s);
 // initial = nfa->get_init_state_number().  aps = nfa->ap() (sorted by
 // formula id, mirroring spot::mtdfa's `aps` convention).  No sink state is
