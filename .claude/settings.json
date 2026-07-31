@@ -39,23 +39,31 @@
       "Bash(cat:*)",
       "Bash(ls:*)",
       "Bash(echo:*)",
-      "Bash(printf:*)"
+      "Bash(printf:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git rev-list:*)",
+      "Bash(git rev-parse:*)",
+      "Bash(git worktree list:*)",
+      "Bash(git branch --list:*)",
+      "Bash(git ls-files:*)"
     ]
   },
   "sandbox": {
     "enabled": true,
+    "autoAllowBashIfSandboxed": true,
     "network": { "allowedDomains": [] },
     "filesystem": {
       "allowWrite": [
         "/home/cowclaw/ltlf-external-knowledge",
-        "/home/cowclaw/.claude/jobs"
+        "/home/cowclaw/.claude/jobs",
+        "/tmp"
       ],
       "denyRead": [
         "/home/cowclaw/.ssh",
         "/home/cowclaw/.config/gh"
-      ],
-      "denyWrite": [
-        "/home/cowclaw/ltlf-external-knowledge/.git"
       ]
     }
   },

@@ -14,7 +14,16 @@
 *.blg
 main.pdf
 
+# CTest artifacts, written when ctest runs from the repo root rather than build/
+/Testing/
+
+# Agent worktrees (git worktree add roots).  Never `git add -A` while any
+# exist --- see docs/prd/output-dependencies-tool.md's "Worktrees" loose end.
+/.claude/worktrees/
+
 # Editor / OS
 .DS_Store
 *.swp
+*~
+*.un~
 compile_commands.json
