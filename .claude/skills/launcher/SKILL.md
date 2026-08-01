@@ -63,10 +63,52 @@ The sandbox reports phantom files that do not exist. `scripts/wt-status.sh`
 filters them. **Do not disable the sandbox to get a truthful status** — that
 costs a permission prompt, and there is nobody there to answer it.
 
-Pick the target PRD:
-- from your prompt, if given;
-- else the first item under **Now / next** in `docs/BACKLOG.md` that has a
-  `docs/prd/` file.
+Pick the target PRD, in this order — stop at the first that yields one:
+
+1. **Your prompt**, if it named a PRD.
+2. **The backlog**: the first item under **Now / next** in `docs/BACKLOG.md` that
+   has a `docs/prd/` file on `master`.
+3. **An unmerged branch**: a PRD that exists on a branch but *not* on `master`.
+
+Rule 3 exists because the backlog is not the only place a decision gets recorded.
+A PRD grilled straight onto a branch — the usual shape of an evening session that
+ran out of time before touching `docs/BACKLOG.md` — is finished, launchable work,
+and it must not be invisible merely because nobody wrote a backlog line for it.
+
+```sh
+git fetch -q origin || true      # an origin-only branch counts too
+git branch -a --no-merged master --format='%(refname:short)' |
+  grep -v '^origin/HEAD$' | sed 's|^origin/||' | sort -u |
+  while read -r b; do
+    # Prefer the local branch; fall back to origin/ only when there is no local
+    # one.  Never select the remote-tracking ref when a local branch exists ---
+    # you cannot commit to origin/<x>, and Step 6 has to merge into something.
+    git rev-parse --verify -q "$b" >/dev/null || b="origin/$b"
+    # --diff-filter=A: only PRDs the branch ADDS.  A branch that merely edits an
+    # existing PRD is not a new piece of work, and matching those would make
+    # almost every branch a candidate.
+    added=$(git diff --name-only --diff-filter=A "master...$b" -- docs/prd/)
+    [ -n "$added" ] && echo "$(git log -1 --format=%ct "$b") $b $added"
+  done | sort -rn | head -1          # freshest intent wins
+```
+
+If the winner is an `origin/<x>` with no local branch, create one
+(`git branch <x> origin/<x>`) before Step 2 — the feature branch must be local.
+
+If that PRD fails the Step 1 launch gate, do *not* fall through to the next
+candidate: report the gate failure. A grilled PRD that cannot launch is a
+decision the user owes, not a reason to go find different work.
+
+**A rule-3 PRD changes what "the feature branch" means.** That branch *is* the
+feature branch: Step 6 merges into it, not into a fresh one, and your phase
+worktree must be based on it rather than on `master`, or the PRD will not even be
+present in the tree you are working in:
+
+```sh
+git worktree add .claude/worktrees/<phase> -b <phase-branch> <feature-branch>
+```
+
+then enter it with **EnterWorktree**'s `path` argument.
 
 Pick the target phase: the first phase in the PRD's **Implementation phases**
 section whose work is not yet landed. If the PRD has no phases, the whole PRD is
@@ -95,7 +137,8 @@ must decide.
 ## Step 2 — isolate
 
 Use **EnterWorktree** unless you are already under `.claude/worktrees/`. Never
-work in the user's checkout.
+work in the user's checkout. If Step 0 picked the PRD by rule 3, base the
+worktree on that PRD's branch instead — see the `git worktree add` form there.
 
 Never `git add -A` — other worktrees are usually live and `-A` will swallow them.
 Stage explicit paths.

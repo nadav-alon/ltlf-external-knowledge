@@ -18,7 +18,13 @@ every domain identifier must already be in `docs/GLOSSARY.md`. If it is not,
 `/developer` will stop mid-run and demand `/glossary`, which interviews you —
 and you are not there. Naming is your call; make it at night.
 
-**Day — `/launcher`.** Reads the PRD, checks the launch gate, then per phase:
+**Day — `/launcher`.** Picks the PRD — the one it was handed, else the top
+**Now / next** backlog item that has one, else a PRD that exists on an unmerged
+branch but not on `master` (freshest branch wins). That last rule is what keeps a
+feature grilled straight onto a branch from going unnoticed just because the
+evening ran out before the backlog line got written; such a branch *is* the
+feature branch, so the phase worktree is based on it. Then it checks the launch
+gate, and per phase:
 worktree → `/developer` → `/test-writer` → build + `ctest` → `/code-review` +
 `/code-reviewer` (which self-spawns `theory-reviewer`) → tick gates → commit →
 merge into the feature branch → push → draft PR. Then it moves to the next phase
