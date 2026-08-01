@@ -161,6 +161,13 @@ guards, which defer here for what the modes mean.
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex
 
+**Unattended-ready:** <yes | no — what the user must still decide>
+
+## Stop-list
+<Conditions under which an unattended run must STOP rather than guess. One line
+each. Always includes anything the grill left genuinely open. If there is
+nothing, say "none — every decision in this PRD is closed.">
+
 ## Goal
 <one paragraph: what capability, why>
 
@@ -245,5 +252,32 @@ for `/theory-review`. This is a read-through, not a second interview.
   independently landable, separately-sessioned phases (omitted for a small one).
 - Self-review pass done; gaps reported.
 - Any glossary gaps and touched theory questions are called out explicitly.
+- The **Unattended-ready** field and the **Stop-list** are filled in (see below).
 - End by telling the user the PRD is ready for `/developer` (and `/glossary`
-  first if terms are missing).
+  first if terms are missing) — and whether `/launcher` can run it unattended.
+
+## Unattended-readiness — close the decisions tonight
+
+This PRD may be handed to `/launcher` and run while the user is at work, with
+nobody available to answer anything. **Every question left open here becomes a
+stalled workday.** The single most common stall: `/developer` hits a domain
+concept with no `docs/GLOSSARY.md` entry, and stops to run `/glossary` — which
+interviews the user. Naming is the user's call, so it must be settled *now*.
+
+Before setting **Unattended-ready: yes**, all of these must hold:
+
+1. **Interfaces & types** frozen — no `<placeholder>`, no "decide during
+   implementation".
+2. **Every** domain identifier the PRD introduces is already in
+   `docs/GLOSSARY.md`, spelled exactly. If any are missing, run `/glossary`
+   *this evening* — do not defer it into the run.
+3. Each phase has a **machine-checkable** green checkpoint: it compiles, and
+   named tests/oracles pass. "Looks right" is not a checkpoint.
+4. Open theory questions are either resolved or explicitly listed in the
+   **Stop-list**. An unattended run must never resolve a `main.tex` ambiguity.
+5. The **Recommended workflow** field is set — the launcher needs it to decide
+   whether to parallelize `/developer` and `/test-writer`.
+
+If any fail, set **Unattended-ready: no** and say precisely what the user must
+decide. That is a useful answer, not a failure — the alternative is an agent
+guessing at the user's mathematics for eight hours.
