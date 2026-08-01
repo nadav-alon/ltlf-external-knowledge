@@ -48,22 +48,42 @@
       "Bash(git rev-parse:*)",
       "Bash(git worktree list:*)",
       "Bash(git branch --list:*)",
-      "Bash(git ls-files:*)"
+      "Bash(git ls-files:*)",
+      "Bash(scripts/wt-status.sh:*)"
+    ],
+    "deny": [
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git push --force-with-lease:*)",
+      "Bash(git push origin master:*)",
+      "Bash(git push origin HEAD:master:*)",
+      "Bash(git push --delete:*)",
+      "Bash(git branch -D master:*)",
+      "Bash(git switch master:*)",
+      "Bash(git checkout master:*)"
     ]
   },
   "sandbox": {
     "enabled": true,
+    "failIfUnavailable": true,
     "autoAllowBashIfSandboxed": true,
-    "network": { "allowedDomains": [] },
+    "allowUnsandboxedCommands": false,
+    "network": {
+      "allowedDomains": [
+        "github.com",
+        "api.github.com",
+        "objects.githubusercontent.com"
+      ]
+    },
     "filesystem": {
       "allowWrite": [
         "/home/cowclaw/ltlf-external-knowledge",
         "/home/cowclaw/.claude/jobs",
+        "/home/cowclaw/backups",
         "/tmp"
       ],
       "denyRead": [
-        "/home/cowclaw/.ssh",
-        "/home/cowclaw/.config/gh"
+        "/home/cowclaw/.ssh"
       ]
     }
   },
