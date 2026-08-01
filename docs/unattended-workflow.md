@@ -55,7 +55,7 @@ if stale), so firing it twice is harmless.
 ```sh
 scripts/day-run.sh                          # next phase of the top backlog PRD
 scripts/day-run.sh output-dependencies-tool # a named PRD
-WAVES=1 MAX_PHASES=1 scripts/day-run.sh     # a single short wave
+WAVES=1 MAX_PHASES=1 scripts/day-run.sh     # one wave, exactly one phase
 DRY_RUN=1 scripts/day-run.sh                # show the wave plan, run nothing
 ```
 
@@ -96,24 +96,39 @@ day is split into **waves**, one per allowance window. Wave 2 starts
 `WAVE_HOURS` after startup and resumes whatever wave 1 left unfinished, reading
 the newest `docs/runs/` report to avoid redoing landed work.
 
-A wave only fires if the previous one ran out of *budget*. `/launcher` ends every
-wave by writing `build/runs/last-status`:
+**Inside a wave, every phase gets its own `claude -p` session.** The launcher
+does exactly one phase and stops; `day-run.sh` starts the next. That is what
+makes chaining across many PRDs affordable: context is re-sent on *every* turn,
+so a session that has already run three phases pays for all three on each turn of
+the fourth. A fresh session pays re-orientation (PRD + backlog + skill) once.
 
-| Verdict | Meaning | Next wave? |
+Consequently there is **no phase cap** by default. What ends a day is the token
+allowance, the wave deadline, or simply running out of launchable PRDs — never an
+arbitrary count.
+
+`/launcher` ends every phase by writing `build/runs/last-status`:
+
+| Verdict | Meaning | Another session? |
 | --- | --- | --- |
-| `DONE` | nothing further without the user | no |
-| `MORE_WORK` | hit a cap, deadline or the allowance | **yes** |
-| `BLOCKED` | needs a decision only the user can make | no |
-| *(missing)* | session died mid-turn, usually the allowance | **yes** |
+| `DONE` | no launchable PRD remains, in backlog or on a branch | no — day ends |
+| `MORE_WORK` | a phase remains | **yes, immediately, clean context** |
+| `MORE_WORK` *with no commit landed* | read as **stuck** | no — day ends |
+| `BLOCKED` | needs a decision only the user can make | no — day ends |
+| *(missing)* | session died mid-turn, usually the allowance | wave ends; next wave resumes |
 
-`BLOCKED` matters: a second wave would hit the same wall and burn the window for
-nothing, so it ends the day and leaves the question in the run report.
+Two of those are worth understanding. `BLOCKED` ends the day because a second
+session would hit the same wall and burn the window, leaving the question in the
+run report either way. And a `MORE_WORK` that landed **no commit** is treated as
+stuck: an identical next session would achieve the same nothing, so the loop
+stops rather than spin. A day that ends immediately in `DONE` is a *correct*
+day — there was nothing to pick up.
 
 | Cap | Default | Override |
 | --- | --- | --- |
 | Waves per day | 2 | `WAVES` |
 | Hours per wave | 5 | `WAVE_HOURS` |
-| Phases per wave | 3 | `MAX_PHASES` |
+| Phases per wave | unlimited | `MAX_PHASES` (0 = no cap) |
+| Runaway guard | 20 phases/wave | `PHASE_BACKSTOP` |
 | Build/test repair rounds per phase | 2 | — |
 | Review fix rounds per phase | 2 | — |
 

@@ -39,18 +39,26 @@ conductor, not a worker.** Almost all of your cost comes from what you let into
   interfaces, and the specific scope. Do not echo the skill back at it and do not
   leave PRD-settled facts open — it will burn tokens re-deriving them.
 
-**Hard caps per run** (defaults; the kickoff script may lower them):
+**You run exactly one phase.** `day-run.sh` gives each phase its own session, so
+chaining is the *script's* job, not yours — do the phase, write the status line,
+and end. This is why there is no phase cap to respect any more: the day is bounded
+by the token allowance and by running out of launchable PRDs, not by a count. Your
+own context therefore never has to carry a previous phase, which is the whole
+saving; a fresh session pays re-orientation once instead of re-sending a bloated
+context on every turn.
+
+**Hard caps per phase** (defaults; the kickoff script may lower them):
 
 | Cap | Default | On exceeding |
 | --- | --- | --- |
-| Phases per run | 3 | Stop, report "budget: phase cap" |
-| Build/test repair rounds per phase | 2 | Stop, report the failure verbatim |
-| Review fix rounds per phase | 2 | Stop, leave findings open in the report |
-| Wall-clock | `LTLF_EK_RUN_DEADLINE` (epoch secs) | Finish current phase, then stop |
+| Build/test repair rounds | 2 | Stop, report the failure verbatim |
+| Review fix rounds | 2 | Stop, leave findings open in the report |
+| Wall-clock | `LTLF_EK_RUN_DEADLINE` (epoch secs) | Do not start the phase at all |
 
-Check the deadline **between phases**, never mid-phase — a phase abandoned
-halfway is worse than one not started. If your context has been compacted twice,
-treat that as a budget signal: finish the current phase and stop.
+Check the deadline **before** starting the phase, never mid-phase — a phase
+abandoned halfway is worse than one not started. If your context has been
+compacted twice, that is a budget signal: finish this phase and write
+`MORE_WORK`.
 
 ## Step 0 — orient (cheap)
 
@@ -236,21 +244,26 @@ Write `docs/runs/<YYYY-MM-DD>-<feature>-<phase>.md`:
 Then **always** write `build/runs/last-status`, one line, verdict first:
 
 ```
-DONE <reason>       # nothing further to do without the user
-MORE_WORK <reason>  # work remains and a fresh session could continue it
+DONE <reason>       # no launchable PRD remains, in the backlog or on a branch
+MORE_WORK <reason>  # a phase remains and a fresh session could run it
 BLOCKED <reason>    # stopped on a decision only the user can make
 ```
 
-The day is split into **waves**, one per token-allowance window (`day-run.sh`
-starts wave 2 about five hours after wave 1). This line is what decides whether
-a later wave fires, so it is a real contract, not bookkeeping:
+This line is the *only* thing that decides whether another session starts, so it
+is a real contract, not bookkeeping:
 
-- **`MORE_WORK`** — you hit a cap, the deadline, or the allowance. A later wave
-  resumes you. Say precisely where you stopped so it does not redo landed work.
-- **`BLOCKED`** — a later wave would hit the *same wall* and burn the window for
-  nothing. Use this whenever the blocker is a decision: a missing glossary name,
-  an open theory question, a failed launch gate, a substantive interface change.
-- **`DONE`** — the PRD is closed, or the remaining phases are all blocked.
+- **`MORE_WORK`** — a phase remains. `day-run.sh` immediately starts a fresh
+  session to run it, so say precisely where you stopped or it will redo landed
+  work. Note that a `MORE_WORK` which lands **no commit** is read as *stuck* and
+  ends the day — an identical next session would achieve the same nothing.
+- **`BLOCKED`** — a later session would hit the *same wall* and burn the window
+  for nothing. Use this whenever the blocker is a decision: a missing glossary
+  name, an open theory question, a failed launch gate, a substantive interface
+  change.
+- **`DONE`** — there is no launchable work left: every PRD reachable by Step 0's
+  three rules is closed, or its remaining phases are blocked. **A day that ends
+  in `DONE` having done nothing is a correct day**, not a failed one — the run
+  simply had nothing to pick up.
 
 Never write `MORE_WORK` for something a fresh session cannot fix, and never
 write `BLOCKED` merely because you ran out of budget. Getting this backwards
@@ -259,12 +272,12 @@ either wastes half the day or ends it early.
 If you are resuming (the prompt says so), read the newest `docs/runs/` report and
 this file *first*, and continue from there rather than restarting the phase.
 
-Then: if the next phase passes Step 1's launch gate, and no cap is exceeded, and
-the deadline has not passed — loop to Step 2. Otherwise stop and say why.
+Then **stop** — do not begin another phase. The kickoff script starts the next
+one in a clean session; that is the point, and chaining here would defeat it.
 
-**Never start work on a PRD that was never grilled.** Chaining is within a PRD,
-or to the next backlog item that already *has* a launch-gate-passing PRD. An
-ungrilled idea is not work, it is a guess.
+**Never start work on a PRD that was never grilled.** The next session may move
+to a different PRD, but only one that already passes the launch gate under Step
+0's rules. An ungrilled idea is not work, it is a guess.
 
 ## Definition of done
 
