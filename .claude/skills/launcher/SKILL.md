@@ -190,6 +190,32 @@ Write `docs/runs/<YYYY-MM-DD>-<feature>-<phase>.md`:
   `/grill-prd`.
 - budget used: phases run, repair rounds, review rounds.
 
+Then **always** write `build/runs/last-status`, one line, verdict first:
+
+```
+DONE <reason>       # nothing further to do without the user
+MORE_WORK <reason>  # work remains and a fresh session could continue it
+BLOCKED <reason>    # stopped on a decision only the user can make
+```
+
+The day is split into **waves**, one per token-allowance window (`day-run.sh`
+starts wave 2 about five hours after wave 1). This line is what decides whether
+a later wave fires, so it is a real contract, not bookkeeping:
+
+- **`MORE_WORK`** — you hit a cap, the deadline, or the allowance. A later wave
+  resumes you. Say precisely where you stopped so it does not redo landed work.
+- **`BLOCKED`** — a later wave would hit the *same wall* and burn the window for
+  nothing. Use this whenever the blocker is a decision: a missing glossary name,
+  an open theory question, a failed launch gate, a substantive interface change.
+- **`DONE`** — the PRD is closed, or the remaining phases are all blocked.
+
+Never write `MORE_WORK` for something a fresh session cannot fix, and never
+write `BLOCKED` merely because you ran out of budget. Getting this backwards
+either wastes half the day or ends it early.
+
+If you are resuming (the prompt says so), read the newest `docs/runs/` report and
+this file *first*, and continue from there rather than restarting the phase.
+
 Then: if the next phase passes Step 1's launch gate, and no cap is exceeded, and
 the deadline has not passed — loop to Step 2. Otherwise stop and say why.
 

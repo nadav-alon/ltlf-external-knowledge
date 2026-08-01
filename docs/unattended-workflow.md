@@ -49,8 +49,8 @@ if stale), so firing it twice is harmless.
 ```sh
 scripts/day-run.sh                          # next phase of the top backlog PRD
 scripts/day-run.sh output-dependencies-tool # a named PRD
-HOURS=4 MAX_PHASES=1 scripts/day-run.sh     # tighter budget
-DRY_RUN=1 scripts/day-run.sh                # show the invocation, run nothing
+WAVES=1 MAX_PHASES=1 scripts/day-run.sh     # a single short wave
+DRY_RUN=1 scripts/day-run.sh                # show the wave plan, run nothing
 ```
 
 **Fire it on logon, not at a fixed time.** Your PC is off overnight, so a cron
@@ -85,12 +85,29 @@ warning above about a boot time you do not control.
 
 ## Budget
 
-Chained phases can otherwise eat an allowance. The caps:
+One session can exhaust the token allowance long before the workday ends, so the
+day is split into **waves**, one per allowance window. Wave 2 starts
+`WAVE_HOURS` after startup and resumes whatever wave 1 left unfinished, reading
+the newest `docs/runs/` report to avoid redoing landed work.
+
+A wave only fires if the previous one ran out of *budget*. `/launcher` ends every
+wave by writing `build/runs/last-status`:
+
+| Verdict | Meaning | Next wave? |
+| --- | --- | --- |
+| `DONE` | nothing further without the user | no |
+| `MORE_WORK` | hit a cap, deadline or the allowance | **yes** |
+| `BLOCKED` | needs a decision only the user can make | no |
+| *(missing)* | session died mid-turn, usually the allowance | **yes** |
+
+`BLOCKED` matters: a second wave would hit the same wall and burn the window for
+nothing, so it ends the day and leaves the question in the run report.
 
 | Cap | Default | Override |
 | --- | --- | --- |
-| Phases per run | 3 | `MAX_PHASES` |
-| Wall-clock | 9h | `HOURS` |
+| Waves per day | 2 | `WAVES` |
+| Hours per wave | 5 | `WAVE_HOURS` |
+| Phases per wave | 3 | `MAX_PHASES` |
 | Build/test repair rounds per phase | 2 | — |
 | Review fix rounds per phase | 2 | — |
 
@@ -105,10 +122,15 @@ mid-phase; a half-finished phase is worse than one not started.
 Prompts are the thing that kills an unattended run, and the run cannot answer
 one. Two mechanisms remove them:
 
-- **Containment, not allowlisting.** The bubblewrap sandbox confines writes to
-  the repo, `~/.claude/jobs` and `~/backups`, and egress to `github.com`. Because
-  containment is doing the work, `day-run.sh` passes
-  `--permission-mode bypassPermissions` — prompting an absent user adds nothing.
+- **Containment, not allowlisting.** A prompt is what a *sandbox boundary hit*
+  looks like: a blocked command triggers an offer to re-run it unsandboxed, and
+  that offer is the prompt. Growing `permissions.allow` therefore does not reduce
+  prompts. `allowUnsandboxedCommands: false` removes the escalation path
+  altogether, so a boundary hit fails cleanly instead of asking an absent user;
+  `day-run.sh` additionally passes `--permission-mode bypassPermissions`.
+  `failIfUnavailable: true` means a broken bwrap stops the run rather than
+  silently running unconfined — loud failure is the right trade when nobody is
+  watching, but it does mean a broken sandbox costs the day.
 - **Never escape the sandbox for a truthful `ls`.** The sandbox masks its deny
   list by bind-mounting `/dev/null` over paths, *including paths that do not
   exist*, so `git status` reports phantom entries (`.bashrc`, `.mcp.json`,

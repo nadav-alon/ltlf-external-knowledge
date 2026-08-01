@@ -49,17 +49,7 @@
       "Bash(git worktree list:*)",
       "Bash(git branch --list:*)",
       "Bash(git ls-files:*)",
-      "Bash(scripts/wt-status.sh:*)",
-      "Bash(./scripts/wt-status.sh:*)",
-      "Bash(gh pr view:*)",
-      "Bash(gh pr list:*)",
-      "Bash(gh pr create:*)",
-      "Bash(gh pr edit:*)",
-      "Bash(gh auth status:*)",
-      "Bash(git push origin worktree-:*)",
-      "Bash(git push -u origin worktree-:*)",
-      "Bash(git push origin feat/:*)",
-      "Bash(git push -u origin feat/:*)"
+      "Bash(scripts/wt-status.sh:*)"
     ],
     "deny": [
       "Bash(git push --force:*)",
@@ -75,7 +65,9 @@
   },
   "sandbox": {
     "enabled": true,
+    "failIfUnavailable": true,
     "autoAllowBashIfSandboxed": true,
+    "allowUnsandboxedCommands": false,
     "network": {
       "allowedDomains": [
         "github.com",

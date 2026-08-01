@@ -27,6 +27,33 @@ afford. Instead:
 - Stage explicit paths (`git add src/foo.cpp`), never `git add -A`. There are
   usually live worktrees under `.claude/worktrees/`, and `-A` will swallow them.
 
+## Where permission prompts actually come from
+
+Not from missing allowlist entries. **A prompt is what a sandbox boundary hit
+looks like**: when a sandboxed command is blocked, the harness offers to re-run
+it outside the sandbox, and that offer is the prompt. So growing
+`permissions.allow` does not reduce prompts — removing boundary hits does.
+
+`allowUnsandboxedCommands: false` closes the escalation path, so a boundary hit
+is a clean failure instead of a question nobody is there to answer.
+
+Normal development never hits a boundary. Writes to `build/`, `src/`, `include/`,
+`tests/`, `docs/` and the git dir are allowed; so are reads of the Spot install
+and (from the next session on) writes to `~/backups`. Egress is open to
+`github.com`, which covers `git push` and `gh pr create`.
+
+The walls are: **agents rewriting their own `.claude/` config**, `~/.ssh`, and
+non-GitHub network. If you are editing `.claude/` deliberately, use the Edit
+tool — it is not routed through the bash sandbox — rather than a shell script,
+which will fail with `Read-only file system`.
+
+Two things that look like denials but are not: in a worktree `.git` is a *file*
+(a gitdir pointer), so `touch .git/x` fails with `ENOTDIR`; and a masked
+directory lists as empty, so `ls` exiting 0 proves nothing about readability.
+
+Sandbox settings bind at **session start**. After changing them, a probe from the
+current session still reports the old behaviour — start a new session.
+
 Disable the sandbox only when a command genuinely needs the network or a write
 outside the allowed roots — and in an unattended run, prefer to fail and report.
 
