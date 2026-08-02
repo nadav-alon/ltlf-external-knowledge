@@ -641,6 +641,567 @@ TEST_F(LtlfsyntOracleTest, DelayCorrectedPsiInAgreesLoadBearingWithBarePhi) {
 }
 
 // ---------------------------------------------------------------------------
+// Tables F-J: known-output (Tout-only) corpus (docs/prd/
+// ltlfsynt-oracle-known-output.md "Test oracles", Phase 1). Oknown goes on
+// --outs beside Ofree (PRD "Behaviour" #1): the reduction is a conjunction
+// phi & psi_out, never an implication -- putting x on --ins would model an
+// adversarial Oknown, a different game. The load-bearing flip direction is
+// INVERTED relative to Tables A-C (PRD "Behaviour" #2): psi_out only removes
+// system choice, so a discriminating row is bare-R -> guarantee-U, never the
+// Tin U -> R shape. Every row below was executed live against both binaries
+// during the PRD grill (Spot 2.15.1); this is a mechanical translation, not
+// fixture design -- a row that fails to reproduce is a signal to investigate,
+// never to quietly adjust.
+//
+// Partition: input_free=a, input_known=(empty), output_free=o,
+// output_known=x.
+// ---------------------------------------------------------------------------
+
+constexpr char kPartFileAOX[] =
+    "input_free:   a\n"
+    "input_known:\n"
+    "output_free:  o\n"
+    "output_known: x\n";
+
+// The four single-state Tout files (PRD "Test oracles" Tables F-J): one
+// state self-looping on [t], AP: 3 "a" "o" "x" (Sigma0=I∪Ofree={a,o},
+// Sigma1=Oknown={x}).
+
+// Tout: const-false (state 0: !x). psi_out = G(!x).
+constexpr char kToutConstFalse[] =
+    "HOA: v1\n"
+    "States: 1\n"
+    "Start: 0\n"
+    "AP: 3 \"a\" \"o\" \"x\"\n"
+    "acc-name: all\n"
+    "Acceptance: 0 t\n"
+    "--BODY--\n"
+    "State: 0\n"
+    "  [t] 0\n"
+    "--END--\n"
+    "%%LAMBDA\n"
+    "state 0: !x\n";
+
+// Tout: const-true (state 0: x). psi_out = G(x).
+constexpr char kToutConstTrue[] =
+    "HOA: v1\n"
+    "States: 1\n"
+    "Start: 0\n"
+    "AP: 3 \"a\" \"o\" \"x\"\n"
+    "acc-name: all\n"
+    "Acceptance: 0 t\n"
+    "--BODY--\n"
+    "State: 0\n"
+    "  [t] 0\n"
+    "--END--\n"
+    "%%LAMBDA\n"
+    "state 0: x\n";
+
+// Tout: copy from Ofree, x = o (state 0: o <-> x). psi_out = G(x <-> o).
+// The turn-order payoff fixture (PRD "Test oracles" Table G): the ONLY
+// family that can detect Tout observing merely I instead of I∪Ofree -- a
+// wrong Sigma0=I would put `o` outside Sigma0∪Sigma1 and parse_transducer's
+// Validation 3 (AP scope, src/transducer_io.cpp:185-190) would reject the
+// fixture outright rather than compute a wrong answer.
+constexpr char kToutCopyFromOfree[] =
+    "HOA: v1\n"
+    "States: 1\n"
+    "Start: 0\n"
+    "AP: 3 \"a\" \"o\" \"x\"\n"
+    "acc-name: all\n"
+    "Acceptance: 0 t\n"
+    "--BODY--\n"
+    "State: 0\n"
+    "  [t] 0\n"
+    "--END--\n"
+    "%%LAMBDA\n"
+    "state 0: o <-> x\n";
+
+// Tout: copy from I, x = a (state 0: a <-> x). psi_out = G(x <-> a).
+constexpr char kToutCopyFromI[] =
+    "HOA: v1\n"
+    "States: 1\n"
+    "Start: 0\n"
+    "AP: 3 \"a\" \"o\" \"x\"\n"
+    "acc-name: all\n"
+    "Acceptance: 0 t\n"
+    "--BODY--\n"
+    "State: 0\n"
+    "  [t] 0\n"
+    "--END--\n"
+    "%%LAMBDA\n"
+    "state 0: a <-> x\n";
+
+// Tout: one-step delay, x_t = a_{t-1}, x_0 = bot; 2-state (PRD "Test
+// oracles" Table J), structurally identical to kTinDelay with x in place of
+// k. psi_out (kPsiOutDelayCorrected below) is the corrected weak-X guarded-
+// safety shape, NOT X[!] (see Table J-bad, the deliberate divergence
+// witness below).
+constexpr char kToutDelay[] =
+    "HOA: v1\n"
+    "States: 2\n"
+    "Start: 0\n"
+    "AP: 3 \"a\" \"o\" \"x\"\n"
+    "acc-name: all\n"
+    "Acceptance: 0 t\n"
+    "--BODY--\n"
+    "State: 0\n"
+    "  [!0] 0\n"
+    "  [0]  1\n"
+    "State: 1\n"
+    "  [!0] 0\n"
+    "  [0]  1\n"
+    "--END--\n"
+    "%%LAMBDA\n"
+    "state 0: !x\n"
+    "state 1: x\n";
+
+// Corrected delay psi_out: pure safety, x_t=a_{t-1}, x_0=bot, weak X in the
+// guarded form -- the Tout analogue of kPsiInDelayCorrected.
+constexpr char kPsiOutDelayCorrected[] =
+    "(!x) & G(a -> X x) & G(!a -> X !x)";
+
+// Over-strong (X[!]) delay psi_out: the negative-control pairing for Table
+// J-bad below. Deliberately NOT used in the agreeing corpus.
+constexpr char kPsiOutDelayOverStrong[] =
+    "(!x) & G(a -> X[!] x) & G(!a -> X[!] !x)";
+
+struct KnownOutputRow {
+  std::string name;  // gtest-safe identifier suffix
+  const char* tout_file;
+  std::string psi_out;
+  std::string phi;
+  bool realizable;
+  bool load_bearing;  // if true: the bare-phi verdict must differ (a flip)
+};
+
+void PrintTo(const KnownOutputRow& row, std::ostream* os) { *os << row.name; }
+
+std::vector<KnownOutputRow> BuildKnownOutputCorpus() {
+  return {
+      // --- Table F: Tout const-false, psi_out = G(!x) ---
+      {"F_F_x", kToutConstFalse, "G(!x)", "F(x)", false, true},
+      {"F_x", kToutConstFalse, "G(!x)", "x", false, true},
+      {"F_XBang_x", kToutConstFalse, "G(!x)", "X[!] x", false, true},
+      {"F_G_not_x", kToutConstFalse, "G(!x)", "G(!x)", true, false},
+      {"F_not_x", kToutConstFalse, "G(!x)", "!x", true, false},
+      {"F_o", kToutConstFalse, "G(!x)", "o", true, false},
+      {"F_G_o_iff_a", kToutConstFalse, "G(!x)", "G(o <-> a)", true, false},
+      {"F_F_x_or_o", kToutConstFalse, "G(!x)", "F(x) | o", true, false},
+
+      // --- Table G: Tout copy-from-Ofree (x=o), psi_out = G(x <-> o) ---
+      {"G_x_iff_not_o", kToutCopyFromOfree, "G(x <-> o)", "G(x <-> !o)",
+       false, true},
+      {"G_x_and_not_o", kToutCopyFromOfree, "G(x <-> o)", "x & !o", false,
+       true},
+      {"G_XBang_x_and_not_o", kToutCopyFromOfree, "G(x <-> o)",
+       "X[!](x & !o)", false, true},
+      {"G_x_iff_o", kToutCopyFromOfree, "G(x <-> o)", "G(x <-> o)", true,
+       false},
+      {"G_F_x_and_o", kToutCopyFromOfree, "G(x <-> o)", "F(x & o)", true,
+       false},
+      {"G_G_a_implies_x", kToutCopyFromOfree, "G(x <-> o)", "G(a -> x)",
+       true, false},
+      {"G_x_iff_o_flat", kToutCopyFromOfree, "G(x <-> o)", "x <-> o", true,
+       false},
+      {"G_G_x_implies_o", kToutCopyFromOfree, "G(x <-> o)", "G(x -> o)",
+       true, false},
+
+      // --- Table H: Tout copy-from-I (x=a), psi_out = G(x <-> a) ---
+      {"H_x_iff_not_a", kToutCopyFromI, "G(x <-> a)", "G(x <-> !a)", false,
+       true},
+      {"H_F_x", kToutCopyFromI, "G(x <-> a)", "F(x)", false, true},
+      {"H_x_iff_a", kToutCopyFromI, "G(x <-> a)", "G(x <-> a)", true, false},
+      {"H_G_a_implies_x", kToutCopyFromI, "G(x <-> a)", "G(a -> x)", true,
+       false},
+      {"H_G_x_iff_o", kToutCopyFromI, "G(x <-> a)", "G(x <-> o)", true,
+       false},
+      {"H_x_and_not_a", kToutCopyFromI, "G(x <-> a)", "x & !a", false,
+       false},  // both U: a is free, x & !a is env-hard anyway
+
+      // --- Table I: Tout const-true, psi_out = G(x) ---
+      {"I_G_not_x", kToutConstTrue, "G(x)", "G(!x)", false, true},
+      {"I_F_not_x", kToutConstTrue, "G(x)", "F(!x)", false, true},
+      {"I_not_x", kToutConstTrue, "G(x)", "!x", false, true},
+      {"I_G_x", kToutConstTrue, "G(x)", "G(x)", true, false},
+      {"I_x", kToutConstTrue, "G(x)", "x", true, false},
+      {"I_o", kToutConstTrue, "G(x)", "o", true, false},
+
+      // --- Table J: Tout one-step delay, psi_out = kPsiOutDelayCorrected ---
+      {"J_x", kToutDelay, kPsiOutDelayCorrected, "x", false, true},
+      {"J_F_x", kToutDelay, kPsiOutDelayCorrected, "F(x)", false, true},
+      {"J_XBang_x", kToutDelay, kPsiOutDelayCorrected, "X[!] x", false,
+       true},
+      {"J_G_not_x", kToutDelay, kPsiOutDelayCorrected, "G(!x)", true, false},
+      {"J_G_x_iff_o", kToutDelay, kPsiOutDelayCorrected, "G(x <-> o)", true,
+       false},
+      {"J_G_x_implies_a", kToutDelay, kPsiOutDelayCorrected, "G(x -> a)",
+       true, false},
+      {"J_G_a_implies_XBang_x", kToutDelay, kPsiOutDelayCorrected,
+       "G(a -> X[!] x)", false,
+       false},  // both U: X[!] forces a continuation the delay cannot
+                // promise at trace end
+  };
+}
+
+class KnownOutputOracleTest
+    : public LtlfsyntOracleTest,
+      public ::testing::WithParamInterface<KnownOutputRow> {};
+
+TEST_P(KnownOutputOracleTest, MatchesLtlfsyntUnderGuaranteeReduction) {
+  const KnownOutputRow& row = GetParam();
+  const ScopedTempFile part_file(kPartFileAOX);
+  const ScopedTempFile transducer_file(row.tout_file);
+
+  const CliResult ek =
+      RunEkSynth({"--dfa-product", "--formula=" + row.phi, "--part-file",
+                  part_file.path(), "--known-output-transducer",
+                  transducer_file.path(), "--realizable"});
+  const Verdict ek_verdict = ParseEkSynthVerdict(ek);
+  EXPECT_EQ(IsRealizable(ek_verdict), row.realizable)
+      << "ltlf-ek-synth verdict for phi=" << row.phi
+      << " does not match the PRD corpus "
+         "(docs/prd/ltlfsynt-oracle-known-output.md)";
+
+  const std::string reduced = "(" + row.phi + ") & (" + row.psi_out + ")";
+  const CliResult synt =
+      RunLtlfsynt({"--ins=a", "--outs=o,x", "--semantics=Mealy",
+                   "--realizability", "-f", reduced});
+  const Verdict synt_verdict = ParseLtlfsyntVerdict(synt);
+
+  // The oracle itself: ltlf-ek-synth (known-output problem) and ltlfsynt
+  // (phi & psi_out reduction) must agree on realizability.
+  EXPECT_EQ(IsRealizable(ek_verdict), IsRealizable(synt_verdict))
+      << "phi=" << row.phi << ", psi_out=" << row.psi_out;
+
+  if (row.load_bearing) {
+    // Load-bearing guard (PRD "Behaviour" #3): drop psi_out, keep x on
+    // --outs; the bare verdict must be the *opposite* of the reduction's,
+    // proving psi_out actually changed the outcome. psi_out=top is the
+    // extremal weakening, so no weaker-but-nonzero guarantee could
+    // discriminate better.
+    const CliResult bare =
+        RunLtlfsynt({"--ins=a", "--outs=o,x", "--semantics=Mealy",
+                     "--realizability", "-f", row.phi});
+    const Verdict bare_verdict = ParseLtlfsyntVerdict(bare);
+    EXPECT_NE(IsRealizable(bare_verdict), IsRealizable(synt_verdict))
+        << "load-bearing guard failed: psi_out did not change the verdict "
+           "for phi="
+        << row.phi;
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    KnownOutputCorpus, KnownOutputOracleTest,
+    ::testing::ValuesIn(BuildKnownOutputCorpus()),
+    [](const ::testing::TestParamInfo<KnownOutputRow>& info) {
+      return info.param.name;
+    });
+
+// ---------------------------------------------------------------------------
+// Table J-bad: NEGATIVE CONTROL, the Phase-2 faithfulness-guard meta-oracle
+// witness (PRD "Test oracles" Table J-bad / "Behaviour" #5). Same delay
+// Tout file, paired with the OVER-STRONG (X[!]) psi_out
+// (kPsiOutDelayOverStrong). Encoded as a DELIBERATE DIVERGENCE on 2 of 4
+// rows -- never as a passing agreement, and never "fixed" by adjusting the
+// expectation. This is the Tout analogue of
+// FaithfulnessGuardMetaOracle.FiresOnOldCopyFromStepOnePsiInDelayPairing;
+// Phase 2 asserts the generalized run_faithfulness_guard fires ("too
+// STRONG") on this exact pairing.
+// ---------------------------------------------------------------------------
+
+struct KnownOutputDivergenceRow {
+  std::string name;
+  std::string phi;
+  bool ek_realizable;
+  bool reduction_realizable;
+};
+
+void PrintTo(const KnownOutputDivergenceRow& row, std::ostream* os) {
+  *os << row.name;
+}
+
+std::vector<KnownOutputDivergenceRow> BuildKnownOutputDivergenceCorpus() {
+  return {
+      {"Jbad_G_not_x", "G(!x)", true, false},        // EK=R, reduction=U: DIVERGES
+      {"Jbad_G_x_iff_o", "G(x <-> o)", true, false},  // EK=R, reduction=U: DIVERGES
+      {"Jbad_x", "x", false, false},                  // both U: agrees
+      {"Jbad_F_x", "F(x)", false, false},             // both U: agrees
+  };
+}
+
+class KnownOutputDivergenceTest
+    : public LtlfsyntOracleTest,
+      public ::testing::WithParamInterface<KnownOutputDivergenceRow> {};
+
+TEST_P(KnownOutputDivergenceTest, OverStrongPsiOutDivergesFromEkOnDelay) {
+  const KnownOutputDivergenceRow& row = GetParam();
+  const ScopedTempFile part_file(kPartFileAOX);
+  const ScopedTempFile transducer_file(kToutDelay);
+
+  const CliResult ek =
+      RunEkSynth({"--dfa-product", "--formula=" + row.phi, "--part-file",
+                  part_file.path(), "--known-output-transducer",
+                  transducer_file.path(), "--realizable"});
+  EXPECT_EQ(IsRealizable(ParseEkSynthVerdict(ek)), row.ek_realizable)
+      << "ek-synth verdict for phi=" << row.phi
+      << " does not match the PRD corpus (Table J-bad)";
+
+  const std::string reduced =
+      "(" + row.phi + ") & (" + std::string(kPsiOutDelayOverStrong) + ")";
+  const CliResult synt =
+      RunLtlfsynt({"--ins=a", "--outs=o,x", "--semantics=Mealy",
+                   "--realizability", "-f", reduced});
+  EXPECT_EQ(IsRealizable(ParseLtlfsyntVerdict(synt)), row.reduction_realizable)
+      << "reduction verdict for phi=" << row.phi
+      << " does not match the PRD corpus (Table J-bad)";
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    KnownOutputDivergenceCorpus, KnownOutputDivergenceTest,
+    ::testing::ValuesIn(BuildKnownOutputDivergenceCorpus()),
+    [](const ::testing::TestParamInfo<KnownOutputDivergenceRow>& info) {
+      return info.param.name;
+    });
+
+TEST(LtlfsyntOracleApNaming, KnownOutputCorpusApsMatchPartFile) {
+  const std::set<std::string> allowed = {"a", "o", "x"};
+  for (const auto& row : BuildKnownOutputCorpus()) {
+    SCOPED_TRACE(row.name);
+    for (const std::string& ap : collect_aps(spot::parse_formula(row.phi)))
+      EXPECT_TRUE(allowed.count(ap)) << "phi AP outside partition: " << ap;
+    for (const std::string& ap :
+         collect_aps(spot::parse_formula(row.psi_out)))
+      EXPECT_TRUE(allowed.count(ap)) << "psi_out AP outside partition: "
+                                      << ap;
+  }
+  for (const auto& row : BuildKnownOutputDivergenceCorpus()) {
+    SCOPED_TRACE(row.name);
+    for (const std::string& ap : collect_aps(spot::parse_formula(row.phi)))
+      EXPECT_TRUE(allowed.count(ap)) << "phi AP outside partition: " << ap;
+  }
+  for (const std::string& ap :
+       collect_aps(spot::parse_formula(kPsiOutDelayOverStrong)))
+    EXPECT_TRUE(allowed.count(ap))
+        << "kPsiOutDelayOverStrong AP outside partition: " << ap;
+}
+
+// ---------------------------------------------------------------------------
+// Edge case: empty Ofree with non-empty Oknown (PRD "Edge cases"): Tout's
+// Sigma0 collapses to I, and the system has no free moves at all while x is
+// still forced. One smoke fixture, mirroring EmptyOutputsAcceptedByBothTools*
+// above. Tout is const-true (x always forced true, AP: 2 "a" "x"); phi=!x
+// contradicts the forced x directly, so the reduction (!x) & G(x) is UNSAT
+// regardless of partition -- a fixture that is safe by construction, not
+// just by having been hand-run once.
+// ---------------------------------------------------------------------------
+
+constexpr char kPartFileAX[] =
+    "input_free:   a\n"
+    "input_known:\n"
+    "output_free:\n"
+    "output_known: x\n";
+
+constexpr char kToutConstTrueAX[] =
+    "HOA: v1\n"
+    "States: 1\n"
+    "Start: 0\n"
+    "AP: 2 \"a\" \"x\"\n"
+    "acc-name: all\n"
+    "Acceptance: 0 t\n"
+    "--BODY--\n"
+    "State: 0\n"
+    "  [t] 0\n"
+    "--END--\n"
+    "%%LAMBDA\n"
+    "state 0: x\n";
+
+TEST_F(LtlfsyntOracleTest, EmptyOfreeWithNonEmptyOknownForcesXAndStaysUnrealizable) {
+  const ScopedTempFile part_file(kPartFileAX);
+  const ScopedTempFile transducer_file(kToutConstTrueAX);
+
+  const CliResult ek = RunEkSynth(
+      {"--dfa-product", "--formula=!x", "--part-file", part_file.path(),
+       "--known-output-transducer", transducer_file.path(), "--realizable"});
+  EXPECT_FALSE(IsRealizable(ParseEkSynthVerdict(ek)));
+
+  const CliResult synt = RunLtlfsynt({"--ins=a", "--outs=x",
+                                       "--semantics=Mealy", "--realizability",
+                                       "-f", "(!x) & (G(x))"});
+  EXPECT_FALSE(IsRealizable(ParseLtlfsyntVerdict(synt)));
+
+  // Load-bearing: bare phi=!x alone (drop psi_out) is trivially realizable
+  // (the system can just always output !x), proving G(x) carried the flip.
+  const CliResult bare = RunLtlfsynt(
+      {"--ins=a", "--outs=x", "--semantics=Mealy", "--realizability", "-f",
+       "!x"});
+  EXPECT_TRUE(IsRealizable(ParseLtlfsyntVerdict(bare)));
+}
+
+// ---------------------------------------------------------------------------
+// Tables M1-M2: mixed (Tin AND Tout) corpus (PRD "Test oracles"). Tin is the
+// copy fixture reused verbatim from Table C (kTinCopy, psi_in = G(k <-> a)).
+// Partition: input_free=a, input_known=k, output_free=o, output_known=x.
+// ltlfsynt --ins=a,k --outs=o,x -f "(psi_in) -> ((phi) & (psi_out))"; bare
+// drops both conjuncts: -f "phi". Each table exhibits BOTH flip directions
+// (PRD "Test oracles"): the assumption half turns U into R, the guarantee
+// half turns R into U against the same phi/transducer partition -- the
+// strongest available evidence that the COMPOSED reduction
+// psi_in -> (phi & psi_out) is under test, not one half riding along
+// inertly on the other.
+// ---------------------------------------------------------------------------
+
+constexpr char kPartFileAKOX[] =
+    "input_free:   a\n"
+    "input_known:  k\n"
+    "output_free:  o\n"
+    "output_known: x\n";
+
+constexpr char kMixedPsiIn[] = "G(k <-> a)";
+
+// Tout: copy from Ofree, x = o. AP: 4 "a" "k" "o" "x" (mixed partition).
+constexpr char kToutCopyFromOfreeMixed[] =
+    "HOA: v1\n"
+    "States: 1\n"
+    "Start: 0\n"
+    "AP: 4 \"a\" \"k\" \"o\" \"x\"\n"
+    "acc-name: all\n"
+    "Acceptance: 0 t\n"
+    "--BODY--\n"
+    "State: 0\n"
+    "  [t] 0\n"
+    "--END--\n"
+    "%%LAMBDA\n"
+    "state 0: o <-> x\n";
+
+// Tout: const-false. AP: 4 "a" "k" "o" "x" (mixed partition).
+constexpr char kToutConstFalseMixed[] =
+    "HOA: v1\n"
+    "States: 1\n"
+    "Start: 0\n"
+    "AP: 4 \"a\" \"k\" \"o\" \"x\"\n"
+    "acc-name: all\n"
+    "Acceptance: 0 t\n"
+    "--BODY--\n"
+    "State: 0\n"
+    "  [t] 0\n"
+    "--END--\n"
+    "%%LAMBDA\n"
+    "state 0: !x\n";
+
+struct MixedRow {
+  std::string name;  // gtest-safe identifier suffix
+  const char* tout_file;
+  std::string psi_out;
+  std::string phi;
+  bool realizable;
+  bool load_bearing;  // if true: the bare-phi verdict must differ (a flip)
+};
+
+void PrintTo(const MixedRow& row, std::ostream* os) { *os << row.name; }
+
+std::vector<MixedRow> BuildMixedCorpus() {
+  return {
+      // --- Table M1: Tin copy, Tout copy-from-Ofree, psi_out=G(x<->o) ---
+      {"M1_G_k_iff_a", kToutCopyFromOfreeMixed, "G(x <-> o)", "G(k <-> a)",
+       true, true},  // flip U->R (assumption half)
+      {"M1_G_a_implies_k", kToutCopyFromOfreeMixed, "G(x <-> o)",
+       "G(a -> k)", true, true},  // flip U->R (assumption half)
+      {"M1_G_x_iff_not_o", kToutCopyFromOfreeMixed, "G(x <-> o)",
+       "G(x <-> !o)", false, true},  // flip R->U (guarantee half)
+      {"M1_x_and_not_o", kToutCopyFromOfreeMixed, "G(x <-> o)", "x & !o",
+       false, true},  // flip R->U (guarantee half)
+      {"M1_G_x_iff_o", kToutCopyFromOfreeMixed, "G(x <-> o)", "G(x <-> o)",
+       true, false},
+      {"M1_G_o_iff_k", kToutCopyFromOfreeMixed, "G(x <-> o)", "G(o <-> k)",
+       true, false},
+      {"M1_F_k_and_not_a", kToutCopyFromOfreeMixed, "G(x <-> o)",
+       "F(k & !a)", false,
+       false},  // both U: copy makes k & !a unsatisfiable
+
+      // --- Table M2: Tin copy, Tout const-false, psi_out=G(!x) ---
+      {"M2_G_a_implies_k", kToutConstFalseMixed, "G(!x)", "G(a -> k)", true,
+       true},  // flip U->R (assumption half)
+      {"M2_G_k_iff_a_and_G_not_x", kToutConstFalseMixed, "G(!x)",
+       "G(k <-> a) & G(!x)", true, true},  // flip U->R (assumption half)
+      {"M2_F_x", kToutConstFalseMixed, "G(!x)", "F(x)", false,
+       true},  // flip R->U (guarantee half)
+      {"M2_x", kToutConstFalseMixed, "G(!x)", "x", false,
+       true},  // flip R->U (guarantee half)
+      {"M2_G_not_x", kToutConstFalseMixed, "G(!x)", "G(!x)", true, false},
+  };
+}
+
+class MixedOracleTest : public LtlfsyntOracleTest,
+                        public ::testing::WithParamInterface<MixedRow> {};
+
+TEST_P(MixedOracleTest, MatchesLtlfsyntUnderComposedReduction) {
+  const MixedRow& row = GetParam();
+  const ScopedTempFile part_file(kPartFileAKOX);
+  const ScopedTempFile tin_file(kTinCopy);
+  const ScopedTempFile tout_file(row.tout_file);
+
+  const CliResult ek = RunEkSynth(
+      {"--dfa-product", "--formula=" + row.phi, "--part-file",
+       part_file.path(), "--known-input-transducer", tin_file.path(),
+       "--known-output-transducer", tout_file.path(), "--realizable"});
+  const Verdict ek_verdict = ParseEkSynthVerdict(ek);
+  EXPECT_EQ(IsRealizable(ek_verdict), row.realizable)
+      << "ltlf-ek-synth verdict for phi=" << row.phi
+      << " does not match the PRD corpus "
+         "(docs/prd/ltlfsynt-oracle-known-output.md)";
+
+  const std::string reduced = "(" + std::string(kMixedPsiIn) + ") -> ((" +
+                               row.phi + ") & (" + row.psi_out + "))";
+  const CliResult synt =
+      RunLtlfsynt({"--ins=a,k", "--outs=o,x", "--semantics=Mealy",
+                   "--realizability", "-f", reduced});
+  const Verdict synt_verdict = ParseLtlfsyntVerdict(synt);
+
+  // The oracle itself: ltlf-ek-synth (mixed known-input/known-output
+  // problem) and ltlfsynt (the composed reduction) must agree.
+  EXPECT_EQ(IsRealizable(ek_verdict), IsRealizable(synt_verdict))
+      << "phi=" << row.phi << ", psi_out=" << row.psi_out;
+
+  if (row.load_bearing) {
+    // Load-bearing guard: bare phi alone (drop BOTH psi_in and psi_out)
+    // must give the opposite verdict, proving the composed guarantee
+    // actually changed the outcome -- regardless of which half (assumption
+    // or guarantee) is doing the work for this particular row.
+    const CliResult bare =
+        RunLtlfsynt({"--ins=a,k", "--outs=o,x", "--semantics=Mealy",
+                     "--realizability", "-f", row.phi});
+    const Verdict bare_verdict = ParseLtlfsyntVerdict(bare);
+    EXPECT_NE(IsRealizable(bare_verdict), IsRealizable(synt_verdict))
+        << "load-bearing guard failed: the composed reduction did not "
+           "change the verdict for phi="
+        << row.phi;
+  }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    MixedCorpus, MixedOracleTest, ::testing::ValuesIn(BuildMixedCorpus()),
+    [](const ::testing::TestParamInfo<MixedRow>& info) {
+      return info.param.name;
+    });
+
+TEST(LtlfsyntOracleApNaming, MixedCorpusApsMatchPartFile) {
+  const std::set<std::string> allowed = {"a", "k", "o", "x"};
+  for (const std::string& ap : collect_aps(spot::parse_formula(kMixedPsiIn)))
+    EXPECT_TRUE(allowed.count(ap)) << "kMixedPsiIn AP outside partition: "
+                                    << ap;
+  for (const auto& row : BuildMixedCorpus()) {
+    SCOPED_TRACE(row.name);
+    for (const std::string& ap : collect_aps(spot::parse_formula(row.phi)))
+      EXPECT_TRUE(allowed.count(ap)) << "phi AP outside partition: " << ap;
+    for (const std::string& ap :
+         collect_aps(spot::parse_formula(row.psi_out)))
+      EXPECT_TRUE(allowed.count(ap)) << "psi_out AP outside partition: "
+                                      << ap;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Faithfulness guard (docs/prd/oracle-faithfulness-guard.md "Behaviour" #2):
 // a mechanical, author-blind-spot-independent cross-check that a Tin
 // fixture's psi_in and its transducer FILE denote the same produced-trace
