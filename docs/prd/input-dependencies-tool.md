@@ -6,9 +6,20 @@
 **main.tex ref:** `\cref{indep}` — `\cref{def:indep}`, `\cref{lem:indep-diagonal}`, `\cref{lem:indep-transducer}` (all written this session, both lemmas **unproved**)
 
 **Gates:**
-- [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
+- [x] glossary        — new terms in docs/GLOSSARY.md C++ column
+      _Closed 2026-08-03 (`/glossary`, user-attended). All three new terms
+      written — *Dependent input set*, *Violation automaton*, *Projected
+      live-letter region* — plus the new *Input-dependency extraction* sibling
+      and all three amendments. Decisions taken with the user: $\Aneg$ is the
+      **Violation automaton** (the lemma states it generically as "a
+      deterministic automaton", so the DFA commitment lives in the C++ column,
+      not the name); and *Dependency set* stays **one** entry carrying both
+      instantiations ($(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ for outputs,
+      $\mathcal{I}\setminus\Xdep$ for inputs), following the *Observed / produced
+      slice* precedent — which also keeps the "conflating them is the Moore bug"
+      warning stated as a relation between the two, where the danger is._
 - [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
+- [ ] code-review     — domain (/code-reviewer) + generic (/review on the PR)
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex
 
 ## Goal
@@ -50,8 +61,10 @@ verbatim), *Live-letter region* ($\liveset{s}$), *Dependent output set*,
 *Dependency set*, *Output-dependency extraction*, *Controller verifier*,
 *Generated corpus*, *Faithfulness guard*.
 
-**Glossary gaps — run `/glossary` before `/developer`.** Three new concepts and
-three amendments to existing entries:
+**Glossary gaps — DONE 2026-08-03, do not re-open.** All six landed; the launch
+gate's naming requirement is satisfied and `/developer` will not stop on it. Kept
+below as the record of what was written and why. Three new concepts and three
+amendments to existing entries:
 
 1. **Dependent input set** (new) — $\Xdep\subseteq\mathcal{I}$, `\cref{def:indep}`.
    C++: the `dependent` member of `DependentInputs`. Do not call it: the

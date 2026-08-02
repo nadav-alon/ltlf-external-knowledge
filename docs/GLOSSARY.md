@@ -894,24 +894,82 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
   emitted $\Tout$.
 - **Do not call it:** governed variables / $\mathcal{V}$ / the known set (those are
   the partition notion — see *Governed variables (V)*), dependencies (bare),
-  dependent variables (bare — the term is **output**-specific; the input notion is
-  strictly stronger and unbuilt, see *Open theory questions*), maximal set (bare),
+  dependent variables (bare — **ambiguous** now that both directions exist; say
+  *output*- or *input*-dependent, see *Dependent input set*), maximal set (bare),
   maximum dependent set (it is not maximum).
 
+### Dependent input set
+- **`main.tex`:** $\Xdep\subseteq\mathcal{I}$ (`\cref{def:indep}`, §`indep`).
+- **Definition:** a set of **input** variables whose value at every step is forced
+  by the history together with the current values of the *other inputs* — the
+  environment's forced moves, where *Dependent output set* is the system's. It is
+  **not** the output notion with a different variable set, and it is **not a
+  strengthening** of it: two things change, and both are forced. (1) The analysed
+  language is $L(\lnot\varphi)$, not $L(\varphi)$ — an input move is forced on the
+  environment exactly when every alternative makes $\varphi$ unavoidable, so the
+  analysis runs on the *Violation automaton*. (2) $\Ydep$ is
+  $\mathcal{I}\setminus\Xdep$, not $(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$,
+  because $\Sin$ moves **before** the controller and so may not observe the
+  current step's outputs — see *Projected live-letter region*. Subset-maximal (not
+  maximum) and lexicographic-order-contracted exactly as the output notion; the
+  greedy scan does **not** compose from singletons, and $\varphi=F(a\oplus b)$ is
+  the witness ($\{a\}$ and $\{b\}$ each input-dependent, $\{a,b\}$ not).
+  Becomes $\Iknown$, and is an analysis **result**, not a partition input.
+- **C++:** `DependentInputs::dependent` (`std::set<std::string>`), one member of
+  the `dependent_inputs` result alongside the updated `VariablePartition` and the
+  emitted $\Tin$ (`docs/prd/input-dependencies-tool.md`).
+- **Do not call it:** the dependent variables (bare — ambiguous, see above), the
+  known inputs (that is $\Iknown$, a *partition* notion — this is what *becomes*
+  it), input dependencies (bare), the forced inputs.
+
 ### Dependency set
-- **`main.tex`:** $\Ydep=(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ (`\cref{def:outdep}`).
-- **Definition:** the variables $\Xdep$ is dependent **on**. Once $\Oknown=\Xdep$
-  it equals $\mathcal{I}\cup\Ofree$ — which is exactly $\Sigma_0$ for `Role::t_out`
-  (`main.tex:129`). **That coincidence is the whole reason extraction emits a
-  $\Tout$** rather than some new object, and it is emphatically *not* a
-  coincidence for `t_in`: a $\Tin$ observes only $\Ifree$, so $\Ydep$ would let
-  $\lambda_{in}$ read $\mathcal{O}$ and break the *Turn order*.
-- **C++:** — (no identifier; derived as `partition.inputs()` ∪
-  `partition.output_free` and never stored, since the partition already determines
-  it).
-- **Do not call it:** observed slice / $\Sigma_0$ (they coincide for `t_out`
-  **only** — conflating them is what makes the input case look like a parameter
-  change), the free variables, the remaining variables, $Y$ (bare, in prose).
+- **`main.tex`:** $\Ydep$ — **two instantiations, one symbol**:
+  $(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ for outputs (`\cref{def:outdep}`),
+  $\mathcal{I}\setminus\Xdep$ for inputs (`\cref{def:indep}`).
+- **Definition:** the variables $\Xdep$ is dependent **on**. Each direction's
+  $\Ydep$ equals $\Sigma_0$ for **its** role, and in both cases that is the whole
+  reason extraction emits a *transducer* rather than some new object:
+  - **outputs** — once $\Oknown=\Xdep$, $\Ydep=\mathcal{I}\cup\Ofree$, which is
+    $\Sigma_0$ for `Role::t_out` (`main.tex:129`). $\Sout$ moves **last** and so
+    observes everything; no projection is needed.
+  - **inputs** — once $\Iknown=\Xdep$, $\Ydep=\Ifree$, which is $\Sigma_0$ for
+    `Role::t_in`. $\Sin$ moves **before** the controller, so $\lambda_{in}$ may
+    **not** read $\mathcal{O}$ — which is why the input notion cannot reuse the
+    output $\Ydep$, and why its criterion runs on the *Projected live-letter
+    region* rather than on $\liveset{s}$ directly.
+  **Conflating the two directions' $\Ydep$ is the Moore bug**, not a notational
+  slip: using $(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ on the input side lets
+  $\lambda_{in}$ observe the current step's outputs and breaks *Turn order*. It is
+  also what makes the input case look like a mere parameter change to the output
+  tool, when it is a different language plus a projection.
+- **C++:** — (no identifier in either direction; derived from the
+  `VariablePartition`, which already determines it, and never stored).
+- **Do not call it:** observed slice / $\Sigma_0$ (they coincide **per role**, and
+  treating that as one fact is the conflation above), the free variables, the
+  remaining variables, $Y$ (bare, in prose).
+
+### Violation automaton
+- **`main.tex`:** $\Aneg$ (`\cref{lem:indep-diagonal}`, `\cref{lem:indep-transducer}`).
+- **Definition:** a **deterministic** automaton with $L(\Aneg)=L(\lnot\varphi)$ —
+  the automaton input-dependency extraction analyses, where output extraction
+  analyses the Goal DFA. On it, *live* means the **environment** can still force a
+  violation of $\varphi$, so a letter outside $\liveset{s}$ is one the
+  **environment** loses by playing — the precise dual of the Goal DFA's reading,
+  where it is one the *system* loses by playing. The lemma states it generically
+  ("a deterministic automaton"), exactly as `\cref{lem:outdep-diagonal}` does for
+  $A$; the commitment to a complete DFA is the implementation's, not the math's.
+- **C++:** — (no dedicated constructor; it is
+  `ltlf_to_dfa(spot::formula::Not(phi), dict)`). Building it by **translating the
+  negation** is deliberate and not interchangeable with flipping acceptance on
+  $A_\varphi$: `ltlf_to_dfa` returns a complete DFA whose acceptance also encodes
+  the empty/length-0 convention, which `main.tex` never fixes (see *Open theory
+  questions*), so an acceptance flip is an untested equivalence rather than a free
+  complement. Completeness is load-bearing at emission — $\delta_{in}$ **is**
+  $\delta_{\Aneg}$ of the complete automaton, so never purge before emitting.
+- **Do not call it:** the negated DFA (that names the construction, not the
+  concept), the complement automaton (it is built by translation, **not** by
+  complementing $A_\varphi$), the environment automaton, $A_{\lnot\varphi}$ (bare,
+  in prose).
 
 ### Live-letter region
 - **`main.tex`:** $\liveset{s}$ (`\cref{lem:outdep-diagonal}`).
@@ -954,6 +1012,31 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
   guard union (that would ignore liveness, which is precisely the load-bearing
   part).
 
+### Projected live-letter region
+- **`main.tex`:** $\liveproj{s}$ (`\cref{lem:indep-diagonal}`).
+- **Definition:** the *Live-letter region* of the *Violation automaton* with
+  $\mathcal{O}$ **existentially projected away** — the letters over $\mathcal{I}$
+  the environment may still play. The quantifier is $\exists$, and it is the
+  formal content of the **Moore restriction**: $\lambda_{in}$ commits $\Xdep$
+  knowing only the history and the current $\Ifree$, so a value of $\Xdep$ counts
+  as available to the environment when **some** completion by the outputs extends
+  the history to a violation of $\varphi$.
+  **$\forall$ is wrong, not merely stricter.** At a state whose live letters are
+  $(a\wedge b\wedge x)\vee(a\wedge\lnot b\wedge\lnot x)$ (with
+  $a,b\in\mathcal{I}$, $x\in\mathcal{O}$) the environment has two genuine options
+  for $b$, yet neither survives both values of $x$ — so a universal reading finds
+  no available value, passes the *Determinacy witness* test vacuously, and reports
+  $\{b\}$ input-dependent. The emitted $\lambda_{in}$ would then forbid the
+  environment a move plain synthesis grants it. Every liveness caveat of
+  *Live-letter region* carries over verbatim, reflexivity included: $\liveproj{s}$
+  may be **empty at a live $s$**, and that is legal and carries no constraint.
+- **C++:** — (no public identifier; file-local to the shared extraction core, one
+  `bdd_exist(live_region_s, output_cube)`, after which *Determinacy witness*
+  applies verbatim because the result ranges over $\Ifree\cup\Xdep=\mathcal{I}$).
+- **Do not call it:** $\liveset{s}$ / *Live-letter region* / `live_region` (that is
+  the **unprojected** region over $\mathcal{I}\cup\mathcal{O}$ — conflating them is
+  exactly the Moore bug), the input region, the observable region.
+
 ### Output-dependency extraction
 - **`main.tex`:** `\cref{lem:outdep-transducer}` (the construction);
   `\cref{def:outdep}`, `\cref{lem:outdep-diagonal}` (what it decides). No
@@ -974,15 +1057,47 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
   (`include/ltlf_ek/dependent_outputs.hpp`), driven by the `ltlf-ek-deps` binary
   (`docs/prd/output-dependencies-tool.md`). Emits **two** artifacts — the
   transducer file and an updated part file — because the format stores no
-  $\Sigma_0/\Sigma_1$ (see *Print a transducer*). The binary **owns** the
-  `output_free`/`output_known` keys and passes `input_free`/`input_known` through
-  verbatim, so a future input-dependency tool composes on disjoint keys.
+  $\Sigma_0/\Sigma_1$ (see *Print a transducer*). Under `--direction out` the
+  binary **owns** the `output_free`/`output_known` keys and passes
+  `input_free`/`input_known` through verbatim, which is what lets it compose with
+  *Input-dependency extraction* on disjoint keys.
 - **Do not call it:** `find_dependencies`, `extract_knowledge`,
   `maximal_dependent_set` (it also returns the partition and the $\Tout$, not just
   the set), `depsynt` (that is the LTL tool this adapts, not ours — the same rule
   that rejects `ltlf2dfa`), `output_dependencies` (the PRD *file* name is prose;
   the identifier names the **result** — the dependent outputs), `OutputDependencies`
   (for the struct — it holds the dependent outputs, hence `DependentOutputs`).
+
+### Input-dependency extraction
+- **`main.tex`:** `\cref{lem:indep-transducer}` (the construction);
+  `\cref{def:indep}`, `\cref{lem:indep-diagonal}` (what it decides). No algorithm
+  name — like its sibling, it is not one of *The five methods*.
+- **Definition:** the environment-side sibling of *Output-dependency extraction*:
+  find a *Dependent input set* of $\varphi$ and materialise it as a $\Tin$. Same
+  greedy lexicographic accumulation with the same non-composition of singletons
+  (witness $F(a\oplus b)$), and the same *Determinacy witness* test — but run over
+  $\mathcal{I}$, on the *Violation automaton*, against the *Projected live-letter
+  region*. Emits $\delta_{in}$ = the **complete** $\Aneg$ and $\lambda_{in}$ = the
+  totalised $\liveproj{s}$.
+  **Totality is a soundness requirement here too, but it fails in the opposite
+  direction**, and that is worth stating because the reflex carried from the
+  output side is wrong: there, a partial $\lambda_{out}$ deleted letters and
+  illegally constrained the *environment*; here, an observation $\liveproj{s}$
+  leaves uncovered is one the environment has **already lost**, so a partial
+  $\lambda_{in}$ deletes exactly the environment's losing moves, hands it a
+  strictly stronger position than plain synthesis does, and turns a realizable
+  $\varphi$ apparently unrealizable. The sharpest case is a non-live $s$, where
+  $\liveproj{s}=\emptyset$ and *every* observation is uncovered.
+- **C++:** `dependent_inputs(phi, partition, dict)` → `DependentInputs`
+  (`docs/prd/input-dependencies-tool.md`), driven by the same `ltlf-ek-deps`
+  binary under `--direction in`. It **owns** the `input_free`/`input_known` keys
+  and passes the output keys through verbatim — the mirror of its sibling, hence
+  the disjoint-key composition.
+- **Do not call it:** input dependencies (bare), `dependent_variables` /
+  `find_dependencies` (bare — ambiguous across directions), `InputDependencies`
+  (for the struct — it holds the dependent inputs, hence `DependentInputs`),
+  the assumption extractor (a $\Tin$ from $\varphi$ is not an *assumption* in the
+  $\psiin\rightarrow\varphi$ sense).
 
 ## The five methods
 

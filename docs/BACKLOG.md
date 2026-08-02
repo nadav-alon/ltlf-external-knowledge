@@ -11,18 +11,47 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Top priority (updated 2026-08-03): **open — pick one.** The $\Tout$ oracle
-**shipped 2026-08-03** (see Done), which retires the previous "3.2 or the $\Tout$
-oracle" pairing and leaves no ranked #1. The three candidates are **Method 3.2
-(aggregation)**, **Method 3.1 Phase 2** (`otf_solve_fused`) and the
-**input-dependencies** PRD — and none of them can start unattended as they stand:
-3.2 has no PRD, 3.1 Phase 2 is marked "least settled, needs its own grill", and
-input-dependencies fails the launch gate on three ungrilled glossary terms.
-Choosing between them is an evening decision, not something a run may guess at.
-**Method 3.1 is DONE** (see Done; it landed as `OtfMtdfaProduct` in `0ce5fab`,
-closed every gate, and benchmarked **POSITIVE** — up to 5488x over `MtdfaProduct`
-where $\cons$ prunes, the first method to beat the standing champion). Its Phase 2
-(`otf_solve_fused`) is spun out below._
+_Top priority (decided 2026-08-03, in a grill): **#1 is input-dependency
+extraction** (`docs/prd/input-dependencies-tool.md`) — and it is now **launchable
+unattended**, which is what settled the ranking. `main.tex` §`indep` is committed
+and pushed to Overleaf, and its three new glossary terms plus three amendments
+are written, so the launch gate is clean and `/developer` will not stop to
+interview anyone. Its *Interfaces & types* freeze is rated **high** because
+`dependent_inputs` mirrors the landed, gate-closed `dependent_outputs` term for
+term; the only genuinely new logic is one `bdd_exist` and a
+`spot::formula::Not`. The two runners-up were not merely deprioritised — **each
+still needs an evening's grill before it can start at all**: Method 3.2 has no
+PRD *and* a proven blocker (state-keyed $F_P$ over-accepts; theory review says
+re-key on the transition), and Method 3.1 Phase 2 is marked "least settled" while
+optimizing a term its own benchmark says is no longer the bottleneck._
+
+_The $\Tout$ oracle **shipped 2026-08-03** (see Done), which retired the previous
+"3.2 or the $\Tout$ oracle" pairing. **Method 3.1 is DONE** (see Done; it landed
+as `OtfMtdfaProduct` in `0ce5fab`, closed every gate, and benchmarked
+**POSITIVE** — up to 5488x over `MtdfaProduct` where $\cons$ prunes, the first
+method to beat the standing champion). Its Phase 2 (`otf_solve_fused`) is spun
+out below._
+
+### Input-dependency extraction (`ltlf-ek-deps --direction in`) — **#1**
+- **PRD: GRILLED 2026-07-31 → `docs/prd/input-dependencies-tool.md`; launch gate
+  CLEAN as of 2026-08-03.** Two phases: (1) extract the shared `detail::`
+  dependency core and add `dependent_inputs`, (2) the `--direction` flag. The
+  regression bar on Phase 1 is that the existing suite passes **unedited** — if a
+  test needs editing, the public surface moved and that is a PRD-change event.
+- **Intent:** extract the *environment*'s forced moves from $\varphi$ and
+  materialise them as a $\Tin$, the way the output tool already extracts the
+  system's as a $\Tout$. Every method's benchmarks and oracles currently run
+  against a trivial or hand-written $\Tin$; this closes that gap.
+- **The two differences from the output notion, both forced:** the analysed
+  language is $L(\lnot\varphi)$ (the *Violation automaton*), and $\Ydep$ is
+  $\mathcal{I}\setminus\Xdep$ — because $\Sin$ moves before the controller, so
+  $\lambda_{in}$ may not read the current step's outputs (*Projected live-letter
+  region*, and the projection is $\exists$, not $\forall$).
+- **Known theory position:** both `\cref{lem:indep-diagonal}` and
+  `\cref{lem:indep-transducer}` are stated **unproved**, exactly as the `outdep`
+  lemmas are, and the equirealizability claim leans on `\cref{def:probDef}`'s
+  unsettled termination reading *more heavily* than the output side does. Accepted
+  at the same evidence bar as `outdep`: the code plus the O1-in oracle.
 
 ### Method 3.2 — on-the-fly **aggregated** product (`otfagg`, `\cref{alg:otfdfa_agg_product}`)
 - **Intent:** the next unbuilt cell after 3.1. Aggregate on $[\psi]$ alone

@@ -4,14 +4,24 @@
     "59": [
       "\\section{Introduction}"
     ],
+    "83": [
+      "\\begin{align*}",
+      "\\Sin &: (2^{\\mathcal{I} \\cup \\mathcal{O}})^*\\times 2^{\\Ifree} \\to 2^{\\Iknown} \\\\"
+    ],
     "85": [
       "\\Sout &: (2^{\\mathcal{I} \\cup \\mathcal{O}})^* \\times 2^{\\mathcal{I} \\cup \\Ofree} \\to 2^{\\Oknown}"
     ],
     "88": [
       "Note that the strategies are to by processed in a single canonical order on every step: the environment picks $\\Ifree$, then $\\Sin$ produces $\\Iknown$, then $S_C$ produces $\\Ofree$, then $\\Sout$ produces $\\Oknown$. Each party observes every earlier party's moves and nothing later."
     ],
+    "93": [
+      "Then, in order to properly define our problem, we first need the notion of \\emph{agreement}. Let $\\pi = v_0 v_1 \\cdots v_n \\in (2^{\\mathcal{I} \\cup \\mathcal{O}})^+$ be a trace."
+    ],
     "98": [
       "Then we can describe our problem as follows."
+    ],
+    "101": [
+      "Given an $\\text{LTL}_f$ formula $\\varphi$ over variables $\\mathcal{I}$ and $\\mathcal{O}$, and auxiliary strategies $\\Sin, \\Sout$, synthesize a strategy $S_C$ for $\\varphi$ such that every trace that agrees with $\\Sin, \\Sout$ and $S_C$ satisfies $\\varphi$."
     ],
     "105": [
       "\\na[inline]{Also, these signatures are commiting to a mealy turn order, and are not ready for adding a moore option. For that, the signatures would be dependent on the order of players. Note that the Image of the functions would stay the same, it would just be the same-step allowed variables values visible to each strategy}"
@@ -43,6 +53,12 @@
     ],
     "137": [
       "Given an $\\text{LTL}_f$ formula $\\varphi$ over variables $\\mathcal{I}$ and $\\mathcal{O}$, and auxiliary transducers $\\Tin, \\Tout$, synthesize a transducer $T_C$ for $\\varphi$ such that every trace that agrees with the strategies that are defined by $\\Tin, \\Tout$ and $T_C$ satisfies $\\varphi$."
+    ],
+    "139": [
+      "\\na[inline]{"
+    ],
+    "141": [
+      "To be proven: Definition 2 is equirealizable with the normal LTLf Synthesis of the formula $\\psiin \\to (\\varphi \\land \\psiout)$, $\\psiin, \\psiout$ being the LTLf languages of the traces produced by $\\Tin, \\Tout$. Will be used to verify correctness of the methods introduced here"
     ],
     "151": [
       "In which we construct the NFA for the formula (\\algname{LtlfToNfa}~\\cref{alg:ltlftonfa}), compute the product of it with the two transducers (representing the 2 strategies for input and output knowledge), then determinize (\\algname{NfaToDfa}) and solve the resulting game (\\algname{SolveDfa}) to extract the controller strategy."
