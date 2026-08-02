@@ -39,18 +39,26 @@ conductor, not a worker.** Almost all of your cost comes from what you let into
   interfaces, and the specific scope. Do not echo the skill back at it and do not
   leave PRD-settled facts open — it will burn tokens re-deriving them.
 
-**Hard caps per run** (defaults; the kickoff script may lower them):
+**You run exactly one phase.** `day-run.sh` gives each phase its own session, so
+chaining is the *script's* job, not yours — do the phase, write the status line,
+and end. This is why there is no phase cap to respect any more: the day is bounded
+by the token allowance and by running out of launchable PRDs, not by a count. Your
+own context therefore never has to carry a previous phase, which is the whole
+saving; a fresh session pays re-orientation once instead of re-sending a bloated
+context on every turn.
+
+**Hard caps per phase** (defaults; the kickoff script may lower them):
 
 | Cap | Default | On exceeding |
 | --- | --- | --- |
-| Phases per run | 3 | Stop, report "budget: phase cap" |
-| Build/test repair rounds per phase | 2 | Stop, report the failure verbatim |
-| Review fix rounds per phase | 2 | Stop, leave findings open in the report |
-| Wall-clock | `LTLF_EK_RUN_DEADLINE` (epoch secs) | Finish current phase, then stop |
+| Build/test repair rounds | 2 | Stop, report the failure verbatim |
+| Review fix rounds | 2 | Stop, leave findings open in the report |
+| Wall-clock | `LTLF_EK_RUN_DEADLINE` (epoch secs) | Do not start the phase at all |
 
-Check the deadline **between phases**, never mid-phase — a phase abandoned
-halfway is worse than one not started. If your context has been compacted twice,
-treat that as a budget signal: finish the current phase and stop.
+Check the deadline **before** starting the phase, never mid-phase — a phase
+abandoned halfway is worse than one not started. If your context has been
+compacted twice, that is a budget signal: finish this phase and write
+`MORE_WORK`.
 
 ## Step 0 — orient (cheap)
 
@@ -63,10 +71,52 @@ The sandbox reports phantom files that do not exist. `scripts/wt-status.sh`
 filters them. **Do not disable the sandbox to get a truthful status** — that
 costs a permission prompt, and there is nobody there to answer it.
 
-Pick the target PRD:
-- from your prompt, if given;
-- else the first item under **Now / next** in `docs/BACKLOG.md` that has a
-  `docs/prd/` file.
+Pick the target PRD, in this order — stop at the first that yields one:
+
+1. **Your prompt**, if it named a PRD.
+2. **The backlog**: the first item under **Now / next** in `docs/BACKLOG.md` that
+   has a `docs/prd/` file on `master`.
+3. **An unmerged branch**: a PRD that exists on a branch but *not* on `master`.
+
+Rule 3 exists because the backlog is not the only place a decision gets recorded.
+A PRD grilled straight onto a branch — the usual shape of an evening session that
+ran out of time before touching `docs/BACKLOG.md` — is finished, launchable work,
+and it must not be invisible merely because nobody wrote a backlog line for it.
+
+```sh
+git fetch -q origin || true      # an origin-only branch counts too
+git branch -a --no-merged master --format='%(refname:short)' |
+  grep -v '^origin/HEAD$' | sed 's|^origin/||' | sort -u |
+  while read -r b; do
+    # Prefer the local branch; fall back to origin/ only when there is no local
+    # one.  Never select the remote-tracking ref when a local branch exists ---
+    # you cannot commit to origin/<x>, and Step 6 has to merge into something.
+    git rev-parse --verify -q "$b" >/dev/null || b="origin/$b"
+    # --diff-filter=A: only PRDs the branch ADDS.  A branch that merely edits an
+    # existing PRD is not a new piece of work, and matching those would make
+    # almost every branch a candidate.
+    added=$(git diff --name-only --diff-filter=A "master...$b" -- docs/prd/)
+    [ -n "$added" ] && echo "$(git log -1 --format=%ct "$b") $b $added"
+  done | sort -rn | head -1          # freshest intent wins
+```
+
+If the winner is an `origin/<x>` with no local branch, create one
+(`git branch <x> origin/<x>`) before Step 2 — the feature branch must be local.
+
+If that PRD fails the Step 1 launch gate, do *not* fall through to the next
+candidate: report the gate failure. A grilled PRD that cannot launch is a
+decision the user owes, not a reason to go find different work.
+
+**A rule-3 PRD changes what "the feature branch" means.** That branch *is* the
+feature branch: Step 6 merges into it, not into a fresh one, and your phase
+worktree must be based on it rather than on `master`, or the PRD will not even be
+present in the tree you are working in:
+
+```sh
+git worktree add .claude/worktrees/<phase> -b <phase-branch> <feature-branch>
+```
+
+then enter it with **EnterWorktree**'s `path` argument.
 
 Pick the target phase: the first phase in the PRD's **Implementation phases**
 section whose work is not yet landed. If the PRD has no phases, the whole PRD is
@@ -95,7 +145,8 @@ must decide.
 ## Step 2 — isolate
 
 Use **EnterWorktree** unless you are already under `.claude/worktrees/`. Never
-work in the user's checkout.
+work in the user's checkout. If Step 0 picked the PRD by rule 3, base the
+worktree on that PRD's branch instead — see the `git worktree add` form there.
 
 Never `git add -A` — other worktrees are usually live and `-A` will swallow them.
 Stage explicit paths.
@@ -232,21 +283,26 @@ Write `docs/runs/<YYYY-MM-DD>-<feature>-<phase>.md`:
 Then **always** write `build/runs/last-status`, one line, verdict first:
 
 ```
-DONE <reason>       # nothing further to do without the user
-MORE_WORK <reason>  # work remains and a fresh session could continue it
+DONE <reason>       # no launchable PRD remains, in the backlog or on a branch
+MORE_WORK <reason>  # a phase remains and a fresh session could run it
 BLOCKED <reason>    # stopped on a decision only the user can make
 ```
 
-The day is split into **waves**, one per token-allowance window (`day-run.sh`
-starts wave 2 about five hours after wave 1). This line is what decides whether
-a later wave fires, so it is a real contract, not bookkeeping:
+This line is the *only* thing that decides whether another session starts, so it
+is a real contract, not bookkeeping:
 
-- **`MORE_WORK`** — you hit a cap, the deadline, or the allowance. A later wave
-  resumes you. Say precisely where you stopped so it does not redo landed work.
-- **`BLOCKED`** — a later wave would hit the *same wall* and burn the window for
-  nothing. Use this whenever the blocker is a decision: a missing glossary name,
-  an open theory question, a failed launch gate, a substantive interface change.
-- **`DONE`** — the PRD is closed, or the remaining phases are all blocked.
+- **`MORE_WORK`** — a phase remains. `day-run.sh` immediately starts a fresh
+  session to run it, so say precisely where you stopped or it will redo landed
+  work. Note that a `MORE_WORK` which lands **no commit** is read as *stuck* and
+  ends the day — an identical next session would achieve the same nothing.
+- **`BLOCKED`** — a later session would hit the *same wall* and burn the window
+  for nothing. Use this whenever the blocker is a decision: a missing glossary
+  name, an open theory question, a failed launch gate, a substantive interface
+  change.
+- **`DONE`** — there is no launchable work left: every PRD reachable by Step 0's
+  three rules is closed, or its remaining phases are blocked. **A day that ends
+  in `DONE` having done nothing is a correct day**, not a failed one — the run
+  simply had nothing to pick up.
 
 Never write `MORE_WORK` for something a fresh session cannot fix, and never
 write `BLOCKED` merely because you ran out of budget. Getting this backwards
@@ -255,12 +311,12 @@ either wastes half the day or ends it early.
 If you are resuming (the prompt says so), read the newest `docs/runs/` report and
 this file *first*, and continue from there rather than restarting the phase.
 
-Then: if the next phase passes Step 1's launch gate, and no cap is exceeded, and
-the deadline has not passed — loop to Step 2. Otherwise stop and say why.
+Then **stop** — do not begin another phase. The kickoff script starts the next
+one in a clean session; that is the point, and chaining here would defeat it.
 
-**Never start work on a PRD that was never grilled.** Chaining is within a PRD,
-or to the next backlog item that already *has* a launch-gate-passing PRD. An
-ungrilled idea is not work, it is a guess.
+**Never start work on a PRD that was never grilled.** The next session may move
+to a different PRD, but only one that already passes the launch gate under Step
+0's rules. An ungrilled idea is not work, it is a guess.
 
 ## Definition of done
 
