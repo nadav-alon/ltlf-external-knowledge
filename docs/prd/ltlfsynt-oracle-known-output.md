@@ -21,8 +21,15 @@ Case-A totality the reduction leans on). The method under test is Method 2
 **Gates:**
 - [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
 - [ ] tests           — unit + oracle coverage
+      _Phase 1 closed (`9512239`): 51 corpus rows live-executed, 534/534 ctest.
+      Held open for Phase 2's guard + meta-oracle._
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
+      _Phase 1: `/code-reviewer` clean, no must-fix. `/code-review` could **not**
+      be invoked (`disable-model-invocation`); a manual generic pass stood in, so
+      the generic half is **not** discharged — re-run it when Phase 2 lands._
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex
+      _Phase 1: theory-reviewer clean, no `code-bug`; two `underspecified`
+      findings recorded below. Held open for Phase 2._
 
 ## Goal
 Close the deferred half of `docs/prd/ltlfsynt-oracle.md`. That PRD gave the
@@ -552,4 +559,66 @@ rows, **but only** ones re-verified against both binaries.
   in the corpus) left pointing at their existing owners.
 
 ## Developer comments / PRD disagreements
-_(none yet — filled in by `/developer` or `/test-writer`)_
+
+### From the Phase 1 run (2026-08-02, unattended launcher, commit `9512239`)
+
+**Deviation from a frozen contract (deliberate, flagged not absorbed).**
+*Interfaces & types* specifies a mixed row carrying `{t_in_src, psi_in}`.
+The landed `MixedRow` omits both fields and hardcodes `kTinCopy` /
+`kMixedPsiIn` in the suite body, because every M1/M2 row shares one $\Tin$.
+Harmless today; it stops being harmless the moment a mixed row wants a second
+$\Tin$. Decide in the evening grill whether to amend the contract or the code.
+
+**"Consider" findings — recorded, deliberately not acted on.** All line refs are
+`tests/ltlfsynt_oracle_test.cpp` at `9512239`.
+1. `:464` / `:877` / `:1166` — rows with `load_bearing=false` never invoke the
+   bare command, so the PRD's `bare` column is only half-encoded: a non-flip row
+   silently *becoming* a flip is undetectable. Pre-existing shape, mirrored from
+   the $\Tin$ suite.
+2. `:968` / `:1189` — the AP guards hardcode `{"a","o","x"}` / `{"a","k","o","x"}`
+   instead of parsing `kPartFileAOX` / `kPartFileAKOX`, so a test named
+   `…ApsMatchPartFile` would not notice the part file changing. Also mirrored
+   from the existing guard.
+3. No structural meta-assertion of the *Corpus guarantees* (each of F–J ≥ 2
+   flips, M1/M2 both directions, no all-R/all-U table). Adding one would turn a
+   silently weakened `load_bearing` flag into a test failure.
+4. `:704` — comment cites `src/transducer_io.cpp:185-190`; accurate now, but
+   line refs drift. "Validation 3", which it already names, is the durable half.
+5. `:1092` — `MixedRow` and `KnownOutputRow` are field-for-field identical.
+6. Comment hygiene: the Tables F–J / J-bad / mixed headers narrate PRD rationale
+   rather than what the code does — consistent with the existing $\Tin$ sections,
+   which is the counterargument for leaving them.
+7. Coverage gap: no mixed row uses a $\Tout$ that reads $k$, so no mixed row
+   would detect $\Iknown$ being dropped from `t_out`'s $\Sigma_0$; and no fixture
+   has $\lambda$ depending on **both** state and $\Sigma_0$ (Table G is
+   memoryless, Table J's $\lambda$ reads only the state).
+
+**Theory-review findings (Phase 1).** No `code-bug`; no test expectation is wrong.
+- `underspecified` — `main.tex:101`, the trace-termination `\na`. Table J's
+  $G(\lnot x)$ and $G(x \rightarrow a)$ = R are the first corpus rows whose
+  verdict is *decided* by reading `def:probDef` with system-controlled
+  termination; the literal all-prefixes reading gives U. Both tools implement the
+  former, so the oracle is self-consistent — but that `\na` is now **load-bearing
+  for the oracle**, not merely a note. A `\cl` note was drafted and deliberately
+  **not** written: in a worktree `latex/` is an uninitialized submodule. Nothing
+  is dirty.
+- `underspecified` — `main.tex:139`, the live conjecture states the formula but
+  not who owns $\Iknown$/$\Oknown$ in the reduced problem — which is the entire
+  content of `--ins=a --outs=o,x` and *Behaviour* #1. The fixing clause already
+  exists **commented out** at `main.tex:141-142`; activating it is the user's
+  call and was left untouched.
+- `doc-bug` (this PRD, minor) — *Behaviour* #5 understates the J-bad mechanism;
+  see the next item for why.
+- **Test-strength observation that shapes Phase 2.** The over-strong J-bad
+  $\psiout$ is **unsatisfiable outright**, not merely unsatisfiable at trace end:
+  one of the two `X[!]` guards fires at every position, including the last
+  (verified independently — UNREALIZABLE even with every AP system-controlled,
+  while the corrected $\psiout$ is REALIZABLE). So the reduction is U for *every*
+  $\varphi$, the two "agrees (both U)" rows agree only coincidentally, and
+  Phase 2's meta-oracle would prove the weak claim "the guard fires on an
+  unsatisfiable formula" rather than the $\Tin$ analogue's "fires on a
+  satisfiable-but-wrong language". The rows are PRD-pinned and all reproduce —
+  **do not edit them**. Recommendation for Phase 2: *additionally* guard the
+  satisfiable-but-wrong analogue $(\lnot x) \land G(X(x \leftrightarrow a))$
+  (copy-from-step-1), the exact mirror of the retired $\Tin$ witness. Adopting it
+  is a PRD change, hence a user decision.
