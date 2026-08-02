@@ -274,11 +274,18 @@ invented here.
   `kGuardSampleSeed = 20260705` **unchanged**, and let the existing
   `pow_saturating` cap decide exhaustive-vs-sampled enumeration for the larger
   $\Tout$ alphabet exactly as it already does for $\Tin$. Concretely, for the
-  corpus partition ($\mathcal{I}\cup\Ofree=\{a,o\}$, so 4 observations per step)
-  $4^5 = 1024 \le 4096$, i.e. the $\Tout$ pairs still enumerate **exhaustively**
-  and no sampling path is taken; the seed matters only if a future fixture widens
-  the partition. Raising `kGuardMaxSeqLen` to compensate for the bigger alphabet
-  would be the wrong lever — it grows the space it is meant to bound.
+  Tables F–J partition ($\mathcal{I}\cup\Ofree=\{a,o\}$, so 4 observations per
+  step) $4^5 = 1024 \le 4096$, i.e. those $\Tout$ pairs enumerate **exhaustively**
+  and take no sampling path. **Corrected 2026-08-03 — the mixed fixtures already
+  sample, so the seed is live today, not only "if a future fixture widens the
+  partition".** For M1/M2 the partition is wider
+  ($\mathcal{I}\cup\Ofree=\{a,k,o\}$, alphabet 8) and the enumerate-vs-sample
+  split is decided **per length**, so lengths 1–4 stay exhaustive ($8^4 = 4096$,
+  hitting the cap exactly) while **length 5 samples** 4096 of 32768 sequences
+  under `kGuardSampleSeed`. Deterministic either way, but the mixed guards are a
+  sampled check, not a proof. Raising `kGuardMaxSeqLen` to compensate for the
+  bigger alphabet would be the wrong lever — it grows the space it is meant to
+  bound.
 
 **If implementation proves this contract wrong:** that is a PRD-change event —
 update this section and propagate to any in-flight branch; the implementer does
@@ -678,16 +685,22 @@ the *wrong* reason (a "too WEAK" trip), the exact failure mode a negative contro
 exists to exclude. Fixed by asserting `result.detail` contains "too STRONG".
 
 **"Consider" findings — recorded, deliberately not acted on.**
-1. **The pre-existing $\Tin$ meta-oracle has the same latent gap.**
-   `FiresOnOldCopyFromStepOnePsiInDelayPairing` still asserts only
-   `EXPECT_FALSE(result.ok)` and never checks `result.detail`; its correct
-   expectation is **"too WEAK"**. A one-line strengthening, deliberately left
-   alone as outside Phase 2's scope.
-2. **The empty-$\Ofree$ smoke fixture carries no faithfulness guard.**
-   `EmptyOfreeWithNonEmptyOknownForcesXAndStaysUnrealizable` is a `TEST_F`, not a
-   corpus row, so it is not among the 7 guarded $(\Tout, \psiout)$ pairs. Its
-   $\Sigma_0$ collapses to $\mathcal{I}$ — the cheapest remaining widening of
-   guard coverage.
+1. **The pre-existing $\Tin$ meta-oracle had the same latent gap. FIXED
+   2026-08-03** — and **this item's stated expectation was wrong**.
+   `FiresOnOldCopyFromStepOnePsiInDelayPairing` now asserts `result.detail`
+   contains **"too STRONG"**, not "too WEAK" as recorded here. Copy-from-step-1
+   rejects traces `kTinDelay` itself produces (any sequence with
+   $a_{t-1}\neq a_t$), so the strong check trips first; it can never report "too
+   weak", because the bad $\psiin$ pins $k$ exactly ($k_0=\bot$, $k_t=a_t$ for
+   $t\ge 1$) and every single-bit $\Iknown$ mutation is therefore rejected.
+   Verified green, not argued: the assertion passes as written.
+2. **The empty-$\Ofree$ smoke fixture carried no faithfulness guard. FIXED
+   2026-08-03** — its $(\Tout,\psiout)$ pair
+   (`kToutConstTrueAX`, `G(x)`) is now an 8th row of
+   `BuildKnownOutputFaithfulnessFixtures` under the new `kPartitionAX`, so it
+   runs through the same parameterized guard. Its $\Sigma_0$ collapses to
+   $\mathcal{I}$, making it the only shipped pair that exercises `sigma_slices`
+   at the empty-$\Ofree$ boundary. The `TEST_F` itself is unchanged.
 3. Phase 1's consider-list (items 1–7 above) is **all still open**; Phase 2
    touched none of it.
 4. The new $\Tout$ block header narrates PRD rationale rather than what the code

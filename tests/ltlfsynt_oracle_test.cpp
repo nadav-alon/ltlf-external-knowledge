@@ -1515,6 +1515,15 @@ TEST(FaithfulnessGuardMetaOracle, FiresOnOldCopyFromStepOnePsiInDelayPairing) {
   EXPECT_FALSE(result.ok)
       << "faithfulness guard failed to fire on the known-bad delay / "
          "G(X(k<->a)) (copy-from-step-1) pairing -- the guard is a no-op";
+  // Discriminating check, the Tin mirror of the Table J-bad assertion below
+  // (PRD "Developer comments" Phase 2 deferred item 1): assert the guard
+  // fires for the RIGHT reason, not merely that it fires.  The reason is
+  // "too STRONG": copy-from-step-1 rejects traces kTinDelay itself produces
+  // (any sequence with a_{t-1} != a_t).  It can never be "too WEAK" -- the
+  // bad psi pins k exactly (k_0 = bot, k_t = a_t for t >= 1), so every
+  // single-bit Iknown mutation of a produced trace is rejected.
+  EXPECT_NE(result.detail.find("too STRONG"), std::string::npos)
+      << result.detail;
 }
 
 // ---------------------------------------------------------------------------
@@ -1548,6 +1557,16 @@ const VariablePartition kPartitionAKOX{
     /*input_free=*/{"a"}, /*input_known=*/{"k"}, /*output_free=*/{"o"},
     /*output_known=*/{"x"}};
 
+// The empty-Ofree regime of EmptyOfreeWithNonEmptyOknownForcesXAndStays-
+// Unrealizable (kPartFileAX, in VariablePartition form).  Sigma0 = I u Ofree
+// degenerates to I = {a} here, which is exactly why it is worth guarding: it
+// is the one shipped Tout fixture whose observed slice does NOT contain an
+// Ofree variable, so it exercises the sigma_slices derivation at the empty
+// -Ofree boundary the Tables F-J partitions never reach.
+const VariablePartition kPartitionAX{
+    /*input_free=*/{"a"}, /*input_known=*/{}, /*output_free=*/{},
+    /*output_known=*/{"x"}};
+
 struct KnownOutputFaithfulnessFixture {
   std::string name;
   const char* tout_file;
@@ -1572,6 +1591,12 @@ BuildKnownOutputFaithfulnessFixtures() {
       {"M1_CopyFromOfreeMixed", kToutCopyFromOfreeMixed, "G(x <-> o)",
        kPartitionAKOX},
       {"M2_ConstFalseMixed", kToutConstFalseMixed, "G(!x)", kPartitionAKOX},
+      // --- The empty-Ofree smoke fixture (PRD "Developer comments" Phase 2
+      // deferred item 2).  Not a corpus row -- it belongs to the TEST_F
+      // EmptyOfreeWithNonEmptyOknownForcesXAndStaysUnrealizable -- but its
+      // (tout_file, psi_out) pair is guardable like any other, and it is the
+      // only shipped pair whose Sigma0 contains no Ofree variable.
+      {"EmptyOfree_ConstTrueAX", kToutConstTrueAX, "G(x)", kPartitionAX},
   };
 }
 
