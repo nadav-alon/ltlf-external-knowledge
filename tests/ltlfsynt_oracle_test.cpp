@@ -94,6 +94,7 @@ using ltlf_ek::ProductGuards;
 using ltlf_ek::ProductState;
 using ltlf_ek::register_turn_order_aps;
 using ltlf_ek::Role;
+using ltlf_ek::SigmaSlices;
 using ltlf_ek::to_guard_map;
 using ltlf_ek::Transducer;
 using ltlf_ek::trivial_transducer;
@@ -1202,14 +1203,23 @@ TEST(LtlfsyntOracleApNaming, MixedCorpusApsMatchPartFile) {
 }
 
 // ---------------------------------------------------------------------------
-// Faithfulness guard (docs/prd/oracle-faithfulness-guard.md "Behaviour" #2):
-// a mechanical, author-blind-spot-independent cross-check that a Tin
-// fixture's psi_in and its transducer FILE denote the same produced-trace
-// language.  Drives the *same* two artifacts the author already wrote
-// against each other -- parse_transducer's run engine and ltlf_to_dfa's
-// finite-LTLf membership -- never a third, hand-labeled trace (which would
-// inherit the author's own blind spot and pass vacuously).  Library-only: no
-// subprocess, so it runs even where `ltlfsynt` is absent (PRD "Edge cases").
+// Faithfulness guard (docs/prd/oracle-faithfulness-guard.md "Behaviour" #2;
+// generalized over Role in docs/prd/ltlfsynt-oracle-known-output.md "Phase
+// 2"): a mechanical, author-blind-spot-independent cross-check that a
+// fixture's psi (psi_in for Role::t_in, psi_out for Role::t_out) and its
+// transducer FILE denote the same produced-trace language.  Drives the
+// *same* two artifacts the author already wrote against each other --
+// parse_transducer's run engine and ltlf_to_dfa's finite-LTLf membership --
+// never a third, hand-labeled trace (which would inherit the author's own
+// blind spot and pass vacuously).  Library-only: no subprocess, so it runs
+// even where `ltlfsynt` is absent (PRD "Edge cases").
+//
+// Role-generic: the observed/produced slices (Sigma0/Sigma1) come from
+// sigma_slices(partition, role) rather than being hard-coded to
+// (Ifree, Iknown), so the same engine below also drives the Tout corpus
+// (Sigma0 = I u Ofree, Sigma1 = Oknown) -- see the "too STRONG"/"too WEAK"
+// mutation, which flips a single Sigma1 bit (Iknown under t_in, Oknown under
+// t_out).
 // ---------------------------------------------------------------------------
 
 constexpr unsigned kGuardMaxSeqLen = 5;          // N (PRD "Behaviour" #2).
@@ -1218,25 +1228,28 @@ constexpr std::size_t kGuardSampleCount = 4096;  // K, else fixed-seed sampling.
 constexpr unsigned kGuardSampleSeed = 20260705;   // fixed seed (deterministic).
 
 // run_transducer (PRD "Interfaces"): drive delta/lambda from q0 over one
-// Ifree-sequence.  Each letter is `ifree_slice & lambda(q, ifree_slice)`
-// (Sigma0=Ifree, Sigma1=Iknown for Role::t_in) -- well-defined because Tin is
+// Sigma0-sequence (Role-generic: Ifree for Role::t_in, I u Ofree for
+// Role::t_out -- caller derives the vars via sigma_slices).  Each letter is
+// `sigma0_slice & lambda(q, sigma0_slice)` -- well-defined because tau is
 // deterministic and total in the committed Case-A regime (main.tex
-// \cref{def:consistency}, glossary "Partial transducers -- resolved").  No Ofree
-// slice is materialised: none of the four Tin fixtures' transducer files or
-// psi_in strings mention an Ofree AP, so there is nothing to fix to a
-// canonical value for this corpus (PRD "Edge cases" "Ofree don't-cares").  A
-// step whose delta/lambda is undefined (partial transducer, main.tex §114-115)
-// yields no trace for that sequence -- signalled by nullopt, so the caller
-// can skip it (PRD "Edge cases" "Partial transducer").
+// \cref{def:consistency}, glossary "Partial transducers -- resolved").  For
+// Role::t_in no Ofree slice is materialised: none of the four Tin fixtures'
+// transducer files or psi_in strings mention an Ofree AP, so there is
+// nothing to fix to a canonical value for that corpus (PRD "Edge cases"
+// "Ofree don't-cares"); for Role::t_out the sequence already ranges over
+// I u Ofree directly, so no such gap exists.  A step whose delta/lambda is
+// undefined (partial transducer, main.tex §114-115) yields no trace for that
+// sequence -- signalled by nullopt, so the caller can skip it (PRD "Edge
+// cases" "Partial transducer").
 std::optional<std::vector<bdd>> run_transducer(
-    const OutputLabeledTransducer& tau, const std::vector<bdd>& ifree_seq) {
+    const OutputLabeledTransducer& tau, const std::vector<bdd>& sigma0_seq) {
   std::vector<bdd> trace;
-  trace.reserve(ifree_seq.size());
+  trace.reserve(sigma0_seq.size());
   unsigned q = tau.initial_state();
-  for (const bdd& ifree : ifree_seq) {
-    const std::optional<bdd> iknown = tau.lambda(q, ifree);
-    if (!iknown) return std::nullopt;
-    const bdd letter = ifree & *iknown;
+  for (const bdd& sigma0 : sigma0_seq) {
+    const std::optional<bdd> sigma1 = tau.lambda(q, sigma0);
+    if (!sigma1) return std::nullopt;
+    const bdd letter = sigma0 & *sigma1;
     const std::optional<unsigned> next = tau.delta(q, letter);
     if (!next) return std::nullopt;
     trace.push_back(letter);
@@ -1298,10 +1311,11 @@ std::size_t pow_saturating(std::size_t base, unsigned exp) {
   return r;
 }
 
-// Every Ifree-sequence of exactly `len` (PRD "Behaviour" #2): exhaustive iff
+// Every Sigma0-sequence of exactly `len` (PRD "Behaviour" #2): exhaustive iff
 // alphabet^len <= kGuardEnumCap, else kGuardSampleCount fixed-seed random
-// sequences.
-std::vector<std::vector<bdd>> ifree_sequences_of_length(
+// sequences.  `letters` ranges over Ifree (Role::t_in) or I u Ofree
+// (Role::t_out); the enumeration/sampling split is identical either way.
+std::vector<std::vector<bdd>> sigma0_sequences_of_length(
     const std::vector<bdd>& letters, unsigned len) {
   const std::size_t alphabet = letters.size();
   std::vector<std::vector<bdd>> sequences;
@@ -1333,41 +1347,46 @@ std::vector<std::vector<bdd>> ifree_sequences_of_length(
   return sequences;
 }
 
-// Ifree_sequences "up to N=5" (PRD "Behaviour" #2 pseudocode): every length
+// sigma0_sequences "up to N=5" (PRD "Behaviour" #2 pseudocode): every length
 // from 1 through max_len, so the guard also exercises the shorter traces
-// where a last-position weak-X trap can hide.  Length 0 (the empty trace) is
-// deliberately excluded: LTLf traces are non-empty (main.tex §85, models
-// range over (2^{I∪O})^+ -- glossary/memory "ltlf-weak-x-and-termination-
-// semantics"), so ltlf_to_dfa's initial state is non-accepting for EVERY
-// psi_in, even a trivially-true one (tests/ltlf_to_dfa_test.cpp
+// where a last-position weak-X trap can hide.  `sigma0_vars` is Ifree under
+// Role::t_in and I u Ofree under Role::t_out (docs/prd/ltlfsynt-oracle-
+// known-output.md "Interfaces & types"); for the corpus partition
+// (I u Ofree = {a,o}) 4^5 = 1024 <= kGuardEnumCap, so Tout pairs still
+// enumerate exhaustively here, same as Tin's 2^5=32.  Length 0 (the empty
+// trace) is deliberately excluded: LTLf traces are non-empty (main.tex §85,
+// models range over (2^{I∪O})^+ -- glossary/memory "ltlf-weak-x-and-
+// termination-semantics"), so ltlf_to_dfa's initial state is non-accepting
+// for EVERY psi (psi_in or psi_out), even a trivially-true one
+// (tests/ltlf_to_dfa_test.cpp
 // TriviallyTrueRejectsEmptyWordButAcceptsAfterOneStep) -- testing it here
 // would spuriously trip assertion (a) on every fixture, not just a
 // genuinely-drifted one.
-std::vector<std::vector<bdd>> ifree_sequences(const std::vector<int>& ifree_vars,
-                                              unsigned max_len) {
-  const std::vector<bdd> letters = all_letters_over(ifree_vars);
+std::vector<std::vector<bdd>> sigma0_sequences(
+    const std::vector<int>& sigma0_vars, unsigned max_len) {
+  const std::vector<bdd> letters = all_letters_over(sigma0_vars);
   std::vector<std::vector<bdd>> all;
   for (unsigned len = 1; len <= max_len; ++len) {
     std::vector<std::vector<bdd>> for_len =
-        ifree_sequences_of_length(letters, len);
+        sigma0_sequences_of_length(letters, len);
     all.insert(all.end(), for_len.begin(), for_len.end());
   }
   return all;
 }
 
-// single_bit_Iknown_mutations (PRD "Interfaces" / "Mutation soundness"):
-// every trace obtained by flipping exactly one Iknown bit at exactly one
-// position, holding everything else (the Ifree history and every other
-// Iknown bit) fixed at tau's own committed value.  Relies on Tin
-// determinism + totality: the required Iknown at that position is a
-// function of the fixed Ifree-history alone, so the flip is genuinely
-// out of psi_in's language whenever psi_in is neither too strong nor too
-// weak.
-std::vector<std::vector<bdd>> single_bit_iknown_mutations(
-    const std::vector<bdd>& trace, const std::vector<int>& iknown_vars) {
+// single_bit_sigma1_mutations (PRD "Interfaces" / "Mutation soundness"):
+// every trace obtained by flipping exactly one Sigma1 bit (Iknown under
+// Role::t_in, Oknown under Role::t_out) at exactly one position, holding
+// everything else (the Sigma0 history and every other Sigma1 bit) fixed at
+// tau's own committed value.  Relies on tau's determinism + totality: the
+// required Sigma1 value at that position is a function of the fixed
+// Sigma0-history alone, so the flip is genuinely out of psi's language
+// whenever psi is neither too strong nor too weak.
+std::vector<std::vector<bdd>> single_bit_sigma1_mutations(
+    const std::vector<bdd>& trace, const std::vector<int>& sigma1_vars) {
   std::vector<std::vector<bdd>> mutations;
   for (std::size_t pos = 0; pos < trace.size(); ++pos) {
-    for (int x : iknown_vars) {
+    for (int x : sigma1_vars) {
       std::vector<bdd> m = trace;
       const bool was_true = (trace[pos] & bdd_ithvar(x)) != bddfalse;
       const bdd rest = bdd_exist(trace[pos], bdd_ithvar(x));
@@ -1379,7 +1398,7 @@ std::vector<std::vector<bdd>> single_bit_iknown_mutations(
 }
 
 // run_faithfulness_guard result: `ok` is false the first time either
-// assertion (a) psi_in-too-STRONG or (b) psi_in-too-WEAK trips; `detail`
+// assertion (a) psi-too-STRONG or (b) psi-too-WEAK trips; `detail`
 // explains which.  A plain bool-returning helper (not gtest assertions
 // itself) so the guard meta-oracle can assert it FAILS without turning the
 // whole suite red (PRD "Behaviour" #3).
@@ -1388,41 +1407,52 @@ struct GuardResult {
   std::string detail;
 };
 
-// run_faithfulness_guard (PRD "Interfaces"): ties run_transducer,
-// accepts_ltlf, Ifree_sequences and single_bit_Iknown_mutations together for
-// one (Tin, psi_in) pair, on a FRESH, private bdd_dict (never the CLI
-// harness's or another guard call's, so no cross-fixture variable-numbering
-// leak can mask a mismatch).
+// run_faithfulness_guard (PRD "Interfaces", generalized over Role in
+// docs/prd/ltlfsynt-oracle-known-output.md "Phase 2"): ties run_transducer,
+// accepts_ltlf, sigma0_sequences and single_bit_sigma1_mutations together
+// for one (transducer, psi, role) triple, on a FRESH, private bdd_dict
+// (never the CLI harness's or another guard call's, so no cross-fixture
+// variable-numbering leak can mask a mismatch).
+//
+// `role` is NOT defaulted: a defaulted Role is exactly how a Tout pair could
+// silently get guarded under Tin slices and pass vacuously (PRD "Interfaces
+// & types").  The observed/produced slices come from sigma_slices(partition,
+// role) rather than being hard-coded to (Ifree, Iknown), so under
+// Role::t_out the enumeration fixes all of I u Ofree per step (Tout's
+// Sigma0 legitimately contains Ofree) and the "too weak" mutation flips a
+// single Oknown bit instead of an Iknown bit.
 GuardResult run_faithfulness_guard(const std::string& transducer_src,
-                                   const std::string& psi_in,
-                                   const VariablePartition& partition) {
+                                   const std::string& psi,
+                                   const VariablePartition& partition,
+                                   Role role) {
   const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
   std::istringstream transducer_in(transducer_src);
   const OutputLabeledTransducer tau =
-      parse_transducer(transducer_in, partition, Role::t_in, dict);
+      parse_transducer(transducer_in, partition, role, dict);
   const spot::twa_graph_ptr a_psi =
-      ltlf_to_dfa(spot::parse_formula(psi_in), dict);
+      ltlf_to_dfa(spot::parse_formula(psi), dict);
 
-  std::vector<int> ifree_vars, iknown_vars;
-  for (const std::string& n : partition.input_free)
-    ifree_vars.push_back(a_psi->register_ap(n));
-  for (const std::string& n : partition.input_known)
-    iknown_vars.push_back(a_psi->register_ap(n));
+  const SigmaSlices slices = sigma_slices(partition, role);
+  std::vector<int> sigma0_vars, sigma1_vars;
+  for (const std::string& n : slices.sigma0)
+    sigma0_vars.push_back(a_psi->register_ap(n));
+  for (const std::string& n : slices.sigma1)
+    sigma1_vars.push_back(a_psi->register_ap(n));
 
   for (const std::vector<bdd>& seq :
-       ifree_sequences(ifree_vars, kGuardMaxSeqLen)) {
+       sigma0_sequences(sigma0_vars, kGuardMaxSeqLen)) {
     const std::optional<std::vector<bdd>> trace = run_transducer(tau, seq);
     if (!trace) continue;  // partial delta/lambda: skip (PRD "Edge cases").
 
     if (!accepts_ltlf(a_psi, *trace))
       return {false,
-              "psi_in too STRONG: rejects a trace tau itself produced"};
+              "psi too STRONG: rejects a trace tau itself produced"};
 
     for (const std::vector<bdd>& mutated :
-         single_bit_iknown_mutations(*trace, iknown_vars)) {
+         single_bit_sigma1_mutations(*trace, sigma1_vars)) {
       if (accepts_ltlf(a_psi, mutated))
         return {false,
-                "psi_in too WEAK: accepts a single-bit Iknown mutation of a "
+                "psi too WEAK: accepts a single-bit Sigma1 mutation of a "
                 "trace tau produced"};
     }
   }
@@ -1463,7 +1493,7 @@ class FaithfulnessGuardTest
 TEST_P(FaithfulnessGuardTest, TinFixtureIsFaithfulToItsPsiIn) {
   const FaithfulnessFixture& f = GetParam();
   const GuardResult result =
-      run_faithfulness_guard(f.tin_file, f.psi_in, kPartitionAKO);
+      run_faithfulness_guard(f.tin_file, f.psi_in, kPartitionAKO, Role::t_in);
   EXPECT_TRUE(result.ok) << result.detail;
 }
 
@@ -1480,11 +1510,117 @@ INSTANTIATE_TEST_SUITE_P(
 // see the comment above kTinDelay) -- and assert it FAILS.  An explicit
 // "expected the guard trips" assertion, never a silently-skipped case.
 TEST(FaithfulnessGuardMetaOracle, FiresOnOldCopyFromStepOnePsiInDelayPairing) {
-  const GuardResult result =
-      run_faithfulness_guard(kTinDelay, "(!k) & G(X(k <-> a))", kPartitionAKO);
+  const GuardResult result = run_faithfulness_guard(
+      kTinDelay, "(!k) & G(X(k <-> a))", kPartitionAKO, Role::t_in);
   EXPECT_FALSE(result.ok)
       << "faithfulness guard failed to fire on the known-bad delay / "
          "G(X(k<->a)) (copy-from-step-1) pairing -- the guard is a no-op";
+}
+
+// ---------------------------------------------------------------------------
+// Faithfulness guard applied to the Tout corpus (docs/prd/ltlfsynt-oracle-
+// known-output.md "Phase 2" / "Implementation phases" -- Phase 2's green
+// checkpoint: "every Tout pair passes its guard").  The engine above is
+// already Role-generic; this instantiates it against every DISTINCT
+// (tout_file, psi_out) pair from the Phase-1 corpus (Tables F-J and the
+// mixed M1-M2 pairs) -- one guard fixture per table, not per phi row, since
+// several phi rows in one table share a single (tout_file, psi_out) pair and
+// the guard doesn't look at phi at all.
+//
+// Enumeration check (PRD "Interfaces & types" "Bounds and determinism"): for
+// the Tout-only partition (kPartitionAOX, I u Ofree = {a,o}) the guard's
+// alphabet is 4, so 4^kGuardMaxSeqLen = 4^5 = 1024 <= kGuardEnumCap = 4096 --
+// every length is exhaustive, no sampling.  The mixed partition
+// (kPartitionAKOX) has a wider I u Ofree = {a,k,o}, alphabet 8; the
+// enumerate-vs-sample split is decided per LENGTH
+// (sigma0_sequences_of_length), so lengths 1-4 (8^4 = 4096 <= kGuardEnumCap)
+// still enumerate exhaustively and only length 5 (8^5 = 32768 > 4096) falls
+// back to the existing fixed-seed sampling path (kGuardSampleCount = 4096,
+// kGuardSampleSeed = 20260705) -- exactly what pow_saturating already
+// decides for a wider Tin partition; no special case was added for it.
+// ---------------------------------------------------------------------------
+
+const VariablePartition kPartitionAOX{
+    /*input_free=*/{"a"}, /*input_known=*/{}, /*output_free=*/{"o"},
+    /*output_known=*/{"x"}};
+
+const VariablePartition kPartitionAKOX{
+    /*input_free=*/{"a"}, /*input_known=*/{"k"}, /*output_free=*/{"o"},
+    /*output_known=*/{"x"}};
+
+struct KnownOutputFaithfulnessFixture {
+  std::string name;
+  const char* tout_file;
+  std::string psi_out;
+  VariablePartition partition;
+};
+
+void PrintTo(const KnownOutputFaithfulnessFixture& f, std::ostream* os) {
+  *os << f.name;
+}
+
+std::vector<KnownOutputFaithfulnessFixture>
+BuildKnownOutputFaithfulnessFixtures() {
+  return {
+      // --- Tables F-J (Tout-only regime, kPartitionAOX) ---
+      {"F_ConstFalse", kToutConstFalse, "G(!x)", kPartitionAOX},
+      {"G_CopyFromOfree", kToutCopyFromOfree, "G(x <-> o)", kPartitionAOX},
+      {"H_CopyFromI", kToutCopyFromI, "G(x <-> a)", kPartitionAOX},
+      {"I_ConstTrue", kToutConstTrue, "G(x)", kPartitionAOX},
+      {"J_DelayCorrected", kToutDelay, kPsiOutDelayCorrected, kPartitionAOX},
+      // --- Tables M1-M2 (mixed regime, kPartitionAKOX) ---
+      {"M1_CopyFromOfreeMixed", kToutCopyFromOfreeMixed, "G(x <-> o)",
+       kPartitionAKOX},
+      {"M2_ConstFalseMixed", kToutConstFalseMixed, "G(!x)", kPartitionAKOX},
+  };
+}
+
+// Guard over the whole Tout corpus (PRD "Test oracles" / "Definition of
+// done"): every (tout_file, psi_out) pair from Tables F-J and M1-M2 passes.
+// Not gated on ltlfsynt (library-only): a plain TestWithParam, not
+// LtlfsyntOracleTest.
+class KnownOutputFaithfulnessGuardTest
+    : public ::testing::TestWithParam<KnownOutputFaithfulnessFixture> {};
+
+TEST_P(KnownOutputFaithfulnessGuardTest, ToutFixtureIsFaithfulToItsPsiOut) {
+  const KnownOutputFaithfulnessFixture& f = GetParam();
+  const GuardResult result =
+      run_faithfulness_guard(f.tout_file, f.psi_out, f.partition, Role::t_out);
+  EXPECT_TRUE(result.ok) << result.detail;
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    ToutCorpus, KnownOutputFaithfulnessGuardTest,
+    ::testing::ValuesIn(BuildKnownOutputFaithfulnessFixtures()),
+    [](const ::testing::TestParamInfo<KnownOutputFaithfulnessFixture>& info) {
+      return info.param.name;
+    });
+
+// Guard meta-oracle, the Tout analogue of
+// FaithfulnessGuardMetaOracle.FiresOnOldCopyFromStepOnePsiInDelayPairing
+// (PRD "Test oracles" Table J-bad / "Implementation phases" Phase 2): the
+// SAME delay Tout file (kToutDelay) paired with the OVER-STRONG (X[!])
+// kPsiOutDelayOverStrong must trip the guard and report "too STRONG" --
+// proving the generalized guard is non-vacuous on the Tout side too, exactly
+// the witness Table J-bad exists for.  Encoded against Table J-bad exactly
+// as the PRD specifies (no additional satisfiable-but-wrong analogue witness
+// -- that is an unapproved PRD change, see "Developer comments / PRD
+// disagreements").
+TEST(FaithfulnessGuardMetaOracle,
+     FiresOnOverStrongPsiOutDelayPairingTableJBad) {
+  const GuardResult result = run_faithfulness_guard(
+      kToutDelay, kPsiOutDelayOverStrong, kPartitionAOX, Role::t_out);
+  EXPECT_FALSE(result.ok)
+      << "faithfulness guard failed to fire on the known-bad delay / "
+         "over-strong X[!] psi_out (Table J-bad) pairing -- the guard is a "
+         "no-op";
+  // Discriminating check: the guard must fire for the RIGHT reason. It
+  // trips because the over-strong psi_out rejects a trace kToutDelay itself
+  // produced ("too STRONG"), not because it happens to accept some mutation
+  // ("too WEAK") -- the latter would still make EXPECT_FALSE above pass, but
+  // would not be evidence of the failure mode Table J-bad exists to catch.
+  EXPECT_NE(result.detail.find("too STRONG"), std::string::npos)
+      << result.detail;
 }
 
 // ---------------------------------------------------------------------------
@@ -2484,7 +2620,7 @@ TEST(GeneratedCorpusSoak, DISABLED_LtlfToDfaStructuralReachesAtLeastOneLevel) {
 // Sigma0=Ifree letters: random_tin's delta guards are exactly Ifree cubes
 // and lambda reads only its Sigma0 slice (Role t_in: Sigma0=Ifree,
 // Sigma1=Iknown), so Ifree alone determines every (delta, lambda) pair --
-// same partial-cube idiom as run_transducer/single_bit_iknown_mutations
+// same partial-cube idiom as run_transducer/single_bit_sigma1_mutations
 // above. A throwaway registrar twa_graph on t_in's own dict resolves I∪O
 // names to the exact variable numbers t_in's private graph already
 // registered (register_ap is idempotent per dict), so no accessor needs to
