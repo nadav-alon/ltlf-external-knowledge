@@ -158,7 +158,7 @@ $\mathcal{I}/\mathcal{O}$ split, finds a **maximally dependent set of output
 variables** $\Xdep \subseteq \mathcal{O}$ (`\cref{def:outdep}`), and emits that
 dependency as a $\Tout$ in this project's transducer file format plus an updated
 part file with $\Xdep$ recorded as $\Oknown$. This mechanises what
-`main.tex:57-58` states informally — that when output variables are dependent,
+`main.tex:59-60` states informally — that when output variables are dependent,
 the dependency *is* external knowledge inherent to the formula — so
 `ltlf-ek-synth` can be fed real, derived external knowledge instead of
 hand-authored fixtures.
@@ -252,7 +252,7 @@ $\lambda^X = \bot$ when the successor set is empty. Ported literally that is
 $\delta$ or $\lambda$ makes the letter **inconsistent**, and an inconsistent
 letter is skipped for *every* party — so a partial $\Tout$ deletes $\Ifree$
 letters and constrains the **environment**, which $\Tout$ has no right to do
-($\Sigma_1 = \Oknown$, `main.tex:127`). Witness, and a required test fixture:
+($\Sigma_1 = \Oknown$, `main.tex:129`). Witness, and a required test fixture:
 $\varphi = G(\lnot a)\wedge G(x)$, $\mathcal{I}=\{a\}$, $\mathcal{O}=\{x\}$. One
 live state, $\liveset{s} = (\lnot a \wedge x)$, which *is* functional from
 $\{a\}$ to $\{x\}$, so $x$ is reported dependent with
@@ -307,11 +307,11 @@ error text.
 **I8 — scope is outputs only, and that is a turn-order constraint.** For
 $\Xdep\subseteq\mathcal{O}$, DepSynt's $\Ydep=(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$
 **equals** $\mathcal{I}\cup\Ofree$, which is exactly $\Sigma_0$ for
-`Role::t_out` (`main.tex:127`) — a verbatim fit. Input dependencies are **out of
+`Role::t_out` (`main.tex:129`) — a verbatim fit. Input dependencies are **out of
 scope** and are *not* a parameter change: `Role::t_in` has
 $\Sigma_0=\Ifree$, so a $\Tin$'s $\lambda$ may never observe $\mathcal{O}$, and
 $\Ydep=(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ would let it — violating the
-turn order at `main.tex:83`. A $\Tin$ would need the strictly stronger notion
+turn order at `main.tex:85`. A $\Tin$ would need the strictly stronger notion
 "dependent on $\mathcal{I}\setminus\Xdep$ alone", i.e. a different algorithm.
 See *Open theory questions*.
 
@@ -321,7 +321,7 @@ See *Open theory questions*.
 input-dependency tool composes by owning those two keys and passing ours
 through — disjoint keys, order-independent, either tool may run first. It
 **refuses** a non-empty `output_known` on input (`std::invalid_argument` /
-usage error): `main.tex:125` has exactly one $\Sout$ producing all of $\Oknown$,
+usage error): `main.tex:127` has exactly one $\Sout$ producing all of $\Oknown$,
 so there is no "compose two $\Tout$s" notion, and an already-governed output
 $o\in\Ydep$ would let our $\lambda_{out}$ observe a variable produced in the
 same turn-order phase.
@@ -617,10 +617,18 @@ assert a non-empty `output_known` input is refused with exit `2`; assert
   dependent on $\mathcal{I}\setminus\Xdep$ *alone* — strictly stronger than
   `\cref{def:outdep}`, since $\Sigma_0=\Ifree$ for `Role::t_in` forbids
   observing $\mathcal{O}$. This is the notion the **commented-out**
-  `latex/main.tex:558` block gropes toward ("a potential set of dependent
+  `latex/main.tex:613` block gropes toward ("a potential set of dependent
   input variables $D\subseteq I$"), including its own suggestion of deciding
   dependence by *counting synthesis strategies*. Left commented (author's call);
-  a separate PRD.
+  a separate PRD. **Answered 2026-07-31 by `docs/prd/input-dependencies-tool.md`**
+  (`main.tex` §`indep`), with one correction to this bullet: the difference is
+  **not** only $\Ydep$. The analysed language is $L(\lnot\varphi)$, not
+  $L(\varphi)$ — input dependencies are the moves the *environment* must play or
+  lose, so they live on the violation automaton. The $\Ydep=\Ifree$ restriction
+  this bullet identified is real but is the *second* difference, realized as an
+  $\exists\mathcal{O}$ projection of $\liveset{s}$. The commented `main.tex:613`
+  block remains open and commented: it asks a different question, over an
+  external knowledge base $\Gamma$ rather than over $\varphi$.
 - **Refining the analysis by a given $\Tin$ (I10)** — sound-but-incomplete
   today. Whether running the check on $A\times\Tin$ finds strictly more
   dependent outputs, and whether the resulting $\lambda_{out}$ is still valid
@@ -636,7 +644,7 @@ assert a non-empty `output_known` input is refused with exit `2`; assert
   hazard is edge-level pruning: on an NFA a live state may still have edges on
   no accepting run, and getting that wrong makes `δ(p,σ)≠∅` over-approximate,
   yielding a **wrong "dependent"** verdict with no diagnostic.
-- **Trace-termination semantics (`main.tex:96`)** — newly load-bearing here.
+- **Trace-termination semantics (`main.tex:98`)** — newly load-bearing here.
   I4's totality argument ("the defaulted letters lose the system the game
   exactly as in plain synthesis") and O1's equirealizability both assume the
   system-controlled-termination reachability reading that `solve_dfa` and
@@ -771,8 +779,8 @@ permission allowlist.
    `docs/GLOSSARY.md`'s *Determinacy witness* entry) using §101→§108,
    §107→§114-115, §124-133→§121-131, and **:125→:130** — note the last: `λ_C` is
    at line **130**; line 125 is the `\Tout` row, so every "Σ0 = I, Σ1 = Ofree
-   (main.tex:125)" citation was pointing at the wrong row. A repo-wide sweep
-   shows the drift is much broader than this PRD's loose-end list (`main.tex:96`,
+   (main.tex:127)" citation was pointing at the wrong row. A repo-wide sweep
+   shows the drift is much broader than this PRD's loose-end list (`main.tex:98`,
    `:133`, `:241`, `:300`, `:335` and friends recur across ~10 `docs/prd/` files
    and several headers) — that is a `/glossary` sweep, not a phase task. Prefer
    `\cref` labels over § numbers; this drift is out-of-band and recurs on every

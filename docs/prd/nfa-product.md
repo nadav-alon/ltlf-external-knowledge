@@ -19,7 +19,7 @@ regardless — they bind to the public `synthesize` interface and the math.
 **main.tex ref:** Method 1 §`nfa`, `\cref{alg:nfa_product}` (lines
 `alg:nfa_product:cons`, `alg:nfa_product:determinize`, `alg:nfa_product:solve`),
 `\cref{def:consistency}`, `\cref{alg:ltlftonfa}` (the NFA $N$ this consumes), and
-the **reachability-invariant note** at `main.tex:241`
+the **reachability-invariant note** at `main.tex:243`
 ($R\times\{q_{in}\}\times\{q_{out}\}$).
 
 **Gates:**
@@ -60,7 +60,7 @@ the **reachability-invariant note** at `main.tex:241`
   settled in favor of the implementation: (Q1) the non-$\cons$-skip vs $\cons$-dead-sink
   distinction is correct — `complete_here(N)` before the product makes a $\cons$-dead
   letter a non-empty `{sink,…}` subset while the `cons` filter drops non-$\cons$ letters,
-  so `nfa_to_dfa`'s ∅-skip is sound; (Q2) the `main.tex:241` reachability invariant
+  so `nfa_to_dfa`'s ∅-skip is sound; (Q2) the `main.tex:243` reachability invariant
   $R×\{q_{in}\}×\{q_{out}\}$ is preserved (deterministic transducers ⇒ single
   $(q_{in}',q_{out}')$ per successor); (Q3) the $\varepsilon$-convention holds (fresh
   non-accepting init from `reverse_dfa_to_nfa`, unchanged by completion). One
@@ -77,7 +77,7 @@ NFA $N$ (`ltlf_to_nfa`, landed) — forms the product $P=N\times\Tin\times\Tout$
 keeping only $\cons$-consistent transitions, **subset-determinizes** the product
 into a DFA $D$, then solves the reachability game on $D$. Determinizing only the
 *product* (never $\varphi$'s full DFA) is what keeps the blowup single-exponential
-in $\varphi$ and polynomial in the transducers (`main.tex:241`).
+in $\varphi$ and polynomial in the transducers (`main.tex:243`).
 
 This PRD delivers Method 1 in the **explicit** *Representation* (the way
 `DfaProduct` delivers Method 2): a `Synthesis` class `NfaProduct` over
@@ -144,7 +144,7 @@ The pipeline is `\cref{alg:nfa_product}`, realized as:
    Q_{out}$ (state-based), and
    $\delta_{prod}(\langle s,q_{in},q_{out}\rangle,v)=\{\langle
    s',\delta_{in}(q_{in},v),\delta_{out}(q_{out},v)\rangle : s'\in\delta_{N_c}(s,v)\}$
-   **iff** $\cons(q_{in},q_{out},v)$, else $\emptyset$ (`main.tex:198`–`\cref{alg:nfa_product}`).
+   **iff** $\cons(q_{in},q_{out},v)$, else $\emptyset$ (`main.tex:200`–`\cref{alg:nfa_product}`).
    $P$ is **nondeterministic** (many $s'$ per letter). It is built as a
    `ProductGuards` map — one source $\to$ per-destination OR'd guard, which
    represents multiple same-letter destinations natively — then materialized to a
@@ -159,7 +159,7 @@ The pipeline is `\cref{alg:nfa_product}`, realized as:
    reject) — so non-$\cons$ letters (no $P$ edge) contribute nothing, while
    cons-dead letters land in the non-empty $\{\langle\text{sink},\dots\rangle\}$
    subset (a real, reachable, non-accepting DFA state that loops to itself). By the
-   **reachability invariant** (`main.tex:241`) every reachable $R$ has the form
+   **reachability invariant** (`main.tex:243`) every reachable $R$ has the form
    $R'\times\{q_{in}\}\times\{q_{out}\}$ for a single transducer-state pair;
    `nfa_to_dfa` does not *rely* on this (it is a generic subset construction) but it
    is what bounds $D$ at $2^{|S_N|}\cdot|Q_{in}|\cdot|Q_{out}|$ and is a free
@@ -314,7 +314,7 @@ directly tests the two invented pieces before the method wiring depends on them.
   whose two successors merge into one subset); (c) `build_product_nondet` on a
   hand-built NFA + two toy transducers produces the expected multi-destination
   edges, and every reachable product subset carries a **single** $(q_{in},q_{out})$
-  pair (the `main.tex:241` reachability invariant, as an assertion/test). *May stub:*
+  pair (the `main.tex:243` reachability invariant, as an assertion/test). *May stub:*
   the `NfaProduct` class and CLI.
 - **Phase 2 — `NfaProduct : Synthesis` + CLI + cross-method oracles.** The method
   body above, the `--nfa-product` flag, and the three benchmarking spans. **Green
@@ -429,7 +429,7 @@ Both new pieces are bespoke (no Spot analog for our finite-acceptance rule; no
   `states[0]` is `{init}`, determinism/completeness-modulo-skip.
   `build_product_nondet` on a hand-built NFA + toy `t_in`/`t_out`: expected
   multi-destination edges; and every reachable product subset carries a **single**
-  $(q_{in},q_{out})$ pair (the `main.tex:241` reachability invariant).
+  $(q_{in},q_{out})$ pair (the `main.tex:243` reachability invariant).
 - **Phase 2 — cross-method realizability oracle.** For each generated
   $(\varphi,\text{vars},\Tin,\Tout)$, `NfaProduct` and `DfaProduct` return the
   **same** realizable/unrealizable verdict. This is the strongest Method-1 oracle
@@ -446,7 +446,7 @@ Both new pieces are bespoke (no Spot analog for our finite-acceptance rule; no
   inherited from `ltlf_to_nfa`; not an implementation blocker; leave for
   `/theory-review`.
 - **`alg:nfa_product` complexity proof "To be determined"** and the
-  **reachability invariant** (`main.tex:241`) — the invariant is asserted here as a
+  **reachability invariant** (`main.tex:243`) — the invariant is asserted here as a
   structural test; `/theory-review` should bless that our completion-of-$N$ +
   cons-skip realization of $\delta_{prod}$ + generic subset construction faithfully
   computes `\algname{NfaToDfa}(P)` (the oracle *verifies* language empirically;
@@ -454,15 +454,15 @@ Both new pieces are bespoke (no Spot analog for our finite-acceptance rule; no
   $\cons$-dead-sink** distinction). No new `\na`.
   **[theory-review 2026-07-17 — RESOLVED, faithful.]** The distinction is correct
   as implemented; the one gap is in *main.tex*, not the code: the `\algname{NfaToDfa}`
-  black box (main.tex:268) states no rule for the empty subset, and both sources of an
+  black box (main.tex:270) states no rule for the empty subset, and both sources of an
   empty $\delta_{prod}$ (non-$\cons$ *and* $\cons$-dead) collapse to $\emptyset$ in the
   paper, so no uniform reading of the black box is sound. The code corrects this by
   completing $N$ (`complete_here`) before the product — exactly as Method 2 completes
-  $A$. Drafted `\cl` note to place after the reachability note at ~main.tex:241
+  $A$. Drafted `\cl` note to place after the reachability note at ~main.tex:243
   (**not applied — separate LaTeX task, out of scope for this code PRD**):
   > `\cl[inline]{The black box \algname{NfaToDfa} must treat the two sources of an empty $\delta_{prod}$ differently: a non-$\cons$ letter is impossible (its $\mathcal{V}$-bits are pinned by $\Tin,\Tout$) and must be \emph{skipped} (missing edge), whereas a $\cons$ letter on which the Goal dies ($\delta_N(s,v)=\emptyset$) is a legitimate, losing play and must reach a rejecting sink. Since both yield $\emptyset$ here, the explicit realization completes $N$ into $N_c$ (a fresh non-accepting sink, $\delta$ total) before the product --- exactly as Method 2 completes $A$ --- so $\cons$-dead becomes a non-empty subset $\{(\mathrm{sink},q_{in}',q_{out}')\}$ while non-$\cons$ letters are dropped by the $\cons$ filter; the subset construction then safely skips the empty subset.}`
 - **Governed-variable projection** (`main.tex:303` `\na`) and
-  **trace-termination semantics** (`main.tex:96` `\na`) — `NfaProduct` inherits both
+  **trace-termination semantics** (`main.tex:98` `\na`) — `NfaProduct` inherits both
   through `solve_dfa` exactly as `DfaProduct` does; no new consumer, no new
   divergence. Listed for completeness; already tracked in the glossary *Open theory
   questions*.

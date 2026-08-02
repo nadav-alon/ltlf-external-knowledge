@@ -19,6 +19,8 @@
     "\\rev": "#1^{\\mathrm{R}}",
     "\\Xdep": "\\mathcal{X}",
     "\\Ydep": "\\mathcal{Y}",
-    "\\liveset": "R_{#1}"
+    "\\liveset": "R_{#1}",
+    "\\liveproj": "R^{\\mathcal{I}}_{#1}",
+    "\\Aneg": "A_{\\lnot\\varphi}"
   }
 }

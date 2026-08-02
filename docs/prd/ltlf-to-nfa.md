@@ -292,7 +292,7 @@ only on MONA's output format) and the encoder (P2) are genuinely separable.
 
 - **`thm:nfa-mirror-size` proof is "To be determined"** — the single-exponential
   size claim for $N$. Not an implementation blocker; leave for `/theory-review`.
-- **Trace-termination / non-empty-trace semantics** (`main.tex:96` `\na`, tracked
+- **Trace-termination / non-empty-trace semantics** (`main.tex:98` `\na`, tracked
   in glossary *Open theory questions* and `docs/prd/controller-verifier.md`): the
   mirror's $|w|-1$ last-position evaluation and $\epsilon$-exclusion must match
   `ltlf_to_dfa`'s De Giacomo–Vardi reading, or the equivalence oracle fails for a

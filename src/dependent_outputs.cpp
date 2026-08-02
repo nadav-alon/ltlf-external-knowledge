@@ -126,7 +126,7 @@ DependentOutputs dependent_outputs(const spot::formula& phi,
                                    const VariablePartition& partition,
                                    const spot::bdd_dict_ptr& dict,
                                    const CandidateObserver& on_candidate) {
-  // I9: the tool owns output_known --- main.tex:125 has exactly one Sout/Tout,
+  // I9: the tool owns output_known --- main.tex:127 has exactly one Sout/Tout,
   // so there is no "compose two Touts" notion, and an already-known output
   // would let lambda_out observe a variable produced in the same turn-order
   // phase.

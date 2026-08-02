@@ -11,18 +11,47 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Top priority (updated 2026-08-03): **open — pick one.** The $\Tout$ oracle
-**shipped 2026-08-03** (see Done), which retires the previous "3.2 or the $\Tout$
-oracle" pairing and leaves no ranked #1. The three candidates are **Method 3.2
-(aggregation)**, **Method 3.1 Phase 2** (`otf_solve_fused`) and the
-**input-dependencies** PRD — and none of them can start unattended as they stand:
-3.2 has no PRD, 3.1 Phase 2 is marked "least settled, needs its own grill", and
-input-dependencies fails the launch gate on three ungrilled glossary terms.
-Choosing between them is an evening decision, not something a run may guess at.
-**Method 3.1 is DONE** (see Done; it landed as `OtfMtdfaProduct` in `0ce5fab`,
-closed every gate, and benchmarked **POSITIVE** — up to 5488x over `MtdfaProduct`
-where $\cons$ prunes, the first method to beat the standing champion). Its Phase 2
-(`otf_solve_fused`) is spun out below._
+_Top priority (decided 2026-08-03, in a grill): **#1 is input-dependency
+extraction** (`docs/prd/input-dependencies-tool.md`) — and it is now **launchable
+unattended**, which is what settled the ranking. `main.tex` §`indep` is committed
+and pushed to Overleaf, and its three new glossary terms plus three amendments
+are written, so the launch gate is clean and `/developer` will not stop to
+interview anyone. Its *Interfaces & types* freeze is rated **high** because
+`dependent_inputs` mirrors the landed, gate-closed `dependent_outputs` term for
+term; the only genuinely new logic is one `bdd_exist` and a
+`spot::formula::Not`. The two runners-up were not merely deprioritised — **each
+still needs an evening's grill before it can start at all**: Method 3.2 has no
+PRD *and* a proven blocker (state-keyed $F_P$ over-accepts; theory review says
+re-key on the transition), and Method 3.1 Phase 2 is marked "least settled" while
+optimizing a term its own benchmark says is no longer the bottleneck._
+
+_The $\Tout$ oracle **shipped 2026-08-03** (see Done), which retired the previous
+"3.2 or the $\Tout$ oracle" pairing. **Method 3.1 is DONE** (see Done; it landed
+as `OtfMtdfaProduct` in `0ce5fab`, closed every gate, and benchmarked
+**POSITIVE** — up to 5488x over `MtdfaProduct` where $\cons$ prunes, the first
+method to beat the standing champion). Its Phase 2 (`otf_solve_fused`) is spun
+out below._
+
+### Input-dependency extraction (`ltlf-ek-deps --direction in`) — **#1**
+- **PRD: GRILLED 2026-07-31 → `docs/prd/input-dependencies-tool.md`; launch gate
+  CLEAN as of 2026-08-03.** Two phases: (1) extract the shared `detail::`
+  dependency core and add `dependent_inputs`, (2) the `--direction` flag. The
+  regression bar on Phase 1 is that the existing suite passes **unedited** — if a
+  test needs editing, the public surface moved and that is a PRD-change event.
+- **Intent:** extract the *environment*'s forced moves from $\varphi$ and
+  materialise them as a $\Tin$, the way the output tool already extracts the
+  system's as a $\Tout$. Every method's benchmarks and oracles currently run
+  against a trivial or hand-written $\Tin$; this closes that gap.
+- **The two differences from the output notion, both forced:** the analysed
+  language is $L(\lnot\varphi)$ (the *Violation automaton*), and $\Ydep$ is
+  $\mathcal{I}\setminus\Xdep$ — because $\Sin$ moves before the controller, so
+  $\lambda_{in}$ may not read the current step's outputs (*Projected live-letter
+  region*, and the projection is $\exists$, not $\forall$).
+- **Known theory position:** both `\cref{lem:indep-diagonal}` and
+  `\cref{lem:indep-transducer}` are stated **unproved**, exactly as the `outdep`
+  lemmas are, and the equirealizability claim leans on `\cref{def:probDef}`'s
+  unsettled termination reading *more heavily* than the output side does. Accepted
+  at the same evidence bar as `outdep`: the code plus the O1-in oracle.
 
 ### Method 3.2 — on-the-fly **aggregated** product (`otfagg`, `\cref{alg:otfdfa_agg_product}`)
 - **Intent:** the next unbuilt cell after 3.1. Aggregate on $[\psi]$ alone
@@ -31,7 +60,7 @@ where $\cons$ prunes, the first method to beat the standing champion). Its Phase
 - **Blocking, and now PROVEN not merely suspected:** `\cref{alg:otfdfa_product}`'s
   state-keyed $F_P$ **over-accepts** — theory review (2026-07-29) produced a
   one-state witness, $\varphi=(c \wedge G(a \rightarrow Xb)) \vee (\lnot c \wedge
-  X[!]G(a \rightarrow Xb))$ with trivial transducers. the `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:452`) asked
+  X[!]G(a \rightarrow Xb))$ with trivial transducers. the `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:454`) asked
   whether to drop the $F_P$ insert; the answer is **re-key it on the transition**.
   3.1 dodges this for free (an mtdfa terminal $2d+b$ is transition-keyed); an
   aggregating method must face it. `\cl` note written into `latex/main.tex`,
@@ -57,6 +86,29 @@ where $\cons$ prunes, the first method to beat the standing champion). Its Phase
   oracle is no longer a competitor for it, having shipped 2026-08-03.
 
 ## Later
+
+### X-shift second formulation of the input-dependency criterion (cross-check oracle)
+- **Intent:** an independent second derivation of
+  `\cref{lem:indep-diagonal}`'s criterion, to cross-check the shipped one.
+  Rewrite $\varphi$ so every output atom $o$ becomes $X\,o$; position $t$ of the
+  trace then carries $\mathcal{I}_t$ paired with $\mathcal{O}_{t-1}$, so the
+  outputs inside a letter are already-played history and the **Moore restriction
+  becomes structural** — the unprojected criterion (the one
+  `docs/prd/output-dependencies-tool.md` already implements) applies verbatim,
+  with no $\exists\mathcal{O}$ projection. Assert it reports the same $\Xdep$ as
+  `dependent_inputs`.
+- **Why it is deferred, not dropped** (decided while grilling
+  `docs/prd/input-dependencies-tool.md`, 2026-07-31): it needs a `spot::formula`
+  rewriter, an **un-shift register** on the emitted transducer so its $\delta$
+  consumes real letters again ($|Q|\cdot 2^{|\mathcal{O}|}$ states), and a
+  decision on what the extra trailing position means under weak $X$ vs `X[!]` —
+  i.e. more new code in the test than in the shipped path. The shipped route is
+  one `bdd_exist` over the output cube.
+- **Seeds:** does the shift want $X$ or `X[!]`, and what happens at the last
+  position? Is the un-shift register avoidable by reading $\lambda$ off the
+  shifted automaton but $\delta$ off the unshifted one? Does the equivalence of
+  the two formulations have a one-line proof, in which case it belongs in
+  `main.tex` §`indep` rather than in a test?
 
 ### Acceptance mark lost on an edgeless accepting state — **known live bug, TWO sites** (found 2026-07-17; widened from one site to a class 2026-07-27)
 - **The class:** a builder computes acceptance correctly, then attaches the mark
@@ -90,7 +142,7 @@ where $\cons$ prunes, the first method to beat the standing champion). Its Phase
   So the fix is **not a drive-by**: it re-opens `emits_dfa`'s contract.
 - **Reachability:** needs a **partial transducer** — a $\cons$-passing product state
   whose $\delta$ is undefined on every letter. Legal (`transducer.hpp:24`,
-  `main.tex:114-115`) and explicitly handled by `build_product_nondet`. Reproduced end
+  `main.tex:116-117`) and explicitly handled by `build_product_nondet`. Reproduced end
   to end: $\varphi=b$, $\Ofree=\{b\}$, `t_in` with a delta-dead state 1 →
   **both** `DfaProduct` and `NfaProduct` say UNREALIZABLE where REALIZABLE is
   expected.
@@ -132,16 +184,16 @@ where $\cons$ prunes, the first method to beat the standing champion). Its Phase
 
 ### `main.tex` `\algname{NfaToDfa}` empty-subset rule is underspecified (LaTeX-only, from theory-review 2026-07-17)
 - **Intent:** a *documentation* fix in `main.tex` (the latex submodule), not a code
-  change. The `\algname{NfaToDfa}` black box (~main.tex:268) states no rule for the
+  change. The `\algname{NfaToDfa}` black box (~main.tex:270) states no rule for the
   empty subset, and both sources of an empty $\delta_{prod}$ — a **non-$\cons$**
   letter and a **$\cons$-dead** letter ($\delta_N(s,v)=\emptyset$) — collapse to
-  $\emptyset$ in the paper (main.tex:225–232). No uniform reading of the black box is
+  $\emptyset$ in the paper (main.tex:227–234). No uniform reading of the black box is
   sound: skip-both → spuriously realizable; sink-both → spuriously unrealizable. The
   explicit `NfaProduct` already corrects this by completing $N$ before the product
   (`complete_here`), exactly as Method 2 completes $A$ — but the paper is silent.
 - **Fix:** apply the drafted `\cl[inline]{…}` note (verbatim in
   `docs/prd/nfa-product.md` "Open theory questions touched") after the reachability
-  note at ~main.tex:241. **Verified faithful; code needs no change** — this is purely
+  note at ~main.tex:243. **Verified faithful; code needs no change** — this is purely
   a clarity gap in the write-up.
 - **Why Later:** main.tex is a submodule that only builds on Overleaf; batch it with
   the next LaTeX pass (re-run `/glossary` + `/theory-review` after the Overleaf pull,
@@ -481,7 +533,7 @@ where $\cons$ prunes, the first method to beat the standing champion). Its Phase
   `docs/prd/otf-mtdfa-product.md` "Benchmark results, 2026-07-29".
 - **What it actually beats:** not the product — `spot::product` prunes fine (14
   states at $n=12$) — but the **materialization** of the $2^n$-state goal that
-  Method 2 must build first. Exactly `main.tex:335`'s `\na`.
+  Method 2 must build first. Exactly `main.tex:337`'s `\na`.
 - **What it cost:** one deliberate deviation from `\cref{alg:otfdfa_product}` (I5:
   collapse to the accepting sink once $\varphi$ is irrevocably satisfied), which
   makes $L(P)$ a strict superset of the paper's product language — equirealizable,
@@ -516,7 +568,7 @@ where $\cons$ prunes, the first method to beat the standing champion). Its Phase
 - **PRD:** `docs/prd/mtnfa-product.md` (draft, grilled 2026-07-27) — ready for
   `/glossary` then concurrent `/developer` + `/test-writer`. Both seeds below were
   settled in the grill: the product stays symbolic and the transducer states are
-  **tracked alongside** the goal subset (the `(R,q_{in},q_{out})` key, `main.tex:241`),
+  **tracked alongside** the goal subset (the `(R,q_{in},q_{out})` key, `main.tex:243`),
   **not** folded into the terminal; `turn_order.hpp` is reused exactly as
   `MtdfaProduct` does.
 - **Intent:** once the MTNFA representation lands (`docs/prd/mtnfa.md` — the data

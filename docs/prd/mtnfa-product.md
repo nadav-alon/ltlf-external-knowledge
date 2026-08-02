@@ -28,9 +28,9 @@ of landed glossary types (`mtnfa_to_mtdfa`'s shape + `product.hpp`'s `taus` vect
 **main.tex ref:** §`nfa` (`\cref{nfa}`), `\cref{alg:nfa_product}` — in particular
 line `alg:nfa_product:cons` (the $\cons$ filter), `alg:nfa_product:determinize`
 (`\algname{NfaToDfa}`) and `alg:nfa_product:solve` (`\algname{SolveDfa}`) — plus
-`\cref{def:consistency}` (§203) and the reachability-invariant note at `main.tex:241`.
+`\cref{def:consistency}` (§203) and the reachability-invariant note at `main.tex:243`.
 The mtdfa *Representation* itself has **no `main.tex` symbol** (the `\na` at
-`main.tex:335` gestures at MTDFA, but for Method 3).
+`main.tex:337` gestures at MTDFA, but for Method 3).
 
 **Gates:**
 - [x] glossary        — new terms in docs/GLOSSARY.md C++ column (already landed by
@@ -135,7 +135,7 @@ stage*, *Controller verifier*, *Generated corpus*.
   **fused into one pass** here (see *Novel mechanisms*), so one identifier realizes
   both algorithm steps. *Goal automaton determinization*'s mtdfa bullet already
   anticipates this ("generalizes to the $(R,q_{in},q_{out})$ product states under the
-  reachability invariant `main.tex:241` — the product determinizations `NfaProduct` /
+  reachability invariant `main.tex:243` — the product determinizations `NfaProduct` /
   `MtnfaProduct`"); it should now name the function.
 - Nothing else is new. The fused pass introduces **no** new domain type — no
   `ProductState`/`ProductGuards` analog exists or is wanted on this route (the same
@@ -146,14 +146,14 @@ stage*, *Controller verifier*, *Generated corpus*.
 `MtnfaProduct` must realize `\cref{alg:nfa_product}` — every line of it — with the
 Goal automaton, the product, and the game all held in the mtdfa *Representation*.
 
-**1. The product ($P$, `main.tex:221–232`).** For a product state
+**1. The product ($P$, `main.tex:223–234`).** For a product state
 $\langle s, q_{in}, q_{out}\rangle$ and a letter $v$,
 $$\delta_{prod}(\langle s,q_{in},q_{out}\rangle, v) = \begin{cases}\{\langle s', \delta_{in}(q_{in},v), \delta_{out}(q_{out},v)\rangle : s'\in\delta_N(s,v)\} & \text{if } \cons(q_{in},q_{out},v)\\ \emptyset & \text{otherwise,}\end{cases}$$
 with $F_P = F_N \times Q_{in} \times Q_{out}$ — acceptance depends on the **goal**
 component alone. $\cons$ is applied as a **region intersection**
 `emits_region(q_in) & emits_region(q_out)`, never per letter; this is the same
 symbolic reading `build_product_symbolic` uses, already blessed against
-`\cref{def:consistency}` by the `\cl` note at `main.tex:216–218` (minterm
+`\cref{def:consistency}` by the `\cl` note at `main.tex:218–220` (minterm
 distributivity). Generalized to $n$ transducers it is
 $\bigwedge_k$ `taus[k]->emits_region(q[k])`, matching `product.hpp`'s existing
 generalization of $S\times Q_1\times\cdots\times Q_n$.
@@ -162,7 +162,7 @@ generalization of $S\times Q_1\times\cdots\times Q_n$.
 applied to $P$: a state is a set of $P$-states, the initial one is
 $\{\langle s_{N,0},q_{in,0},q_{out,0}\rangle\}$, the successor is the union of the
 members' successors, and a set is accepting iff it meets $F_P$. By the reachability
-invariant (`main.tex:241`) — $\Tin,\Tout$ deterministic ⇒ every reachable subset of
+invariant (`main.tex:243`) — $\Tin,\Tout$ deterministic ⇒ every reachable subset of
 $P$ has the form $R\times\{q_{in}\}\times\{q_{out}\}$ for a **single** transducer-state
 pair — the determinized state is carried as the triple $(R, q_{in}, q_{out})$, i.e.
 a subset of $S_N$ **plus** one state per transducer. This is not an optimization to
@@ -545,7 +545,7 @@ minterm enumeration anywhere; `LetterAlphabet` is **not** used on this route.
 - **`\algname{NfaToDfa}` is never defined in `main.tex` — now load-bearing.** This is
   `docs/prd/mtnfa.md`'s theory-review follow-up **F1** (OPEN), which explicitly said
   it was "load-bearing for `MtnfaProduct`, worth pinning before it lands" — this PRD
-  is that moment. A `\cl` note for after `main.tex:241` is already drafted in that
+  is that moment. A `\cl` note for after `main.tex:243` is already drafted in that
   review, and a second one (the empty-subset rule) is drafted in
   `docs/prd/nfa-product.md` and tracked under *Later* in `docs/BACKLOG.md`. Both are
   **Overleaf-only `main.tex` edits**, batched with the next LaTeX pass; neither blocks
@@ -561,9 +561,9 @@ minterm enumeration anywhere; `LetterAlphabet` is **not** used on this route.
   claim that the dilemma was wrong. `MtdfaProduct` already depends on the same reading;
   `/theory-review` should bless or refute it **once**, for both methods.
 - **Governed-variable projection** (`main.tex:303` `\na`, supporting argument commented
-  out at `main.tex:305–306`) — inherited unchanged from `solve_mtdfa`; this PRD adds a
+  out at `main.tex:307–308`) — inherited unchanged from `solve_mtdfa`; this PRD adds a
   second consumer of the strategy-side projection, no new content.
-- **Trace-termination semantics** (`main.tex:96` `\na`) — `solve_mtdfa` carries Spot's
+- **Trace-termination semantics** (`main.tex:98` `\na`) — `solve_mtdfa` carries Spot's
   own reading; this adds a second method depending on it agreeing with
   `verify_controller`'s. Already tracked in the glossary's *Open theory questions*; not
   re-opened here.
@@ -868,7 +868,7 @@ setting applies. Ignore it when reading this diff.
 ## Theory-review findings, 2026-07-27 (faithfulness mode, `4a1e997..f043912`)
 
 **No `code-bug`.** `mtnfa_product_to_mtdfa` realizes `\cref{alg:nfa_product}` faithfully:
-$\cons$ as the region $\bigwedge_k$ `emits_region` (blessed by `main.tex:216`'s `\cl`),
+$\cons$ as the region $\bigwedge_k$ `emits_region` (blessed by `main.tex:218`'s `\cl`),
 $\delta_{prod}$'s goal component as `goal.pool.set_union` over $R$,
 $F_P=F_N\times Q_{in}\times Q_{out}$ as `any(goal.accepting[s] for s in S)` on the
 **goal** slice alone, and `\algname{NfaToDfa}`'s subset step as the interned
@@ -876,7 +876,7 @@ $(R,q_{in},q_{out})$ key. The (b).3 masking fix is faithful and **tight**, not m
 sound: $\mathtt{bdd\_ite}(g,\ \mathtt{row\_set},\ \mathtt{terminal}(0))$ is a *reduced*
 MTBDD, so a non-empty set-terminal survives in it iff it is the function's value at some
 $v\models g$ — hence every interned `Key{S,d}` is a genuine $\delta_D((R,q),v)$ and the
-reachable state count is exactly within `main.tex:241`'s
+reachable state count is exactly within `main.tex:243`'s
 $2^{|S_N|}\cdot|Q_{in}|\cdot|Q_{out}|$ bound. That is positive evidence for the
 `\cref{alg:nfa_product}` complexity theorem (whose own proof is still "To be determined")
 in the mtdfa representation.
@@ -916,12 +916,12 @@ never takes. Consequently:
 
 **F1 — `\algname{NfaToDfa}` is undefined in `main.tex`** (`underspecified`, still OPEN,
 inherited from `docs/prd/mtnfa.md`; now load-bearing in **three** ways, not one). `grep`
-finds the name only at `main.tex:149` (prose) and `main.tex:268` (the algorithm line).
+finds the name only at `main.tex:151` (prose) and `main.tex:270` (the algorithm line).
 Missing: (i) the subset-construction rule itself, (ii) the $\emptyset$ rule, and (iii)
-the fact that the reachability invariant at `main.tex:241` — stated only as a *proof
+the fact that the reachability invariant at `main.tex:243` — stated only as a *proof
 note* on a theorem whose proof is "To be determined" — is what licenses carrying
 $(R,q_{in},q_{out})$ as the state instead of a subset of $S_P$. A drafted `\cl` for after
-`main.tex:241` is in the review report; **Overleaf-only, batched, does not block code**.
+`main.tex:243` is in the review report; **Overleaf-only, batched, does not block code**.
 
 **F6 — $F_P$ is state-based in `main.tex`, transition-based in the mtdfa realization**
 (`underspecified`). `\cref{alg:nfa_product}` line `alg:nfa_product:final_def` makes $F_P$
@@ -932,14 +932,14 @@ load-bearing for more than index bookkeeping. This equivalence is nowhere in `ma
 and it is precisely the axis on which the *expected-divergence* fixture makes
 `MtnfaProduct` the correct method. Folded into the same drafted `\cl`.
 
-**Nit (non-blocking, style).** `main.tex:216`'s `\cl` names only
+**Nit (non-blocking, style).** `main.tex:218`'s `\cl` names only
 `\texttt{build\_product\_symbolic}` as the region-intersection consumer; there are now
 three (`build_product_symbolic`, `emits_dfa`, `mtnfa_product_to_mtdfa`). Its argument
 (minterm distributivity) is generic and still covers this route; only the example is
 stale. Batch with the F1 note.
 
-**Also noted, benign.** `main.tex:257` initializes $\delta_{prod}$ to an "undefined
-mapping" while the display at `main.tex:225–232` gives $\emptyset$ for a non-$\cons$
+**Also noted, benign.** `main.tex:259` initializes $\delta_{prod}$ to an "undefined
+mapping" while the display at `main.tex:227–234` gives $\emptyset$ for a non-$\cons$
 letter; for an NFA the two are the same object, so no verdict.
 
 ## Developer comments / PRD disagreements

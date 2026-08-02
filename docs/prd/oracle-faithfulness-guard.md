@@ -7,17 +7,17 @@
 Reuses `parse_transducer` and `ltlf_to_dfa` from the library (already linked into
 `unit_tests`).
 **main.tex ref:** the conjecture `\cl` note after `\cref{def:probDefTransducer}`
-(main.tex:133–135); `\cref{def:consistency}` (Case-A totality) for why a $\Tin$ run is
+(main.tex:135–137); `\cref{def:consistency}` (Case-A totality) for why a $\Tin$ run is
 well-defined; §86 for Mealy turn order.
 
 **Gates:**
 - [x] glossary        — "Produced-trace language" ($\psiin/\psiout$) + "Faithfulness
       guard" added (2026-07-05, `/glossary`); "monolithic/assumption reduction" entry
-      deferred by decision (open conjecture, main.tex:133, not implemented)
+      deferred by decision (open conjecture, main.tex:135, not implemented)
 - [x] tests           — the guard + corrected corpus + guard meta-oracle
 - [x] code-review     — domain (/code-reviewer) + generic (/code-review)
 - [x] theory-review   — code ↔ math faithful (2026-07-05, `/theory-review`); no
-      code-bug. main.tex:135 "known soundness boundary" is a stale misdiagnosis
+      code-bug. main.tex:137 "known soundness boundary" is a stale misdiagnosis
       (doc-bug) — a `\cl` correction is drafted in the review report for the
       Overleaf edit, not applied here.
 
@@ -39,7 +39,7 @@ transducer, turning the "excluded class" witness into a passing **load-bearing
 flip**, and (b) adds a **faithfulness guard**: a mechanical, author-blind-spot-
 independent cross-check that each fixture's $\psi_{in}$ and its transducer file
 agree, so this class of drift cannot recur silently. It does **not** attempt to
-prove the monolithic conjecture (main.tex:133) — it only removes a false
+prove the monolithic conjecture (main.tex:135) — it only removes a false
 counterexample and rails against the mistake that produced it.
 
 ## Ubiquitous-language terms used
@@ -61,7 +61,7 @@ All canonical (docs/GLOSSARY.md) unless flagged:
 **Glossary gaps (flag for `/glossary`, do not block):**
 - **Produced-trace language of a transducer** — the $\text{LTL}_f$ language
   $\psi_{in}$ (resp. $\psi_{out}$) of the traces $\Tin$ (resp. $\Tout$) produces
-  (main.tex:133 names it informally, "the $\text{LTL}_f$ languages of the traces
+  (main.tex:135 names it informally, "the $\text{LTL}_f$ languages of the traces
   produced by $\Tin,\Tout$"). The guard is precisely a check on this concept; it
   may warrant a prose entry even without a C++ identifier.
 - **Faithfulness guard** / **assumption reduction** — test-only concepts; likely
@@ -197,7 +197,7 @@ No production C++. In the test target:
   expectation (the oracle's standing rule).
 
 ## Open theory questions touched
-- **The "known soundness boundary" in main.tex:135 is false as stated.** The `\cl`
+- **The "known soundness boundary" in main.tex:137 is false as stated.** The `\cl`
   note claims "a known soundness boundary is a strong-$\text{X}$ continuation
   obligation on an $\Iknown$ variable under nesting, where the system-controlled
   continuation of a total strategy is not reproduced by the implication." The
@@ -211,7 +211,7 @@ No production C++. In the test target:
   contains **no** genuine divergence. `/theory-review` should correct the `\cl`
   note (under a `\cl`, per the LaTeX workflow) — the diagnosis, not necessarily
   the conjecture, is what's wrong.
-- **The monolithic conjecture (main.tex:133) is still open.** This PRD removes its
+- **The monolithic conjecture (main.tex:135) is still open.** This PRD removes its
   one cited counterexample; it does **not** prove equirealizability. Do not
   upgrade the conjecture to a theorem here. The $\Tout$ guarantee half and the
   empty-word convention remain unexamined.
@@ -236,7 +236,7 @@ No production C++. In the test target:
 - Full Table A–E re-verified against both binaries where `ltlfsynt` is present;
   suite skips cleanly where it is not; the guard runs regardless (library-only).
 - `docs/prd/ltlfsynt-oracle.md` "Excluded class"/"Open theory questions" and the
-  `docs/BACKLOG.md` seed corrected; `main.tex:135` flagged for `/theory-review`.
+  `docs/BACKLOG.md` seed corrected; `main.tex:137` flagged for `/theory-review`.
 - `/glossary` consulted on the flagged gaps ("produced-trace language",
   "faithfulness guard").
 
@@ -296,6 +296,6 @@ _(2026-07-05, `/developer`)_
   most a prose note (no C++ identifier — the new helpers are test-local,
   anonymous-namespace functions, not public library API). Left for `/glossary`
   to decide.
-- **`main.tex:135` (the `\cl` note misdiagnosing the "known soundness boundary")
+- **`main.tex:137` (the `\cl` note misdiagnosing the "known soundness boundary")
   is flagged for `/theory-review`, not edited here** — `main.tex` is Overleaf-only
   and out of `/developer`'s scope. See the PRD body, § Open theory questions.

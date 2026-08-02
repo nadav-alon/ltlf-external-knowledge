@@ -211,10 +211,10 @@ the existing term or update this file via `/glossary` — do not let drift happe
   the name-set form, not `SliceNames` (the former file-private struct).
 
 ### Produced-trace language
-- **`main.tex`:** $\psiin,\psiout$ (conjecture note after `\cref{def:probDefTransducer}`, `main.tex:133`).
+- **`main.tex`:** $\psiin,\psiout$ (conjecture note after `\cref{def:probDefTransducer}`, `main.tex:135`).
 - **Definition:** the $\text{LTL}_f$ language of the traces a transducer
   produces — $\psiin$ for $\Tin$, $\psiout$ for $\Tout$; it is what the
-  monolithic conjecture (`main.tex:133`) feeds in as the assumption (for $\Tin$)
+  monolithic conjecture (`main.tex:135`) feeds in as the assumption (for $\Tin$)
   or guarantee (for $\Tout$) pinning a strategy's governed variables.
 - **C++:** — (no dedicated type; a hand-authored `spot::formula`/string per
   oracle fixture, e.g. `psi_in` in `tests/ltlfsynt_oracle_test.cpp`). **Not**
@@ -284,7 +284,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
 
 ### MTDFA (multi-terminal DFA)
 - **`main.tex`:** — (no symbol; a Spot data structure, `\cite duret.25.ciaa`. The
-  `\na` at `main.tex:335` gestures at it — *"This likely requires adjusting the
+  `\na` at `main.tex:337` gestures at it — *"This likely requires adjusting the
   definitions for MTDFA usage"* — but no definition commits to it.)
 - **Definition:** a DFA held as **one MTBDD per state** (the `states[]` array),
   with each destination encoded in a *terminal* as $2d+b$ ($d$ = destination state,
@@ -311,7 +311,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
 ### MTNFA (multi-terminal NFA)
 - **`main.tex`:** — (no symbol; a **code-only** data structure on the
   *Representation* axis, the nondeterministic sibling of *MTDFA*. The `\na` at
-  `main.tex:335` gestures at MTDFA for Method 3 but commits to no NFA form.)
+  `main.tex:337` gestures at MTDFA for Method 3 but commits to no NFA form.)
 - **Definition:** the NFA $N$ (*NFA / DFA for the Goal*) held as **one MTBDD per
   state** — the same per-state-MTBDD shape as *MTDFA*, except each **terminal
   encodes a set** of destination states (an interned index into a side table,
@@ -365,7 +365,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   observed/produced slices: `t_in` ⇒ $\Sigma_0=\Ifree,\Sigma_1=\Iknown$; `t_out`
   ⇒ $\Sigma_0=\mathcal{I}\cup\Ofree,\Sigma_1=\Oknown$; `t_c` ⇒
   $\Sigma_0=\mathcal{I},\Sigma_1=\Ofree$ — the **controller** row of the align
-  block (`main.tex:130`, $\lambda_C:Q_C\times2^{\mathcal I}\to2^{\Ofree}$). Unlike
+  block (`main.tex:132`, $\lambda_C:Q_C\times2^{\mathcal I}\to2^{\Ofree}$). Unlike
   `t_in`/`t_out` (external knowledge from a file), a `t_c` transducer is usually
   the synthesized `Controller` viewed as a transducer (see *Controller-as-transducer
   view*), or a controller read from a `--controller` file.
@@ -542,7 +542,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   on the **product** $P$; both PRDs also run it on the Goal NFA $N$ **alone** as
   their **isolated oracle** ($L=L(N)=L(\varphi)$, checked against an independent
   DFA), and it generalizes to the $(R,q_{in},q_{out})$ product states under the
-  reachability invariant `main.tex:241` (a single transducer-state pair per
+  reachability invariant `main.tex:243` (a single transducer-state pair per
   reachable subset — the product determinizations `NfaProduct` / `MtnfaProduct`).
 - **C++:** per *Representation* —
   - **explicit:** `nfa_to_dfa(nfa)` → `spot::twa_graph_ptr` — a **generic** subset
@@ -716,7 +716,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   transducers, **fused** with its subset determinization (see *Goal automaton
   determinization*) into one symbolic BFS whose state is $(R,q_{in},q_{out})$ — a
   subset of $S_N$ plus one state per transducer, legitimate by the reachability
-  invariant at `main.tex:241`. $\cons$ is applied as the region
+  invariant at `main.tex:243`. $\cons$ is applied as the region
   $\bigwedge_k$ `emits_region(q[k])` and the letter space is carved by the
   `delta_edges` guards, so no letter is ever enumerated; `taus` is the same
   N-transducer generalization `build_product*` uses. Like the Method-2 mtdfa route it
@@ -797,7 +797,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   `FP` / `Fp` as a C++ identifier.
 
 ### Canonical representative
-- **`main.tex`:** $[\psi]$ (`main.tex:340`, §`otf`) — the representative of $\psi$
+- **`main.tex`:** $[\psi]$ (`main.tex:342`, §`otf`) — the representative of $\psi$
   after progression, *"so that semantically equal progressed formulae collapse to
   the same state"*.
 - **Definition:** what makes two progressed formulae the **same** state.
@@ -808,7 +808,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   as atoms and interned by that encoding, first-seen-wins. Spot applies it when it
   **mints a terminal**, so `ForwardProgression::decode` already *returns* $[\psi]$.
   It is **propositional** equivalence, weaker than the semantic equivalence
-  `main.tex:340` literally claims — flagged for `/theory-review`.
+  `main.tex:342` literally claims — flagged for `/theory-review`.
   A second, coarser merge sits **on top** of it in the *Product*: states whose
   **row** is identical are fused (Spot's `fuse_same_bdds`, applied componentwise
   on the goal part).
@@ -851,7 +851,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   Both **solve a product that already exists**. Method 3.1 Phase 2
   (`docs/prd/otf-mtdfa-product.md`) anticipates a **third** shape — solving *fused
   into* the construction, feeding `spot::backprop_graph` as rows are discovered and
-  aborting once the initial state is determined, which is what `main.tex:336`'s
+  aborting once the initial state is determined, which is what `main.tex:338`'s
   `\na` calls the missing *"hanging fruit optimization"*. Its C++ name is
   **not canonical yet** (the PRD's `otf_solve_fused` is explicitly tentative and
   its design is deferred to that phase's own grill) — recorded here only so no
@@ -894,24 +894,82 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
   emitted $\Tout$.
 - **Do not call it:** governed variables / $\mathcal{V}$ / the known set (those are
   the partition notion — see *Governed variables (V)*), dependencies (bare),
-  dependent variables (bare — the term is **output**-specific; the input notion is
-  strictly stronger and unbuilt, see *Open theory questions*), maximal set (bare),
+  dependent variables (bare — **ambiguous** now that both directions exist; say
+  *output*- or *input*-dependent, see *Dependent input set*), maximal set (bare),
   maximum dependent set (it is not maximum).
 
+### Dependent input set
+- **`main.tex`:** $\Xdep\subseteq\mathcal{I}$ (`\cref{def:indep}`, §`indep`).
+- **Definition:** a set of **input** variables whose value at every step is forced
+  by the history together with the current values of the *other inputs* — the
+  environment's forced moves, where *Dependent output set* is the system's. It is
+  **not** the output notion with a different variable set, and it is **not a
+  strengthening** of it: two things change, and both are forced. (1) The analysed
+  language is $L(\lnot\varphi)$, not $L(\varphi)$ — an input move is forced on the
+  environment exactly when every alternative makes $\varphi$ unavoidable, so the
+  analysis runs on the *Violation automaton*. (2) $\Ydep$ is
+  $\mathcal{I}\setminus\Xdep$, not $(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$,
+  because $\Sin$ moves **before** the controller and so may not observe the
+  current step's outputs — see *Projected live-letter region*. Subset-maximal (not
+  maximum) and lexicographic-order-contracted exactly as the output notion; the
+  greedy scan does **not** compose from singletons, and $\varphi=F(a\oplus b)$ is
+  the witness ($\{a\}$ and $\{b\}$ each input-dependent, $\{a,b\}$ not).
+  Becomes $\Iknown$, and is an analysis **result**, not a partition input.
+- **C++:** `DependentInputs::dependent` (`std::set<std::string>`), one member of
+  the `dependent_inputs` result alongside the updated `VariablePartition` and the
+  emitted $\Tin$ (`docs/prd/input-dependencies-tool.md`).
+- **Do not call it:** the dependent variables (bare — ambiguous, see above), the
+  known inputs (that is $\Iknown$, a *partition* notion — this is what *becomes*
+  it), input dependencies (bare), the forced inputs.
+
 ### Dependency set
-- **`main.tex`:** $\Ydep=(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ (`\cref{def:outdep}`).
-- **Definition:** the variables $\Xdep$ is dependent **on**. Once $\Oknown=\Xdep$
-  it equals $\mathcal{I}\cup\Ofree$ — which is exactly $\Sigma_0$ for `Role::t_out`
-  (`main.tex:127`). **That coincidence is the whole reason extraction emits a
-  $\Tout$** rather than some new object, and it is emphatically *not* a
-  coincidence for `t_in`: a $\Tin$ observes only $\Ifree$, so $\Ydep$ would let
-  $\lambda_{in}$ read $\mathcal{O}$ and break the *Turn order*.
-- **C++:** — (no identifier; derived as `partition.inputs()` ∪
-  `partition.output_free` and never stored, since the partition already determines
-  it).
-- **Do not call it:** observed slice / $\Sigma_0$ (they coincide for `t_out`
-  **only** — conflating them is what makes the input case look like a parameter
-  change), the free variables, the remaining variables, $Y$ (bare, in prose).
+- **`main.tex`:** $\Ydep$ — **two instantiations, one symbol**:
+  $(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ for outputs (`\cref{def:outdep}`),
+  $\mathcal{I}\setminus\Xdep$ for inputs (`\cref{def:indep}`).
+- **Definition:** the variables $\Xdep$ is dependent **on**. Each direction's
+  $\Ydep$ equals $\Sigma_0$ for **its** role, and in both cases that is the whole
+  reason extraction emits a *transducer* rather than some new object:
+  - **outputs** — once $\Oknown=\Xdep$, $\Ydep=\mathcal{I}\cup\Ofree$, which is
+    $\Sigma_0$ for `Role::t_out` (`main.tex:129`). $\Sout$ moves **last** and so
+    observes everything; no projection is needed.
+  - **inputs** — once $\Iknown=\Xdep$, $\Ydep=\Ifree$, which is $\Sigma_0$ for
+    `Role::t_in`. $\Sin$ moves **before** the controller, so $\lambda_{in}$ may
+    **not** read $\mathcal{O}$ — which is why the input notion cannot reuse the
+    output $\Ydep$, and why its criterion runs on the *Projected live-letter
+    region* rather than on $\liveset{s}$ directly.
+  **Conflating the two directions' $\Ydep$ is the Moore bug**, not a notational
+  slip: using $(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ on the input side lets
+  $\lambda_{in}$ observe the current step's outputs and breaks *Turn order*. It is
+  also what makes the input case look like a mere parameter change to the output
+  tool, when it is a different language plus a projection.
+- **C++:** — (no identifier in either direction; derived from the
+  `VariablePartition`, which already determines it, and never stored).
+- **Do not call it:** observed slice / $\Sigma_0$ (they coincide **per role**, and
+  treating that as one fact is the conflation above), the free variables, the
+  remaining variables, $Y$ (bare, in prose).
+
+### Violation automaton
+- **`main.tex`:** $\Aneg$ (`\cref{lem:indep-diagonal}`, `\cref{lem:indep-transducer}`).
+- **Definition:** a **deterministic** automaton with $L(\Aneg)=L(\lnot\varphi)$ —
+  the automaton input-dependency extraction analyses, where output extraction
+  analyses the Goal DFA. On it, *live* means the **environment** can still force a
+  violation of $\varphi$, so a letter outside $\liveset{s}$ is one the
+  **environment** loses by playing — the precise dual of the Goal DFA's reading,
+  where it is one the *system* loses by playing. The lemma states it generically
+  ("a deterministic automaton"), exactly as `\cref{lem:outdep-diagonal}` does for
+  $A$; the commitment to a complete DFA is the implementation's, not the math's.
+- **C++:** — (no dedicated constructor; it is
+  `ltlf_to_dfa(spot::formula::Not(phi), dict)`). Building it by **translating the
+  negation** is deliberate and not interchangeable with flipping acceptance on
+  $A_\varphi$: `ltlf_to_dfa` returns a complete DFA whose acceptance also encodes
+  the empty/length-0 convention, which `main.tex` never fixes (see *Open theory
+  questions*), so an acceptance flip is an untested equivalence rather than a free
+  complement. Completeness is load-bearing at emission — $\delta_{in}$ **is**
+  $\delta_{\Aneg}$ of the complete automaton, so never purge before emitting.
+- **Do not call it:** the negated DFA (that names the construction, not the
+  concept), the complement automaton (it is built by translation, **not** by
+  complementing $A_\varphi$), the environment automaton, $A_{\lnot\varphi}$ (bare,
+  in prose).
 
 ### Live-letter region
 - **`main.tex`:** $\liveset{s}$ (`\cref{lem:outdep-diagonal}`).
@@ -954,6 +1012,31 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
   guard union (that would ignore liveness, which is precisely the load-bearing
   part).
 
+### Projected live-letter region
+- **`main.tex`:** $\liveproj{s}$ (`\cref{lem:indep-diagonal}`).
+- **Definition:** the *Live-letter region* of the *Violation automaton* with
+  $\mathcal{O}$ **existentially projected away** — the letters over $\mathcal{I}$
+  the environment may still play. The quantifier is $\exists$, and it is the
+  formal content of the **Moore restriction**: $\lambda_{in}$ commits $\Xdep$
+  knowing only the history and the current $\Ifree$, so a value of $\Xdep$ counts
+  as available to the environment when **some** completion by the outputs extends
+  the history to a violation of $\varphi$.
+  **$\forall$ is wrong, not merely stricter.** At a state whose live letters are
+  $(a\wedge b\wedge x)\vee(a\wedge\lnot b\wedge\lnot x)$ (with
+  $a,b\in\mathcal{I}$, $x\in\mathcal{O}$) the environment has two genuine options
+  for $b$, yet neither survives both values of $x$ — so a universal reading finds
+  no available value, passes the *Determinacy witness* test vacuously, and reports
+  $\{b\}$ input-dependent. The emitted $\lambda_{in}$ would then forbid the
+  environment a move plain synthesis grants it. Every liveness caveat of
+  *Live-letter region* carries over verbatim, reflexivity included: $\liveproj{s}$
+  may be **empty at a live $s$**, and that is legal and carries no constraint.
+- **C++:** — (no public identifier; file-local to the shared extraction core, one
+  `bdd_exist(live_region_s, output_cube)`, after which *Determinacy witness*
+  applies verbatim because the result ranges over $\Ifree\cup\Xdep=\mathcal{I}$).
+- **Do not call it:** $\liveset{s}$ / *Live-letter region* / `live_region` (that is
+  the **unprojected** region over $\mathcal{I}\cup\mathcal{O}$ — conflating them is
+  exactly the Moore bug), the input region, the observable region.
+
 ### Output-dependency extraction
 - **`main.tex`:** `\cref{lem:outdep-transducer}` (the construction);
   `\cref{def:outdep}`, `\cref{lem:outdep-diagonal}` (what it decides). No
@@ -974,15 +1057,47 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
   (`include/ltlf_ek/dependent_outputs.hpp`), driven by the `ltlf-ek-deps` binary
   (`docs/prd/output-dependencies-tool.md`). Emits **two** artifacts — the
   transducer file and an updated part file — because the format stores no
-  $\Sigma_0/\Sigma_1$ (see *Print a transducer*). The binary **owns** the
-  `output_free`/`output_known` keys and passes `input_free`/`input_known` through
-  verbatim, so a future input-dependency tool composes on disjoint keys.
+  $\Sigma_0/\Sigma_1$ (see *Print a transducer*). Under `--direction out` the
+  binary **owns** the `output_free`/`output_known` keys and passes
+  `input_free`/`input_known` through verbatim, which is what lets it compose with
+  *Input-dependency extraction* on disjoint keys.
 - **Do not call it:** `find_dependencies`, `extract_knowledge`,
   `maximal_dependent_set` (it also returns the partition and the $\Tout$, not just
   the set), `depsynt` (that is the LTL tool this adapts, not ours — the same rule
   that rejects `ltlf2dfa`), `output_dependencies` (the PRD *file* name is prose;
   the identifier names the **result** — the dependent outputs), `OutputDependencies`
   (for the struct — it holds the dependent outputs, hence `DependentOutputs`).
+
+### Input-dependency extraction
+- **`main.tex`:** `\cref{lem:indep-transducer}` (the construction);
+  `\cref{def:indep}`, `\cref{lem:indep-diagonal}` (what it decides). No algorithm
+  name — like its sibling, it is not one of *The five methods*.
+- **Definition:** the environment-side sibling of *Output-dependency extraction*:
+  find a *Dependent input set* of $\varphi$ and materialise it as a $\Tin$. Same
+  greedy lexicographic accumulation with the same non-composition of singletons
+  (witness $F(a\oplus b)$), and the same *Determinacy witness* test — but run over
+  $\mathcal{I}$, on the *Violation automaton*, against the *Projected live-letter
+  region*. Emits $\delta_{in}$ = the **complete** $\Aneg$ and $\lambda_{in}$ = the
+  totalised $\liveproj{s}$.
+  **Totality is a soundness requirement here too, but it fails in the opposite
+  direction**, and that is worth stating because the reflex carried from the
+  output side is wrong: there, a partial $\lambda_{out}$ deleted letters and
+  illegally constrained the *environment*; here, an observation $\liveproj{s}$
+  leaves uncovered is one the environment has **already lost**, so a partial
+  $\lambda_{in}$ deletes exactly the environment's losing moves, hands it a
+  strictly stronger position than plain synthesis does, and turns a realizable
+  $\varphi$ apparently unrealizable. The sharpest case is a non-live $s$, where
+  $\liveproj{s}=\emptyset$ and *every* observation is uncovered.
+- **C++:** `dependent_inputs(phi, partition, dict)` → `DependentInputs`
+  (`docs/prd/input-dependencies-tool.md`), driven by the same `ltlf-ek-deps`
+  binary under `--direction in`. It **owns** the `input_free`/`input_known` keys
+  and passes the output keys through verbatim — the mirror of its sibling, hence
+  the disjoint-key composition.
+- **Do not call it:** input dependencies (bare), `dependent_variables` /
+  `find_dependencies` (bare — ambiguous across directions), `InputDependencies`
+  (for the struct — it holds the dependent inputs, hence `DependentInputs`),
+  the assumption extractor (a $\Tin$ from $\varphi$ is not an *assumption* in the
+  $\psiin\rightarrow\varphi$ sense).
 
 ## The five methods
 
@@ -1002,7 +1117,7 @@ exactly what `MtdfaProduct` is not. Methods 1, 2 **and 3.1** have mtdfa
 implementations
 (`docs/prd/mtnfa-product.md` — `MtnfaProduct`, landed;
 `docs/prd/mtdfa-product.md` — `MtdfaProduct`, landed;
-`docs/prd/otf-mtdfa-product.md` — `OtfMtdfaProduct`). `main.tex:335`'s `\na`
+`docs/prd/otf-mtdfa-product.md` — `OtfMtdfaProduct`). `main.tex:337`'s `\na`
 anticipated one for Method 3, and that PRD **is** the anticipated adjustment,
 made in code first — `main.tex` still commits to no MTDFA definition. Method 3.1
 is the first cell where the **explicit** column is deliberately left unbuilt:
@@ -1028,7 +1143,7 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
 `--otf-mtdfa-dyn-agg-product`. Re-decide there, not here.
 
 ### Representation
-- **`main.tex`:** — (no symbol; the `\na` at `main.tex:335` gestures at MTDFA for
+- **`main.tex`:** — (no symbol; the `\na` at `main.tex:337` gestures at MTDFA for
   Method 3, but no definition commits to the axis).
 - **Definition:** *prose note, not a domain entry* — pinned here to fix the spelling
   and stop drift. Which data structure a method holds its automata in: **explicit**
@@ -1130,7 +1245,7 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
 - **Definition:** the internal linchpin oracle — given $\varphi,\Tin,\Tout$ and a
   synthesized controller $T_C$, decide whether **every trace agreeing with
   $\Tin,\Tout,T_C$ satisfies $\varphi$** (`\cref{def:probDefTransducer}`). Built
-  **directly on agreement**, not on the monolithic conjecture (`main.tex:133`);
+  **directly on agreement**, not on the monolithic conjecture (`main.tex:135`);
   checks **reachability of $F_\varphi$ under adversarial env** (a one-player
   $\nu$-fixpoint on the $A_\varphi\times\Tin\times\Tout\times T_C$ product, since
   $T_C$ is fixed), *not* language inclusion. Reuses `ltlf_to_dfa` + `consistent`
@@ -1243,7 +1358,7 @@ is seeded with them:
   be built** — it is the first method that cannot dodge it.
 - **On-the-fly game solving** — Method 3 builds the product on the fly but still
   solves at the end; the hanging-fruit on-the-fly *solving* is not done. The same
-  `\na` continues (`main.tex:335`): *"This likely requires adjusting the definitions
+  `\na` continues (`main.tex:337`): *"This likely requires adjusting the definitions
   for MTDFA usage"* — i.e. the author anticipates a *Representation* change for
   Method 3. **Updated 2026-07-28** (the old "only Method 2 has one today" went
   stale when `MtnfaProduct` landed): Methods 1, 2 and 3.1 all have mtdfa routes
@@ -1262,12 +1377,12 @@ is seeded with them:
   game is being limited to transitions consistent with the external knowledge
   transducers, which govern the variable set $\mathcal{V}$, it can project these
   variables out without loss."* The supporting argument is drafted but **commented
-  out** (`main.tex:305–306`), so the claim is currently unbacked in the live text.
+  out** (`main.tex:307–308`), so the claim is currently unbacked in the live text.
   Both *Game solving* routes depend on it and discharge it **differently** —
   `solve_dfa` arena-side, `solve_mtdfa` by pinning the variables as forced
   controllable moves and projecting strategy-side. Flagged for `/theory-review`
   (`docs/prd/mtdfa-product.md`). Newly load-bearing; not previously listed here.
-- **Mealy is baked into the signatures; no Moore option** (`main.tex:103` `\na`) —
+- **Mealy is baked into the signatures; no Moore option** (`main.tex:105` `\na`) —
   *"these signatures are commiting to a mealy turn order, and are not ready for
   adding a moore option. For that, the signatures would be dependent on the order
   of players."* Newly listed here because Phase 0/Q2 made it concrete rather than
@@ -1282,7 +1397,7 @@ is seeded with them:
   Moore semantics, outputs should be first."*). The *math* is the open part, not
   the plumbing: §100 says the signatures themselves must change. Out of scope for
   `docs/prd/mtdfa-product.md`; `mode` stays reserved for this axis (see *Role*).
-- **Trace-termination semantics** (`main.tex:96` `\na`) — `def:probDef` quantifies
+- **Trace-termination semantics** (`main.tex:98` `\na`) — `def:probDef` quantifies
   over "every trace that agrees" without saying who ends the trace. Both
   `solve_dfa` and the *Controller verifier* commit to the mainstream
   **system-controlled-termination reachability** reading (De Giacomo–Vardi). They
@@ -1325,13 +1440,13 @@ is seeded with them:
   equirealizability claim is read under system-controlled termination. The
   citation shift both notes caused has already been repaired by
   `scripts/check-main-tex-refs.py --fix`, including this file's
-  `latex/main.tex:556–561` below.
+  `latex/main.tex:611–616` below.
 - **Input dependencies need a different notion** — `\cref{def:outdep}` is
   output-only, and $\Ydep$ cannot simply be re-pointed: `Role::t_in` observes only
   $\Ifree$, so a dependent *input* must be dependent on $\mathcal{I}\setminus\Xdep$
   **alone**, ignoring $\mathcal{O}$ — a strictly stronger condition and a
   different algorithm. This is the notion the **commented-out**
-  `latex/main.tex:556–561` block gropes toward ("a potential set of dependent
+  `latex/main.tex:611–616` block gropes toward ("a potential set of dependent
   input variables $D\subseteq I$"), including its own alternative of deciding
   dependence by *counting synthesis strategies*. Left commented — the author's
   call, not to be uncommented by a skill.
