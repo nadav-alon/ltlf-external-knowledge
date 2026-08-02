@@ -19,15 +19,19 @@ Case-A totality the reduction leans on). The method under test is Method 2
 (`\cref{alg:dfa_product}`). No new algorithm.
 
 **Gates:**
-- [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
-      _Still open, and it is the **only** thing between this PRD and done.
-      `docs/GLOSSARY.md:1100` still spells the *Faithfulness guard* C++ column as
-      `run_faithfulness_guard(transducer_src, psi_in, partition)` — Phase 2
-      changed that signature to `(transducer_src, psi, partition, role)` and
-      widened the concept to both roles. `/glossary` interviews the user, so an
-      unattended run cannot close it. The PRD pre-authorised this as a
-      non-blocking wording update (see "Glossary follow-up" below), which is why
-      Phase 2 landed with it open._
+- [x] glossary        — new terms in docs/GLOSSARY.md C++ column
+      _Closed 2026-08-03 (`/glossary`, user-attended). The *Faithfulness guard*
+      entry is now `Role`-generic: signature corrected to
+      `run_faithfulness_guard(transducer_src, psi, partition, role)`, prose
+      widened to both $(\Tin,\psiin)$ and $(\Tout,\psiout)$ with the slices taken
+      from `sigma_slices`, the per-trace mutation-soundness argument recorded, and
+      the J-bad negative-control weakness written in as a load-bearing caveat.
+      Decided with the user: **one** widened entry rather than a split $\Tout$
+      term (the soundness prose is role-independent and would drift if
+      duplicated), and the caveat lives **in** that entry rather than in a new
+      *Guard meta-oracle* term. No other Phase 1/2 identifier was missing —
+      `Role`, `sigma_slices`, `SigmaSlices`, `OutputLabeledTransducer` and
+      `parse_transducer` were already present and correct._
 - [x] tests           — unit + oracle coverage
       _Phase 1 closed (`9512239`): 51 corpus rows live-executed, 534/534 ctest.
       Phase 2 closed (`7ee38ae`): guard generalized over `Role`, applied
@@ -139,12 +143,13 @@ All already in `docs/GLOSSARY.md`; no new terms, no gaps:
 - **DFA product** (Method 2) → `DfaProduct`, the method the CLI wraps.
 - **Transducer file format (`%%LAMBDA` block)** → the on-disk $\Tout$ fixtures.
 
-**Glossary follow-up (flag for `/glossary`, do not block):** the *Faithfulness
-guard* entry currently describes a $\Tin$-only object — it names
-`run_faithfulness_guard(transducer_src, psi_in, partition)` and speaks of
-"$\psiin$" and "a single-bit $\Iknown$ mutation". Phase 2 generalizes it over
-`Role`; the entry needs its signature and prose widened to both roles. This is a
-**wording update to an existing entry**, not a new term.
+**Glossary follow-up — DONE 2026-08-03, do not re-open:** the *Faithfulness
+guard* entry used to describe a $\Tin$-only object — it named
+`run_faithfulness_guard(transducer_src, psi_in, partition)` and spoke of
+"$\psiin$" and "a single-bit $\Iknown$ mutation". Phase 2 generalized it over
+`Role`, and `/glossary` has since widened the entry's signature and prose to both
+roles (a **wording update to an existing entry**, not a new term) and folded in
+the J-bad negative-control caveat.
 
 ## Behaviour / semantics (from main.tex)
 The oracle asserts a **verdict-only** (realizability boolean) equivalence. It
