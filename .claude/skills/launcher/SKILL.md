@@ -1,6 +1,6 @@
 ---
 name: launcher
-description: Run one or more PRD phases end to end with no human in the loop — worktree, /developer, /test-writer, build+ctest, /code-review + /code-reviewer, gate ticking, commit, merge into the feature branch, push, and a draft PR. Use for an unattended day-run kicked off by scripts/day-run.sh, or manually to ship a phase without babysitting it. Stops rather than guessing at any decision the user owns.
+description: Run one or more PRD phases end to end with no human in the loop — worktree, /developer, /test-writer, build+ctest, /code-reviewer, gate ticking, commit, merge into the feature branch, push, a draft PR, and /review on that PR for the generic half of the code-review gate. Use for an unattended day-run kicked off by scripts/day-run.sh, or manually to ship a phase without babysitting it. Stops rather than guessing at any decision the user owns.
 ---
 
 # Launcher (unattended phase runner)
@@ -136,11 +136,16 @@ theory question — stop and say so.
 
 ## Step 5 — review
 
-Run both, in this order:
+Run `/code-reviewer` — domain. It self-spawns `theory-reviewer` on semantic
+diffs; do not spawn that yourself.
 
-1. `/code-review` — generic correctness.
-2. `/code-reviewer` — domain. It self-spawns `theory-reviewer` on semantic
-   diffs; do not spawn that yourself.
+**The generic half does not run here.** `/code-review` carries
+`disable-model-invocation`, so the Skill tool cannot call it — an unattended
+session has no way to reach it, and a hand-rolled "manual generic pass" is not
+the same pass and must never tick the gate. The generic review runs in **Step
+6a**, against the PR, via `/review` — which is what the CLI itself offers as the
+local-review substitute. It has to come after Step 6 because `/review` takes a
+**PR number**, and the PR does not exist until then.
 
 Triage what comes back:
 
@@ -160,7 +165,8 @@ Triage what comes back:
 Only when the phase is green **and** review is clean:
 
 1. Tick the PRD gates the passes actually closed, each with its ref. Never tick a
-   gate whose pass you did not run.
+   gate whose pass you did not run. The `code-review` gate is **not** ticked
+   here — its generic half has not run yet (Step 6a).
 2. Commit with explicit paths. If `latex/` or `docs/main-tex-anchors.json` moved,
    run `scripts/check-main-tex-refs.py --fix` **in the same commit** — the
    pre-commit hook enforces this and citation drift is per-region, never uniform.
@@ -177,6 +183,33 @@ Only when the phase is green **and** review is clean:
 
 If `gh` is not authenticated, **do not** try to work around it. Commit and merge
 locally, and record in the report that the PR needs `gh auth login`.
+
+## Step 6a — the generic review, on the PR
+
+Run `/review <PR#>` on the PR you just opened. This is the generic half of the
+`code-review` gate, and it **is** Skill-tool invocable, unlike `/code-review`.
+Same target, different handle: `/code-review` reviews the working diff, `/review`
+reviews the PR's diff — and the PR contains exactly the branch you just pushed,
+so the reviewed diff is the same code.
+
+Triage exactly as in Step 5 (must-fix → `developer`, re-run Step 4, push the fix;
+consider → PRD + report, never act). Then:
+
+1. Tick the `code-review` gate, citing both halves: `/code-reviewer` from Step 5
+   and `/review <PR#>` from here. Tick it **only** if both actually ran.
+2. Commit the gate tick and push, then `gh pr edit` the body so it reflects the
+   final state.
+
+Two rules:
+
+- **Never run `/code-review ultra`.** It is billed and explicitly user-triggered;
+  it is not yours to launch, in a day-run or anywhere else.
+- **Do not submit a GitHub review** (approve / request-changes) — put the
+  findings in the run report and the PRD. The PR is the user's to act on, and an
+  unattended approval is worth nothing to a single-author repo.
+
+If `/review` cannot run (no `gh` auth, no PR), leave the gate **open** and say so
+in the report. An unrun pass is never a ticked gate.
 
 ## Step 7 — report, then decide whether to continue
 
