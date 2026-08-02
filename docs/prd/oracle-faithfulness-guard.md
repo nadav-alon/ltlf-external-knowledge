@@ -148,6 +148,12 @@ No production C++. In the test target:
     seed) and a single-bit $\Iknown$ mutation generator.
   - `run_faithfulness_guard(transducer_src, psi_in, partition)` tying them
     together, called once per distinct $(\Tin,\psi_{in})$ pair.
+    **Superseded 2026-08-02** by `docs/prd/ltlfsynt-oracle-known-output.md`
+    Phase 2: the helper is now `Role`-generic —
+    `run_faithfulness_guard(transducer_src, psi, partition, role)`, slices from
+    `sigma_slices(partition, role)` — and this section's $\Tin$-only signature,
+    pseudocode and $\Ifree$/$\Iknown$ wording describe the `Role::t_in`
+    instantiation only. See glossary *Faithfulness guard* for the live contract.
 - **Reused as-is:** `parse_transducer` (`transducer_io.hpp`), `ltlf_to_dfa`
   (`ltlf_to_dfa.hpp`), the `VariablePartition`, and the existing subprocess/
   temp-file harness (`RunEkSynth`, `RunLtlfsynt`, `ScopedTempFile`).

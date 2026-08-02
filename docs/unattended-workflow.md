@@ -25,10 +25,18 @@ feature grilled straight onto a branch from going unnoticed just because the
 evening ran out before the backlog line got written; such a branch *is* the
 feature branch, so the phase worktree is based on it. Then it checks the launch
 gate, and per phase:
-worktree → `/developer` → `/test-writer` → build + `ctest` → `/code-review` +
-`/code-reviewer` (which self-spawns `theory-reviewer`) → tick gates → commit →
-merge into the feature branch → push → draft PR. Then it moves to the next phase
-if the caps allow, and writes `docs/runs/<date>-<feature>-<phase>.md`.
+worktree → `/developer` → `/test-writer` → build + `ctest` → `/code-reviewer`
+(which self-spawns `theory-reviewer`) → tick gates → commit → merge into the
+feature branch → push → draft PR → `/review <PR#>`. Then it moves to the next
+phase if the caps allow, and writes `docs/runs/<date>-<feature>-<phase>.md`.
+
+**Why the generic review comes last.** `/code-review` carries
+`disable-model-invocation`, so no unattended session can reach it — that is what
+left the `code-review` gate open on every run before 2026-08-03. `/review` is the
+substitute the CLI itself offers, it *is* agent-invocable, and it reviews the
+PR's diff — the same code, one step later in the pipeline, which is the whole
+reason the review moved after the PR is opened. `/code-review ultra` stays out of
+the loop entirely: it is billed and user-triggered.
 
 Read the run report — and its **questions for the evening grill** section — to
 start the next evening session.
