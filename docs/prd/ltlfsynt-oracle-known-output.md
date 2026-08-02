@@ -20,16 +20,32 @@ Case-A totality the reduction leans on). The method under test is Method 2
 
 **Gates:**
 - [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
-- [ ] tests           — unit + oracle coverage
+      _Still open, and it is the **only** thing between this PRD and done.
+      `docs/GLOSSARY.md:1100` still spells the *Faithfulness guard* C++ column as
+      `run_faithfulness_guard(transducer_src, psi_in, partition)` — Phase 2
+      changed that signature to `(transducer_src, psi, partition, role)` and
+      widened the concept to both roles. `/glossary` interviews the user, so an
+      unattended run cannot close it. The PRD pre-authorised this as a
+      non-blocking wording update (see "Glossary follow-up" below), which is why
+      Phase 2 landed with it open._
+- [x] tests           — unit + oracle coverage
       _Phase 1 closed (`9512239`): 51 corpus rows live-executed, 534/534 ctest.
-      Held open for Phase 2's guard + meta-oracle._
+      Phase 2 closed (`7ee38ae`): guard generalized over `Role`, applied
+      to all 7 distinct $(\Tout, \psiout)$ pairs, J-bad meta-oracle asserts it
+      fires **and** that the reason is "too STRONG". 542/542 ctest, 0 failed._
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-      _Phase 1: `/code-reviewer` clean, no must-fix. `/code-review` could **not**
-      be invoked (`disable-model-invocation`); a manual generic pass stood in, so
-      the generic half is **not** discharged — re-run it when Phase 2 lands._
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+      _Phase 1: `/code-reviewer` clean, no must-fix. Phase 2: `/code-reviewer`
+      clean after one fix round. `/code-review` could **not** be invoked in
+      either phase (`disable-model-invocation`); a manual generic pass stood in,
+      so the generic half is **not** discharged — this gate stays open until
+      `/code-review` is run by hand on `master...worktree-prd-tout-oracle`._
+- [x] theory-review   — code ↔ math faithfulness vs main.tex
       _Phase 1: theory-reviewer clean, no `code-bug`; two `underspecified`
-      findings recorded below. Held open for Phase 2._
+      findings recorded below. Phase 2 (`7ee38ae`): theory-reviewer
+      confirmed mutation soundness carries over to `Role::t_out`, the $\Sigma_0
+      /\Sigma_1$ split matches `main.tex:83/93/127`, and "too STRONG" is the
+      theoretically correct J-bad verdict. One `code-bug` raised and **fixed**
+      in-phase; no new `\cl` note warranted._
 
 ## Goal
 Close the deferred half of `docs/prd/ltlfsynt-oracle.md`. That PRD gave the
@@ -622,3 +638,60 @@ $\Tin$. Decide in the evening grill whether to amend the contract or the code.
   satisfiable-but-wrong analogue $(\lnot x) \land G(X(x \leftrightarrow a))$
   (copy-from-step-1), the exact mirror of the retired $\Tin$ witness. Adopting it
   is a PRD change, hence a user decision.
+
+### From the Phase 2 run (2026-08-02, unattended launcher, commit `7ee38ae`)
+
+**Phase 1's recommendation was deliberately NOT adopted.** The extra
+satisfiable-but-wrong witness $(\lnot x) \land G(X(x \leftrightarrow a))$
+recommended immediately above is a PRD change and therefore a user decision; the
+meta-oracle was implemented against Table J-bad **exactly as this PRD specifies**
+and nothing else. The consequence stands unchanged: `FiresOnOverStrong…TableJBad`
+proves "the guard fires on an unsatisfiable $\psiout$", which is strictly weaker
+than the $\Tin$ analogue's "fires on a satisfiable-but-wrong language". **This is
+the highest-value item for the evening grill** — it is the one place where the
+$\Tout$ side of the oracle is provably weaker than the $\Tin$ side.
+
+**No contract mismatch.** The frozen `run_faithfulness_guard` signature and the
+`sigma_slices`-derivation contract matched the code exactly; nothing was
+re-shaped, and the pinned bounds (`kGuardMaxSeqLen=5`, `kGuardEnumCap=4096`,
+`kGuardSampleCount=4096`, `kGuardSampleSeed=20260705`) are untouched.
+
+**Enumeration is NOT uniformly exhaustive, and the PRD's note undersells it.**
+*Interfaces & types* says the seed "matters only if a future fixture widens the
+partition". The **mixed** fixtures already widen it: $\mathcal{I}\cup\Ofree =
+\{a,k,o\}$ gives alphabet 8, and the enumerate-vs-sample split is **per length**,
+so for M1/M2 lengths 1–4 stay exhaustive ($8^4 = 4096$, hitting the cap exactly)
+while **length 5 samples** 4096 of 32768 sequences under the fixed seed. Tables
+F–J ($\{a,o\}$, alphabet 4, $4^5 = 1024$) are fully exhaustive as the PRD says.
+Deterministic either way — but the mixed guards are a sampled check, not a proof,
+and the PRD sentence should be corrected to say so.
+
+**Theory-review finding, fixed in-phase (`code-bug`, test-only).** The J-bad
+meta-oracle originally asserted only `EXPECT_FALSE(result.ok)` while its comment
+promised a "too STRONG" report — so it would have passed had the guard fired for
+the *wrong* reason (a "too WEAK" trip), the exact failure mode a negative control
+exists to exclude. Fixed by asserting `result.detail` contains "too STRONG".
+
+**"Consider" findings — recorded, deliberately not acted on.**
+1. **The pre-existing $\Tin$ meta-oracle has the same latent gap.**
+   `FiresOnOldCopyFromStepOnePsiInDelayPairing` still asserts only
+   `EXPECT_FALSE(result.ok)` and never checks `result.detail`; its correct
+   expectation is **"too WEAK"**. A one-line strengthening, deliberately left
+   alone as outside Phase 2's scope.
+2. **The empty-$\Ofree$ smoke fixture carries no faithfulness guard.**
+   `EmptyOfreeWithNonEmptyOknownForcesXAndStaysUnrealizable` is a `TEST_F`, not a
+   corpus row, so it is not among the 7 guarded $(\Tout, \psiout)$ pairs. Its
+   $\Sigma_0$ collapses to $\mathcal{I}$ — the cheapest remaining widening of
+   guard coverage.
+3. Phase 1's consider-list (items 1–7 above) is **all still open**; Phase 2
+   touched none of it.
+4. The new $\Tout$ block header narrates PRD rationale rather than what the code
+   does — same trade-off, and same counterargument, as Phase 1's item 6.
+
+**Theory-review observation, recorded not raised.** For the mixed M1/M2 pairs the
+guard demands language equality at $\Iknown$ valuations $\Tin$ would never
+produce — a *larger* trace set than the reduction $\psiin \to (\varphi \land
+\psiout)$ ever exercises. That is the stronger and safe reading, and it is what
+`main.tex:139` states (each transducer's $\psi$ defined independently), so it
+folds into the existing `underspecified` flag on that line rather than being a
+new finding.
