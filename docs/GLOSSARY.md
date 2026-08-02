@@ -1088,19 +1088,41 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
 ## Testing & oracles
 
 ### Faithfulness guard
-- **`main.tex`:** — (no symbol; test-only, `docs/prd/oracle-faithfulness-guard.md`).
+- **`main.tex`:** — (no symbol; test-only, `docs/prd/oracle-faithfulness-guard.md`;
+  widened to $\Tout$ by `docs/prd/ltlfsynt-oracle-known-output.md`).
 - **Definition:** a mechanical, author-blind-spot-independent cross-check that an
-  oracle fixture's produced-trace language $\psiin$ and its $\Tin$ **file** denote
-  the same language, by driving the two artifacts the author already wrote against
-  each other — the transducer's run engine (`parse_transducer`) versus $\psiin$'s
-  finite-$\text{LTL}_f$ membership (`ltlf_to_dfa`) — never a third hand-labeled
-  trace (which would inherit the author's blind spot). Fails iff $\psiin$ is too
-  **strong** (rejects a trace $\Tin$ produced) or too **weak** (accepts a
-  single-bit $\Iknown$ mutation of one).
-- **C++:** `run_faithfulness_guard(transducer_src, psi_in, partition)` →
-  `GuardResult` (test-local, anonymous namespace in
-  `tests/ltlfsynt_oracle_test.cpp`; not a library API).
-- **Do not call it:** faithfulness check/test (bare), oracle guard, sanity check.
+  oracle fixture's produced-trace language $\psi$ and its transducer **file**
+  denote the same language, by driving the two artifacts the author already wrote
+  against each other — the transducer's run engine (`parse_transducer`) versus
+  $\psi$'s finite-$\text{LTL}_f$ membership (`ltlf_to_dfa`) — never a third
+  hand-labeled trace (which would inherit the author's blind spot). It is
+  **`Role`-generic** (see *Role*): under `t_in` it guards the pair
+  $(\Tin,\psiin)$, under `t_out` the pair $(\Tout,\psiout)$, taking its
+  observed/produced slices from `sigma_slices` instead of hard-coding
+  $(\Ifree,\Iknown)$ — so under `t_out` the enumeration fixes all of
+  $\mathcal{I}\cup\Ofree$ per step ($\Tout$'s $\Sigma_0$ legitimately contains
+  $\Ofree$) and the mutation flips a single $\Oknown$ bit. Fails iff $\psi$ is too
+  **strong** (rejects a trace the transducer produced) or too **weak** (accepts a
+  single-bit $\Sigma_1$ mutation of one). Mutation soundness carries across both
+  roles because agreement is a **per-trace** predicate, so it does not matter that
+  $\Tout$'s $\Sigma_0$ contains system-controlled variables.
+  **One caveat, and it is load-bearing** (Phase 1 theory review, 2026-08-02): the
+  guard's own **negative control** is currently weaker on the $\Tout$ side than on
+  the $\Tin$ side. Table J-bad's deliberately over-strong $\psiout$ is
+  **unsatisfiable outright**, so the meta-oracle asserting the guard fires proves
+  only "it fires on an unsatisfiable formula" — not the $\Tin$ analogue's stronger
+  claim that it fires on a genuinely-too-strong *satisfiable* one. Until that
+  fixture is replaced (proposed $(\lnot x)\land G(X(x\leftrightarrow a))$; a PRD
+  change, **not** done), do not read a green $\Tout$ guard as evidence of equal
+  strength to a green $\Tin$ one.
+- **C++:** `run_faithfulness_guard(transducer_src, psi, partition, role)` →
+  `GuardResult { bool ok; std::string detail; }` (test-local, anonymous namespace
+  in `tests/ltlfsynt_oracle_test.cpp`; not a library API). `role` is deliberately
+  **not defaulted**: a defaulted `Role` is exactly how a $\Tout$ pair could
+  silently be guarded under $\Tin$ slices and pass vacuously.
+- **Do not call it:** faithfulness check/test (bare), oracle guard, sanity check;
+  for the formula parameter, not `psi_in` (it is `psi` — `role` decides which
+  $\psi$ it is).
 
 ### Controller verifier
 - **`main.tex`:** — (no symbol; decides the `\cref{def:probDefTransducer}`

@@ -11,11 +11,18 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Top priority (updated 2026-07-29): **Method 3.2 (aggregation)** or the $\Tout$
-oracle — **Method 3.1 is DONE** (see Done; it landed as `OtfMtdfaProduct` in
-`0ce5fab`, closed every gate, and benchmarked **POSITIVE** — up to 5488x over
-`MtdfaProduct` where $\cons$ prunes, the first method to beat the standing
-champion). Its Phase 2 (`otf_solve_fused`) is spun out below._
+_Top priority (updated 2026-08-03): **open — pick one.** The $\Tout$ oracle
+**shipped 2026-08-03** (see Done), which retires the previous "3.2 or the $\Tout$
+oracle" pairing and leaves no ranked #1. The three candidates are **Method 3.2
+(aggregation)**, **Method 3.1 Phase 2** (`otf_solve_fused`) and the
+**input-dependencies** PRD — and none of them can start unattended as they stand:
+3.2 has no PRD, 3.1 Phase 2 is marked "least settled, needs its own grill", and
+input-dependencies fails the launch gate on three ungrilled glossary terms.
+Choosing between them is an evening decision, not something a run may guess at.
+**Method 3.1 is DONE** (see Done; it landed as `OtfMtdfaProduct` in `0ce5fab`,
+closed every gate, and benchmarked **POSITIVE** — up to 5488x over `MtdfaProduct`
+where $\cons$ prunes, the first method to beat the standing champion). Its Phase 2
+(`otf_solve_fused`) is spun out below._
 
 ### Method 3.2 — on-the-fly **aggregated** product (`otfagg`, `\cref{alg:otfdfa_agg_product}`)
 - **Intent:** the next unbuilt cell after 3.1. Aggregate on $[\psi]$ alone
@@ -46,35 +53,8 @@ champion). Its Phase 2 (`otf_solve_fused`) is spun out below._
   Worth understanding **before** Phase 2 fuses solving into that same build.
 - **Worth weighing first:** 3.1's win is already 5488x where it matters, and it is
   *flat* — Phase 2 optimizes a term that is no longer the bottleneck in family A.
-  The honest question is whether it beats 3.2 or the $\Tout$ oracle for the next slot.
-
-_Then: #1 $\Tout$ oracle. (The former #1, the MTDFA
-scaffolding replacement, **shipped 2026-07-16** — see Done; it removed the explicit
-DFA materialisation from the goal *construction*, the other half of the cost the
-symbolic DFA-product rewrite started on the *product*, and a live benchmark
-confirmed the win.) #1's rationale (grilled 2026-07-05, updated 2026-07-08): the
-internal controller verifier is **banked** (shipped in `81a4cf4`, migrated onto the
-shared product core, all four PRD gates clean), so the known-**output** $\Tout$
-oracle rounds out the external `ltlfsynt` cross-check._
-
-### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **#1** (MTDFA replacement shipped 2026-07-16, see Done)
-- **PRD:** the known-**input** ($\Tin$) half is spec'd in
-  `docs/prd/ltlfsynt-oracle.md` (ready for `/developer` + `/test-writer`). This
-  item is the $\Tout$ follow-up it explicitly deferred.
-- **Intent:** extend the external `ltlfsynt` cross-check to a known **output**
-  strategy. Unlike $\Tin$ (an *assumption* $\psi_{in} \rightarrow \varphi$),
-  $\Oknown$ is a **system-side** helper ($\Sigma_0=\mathcal{I}\cup\Ofree$), so it
-  reduces as a **guarantee/conjunction**: `--outs=Ofree,Oknown`, formula
-  $\varphi \land \psi_{out}$ (and, mixed with a known input,
-  $\psi_{in} \rightarrow (\varphi \land \psi_{out})$).
-- **Seeds for grilling:**
-  - Is $\varphi \land \psi_{out}$ with $\Oknown$ as a system output actually
-    equirealizable with the $\Tout$ problem? The controller must *drive* $\Oknown$
-    per the strategy, not choose it freely — verify the conjunction pins it.
-  - Same discriminating-fixture discipline: load-bearing, verdict-mixed, guard by
-    dropping $\psi_{out}$.
-  - Turn order: $\Tout$ observes $\Ofree$ of the *same* step — confirm `ltlfsynt`
-    Mealy semantics still line up when $\Oknown$ is a synthesis output.
+  The honest question is whether it beats 3.2 for the next slot — the $\Tout$
+  oracle is no longer a competitor for it, having shipped 2026-08-03.
 
 ## Later
 
@@ -298,7 +278,7 @@ oracle rounds out the external `ltlfsynt` cross-check._
     deterministic $\Iknown$-function, extract the transducer from that DFA. Covers
     more $\psi_{in}$ shapes but adds a functionality check + rejection sampling +
     DFA→transducer extraction. Heavier; weigh vs the bounded-memory family.
-  - Subsumes/relates to the known-**output** $\Tout$ oracle (Now/next #2): a
+  - Subsumes/relates to the known-**output** $\Tout$ oracle (**Done**, 2026-08-03): a
     co-generated $\Tout$ family would extend this to the guarantee half.
 
 ### Generated $\Tout$ / $\Oknown$ in the generated corpus (generated corpus v2)
@@ -311,7 +291,7 @@ oracle rounds out the external `ltlfsynt` cross-check._
 - **Seeds for grilling:**
   - The co-generation constraint from the $(\Tin,\psi_{in})$ item applies here for
     a known-output *differential* ($\psi_{out}$ as a guarantee conjunct); pairs
-    with the known-output $\Tout$ oracle (Now/next #2).
+    with the known-output $\Tout$ oracle (**Done**, 2026-08-03).
   - $\Tout$ observes $\mathcal I\cup\Ofree$ of the same step — the random-$\Tout$
     builder needs $\Sigma_0=\mathcal I\cup\Ofree,\Sigma_1=\Oknown$, not the
     $\Tin$ shape.
@@ -462,6 +442,35 @@ oracle rounds out the external `ltlfsynt` cross-check._
   parse; also drops the temp-file write + `-w` table parsing, or keep those?
 
 ## Done
+
+### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **DONE 2026-08-03**
+- **Outcome:** shipped in PR #3 (`a0d38e9`), both phases, **test-only — no
+  production C++ and no CMake change**. Phase 1 (`9512239`) landed the corpus:
+  Tables F–J (35 rows), M1–M2 mixed (12), J-bad (4), an empty-$\Ofree$ smoke
+  fixture and two AP guards. Phase 2 (`7ee38ae`) generalized
+  `run_faithfulness_guard` over `Role` — non-defaulted, slices from
+  `sigma_slices` instead of hard-coded $(\Ifree,\Iknown)$ — and applied it to
+  every distinct $(\Tout,\psiout)$ pair. `ctest` **543/543**, up from 534 before
+  the PRD. All four gates closed; the PRD is `Status: implemented`.
+- **The grill's three settled seeds all held**, and nothing in the corpus needed
+  re-tuning: every row reproduced against both binaries exactly as tabulated.
+- **One known weakness, deliberately left open** (it is a PRD change, i.e. the
+  user's call): Table J-bad's over-strong $\psiout$ is **unsatisfiable outright**,
+  so the guard meta-oracle only proves "it fires on an unsatisfiable formula",
+  where the $\Tin$ analogue proves the stronger "fires on a
+  satisfiable-but-wrong language". The $\Tout$ half of the oracle is therefore
+  provably weaker than the $\Tin$ half until the satisfiable witness
+  $(\lnot x)\land G(X(x\leftrightarrow a))$ is added. Recorded as a load-bearing
+  caveat in `docs/GLOSSARY.md` *Faithfulness guard* so it cannot be lost, and it
+  is the highest-value item if this oracle is ever revisited.
+- **Also still open by decision:** two coverage `consider`s — no mixed row's
+  $\Tout$ reads $k$ (so dropping $\Iknown$ from `t_out`'s $\Sigma_0$ is
+  undetectable), no fixture has $\lambda$ reading **both** state and $\Sigma_0$,
+  and there is no structural meta-assertion that any J-bad row still *diverges*.
+- **Side effect worth knowing:** closing this PRD's last gate is what exposed
+  that `/code-review` is unreachable from any unattended session, which is now
+  fixed — `/launcher` Step 6a runs `/review <PR#>` instead. See
+  `docs/unattended-workflow.md`.
 
 ### The pending `\cl` notes on `\cref{lem:outdep-diagonal}` / `\cref{lem:outdep-transducer}` — **DONE 2026-07-31**
 - **Outcome:** both written into `latex/main.tex`, uncommitted, by the
@@ -677,7 +686,7 @@ oracle rounds out the external `ltlfsynt` cross-check._
   box without Spot's CLI (env override `LTLFSYNT_BIN`). PRD:
   `docs/prd/ltlfsynt-oracle.md`. A faithfulness guard (`6fc2b34`) also
   cross-checks each corpus $(\Tin,\psi_{in})$ pair against itself. The
-  known-**output** $\Tout$ half remains open (now Now/next #2).
+  known-**output** $\Tout$ half **shipped 2026-08-03** (see Done).
 
 ### Sharpen the Transducer definition, signature & input API
 - **Intent:** firm up the `Transducer` abstraction — its definition, C++
