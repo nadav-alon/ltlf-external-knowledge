@@ -37,12 +37,19 @@ Case-A totality the reduction leans on). The method under test is Method 2
       Phase 2 closed (`7ee38ae`): guard generalized over `Role`, applied
       to all 7 distinct $(\Tout, \psiout)$ pairs, J-bad meta-oracle asserts it
       fires **and** that the reason is "too STRONG". 542/542 ctest, 0 failed._
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-      _Phase 1: `/code-reviewer` clean, no must-fix. Phase 2: `/code-reviewer`
-      clean after one fix round. `/code-review` could **not** be invoked in
-      either phase (`disable-model-invocation`); a manual generic pass stood in,
-      so the generic half is **not** discharged — this gate stays open until
-      `/code-review` is run by hand on `master...worktree-prd-tout-oracle`._
+- [x] code-review     — domain (/code-reviewer) + generic (/review on the PR)
+      _Domain: `/code-reviewer` clean in Phase 1, clean after one fix round in
+      Phase 2. Generic: `/review 3` on 2026-08-03 — `/code-review` carries
+      `disable-model-invocation` and is unreachable from any session, so the
+      generic half now runs as `/review <PR#>` against the PR's diff (the same
+      code, one step later in the pipeline). This is the launcher's new Step 6a;
+      see `.claude/skills/launcher/SKILL.md`. Verdict: no must-fix in the test
+      code. Four `consider`s, all already on the Phase 1 list (rows with
+      `load_bearing=false` never invoke `bare`; the AP guards hardcode their
+      allowed sets; `MixedRow` ≡ `KnownOutputRow`; no structural meta-assertion
+      over the corpus guarantees) plus one new one recorded below. One must-fix
+      **in the launcher skill itself**, found by this review and fixed before
+      the gate was ticked._
 - [x] theory-review   — code ↔ math faithfulness vs main.tex
       _Phase 1: theory-reviewer clean, no `code-bug`; two `underspecified`
       findings recorded below. Phase 2 (`7ee38ae`): theory-reviewer
@@ -701,8 +708,18 @@ exists to exclude. Fixed by asserting `result.detail` contains "too STRONG".
    runs through the same parameterized guard. Its $\Sigma_0$ collapses to
    $\mathcal{I}$, making it the only shipped pair that exercises `sigma_slices`
    at the empty-$\Ofree$ boundary. The `TEST_F` itself is unchanged.
-3. Phase 1's consider-list (items 1–7 above) is **all still open**; Phase 2
-   touched none of it.
+3. Phase 1's consider-list (items 1–7 above): items 1, 2, 4, 5 and 6 remain open
+   by decision (2026-08-03 — all are shapes mirrored from the $\Tin$ suite;
+   fixing them only here would split the two suites). Items 3 and 7 remain open
+   as **PRD changes** the user has not taken.
+5. **New `consider` from `/review 3` (2026-08-03).** `BuildKnownOutput-
+   DivergenceCorpus` encodes Table J-bad's divergence purely as **data** — two
+   rows whose `ek_realizable` and `reduction_realizable` differ. Nothing asserts
+   that *any* row still diverges, so editing both fields of both rows to agree
+   would silently retire the negative control while leaving every test green.
+   The same shape as Phase 1's consider #3, and it wants the same fix: one
+   structural meta-assertion (`at least one row has ek != reduction`). Not acted
+   on — the rows are PRD-pinned.
 4. The new $\Tout$ block header narrates PRD rationale rather than what the code
    does — same trade-off, and same counterargument, as Phase 1's item 6.
 

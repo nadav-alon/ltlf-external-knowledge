@@ -197,8 +197,14 @@ consider → PRD + report, never act). Then:
 
 1. Tick the `code-review` gate, citing both halves: `/code-reviewer` from Step 5
    and `/review <PR#>` from here. Tick it **only** if both actually ran.
-2. Commit the gate tick and push, then `gh pr edit` the body so it reflects the
-   final state.
+2. Commit the gate tick **on the feature branch the PR points at**, not on the
+   worktree branch. Step 6 already merged and pushed, so a commit made on the
+   worktree branch now would sit outside the PR and the gate would read as
+   ticked in a commit the reviewer never sees. Either commit it directly on the
+   feature branch, or commit on the worktree branch and merge again — but verify
+   with `gh pr diff <PR#> --name-only` that the PRD file is actually in the PR
+   before you call the gate closed.
+3. Push, then `gh pr edit` the body so it reflects the final state.
 
 Two rules:
 
