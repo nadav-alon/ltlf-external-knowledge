@@ -1,6 +1,10 @@
 # PRD: `ltlfsynt` external-tool oracle — known-**output** ($\Tout$) guarantee reduction
 
-**Status:** draft
+**Status:** implemented — all four gates closed 2026-08-03 (PR #3). Phases 1–2
+were the only implementation phases. The one *Definition of done* item left
+undone is moving the `docs/BACKLOG.md` "#1 $\Tout$ oracle" entry to **Done**:
+that re-ranks what is next (Method 3.2 vs otf-mtdfa Phase 2), which is the
+user's call, not a bookkeeping step.
 **Interface:** extends the existing GoogleTest suite `tests/ltlfsynt_oracle_test.cpp`;
 **not** a `Synthesis` method and **no production C++**. Drives the built
 `ltlf-ek-synth` and Spot's `ltlfsynt` as subprocesses and compares only the
