@@ -365,25 +365,44 @@ TEST(LtlfEkDepsInputPartFile, I12DirectionsCommute) {
   // files -- compared pointwise (state count, initial state, lambda per
   // letter), the same technique as tests/dependent_inputs_test.cpp's
   // AssertDualityHolds, since OutputLabeledTransducer has no operator==.
+  //
+  // Per the PRD's Edge cases, a direction whose Xdep is empty writes NO
+  // transducer file -- `output_known`/`input_known` empty in the final part
+  // file is exactly that contract's condition, already parsed above. This
+  // phi's Xdep_in is empty in BOTH orders (I10: `--direction in` cannot see
+  // `output_known`, so the result is order-independent), so there is no Tin
+  // file on disk to parse; the commutation content for that direction is
+  // that both orders agree it is absent, which the EXPECT_EQ on
+  // `input_known` above already pins. Guard each direction's parse on its
+  // own known-set rather than assuming the file exists.
   auto dict = spot::make_bdd_dict();
   auto probe = spot::make_twa_graph(dict);
-  std::ifstream tout1_in(tout_order1.path());
-  const OutputLabeledTransducer t_out1 =
-      parse_transducer(tout1_in, final1, Role::t_out, dict);
-  std::ifstream tout2_in(tout_order2.path());
-  const OutputLabeledTransducer t_out2 =
-      parse_transducer(tout2_in, final2, Role::t_out, dict);
-  ASSERT_EQ(t_out1.delta_dfa()->num_states(), t_out2.delta_dfa()->num_states());
-  ASSERT_EQ(t_out1.initial_state(), t_out2.initial_state());
+  const bool has_tout = !final1.output_known.empty();
+  ASSERT_EQ(has_tout, !final2.output_known.empty());
+  const bool has_tin = !final1.input_known.empty();
+  ASSERT_EQ(has_tin, !final2.input_known.empty());
 
-  std::ifstream tin1_in(tin_order1.path());
-  const OutputLabeledTransducer t_in1 =
-      parse_transducer(tin1_in, final1, Role::t_in, dict);
-  std::ifstream tin2_in(tin_order2.path());
-  const OutputLabeledTransducer t_in2 =
-      parse_transducer(tin2_in, final2, Role::t_in, dict);
-  ASSERT_EQ(t_in1.delta_dfa()->num_states(), t_in2.delta_dfa()->num_states());
-  ASSERT_EQ(t_in1.initial_state(), t_in2.initial_state());
+  std::optional<OutputLabeledTransducer> t_out1, t_out2;
+  if (has_tout) {
+    std::ifstream tout1_in(tout_order1.path());
+    t_out1 = parse_transducer(tout1_in, final1, Role::t_out, dict);
+    std::ifstream tout2_in(tout_order2.path());
+    t_out2 = parse_transducer(tout2_in, final2, Role::t_out, dict);
+    ASSERT_EQ(t_out1->delta_dfa()->num_states(),
+              t_out2->delta_dfa()->num_states());
+    ASSERT_EQ(t_out1->initial_state(), t_out2->initial_state());
+  }
+
+  std::optional<OutputLabeledTransducer> t_in1, t_in2;
+  if (has_tin) {
+    std::ifstream tin1_in(tin_order1.path());
+    t_in1 = parse_transducer(tin1_in, final1, Role::t_in, dict);
+    std::ifstream tin2_in(tin_order2.path());
+    t_in2 = parse_transducer(tin2_in, final2, Role::t_in, dict);
+    ASSERT_EQ(t_in1->delta_dfa()->num_states(),
+              t_in2->delta_dfa()->num_states());
+    ASSERT_EQ(t_in1->initial_state(), t_in2->initial_state());
+  }
 
   const std::vector<std::string> universe = {"a", "b", "c", "x"};
   for (std::size_t mask = 0; mask < (std::size_t{1} << universe.size());
@@ -392,12 +411,14 @@ TEST(LtlfEkDepsInputPartFile, I12DirectionsCommute) {
     for (std::size_t i = 0; i < universe.size(); ++i)
       assignment.insert({universe[i], static_cast<bool>((mask >> i) & 1u)});
     const bdd letter = Letter(probe, assignment);
-    for (unsigned s = 0; s < t_out1.delta_dfa()->num_states(); ++s)
-      EXPECT_EQ(t_out1.lambda(s, letter), t_out2.lambda(s, letter))
-          << "Tout state " << s << ", mask " << mask;
-    for (unsigned s = 0; s < t_in1.delta_dfa()->num_states(); ++s)
-      EXPECT_EQ(t_in1.lambda(s, letter), t_in2.lambda(s, letter))
-          << "Tin state " << s << ", mask " << mask;
+    if (has_tout)
+      for (unsigned s = 0; s < t_out1->delta_dfa()->num_states(); ++s)
+        EXPECT_EQ(t_out1->lambda(s, letter), t_out2->lambda(s, letter))
+            << "Tout state " << s << ", mask " << mask;
+    if (has_tin)
+      for (unsigned s = 0; s < t_in1->delta_dfa()->num_states(); ++s)
+        EXPECT_EQ(t_in1->lambda(s, letter), t_in2->lambda(s, letter))
+            << "Tin state " << s << ", mask " << mask;
   }
 }
 
@@ -441,7 +462,15 @@ class LtlfEkDepsInputOracleTest : public ::testing::Test {
 // three REALIZABLE.
 TEST_F(LtlfEkDepsInputOracleTest,
       I6TotalityWitnessAgreesAcrossAllThreeAndIsRealizable) {
-  const std::string phi_str = "F(a ^ b)";
+  // NOT F(a^b) (U1-in's shape): that phi never mentions the output x, so no
+  // system move participates and the environment always wins by playing
+  // a=b -- non-empty Xdep but UNREALIZABLE, which fails the last EXPECT_EQ
+  // below for a reason that has nothing to do with I6. U3-in's shape
+  // (docs/prd/input-dependencies-tool.md) has the output actually
+  // participate: the system can satisfy F(!a | (b^x)) unconditionally by
+  // playing x = !b at the first step, so it is realizable regardless of
+  // a/b, while still giving Xdep={a} (I3's exists/forall linchpin fixture).
+  const std::string phi_str = "F(!a | (b ^ x))";
   const ScopedTempFile emit_part;
   const ScopedTempFile transducer_file;
 
@@ -456,7 +485,7 @@ TEST_F(LtlfEkDepsInputOracleTest,
   std::ifstream emitted_in(emit_part.path());
   const VariablePartition emitted = parse_partition_file(emitted_in);
   ASSERT_EQ(emitted.input_known, (std::set<std::string>{"a"}))
-      << "phi=F(a^b) is U1-in's shape: a must be reported dependent";
+      << "phi=F(!a | (b^x)) is U3-in's shape: a must be reported dependent";
 
   const CliResult ek_baseline =
       RunEkSynth({"--dfa-product", "--formula=" + phi_str, "--inputs", "a,b",
