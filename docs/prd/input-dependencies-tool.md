@@ -1,6 +1,6 @@
 # PRD: input-dependency extraction (`ltlf-ek-deps --direction in`)
 
-**Status:** in progress — Phase 1 landed (commit `1c1e9ae`, branch `worktree-agent-aa2c33d4bd985cd7c`); Phase 2 (`--direction` CLI flag) not started
+**Status:** in progress — Phase 1 (shared `detail::` core + `dependent_inputs`) landed 2026-08-03 on branch `input-dependencies-tool`; Phase 2 (`--direction` CLI flag) not started
 **Interface:** new library entry `dependent_inputs` + a `--direction in|out` flag on the existing `ltlf-ek-deps`; does **not** implement `Synthesis`
 **Recommended workflow:** concurrent — the *Interfaces & types* freeze is **high**: `dependent_inputs` mirrors the landed `dependent_outputs` shape term for term, and the only genuinely new logic is one `bdd_exist` plus a `spot::formula::Not`.
 **main.tex ref:** `\cref{indep}` — `\cref{def:indep}`, `\cref{lem:indep-diagonal}`, `\cref{lem:indep-transducer}` (all written this session, both lemmas **unproved**)
@@ -19,8 +19,23 @@
       slice* precedent — which also keeps the "conflating them is the Moore bug"
       warning stated as a relation between the two, where the danger is._
 - [ ] tests           — unit + oracle coverage
+      _Phase 1 done, gate deliberately left OPEN: `/test-writer` landed
+      `tests/dependent_inputs_test.cpp` (U1-in–U6-in, O5-in and the six
+      library-level edge cases) and the suite is 556/556 green with
+      `tests/dependent_outputs_test.cpp` and `tests/ltlf_ek_deps_test.cpp`
+      **unedited** — the extraction's regression bar is met. The gate closes only
+      when Phase 2's O1-in, O3-in and O4-in are also written._
 - [ ] code-review     — domain (/code-reviewer) + generic (/review on the PR)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] theory-review   — code ↔ math faithfulness vs main.tex
+      _Closed 2026-08-03 (`/theory-review`, faithfulness mode, unattended, on
+      `master...worktree-indeps-phase1`). **No `code-bug`.** I1–I11 confirmed in
+      code with anchors; `dependent_outputs` behaviourally unchanged by the
+      extraction. Two `underspecified` notes drafted into `docs/BACKLOG.md`
+      (`latex/` is an uninitialized submodule in a worktree, so they are not in
+      `main.tex` yet). The reviewer additionally **resolved** the open question
+      "does $\lambda_{in}$ stay valid when $\Tout$ is later replaced?"
+      affirmatively — see *Findings deferred* in
+      `docs/runs/2026-08-03-input-dependencies-phase1.md`._
 
 ## Goal
 
@@ -568,6 +583,37 @@ public surface, which is a PRD-change event on
   $L(\lnot\varphi)$ as finite non-empty traces, and I2's refusal to obtain $\Aneg$
   by flipping acceptance on $A_\varphi$ is precisely because the empty/length-0
   convention is undefined in the paper.
+
+## Developer comments / PRD disagreements
+
+Recorded by the unattended Phase 1 run (2026-08-03). All are **"consider"** —
+none was acted on, each is the user's call.
+
+1. **I2's rationale is stale, though its conclusion is right** (`/theory-review`,
+   `doc-bug`). I2 and the *Violation automaton* glossary entry both justify
+   refusing to build $\Aneg$ by flipping acceptance on $A_\varphi$ with "an
+   acceptance flip is an untested equivalence, not a free complement". The
+   reviewer **tested it**: against an independent LTLf trace evaluator (no
+   `ltlf_to_dfa` in the loop), 17 formulas × all traces to length 4, including
+   the empty/length-0 cases `!X[!]1` and `a & !X[!]1` — 0 mismatches, 0
+   acceptance-flip equivalence violations. The code's choice should stand (it is
+   the glossary definition, and O5-in's state-index comparison depends on both
+   sides calling the same `ltlf_to_dfa`), but the wording should read as a
+   *design choice*, not a soundness requirement, or a future reader will treat a
+   correct construction as forbidden. **Glossary wording is user-owned, so no
+   edit was made.**
+2. **The output direction's exception messages changed prefix.** Errors now read
+   `run_dependency_analysis: …` where they read `dependent_outputs: …`, and
+   `src/ltlf_ek_deps.cpp:369,414` prints `e.what()` to stderr, so this is
+   user-visible. No test asserts on it and exit codes are unaffected, but it is
+   the one thing about the output direction that is not bit-for-bit identical
+   after the extraction. Fix would be to have each delegating wrapper re-throw
+   with its own prefix — a decision about the CLI's user-facing text.
+3. **`scanned` reads `partition.output_free` where the old code read
+   `partition.outputs()`** (`src/detail/dependency_core.cpp:220`). Equal only
+   because the I9 guard forces the role's own known-set empty; the repartition
+   loop below still iterates `partition.outputs()`. Harmless today, latent if I9
+   is ever relaxed.
 
 ## Definition of done
 

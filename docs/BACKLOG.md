@@ -85,6 +85,66 @@ out below._
   The honest question is whether it beats 3.2 for the next slot — the $\Tout$
   oracle is no longer a competitor for it, having shipped 2026-08-03.
 
+### `\cl` notes drafted by `/theory-review` for `main.tex` §`indep` (2026-08-03)
+
+**Not yet applied.** `latex/` is an uninitialized submodule in the
+`worktree-indeps-phase1` worktree, so these are parked here per `CLAUDE.md`.
+Apply them from the main checkout, uncommitted, before pushing §`indep` to
+Overleaf again. Context: `/theory-review` ran faithfulness mode on Phase 1 of
+`docs/prd/input-dependencies-tool.md` and found **no `code-bug`** — these are
+doc-side notes recording evidence the paper does not yet carry.
+
+1. **After `\cref{lem:indep-diagonal}`'s existing `\cl` note (`main.tex:589`),
+   record that the criterion is now machine-checked against `\cref{def:indep}`
+   itself, not only against its sibling lemma:**
+
+```latex
+\cl[inline]{The criterion has been checked against~\cref{def:indep} directly and
+not merely by analogy with~\cref{lem:outdep-diagonal}: a brute-force oracle
+enumerates every trace of $L(\lnot\varphi)$ up to length four over
+$\mathcal{I} \cup \mathcal{O}$ and searches for the pair $w, w'$
+that~\cref{def:indep} forbids, independently of any automaton, and agrees with
+the $\Xdep$ the implementation returns on every formula tried, including the
+subset-maximality probe on each strict superset of $\Xdep$.
+That is evidence for the reduction, not a proof of it, and in one direction
+only: a bounded witness refutes input-dependence outright, whereas its absence
+at length four is not input-dependence.}
+```
+
+2. **After `\cref{lem:indep-transducer}`'s existing `\cl` note
+   (`main.tex:604`), record the equirealizability evidence and make explicit
+   the step that the $\exists$ of $\liveproj{s}$ — rather than a $\forall$ —
+   is what the equirealizability sketch actually leans on:**
+
+```latex
+\cl[inline]{Two things the sketch above leaves implicit.
+First, the step ``any environment deviation from $\lambda_{in}$ enters a state
+from which no continuation violates $\varphi$'' is precisely where
+$\liveproj{s}$ must be the \textbf{existential} projection: a deviating $u$
+lies outside $\liveproj{s} = \exists \mathcal{O}.\liveset{s}$ exactly when
+\emph{every} output completion sends $\delta_{\Aneg}$ to a dead state, so the
+system wins whatever it, or a given $\Tout$, plays next --- and since a dead
+state is by reflexivity non-accepting, the trace already satisfies $\varphi$
+and the system may stop immediately.
+Under a universal projection the same step fails, so the quantifier is forced by
+this proof obligation and is not a modelling choice.
+Second, the equirealizability claim itself is unproved but has been tested: over
+eight hundred random formulas and two partitions, every $\varphi$ for which the
+construction returned a non-empty $\Xdep$ was realizable with the emitted $\Tin$
+exactly when it was realizable without it.}
+```
+
+3. **`\cref{lem:indep-diagonal}` is stated for ``a deterministic automaton with
+   $L(\Aneg) = L(\lnot\varphi)$'', and the implementation notes (I2 of the PRD,
+   and the *Violation automaton* glossary entry) forbid obtaining it by flipping
+   acceptance on $A_\varphi$ on the grounds that the equivalence is
+   ``untested''. It has now been tested and it holds**, so the ban should read
+   as a design choice rather than a soundness requirement — otherwise a future
+   reader treats a correct construction as forbidden. No `main.tex` edit is
+   required (the lemma is already generic); the wording to fix lives in
+   `docs/prd/input-dependencies-tool.md` I2 and in `docs/GLOSSARY.md`'s
+   *Violation automaton* entry.
+
 ## Later
 
 ### X-shift second formulation of the input-dependency criterion (cross-check oracle)
