@@ -1,6 +1,6 @@
 # PRD: input-dependency extraction (`ltlf-ek-deps --direction in`)
 
-**Status:** in progress — Phase 1 (shared `detail::` core + `dependent_inputs`) landed 2026-08-03 on branch `input-dependencies-tool`; Phase 2 (`--direction` CLI flag) landed 2026-08-03, commit `18a63d6` on branch `worktree-agent-a59f4a891095c66ea` — CMake needed no changes (the target and both source files were already wired by Phase 1)
+**Status:** in progress — **both phases landed 2026-08-03.** Phase 1 (shared `detail::` core + `dependent_inputs`) on branch `input-dependencies-tool`; Phase 2 (`--direction` CLI flag, commit `18a63d6`, plus the O1-in/O3-in/O4-in oracles, commit `d42fcbe`, and the fixture repair `5e2f215`) integrated on `worktree-indeps-phase2` — CMake needed no changes for the flag (the target and both source files were already wired by Phase 1); the two new test files are registered. Suite **572/572 green**. The only gate still open is `code-review`, whose generic half runs as `/review` on the PR.
 **Interface:** new library entry `dependent_inputs` + a `--direction in|out` flag on the existing `ltlf-ek-deps`; does **not** implement `Synthesis`
 **Recommended workflow:** concurrent — the *Interfaces & types* freeze is **high**: `dependent_inputs` mirrors the landed `dependent_outputs` shape term for term, and the only genuinely new logic is one `bdd_exist` plus a `spot::formula::Not`.
 **main.tex ref:** `\cref{indep}` — `\cref{def:indep}`, `\cref{lem:indep-diagonal}`, `\cref{lem:indep-transducer}` (all written this session, both lemmas **unproved**)
@@ -18,7 +18,25 @@
       $\mathcal{I}\setminus\Xdep$ for inputs), following the *Observed / produced
       slice* precedent — which also keeps the "conflating them is the Moore bug"
       warning stated as a relation between the two, where the danger is._
-- [ ] tests           — unit + oracle coverage
+- [x] tests           — unit + oracle coverage
+      _Closed 2026-08-03 by the unattended Phase 2 run (`/test-writer`, commit
+      `d42fcbe`; fixture repair `5e2f215`). All four Phase 2 oracles are written
+      and executing: **O1-in** (`tests/ltlf_ek_deps_input_test.cpp`,
+      `LtlfEkDepsInputOracleTest.GeneratedCorpusEquirealizableAgainstBaselineAndLtlfsynt`
+      + the I6 totality witness), **O3-in** (`LtlfEkDepsInputPartFile.*`,
+      including I12's commutation), **O4-in**
+      (`tests/dependent_inputs_controller_test.cpp`, four hand fixtures + an I6
+      companion + a fixed-seed 6000-case generated-corpus sweep), alongside
+      Phase 1's U1-in–U6-in and O5-in. Suite **572/572, 0 failed**;
+      `tests/dependent_outputs_test.cpp` and `tests/ltlf_ek_deps_test.cpp` still
+      pass with their pre-existing content unedited, so the extraction's
+      regression bar holds at Phase 2 too. **Measured non-empty-$\Xdep$ rate
+      (DoD): 7/150 = 4.7%**, from O1-in's corpus pre-filter — below the output
+      tool's 12/150 (8%) and only just clearing the 5%-style floor (integer
+      `150/20 = 7`), i.e. it passes with **thin margin**; see disagreement 6.
+      One coverage gap is recorded as disagreement 5 rather than papered over:
+      I12's transducer-equality clause exercises $\Tout$ but not $\Tin$._
+      _Superseded gate notes from earlier passes:_
       _Phase 1 done, gate deliberately left OPEN: `/test-writer` landed
       `tests/dependent_inputs_test.cpp` (U1-in–U6-in, O5-in and the six
       library-level edge cases) and the suite is 556/556 green with
@@ -622,6 +640,43 @@ none was acted on, each is the user's call.
    because the I9 guard forces the role's own known-set empty; the repartition
    loop below still iterates `partition.outputs()`. Harmless today, latent if I9
    is ever relaxed.
+
+Recorded by the unattended Phase 2 run (2026-08-03). Also **"consider"** — not
+acted on.
+
+4. **Two Phase 2 oracle fixtures were wrong on first write, both the same trap,
+   and neither was a code bug.** `F(a \oplus b)` has a non-empty $\Xdep$ but is
+   *unrealizable* — no output occurs in it, so the environment simply always
+   plays $a=b$. It was picked twice (once by `/test-writer` for O4-in, once for
+   O1-in's I6 witness) as a "non-empty $\Xdep$" witness where a *realizable* one
+   was needed. Both now use the U3-in shape `F(\lnot a \lor (b \oplus x))`, in
+   which the output genuinely participates. Worth stating in the PRD's oracle
+   section that an I6 witness must be realizable **and** input-dependent, since
+   the two conditions pull in opposite directions and the trap is not obvious.
+5. **I12's commutation oracle covers $\Tout$ but not $\Tin$**
+   (`tests/ltlf_ek_deps_input_test.cpp`, `I12DirectionsCommute`). Its fixture
+   $G(a \leftrightarrow x) \land F(b \oplus c)$ has $\Xdep^{out}=\{x\}$ but
+   $\Xdep^{in}=\emptyset$, so the transducer-equality clause runs for $\Tout$
+   while the $\Tin$ comparison is guarded away — the commutation content for the
+   input direction reduces to "both orders agree the file is absent". The guard
+   itself is correct (the Edge case says an empty $\Xdep$ writes no transducer),
+   and the run is not vacuous, but the direction this PRD exists for is the
+   under-covered one. **The obstruction looks structural, not a bad guess:**
+   probing the built CLI, $F(\lnot b \lor (c \oplus y))$ alone gives
+   $\Xdep^{in}=\{b\}$, and conjoining *any* out-dependent constraint onto it
+   drives $\Xdep^{in}$ to $\emptyset$ — because the input side analyses
+   $L(\lnot\varphi)$ and $\lnot(A \land B) = \lnot A \lor \lnot B$ opens live
+   escape routes, so no input stays forced. That is I2's negation behaving
+   exactly as specified, but it means a single $\varphi$ making **both**
+   directions non-empty may not be constructible by conjunction at all. Whether
+   to hunt for one by another route, or to accept the split coverage and say so
+   in the oracle section, is a decision for the grill.
+6. **The measured $\Xdep\neq\emptyset$ rate clears its floor by one case.**
+   7/150 = 4.7%, versus the output tool's 12/150. The floor is written as integer
+   `150/20 = 7`, so the assertion passes at exactly the boundary: one fewer
+   dependent formula in a regenerated corpus and O1-in fails on vacuity rather
+   than on a real defect. Either the floor or the corpus filter probably wants
+   revisiting; the number is recorded honestly rather than tuned.
 
 ## Definition of done
 
