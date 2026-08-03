@@ -621,6 +621,58 @@ TEST(LtlfEkDepsFlags, RejectsARepeatedFlagRatherThanSilentlyTakingTheLast) {
 }
 
 // ---------------------------------------------------------------------------
+// --direction -- CLI-level unit tests for the flag itself (PRD Phase 2 of
+// docs/prd/input-dependencies-tool.md). The oracles that check --direction in
+// against the frozen semantic contract (O1-in, O3-in, O4-in) belong to
+// /test-writer; these only pin the flag's own plumbing: default, value
+// validation, the "in"-noun stdout line and the no-transducer-on-empty-Xdep
+// edge case (Edge cases, "Xdep=empty").
+// ---------------------------------------------------------------------------
+
+TEST(LtlfEkDepsDirectionFlag, DefaultDirectionIsOutByteIdenticalToNoFlagAtAll) {
+  const CliResult with_flag =
+      RunEkDeps({"--formula=G(a <-> x)", "--inputs", "a", "--outputs",
+                 "x,y", "--direction=out"});
+  const CliResult without_flag = RunEkDeps(
+      {"--formula=G(a <-> x)", "--inputs", "a", "--outputs", "x,y"});
+  EXPECT_EQ(with_flag.exit_code, without_flag.exit_code);
+  EXPECT_EQ(with_flag.stdout_text, without_flag.stdout_text);
+  EXPECT_EQ(with_flag.stdout_text, "dependent outputs: x   (of x, y)\n");
+}
+
+TEST(LtlfEkDepsDirectionFlag, RejectsAnUnrecognisedDirectionValue) {
+  const CliResult deps =
+      RunEkDeps({"--formula=G(a <-> x)", "--inputs", "a", "--outputs", "x",
+                 "--direction=sideways"});
+  EXPECT_EQ(deps.exit_code, 2);
+  EXPECT_EQ(deps.stdout_text, "");
+}
+
+TEST(LtlfEkDepsDirectionFlag, DirectionInPrintsTheInputsNounWithNonEmptyXdep) {
+  // U1-in's fixture (PRD "Test oracles"): phi = F(a xor b), I = {a, b},
+  // O = {x} ==> Xdep = {a} (lexicographic).
+  const CliResult deps =
+      RunEkDeps({"--formula=F(a <-> !b)", "--inputs", "a,b", "--outputs", "x",
+                 "--direction=in"});
+  EXPECT_EQ(deps.exit_code, 0);
+  EXPECT_EQ(deps.stdout_text, "dependent inputs: a   (of a, b)\n");
+}
+
+TEST(LtlfEkDepsDirectionFlag,
+     DirectionInWithEmptyXdepPrintsNoneAndWritesNoTransducer) {
+  // U2-in's fixture: phi = G(a -> x), I = {a}, O = {x} ==> Xdep = empty (the
+  // environment can always still play a and hope for !x).
+  ScopedTempDir tmp;
+  const std::string transducer_path = tmp.path() + "/t_in.txt";
+  const CliResult deps =
+      RunEkDeps({"--formula=G(a -> x)", "--inputs", "a", "--outputs", "x",
+                 "--direction=in", "--transducer", transducer_path});
+  EXPECT_EQ(deps.exit_code, 0);
+  EXPECT_EQ(deps.stdout_text, "dependent inputs: none\n");
+  EXPECT_FALSE(std::ifstream(transducer_path).good());
+}
+
+// ---------------------------------------------------------------------------
 // O1 -- end-to-end equirealizability oracle, the linchpin. Gated on ltlfsynt
 // (the external, independent oracle) via a fixture mirroring
 // tests/ltlfsynt_oracle_test.cpp's LtlfsyntOracleTest: GTEST_SKIP()s
