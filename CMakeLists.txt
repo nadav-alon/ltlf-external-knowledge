@@ -121,6 +121,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/transducer_io_test.cpp
     tests/undetermined_variable_test.cpp
     tests/dependent_outputs_test.cpp
+    tests/dependent_inputs_test.cpp
     tests/output_dependencies_controller_test.cpp
     tests/ltlf_to_dfa_test.cpp
     tests/mona_dfa_test.cpp
