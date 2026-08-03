@@ -11,19 +11,16 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
-_Top priority (decided 2026-08-03, in a grill): **#1 is input-dependency
-extraction** (`docs/prd/input-dependencies-tool.md`) — and it is now **launchable
-unattended**, which is what settled the ranking. `main.tex` §`indep` is committed
-and pushed to Overleaf, and its three new glossary terms plus three amendments
-are written, so the launch gate is clean and `/developer` will not stop to
-interview anyone. Its *Interfaces & types* freeze is rated **high** because
-`dependent_inputs` mirrors the landed, gate-closed `dependent_outputs` term for
-term; the only genuinely new logic is one `bdd_exist` and a
-`spot::formula::Not`. The two runners-up were not merely deprioritised — **each
-still needs an evening's grill before it can start at all**: Method 3.2 has no
-PRD *and* a proven blocker (state-keyed $F_P$ over-accepts; theory review says
-re-key on the transition), and Method 3.1 Phase 2 is marked "least settled" while
-optimizing a term its own benchmark says is no longer the bottleneck._
+_**The slot is unranked as of 2026-08-03.** Input-dependency extraction — the
+`#1` decided in that morning's grill — **shipped the same day** (see Done), so
+the ranking it settled is spent. Both remaining items below were already
+recorded as needing **an evening's grill before either can start at all**, and
+that has not happened: Method 3.2 has no PRD *and* a proven blocker (state-keyed
+$F_P$ over-accepts; theory review says re-key on the transition), and Method 3.1
+Phase 2's own PRD marks its *Interfaces & types* block "least settled; expect
+revision" with `otf_solve_fused`'s name explicitly not canonical yet — so it
+fails the unattended launch gate on both the freeze and the glossary check.
+**Ranking the next slot is the first thing the next grill owes.**_
 
 _The $\Tout$ oracle **shipped 2026-08-03** (see Done), which retired the previous
 "3.2 or the $\Tout$ oracle" pairing. **Method 3.1 is DONE** (see Done; it landed
@@ -31,27 +28,6 @@ as `OtfMtdfaProduct` in `0ce5fab`, closed every gate, and benchmarked
 **POSITIVE** — up to 5488x over `MtdfaProduct` where $\cons$ prunes, the first
 method to beat the standing champion). Its Phase 2 (`otf_solve_fused`) is spun
 out below._
-
-### Input-dependency extraction (`ltlf-ek-deps --direction in`) — **#1**
-- **PRD: GRILLED 2026-07-31 → `docs/prd/input-dependencies-tool.md`; launch gate
-  CLEAN as of 2026-08-03.** Two phases: (1) extract the shared `detail::`
-  dependency core and add `dependent_inputs`, (2) the `--direction` flag. The
-  regression bar on Phase 1 is that the existing suite passes **unedited** — if a
-  test needs editing, the public surface moved and that is a PRD-change event.
-- **Intent:** extract the *environment*'s forced moves from $\varphi$ and
-  materialise them as a $\Tin$, the way the output tool already extracts the
-  system's as a $\Tout$. Every method's benchmarks and oracles currently run
-  against a trivial or hand-written $\Tin$; this closes that gap.
-- **The two differences from the output notion, both forced:** the analysed
-  language is $L(\lnot\varphi)$ (the *Violation automaton*), and $\Ydep$ is
-  $\mathcal{I}\setminus\Xdep$ — because $\Sin$ moves before the controller, so
-  $\lambda_{in}$ may not read the current step's outputs (*Projected live-letter
-  region*, and the projection is $\exists$, not $\forall$).
-- **Known theory position:** both `\cref{lem:indep-diagonal}` and
-  `\cref{lem:indep-transducer}` are stated **unproved**, exactly as the `outdep`
-  lemmas are, and the equirealizability claim leans on `\cref{def:probDef}`'s
-  unsettled termination reading *more heavily* than the output side does. Accepted
-  at the same evidence bar as `outdep`: the code plus the O1-in oracle.
 
 ### Method 3.2 — on-the-fly **aggregated** product (`otfagg`, `\cref{alg:otfdfa_agg_product}`)
 - **Intent:** the next unbuilt cell after 3.1. Aggregate on $[\psi]$ alone
@@ -531,6 +507,42 @@ exactly when it was realizable without it.}
   parse; also drops the temp-file write + `-w` table parsing, or keep those?
 
 ## Done
+
+### Input-dependency extraction (`ltlf-ek-deps --direction in`) — **DONE 2026-08-03**
+- **Shipped in two unattended day-run phases**, both on branch
+  `input-dependencies-tool` (**PR #6**, draft): Phase 1 (shared `detail::`
+  dependency core + `dependent_inputs`) and Phase 2 (the `--direction in|out`
+  flag + the O1-in/O3-in/O4-in oracles). `ctest` **572/572**, all four gates
+  closed, and the pre-existing suite passed **unedited**, so the extraction's
+  regression bar held throughout. Reports:
+  `docs/runs/2026-08-03-input-dependencies-phase{1,2}.md`.
+- **Two things it leaves the grill**, both recorded as PRD "consider" items
+  rather than fixed unattended: the measured $\Xdep\neq\emptyset$ rate is
+  **7/150 = 4.7%**, clearing O1-in's vacuity floor by exactly one case; and
+  I12's commutation oracle covers $\Tout$ but not $\Tin$, because conjoining an
+  out-dependent constraint provably drives $\Xdep^{in}$ to $\emptyset$ (the
+  input side analyses $L(\lnot\varphi)$, and $\lnot(A\land B)$ opens live escape
+  routes), so a single $\varphi$ non-empty in **both** directions may not be
+  constructible by conjunction at all.
+- **PRD: GRILLED 2026-07-31 → `docs/prd/input-dependencies-tool.md`; launch gate
+  CLEAN as of 2026-08-03.** Two phases: (1) extract the shared `detail::`
+  dependency core and add `dependent_inputs`, (2) the `--direction` flag. The
+  regression bar on Phase 1 is that the existing suite passes **unedited** — if a
+  test needs editing, the public surface moved and that is a PRD-change event.
+- **Intent:** extract the *environment*'s forced moves from $\varphi$ and
+  materialise them as a $\Tin$, the way the output tool already extracts the
+  system's as a $\Tout$. Every method's benchmarks and oracles currently run
+  against a trivial or hand-written $\Tin$; this closes that gap.
+- **The two differences from the output notion, both forced:** the analysed
+  language is $L(\lnot\varphi)$ (the *Violation automaton*), and $\Ydep$ is
+  $\mathcal{I}\setminus\Xdep$ — because $\Sin$ moves before the controller, so
+  $\lambda_{in}$ may not read the current step's outputs (*Projected live-letter
+  region*, and the projection is $\exists$, not $\forall$).
+- **Known theory position:** both `\cref{lem:indep-diagonal}` and
+  `\cref{lem:indep-transducer}` are stated **unproved**, exactly as the `outdep`
+  lemmas are, and the equirealizability claim leans on `\cref{def:probDef}`'s
+  unsettled termination reading *more heavily* than the output side does. Accepted
+  at the same evidence bar as `outdep`: the code plus the O1-in oracle.
 
 ### `ltlfsynt` oracle — known-**output** ($\Tout$) reduction — **DONE 2026-08-03**
 - **Outcome:** shipped in PR #3 (`a0d38e9`), both phases, **test-only — no
