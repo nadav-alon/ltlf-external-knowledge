@@ -125,6 +125,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/dependent_outputs_test.cpp
     tests/dependent_inputs_test.cpp
     tests/output_dependencies_controller_test.cpp
+    tests/dependent_inputs_controller_test.cpp
     tests/ltlf_to_dfa_test.cpp
     tests/mona_dfa_test.cpp
     tests/reverse_dfa_to_nfa_test.cpp
@@ -147,6 +148,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/ltlf_ek_synth_test.cpp
     tests/ltlfsynt_oracle_test.cpp
     tests/ltlf_ek_deps_test.cpp
+    tests/ltlf_ek_deps_input_test.cpp
     tests/bench_test.cpp
   )
   target_link_libraries(unit_tests PRIVATE ltlf_ek GTest::gtest_main)
