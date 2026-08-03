@@ -1,6 +1,6 @@
 # PRD: input-dependency extraction (`ltlf-ek-deps --direction in`)
 
-**Status:** in progress — Phase 1 (shared `detail::` core + `dependent_inputs`) landed 2026-08-03 on branch `input-dependencies-tool`; Phase 2 (`--direction` CLI flag) not started
+**Status:** in progress — Phase 1 (shared `detail::` core + `dependent_inputs`) landed 2026-08-03 on branch `input-dependencies-tool`; Phase 2 (`--direction` CLI flag) landed 2026-08-03, commit `18a63d6` on branch `worktree-agent-a59f4a891095c66ea` — CMake needed no changes (the target and both source files were already wired by Phase 1)
 **Interface:** new library entry `dependent_inputs` + a `--direction in|out` flag on the existing `ltlf-ek-deps`; does **not** implement `Synthesis`
 **Recommended workflow:** concurrent — the *Interfaces & types* freeze is **high**: `dependent_inputs` mirrors the landed `dependent_outputs` shape term for term, and the only genuinely new logic is one `bdd_exist` plus a `spot::formula::Not`.
 **main.tex ref:** `\cref{indep}` — `\cref{def:indep}`, `\cref{lem:indep-diagonal}`, `\cref{lem:indep-transducer}` (all written this session, both lemmas **unproved**)
@@ -25,6 +25,14 @@
       `tests/dependent_outputs_test.cpp` and `tests/ltlf_ek_deps_test.cpp`
       **unedited** — the extraction's regression bar is met. The gate closes only
       when Phase 2's O1-in, O3-in and O4-in are also written._
+      _Phase 2 (`/developer`, commit `18a63d6`) added only small CLI-level
+      unit tests for the `--direction` flag's own plumbing (default-is-out,
+      an invalid value, the "inputs" noun on stdout, no-transducer-on-empty-
+      Xdep) to `tests/ltlf_ek_deps_test.cpp` — suite now 560/560, still with
+      `tests/dependent_outputs_test.cpp` and `tests/dependent_inputs_test.cpp`
+      **unedited**. O1-in, O3-in and O4-in (the semantic oracles this gate is
+      actually waiting on) are `/test-writer`'s in-flight concurrent branch,
+      not written here._
 - [ ] code-review     — domain (/code-reviewer) + generic (/review on the PR)
 - [x] theory-review   — code ↔ math faithfulness vs main.tex
       _Closed 2026-08-03 (`/theory-review`, faithfulness mode, unattended, on
