@@ -1,6 +1,6 @@
 # PRD: input-dependency extraction (`ltlf-ek-deps --direction in`)
 
-**Status:** in progress — **both phases landed 2026-08-03.** Phase 1 (shared `detail::` core + `dependent_inputs`) on branch `input-dependencies-tool`; Phase 2 (`--direction` CLI flag, commit `18a63d6`, plus the O1-in/O3-in/O4-in oracles, commit `d42fcbe`, and the fixture repair `5e2f215`) integrated on `worktree-indeps-phase2` — CMake needed no changes for the flag (the target and both source files were already wired by Phase 1); the two new test files are registered. Suite **572/572 green**. The only gate still open is `code-review`, whose generic half runs as `/review` on the PR.
+**Status:** implemented — **both phases landed 2026-08-03.** Phase 1 (shared `detail::` core + `dependent_inputs`) on branch `input-dependencies-tool`; Phase 2 (`--direction` CLI flag, commit `18a63d6`, plus the O1-in/O3-in/O4-in oracles, commit `d42fcbe`, and the fixture repair `5e2f215`) integrated on `worktree-indeps-phase2` — CMake needed no changes for the flag (the target and both source files were already wired by Phase 1); the two new test files are registered. Suite **572/572 green**. **All four gates closed** — `code-review` by `/code-reviewer` (domain) plus `/review 6` (generic), neither raising a must-fix. Status is `implemented`; every DoD bullet is met, including the measured $\Xdep\neq\emptyset$ rate.
 **Interface:** new library entry `dependent_inputs` + a `--direction in|out` flag on the existing `ltlf-ek-deps`; does **not** implement `Synthesis`
 **Recommended workflow:** concurrent — the *Interfaces & types* freeze is **high**: `dependent_inputs` mirrors the landed `dependent_outputs` shape term for term, and the only genuinely new logic is one `bdd_exist` plus a `spot::formula::Not`.
 **main.tex ref:** `\cref{indep}` — `\cref{def:indep}`, `\cref{lem:indep-diagonal}`, `\cref{lem:indep-transducer}` (all written this session, both lemmas **unproved**)
@@ -51,7 +51,20 @@
       **unedited**. O1-in, O3-in and O4-in (the semantic oracles this gate is
       actually waiting on) are `/test-writer`'s in-flight concurrent branch,
       not written here._
-- [ ] code-review     — domain (/code-reviewer) + generic (/review on the PR)
+- [x] code-review     — domain (/code-reviewer) + generic (/review on the PR)
+      _Closed 2026-08-03 by the unattended Phase 2 run, **both halves actually
+      run**. Domain: `/code-reviewer` on `3eadb89..worktree-indeps-phase2` —
+      **no must-fix**; no new public identifier names a domain concept
+      (`direction`/`is_in`/`noun` are anonymous-namespace CLI locals), both
+      transducer parses in the commutation test share one `spot::bdd_dict` so
+      the asserted BDD equality is meaningful, no Spot machinery reinvented,
+      `--direction out` byte-identical by construction. `theory-reviewer` was
+      deliberately not spawned: the phase changed CLI orchestration and tests
+      only, `detail::dependency_core` is untouched, and Phase 1 closed that
+      gate. Generic: `/review 6` on PR #6 (`master...input-dependencies-tool`,
+      +2494/−290, 17 files) — **no must-fix**; two "consider" items recorded as
+      disagreements 7 and 8. `latex/` was never touched, so no `main.tex:NNN`
+      citation drift._
 - [x] theory-review   — code ↔ math faithfulness vs main.tex
       _Closed 2026-08-03 (`/theory-review`, faithfulness mode, unattended, on
       `master...worktree-indeps-phase1`). **No `code-bug`.** I1–I11 confirmed in
@@ -677,6 +690,25 @@ acted on.
    dependent formula in a regenerated corpus and O1-in fails on vacuity rather
    than on a real defect. Either the floor or the corpus filter probably wants
    revisiting; the number is recorded honestly rather than tuned.
+
+Recorded by `/review` on PR #6 (the generic half of the `code-review` gate),
+2026-08-03. Also **"consider"**; no must-fix was raised.
+
+7. **Two `--direction in` Edge cases have no CLI test.** Both were verified
+   correct by hand against the built binary and neither is a defect — they are
+   simply unpinned: (a) $\varphi$ **valid** exits `3` with a message that does
+   name the direction (`phi is valid (…the environment can never force a
+   violation)`); (b) $\varphi$ **unsatisfiable** under `--direction in` exits `0`
+   and reports nothing dependent. The PRD's Edge cases call (b) out explicitly as
+   "worth an explicit test, since the reflex from the output tool is to expect
+   exit 3 here", and no test was written for it. As it stands, a future refactor
+   of the exception → exit-code mapping can regress either silently.
+8. **`--direction` is carried as a validated `std::string`, then re-tested by
+   value.** `ParseArgs` rejects anything but `in`/`out`, but `CliArgs::direction`
+   stays a string and `main()` re-derives `const bool is_in = (args.direction ==
+   "in")`. `detail/dependency_core.hpp` argues in its own comment against making
+   invalid combinations representable; parsing straight into an enum (or into
+   `Role`) would apply that same argument one layer up. Style only.
 
 ## Definition of done
 

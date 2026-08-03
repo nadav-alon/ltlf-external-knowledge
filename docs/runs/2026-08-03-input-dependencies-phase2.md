@@ -73,7 +73,7 @@ this phase.
 |---|---|---|
 | glossary | already `[x]` | closed 2026-08-03, user-attended |
 | tests | **ticked** | O1-in/O3-in/O4-in written and executing; 572/572; regression bar met |
-| code-review | **left open** | domain half clean (below); the generic half is `/review` on the PR — see *Deviation* |
+| code-review | **ticked** | **both halves ran**: `/code-reviewer` (domain, below) and `/review 6` on PR #6 — neither raised a must-fix |
 | theory-review | already `[x]` | closed in Phase 1; this phase changed no semantic code, so no re-run was owed |
 
 ### Domain review (`/code-reviewer`) — clean, no must-fix
@@ -112,12 +112,34 @@ never touched, so **no `main.tex:NNN` citation drift** was introduced.
 4. Phase 1's three "consider" entries and its five deferred findings remain
    open — including the two `\cl` notes still parked in `docs/BACKLOG.md`
    awaiting a non-worktree session.
+5. **Two `--direction in` Edge cases have no CLI test** (`/review`). Both were
+   verified correct by hand against the built binary — a **valid** $\varphi$
+   exits `3` with a message that does name the direction, and an
+   **unsatisfiable** $\varphi$ under `--direction in` correctly exits `0` — but
+   neither is pinned by a test, so a refactor of the exception → exit-code
+   mapping can regress them silently. The PRD's Edge cases specifically flag the
+   second as worth an explicit test. (PRD disagreement 7.)
+6. **`--direction` is carried as a validated `std::string` and then re-tested by
+   value** (`/review`). `dependency_core.hpp` argues in its own comment against
+   making invalid combinations representable; parsing into an enum would apply
+   that argument one layer up. Style only. (PRD disagreement 8.)
 
-## Deviation from the skill, stated plainly
+### Generic review (`/review 6`, on the PR) — clean, no must-fix
 
-Step 6a prescribes `/review <PR#>` for the generic half of the `code-review`
-gate. See the *Budget* section for whether it ran; if it did not, the gate is
-left **open** and unticked — an unrun pass is never a ticked gate.
+Scope: `master...input-dependencies-tool`, +2494/−290 across 17 files (i.e. both
+phases, since the PR spans the whole feature branch). The core algorithm reads
+correctly against its own stated invariants: liveness skips `bddfalse` guards so
+a never-takeable edge cannot propagate liveness; the totalisation
+`lambda_s = R_s | (!exist(R_s, Xdep) & default_X)` degenerates to `default_X`
+exactly at the dead and empty-region states, which is the documented intent; the
+greedy loop consumes the **accumulated** candidate, not singleton unions; and the
+existential projection quantifies over the **full** output cube, so an empty `O`
+is a no-op for free rather than by a special case. Two "consider" items, recorded
+as PRD disagreements 7 and 8 and **not acted on** — see *Findings deferred* 5–6.
+
+**This run did not deviate from the skill.** Both halves of the `code-review`
+gate ran, so it is ticked; `/code-review ultra` was not launched and no GitHub
+review was submitted.
 
 ## Questions for the evening grill
 
@@ -134,8 +156,7 @@ left **open** and unticked — an unrun pass is never a ticked gate.
    now that the acceptance flip is empirically established; restore the
    `dependent_outputs:` stderr prefix or accept `run_dependency_analysis:`;
    promote (or not) the theory reviewer's I10 argument to a settled claim.
-4. **This PRD is now feature-complete.** Its DoD is met apart from the
-   `code-review` gate. What is next in the backlog is an open question the
+4. **This PRD is DONE — all four gates closed and every DoD bullet met.** What is next in the backlog is an open question the
    backlog itself does not answer: the two runners-up (Method 3.2, Method 3.1
    Phase 2) are both marked as needing their own grill before they can start.
 
@@ -143,4 +164,9 @@ left **open** and unticked — an unrun pass is never a ticked gate.
 
 Phases run: **1** (as instructed). Agents spawned: 3 (`developer`,
 `test-writer`, a repair `developer`). Repair rounds: **1** of 2. Review fix
-rounds: **0**. No context compaction. Inside the 18:02 deadline.
+rounds: **0** (neither review half raised a must-fix). No context compaction.
+Inside the 18:02 deadline.
+
+One housekeeping note: the merge into the feature branch was performed from the
+user's own checkout (a worktree cannot check out a branch another worktree
+holds). It was returned to `master` immediately afterwards and left clean.
