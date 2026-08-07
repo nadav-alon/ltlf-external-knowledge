@@ -709,6 +709,21 @@ Recorded by `/review` on PR #6 (the generic half of the `code-review` gate),
    "in")`. `detail/dependency_core.hpp` argues in its own comment against making
    invalid combinations representable; parsing straight into an enum (or into
    `Role`) would apply that same argument one layer up. Style only.
+9. **The `live[s] ? analysis_regions[s] : bdd(bddfalse)` ternary is redundant**
+   (`src/detail/dependency_core.cpp:279`). `compute_live_regions` already
+   initialises the vector to `bddfalse` and `continue`s on a non-live state, so
+   the false arm is unreachable. Harmless defensive code; flagged only so a
+   future reader does not infer that non-live states carry a region.
+10. **O5-in compares $\lambda$ pointwise, not by BDD identity.**
+    `OutputLabeledTransducer` exposes only `lambda(q, v)`, so
+    `tests/dependent_inputs_test.cpp` enumerates every state × every $\Ifree$
+    letter. Extensionally equivalent for a total finite-domain function pair,
+    and the PRD itself offers `print_transducer`/`parse_transducer` as the
+    fallback, but it is not the literal "BDD equality" the PRD asks for.
+
+_Items 9–10 were raised by the Phase 1 `/code-reviewer` pass and recovered
+2026-08-08 from an uncommitted draft in the `worktree-indeps-phase1` worktree,
+which had never been committed. See PR #9._
 
 ## Definition of done
 
