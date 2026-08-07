@@ -40,10 +40,10 @@
 
 // Full suite for docs/prd/mtnfa-product.md, bound to the FROZEN "Interfaces &
 // types" block (mtnfa_product_to_mtdfa(goal, taus, vars); MtnfaProduct ::
-// Synthesis). CONCURRENT WORKFLOW: /developer is landing
-// include/ltlf_ek/mtnfa_product.hpp + src/mtnfa_product.cpp on a separate
-// worktree; this file will not compile/link until that lands, and that is the
-// correct state on this branch (test-writer skill, "Before writing").
+// Synthesis) rather than to the implementation, so these assertions bind to
+// the published contract: a divergence found here is a PRD-change event, not
+// a test to patch. `MtnfaProduct` landed 2026-07-28, so a failure in this
+// file is a real regression.
 //
 // Territory discipline: this file + the `unit_tests` CMakeLists.txt entry are
 // this agent's ONLY changes, so the "make_synthesis_method('mtnfa-product')"
