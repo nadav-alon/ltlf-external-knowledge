@@ -70,7 +70,9 @@ add_library(ltlf_ek
   src/verify_controller.cpp
   src/cli.cpp
   src/bench.cpp
+  src/detail/dependency_core.cpp
   src/dependent_outputs.cpp
+  src/dependent_inputs.cpp
 )
 target_include_directories(ltlf_ek
   PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -121,7 +123,9 @@ if(LTLF_EK_BUILD_TESTS)
     tests/transducer_io_test.cpp
     tests/undetermined_variable_test.cpp
     tests/dependent_outputs_test.cpp
+    tests/dependent_inputs_test.cpp
     tests/output_dependencies_controller_test.cpp
+    tests/dependent_inputs_controller_test.cpp
     tests/ltlf_to_dfa_test.cpp
     tests/mona_dfa_test.cpp
     tests/reverse_dfa_to_nfa_test.cpp
@@ -144,6 +148,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/ltlf_ek_synth_test.cpp
     tests/ltlfsynt_oracle_test.cpp
     tests/ltlf_ek_deps_test.cpp
+    tests/ltlf_ek_deps_input_test.cpp
     tests/bench_test.cpp
   )
   target_link_libraries(unit_tests PRIVATE ltlf_ek GTest::gtest_main)

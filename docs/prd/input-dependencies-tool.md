@@ -1,6 +1,6 @@
 # PRD: input-dependency extraction (`ltlf-ek-deps --direction in`)
 
-**Status:** draft
+**Status:** implemented — **both phases landed 2026-08-03.** Phase 1 (shared `detail::` core + `dependent_inputs`) on branch `input-dependencies-tool`; Phase 2 (`--direction` CLI flag, commit `18a63d6`, plus the O1-in/O3-in/O4-in oracles, commit `d42fcbe`, and the fixture repair `5e2f215`) integrated on `worktree-indeps-phase2` — CMake needed no changes for the flag (the target and both source files were already wired by Phase 1); the two new test files are registered. Suite **572/572 green**. **All four gates closed** — `code-review` by `/code-reviewer` (domain) plus `/review 6` (generic), neither raising a must-fix. Status is `implemented`; every DoD bullet is met, including the measured $\Xdep\neq\emptyset$ rate.
 **Interface:** new library entry `dependent_inputs` + a `--direction in|out` flag on the existing `ltlf-ek-deps`; does **not** implement `Synthesis`
 **Recommended workflow:** concurrent — the *Interfaces & types* freeze is **high**: `dependent_inputs` mirrors the landed `dependent_outputs` shape term for term, and the only genuinely new logic is one `bdd_exist` plus a `spot::formula::Not`.
 **main.tex ref:** `\cref{indep}` — `\cref{def:indep}`, `\cref{lem:indep-diagonal}`, `\cref{lem:indep-transducer}` (all written this session, both lemmas **unproved**)
@@ -18,9 +18,63 @@
       $\mathcal{I}\setminus\Xdep$ for inputs), following the *Observed / produced
       slice* precedent — which also keeps the "conflating them is the Moore bug"
       warning stated as a relation between the two, where the danger is._
-- [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/review on the PR)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] tests           — unit + oracle coverage
+      _Closed 2026-08-03 by the unattended Phase 2 run (`/test-writer`, commit
+      `d42fcbe`; fixture repair `5e2f215`). All four Phase 2 oracles are written
+      and executing: **O1-in** (`tests/ltlf_ek_deps_input_test.cpp`,
+      `LtlfEkDepsInputOracleTest.GeneratedCorpusEquirealizableAgainstBaselineAndLtlfsynt`
+      + the I6 totality witness), **O3-in** (`LtlfEkDepsInputPartFile.*`,
+      including I12's commutation), **O4-in**
+      (`tests/dependent_inputs_controller_test.cpp`, four hand fixtures + an I6
+      companion + a fixed-seed 6000-case generated-corpus sweep), alongside
+      Phase 1's U1-in–U6-in and O5-in. Suite **572/572, 0 failed**;
+      `tests/dependent_outputs_test.cpp` and `tests/ltlf_ek_deps_test.cpp` still
+      pass with their pre-existing content unedited, so the extraction's
+      regression bar holds at Phase 2 too. **Measured non-empty-$\Xdep$ rate
+      (DoD): 7/150 = 4.7%**, from O1-in's corpus pre-filter — below the output
+      tool's 12/150 (8%) and only just clearing the 5%-style floor (integer
+      `150/20 = 7`), i.e. it passes with **thin margin**; see disagreement 6.
+      One coverage gap is recorded as disagreement 5 rather than papered over:
+      I12's transducer-equality clause exercises $\Tout$ but not $\Tin$._
+      _Superseded gate notes from earlier passes:_
+      _Phase 1 done, gate deliberately left OPEN: `/test-writer` landed
+      `tests/dependent_inputs_test.cpp` (U1-in–U6-in, O5-in and the six
+      library-level edge cases) and the suite is 556/556 green with
+      `tests/dependent_outputs_test.cpp` and `tests/ltlf_ek_deps_test.cpp`
+      **unedited** — the extraction's regression bar is met. The gate closes only
+      when Phase 2's O1-in, O3-in and O4-in are also written._
+      _Phase 2 (`/developer`, commit `18a63d6`) added only small CLI-level
+      unit tests for the `--direction` flag's own plumbing (default-is-out,
+      an invalid value, the "inputs" noun on stdout, no-transducer-on-empty-
+      Xdep) to `tests/ltlf_ek_deps_test.cpp` — suite now 560/560, still with
+      `tests/dependent_outputs_test.cpp` and `tests/dependent_inputs_test.cpp`
+      **unedited**. O1-in, O3-in and O4-in (the semantic oracles this gate is
+      actually waiting on) are `/test-writer`'s in-flight concurrent branch,
+      not written here._
+- [x] code-review     — domain (/code-reviewer) + generic (/review on the PR)
+      _Closed 2026-08-03 by the unattended Phase 2 run, **both halves actually
+      run**. Domain: `/code-reviewer` on `3eadb89..worktree-indeps-phase2` —
+      **no must-fix**; no new public identifier names a domain concept
+      (`direction`/`is_in`/`noun` are anonymous-namespace CLI locals), both
+      transducer parses in the commutation test share one `spot::bdd_dict` so
+      the asserted BDD equality is meaningful, no Spot machinery reinvented,
+      `--direction out` byte-identical by construction. `theory-reviewer` was
+      deliberately not spawned: the phase changed CLI orchestration and tests
+      only, `detail::dependency_core` is untouched, and Phase 1 closed that
+      gate. Generic: `/review 6` on PR #6 (`master...input-dependencies-tool`,
+      +2494/−290, 17 files) — **no must-fix**; two "consider" items recorded as
+      disagreements 7 and 8. `latex/` was never touched, so no `main.tex:NNN`
+      citation drift._
+- [x] theory-review   — code ↔ math faithfulness vs main.tex
+      _Closed 2026-08-03 (`/theory-review`, faithfulness mode, unattended, on
+      `master...worktree-indeps-phase1`). **No `code-bug`.** I1–I11 confirmed in
+      code with anchors; `dependent_outputs` behaviourally unchanged by the
+      extraction. Two `underspecified` notes drafted into `docs/BACKLOG.md`
+      (`latex/` is an uninitialized submodule in a worktree, so they are not in
+      `main.tex` yet). The reviewer additionally **resolved** the open question
+      "does $\lambda_{in}$ stay valid when $\Tout$ is later replaced?"
+      affirmatively — see *Findings deferred* in
+      `docs/runs/2026-08-03-input-dependencies-phase1.md`._
 
 ## Goal
 
@@ -568,6 +622,93 @@ public surface, which is a PRD-change event on
   $L(\lnot\varphi)$ as finite non-empty traces, and I2's refusal to obtain $\Aneg$
   by flipping acceptance on $A_\varphi$ is precisely because the empty/length-0
   convention is undefined in the paper.
+
+## Developer comments / PRD disagreements
+
+Recorded by the unattended Phase 1 run (2026-08-03). All are **"consider"** —
+none was acted on, each is the user's call.
+
+1. **I2's rationale is stale, though its conclusion is right** (`/theory-review`,
+   `doc-bug`). I2 and the *Violation automaton* glossary entry both justify
+   refusing to build $\Aneg$ by flipping acceptance on $A_\varphi$ with "an
+   acceptance flip is an untested equivalence, not a free complement". The
+   reviewer **tested it**: against an independent LTLf trace evaluator (no
+   `ltlf_to_dfa` in the loop), 17 formulas × all traces to length 4, including
+   the empty/length-0 cases `!X[!]1` and `a & !X[!]1` — 0 mismatches, 0
+   acceptance-flip equivalence violations. The code's choice should stand (it is
+   the glossary definition, and O5-in's state-index comparison depends on both
+   sides calling the same `ltlf_to_dfa`), but the wording should read as a
+   *design choice*, not a soundness requirement, or a future reader will treat a
+   correct construction as forbidden. **Glossary wording is user-owned, so no
+   edit was made.**
+2. **The output direction's exception messages changed prefix.** Errors now read
+   `run_dependency_analysis: …` where they read `dependent_outputs: …`, and
+   `src/ltlf_ek_deps.cpp:369,414` prints `e.what()` to stderr, so this is
+   user-visible. No test asserts on it and exit codes are unaffected, but it is
+   the one thing about the output direction that is not bit-for-bit identical
+   after the extraction. Fix would be to have each delegating wrapper re-throw
+   with its own prefix — a decision about the CLI's user-facing text.
+3. **`scanned` reads `partition.output_free` where the old code read
+   `partition.outputs()`** (`src/detail/dependency_core.cpp:220`). Equal only
+   because the I9 guard forces the role's own known-set empty; the repartition
+   loop below still iterates `partition.outputs()`. Harmless today, latent if I9
+   is ever relaxed.
+
+Recorded by the unattended Phase 2 run (2026-08-03). Also **"consider"** — not
+acted on.
+
+4. **Two Phase 2 oracle fixtures were wrong on first write, both the same trap,
+   and neither was a code bug.** `F(a \oplus b)` has a non-empty $\Xdep$ but is
+   *unrealizable* — no output occurs in it, so the environment simply always
+   plays $a=b$. It was picked twice (once by `/test-writer` for O4-in, once for
+   O1-in's I6 witness) as a "non-empty $\Xdep$" witness where a *realizable* one
+   was needed. Both now use the U3-in shape `F(\lnot a \lor (b \oplus x))`, in
+   which the output genuinely participates. Worth stating in the PRD's oracle
+   section that an I6 witness must be realizable **and** input-dependent, since
+   the two conditions pull in opposite directions and the trap is not obvious.
+5. **I12's commutation oracle covers $\Tout$ but not $\Tin$**
+   (`tests/ltlf_ek_deps_input_test.cpp`, `I12DirectionsCommute`). Its fixture
+   $G(a \leftrightarrow x) \land F(b \oplus c)$ has $\Xdep^{out}=\{x\}$ but
+   $\Xdep^{in}=\emptyset$, so the transducer-equality clause runs for $\Tout$
+   while the $\Tin$ comparison is guarded away — the commutation content for the
+   input direction reduces to "both orders agree the file is absent". The guard
+   itself is correct (the Edge case says an empty $\Xdep$ writes no transducer),
+   and the run is not vacuous, but the direction this PRD exists for is the
+   under-covered one. **The obstruction looks structural, not a bad guess:**
+   probing the built CLI, $F(\lnot b \lor (c \oplus y))$ alone gives
+   $\Xdep^{in}=\{b\}$, and conjoining *any* out-dependent constraint onto it
+   drives $\Xdep^{in}$ to $\emptyset$ — because the input side analyses
+   $L(\lnot\varphi)$ and $\lnot(A \land B) = \lnot A \lor \lnot B$ opens live
+   escape routes, so no input stays forced. That is I2's negation behaving
+   exactly as specified, but it means a single $\varphi$ making **both**
+   directions non-empty may not be constructible by conjunction at all. Whether
+   to hunt for one by another route, or to accept the split coverage and say so
+   in the oracle section, is a decision for the grill.
+6. **The measured $\Xdep\neq\emptyset$ rate clears its floor by one case.**
+   7/150 = 4.7%, versus the output tool's 12/150. The floor is written as integer
+   `150/20 = 7`, so the assertion passes at exactly the boundary: one fewer
+   dependent formula in a regenerated corpus and O1-in fails on vacuity rather
+   than on a real defect. Either the floor or the corpus filter probably wants
+   revisiting; the number is recorded honestly rather than tuned.
+
+Recorded by `/review` on PR #6 (the generic half of the `code-review` gate),
+2026-08-03. Also **"consider"**; no must-fix was raised.
+
+7. **Two `--direction in` Edge cases have no CLI test.** Both were verified
+   correct by hand against the built binary and neither is a defect — they are
+   simply unpinned: (a) $\varphi$ **valid** exits `3` with a message that does
+   name the direction (`phi is valid (…the environment can never force a
+   violation)`); (b) $\varphi$ **unsatisfiable** under `--direction in` exits `0`
+   and reports nothing dependent. The PRD's Edge cases call (b) out explicitly as
+   "worth an explicit test, since the reflex from the output tool is to expect
+   exit 3 here", and no test was written for it. As it stands, a future refactor
+   of the exception → exit-code mapping can regress either silently.
+8. **`--direction` is carried as a validated `std::string`, then re-tested by
+   value.** `ParseArgs` rejects anything but `in`/`out`, but `CliArgs::direction`
+   stays a string and `main()` re-derives `const bool is_in = (args.direction ==
+   "in")`. `detail/dependency_core.hpp` argues in its own comment against making
+   invalid combinations representable; parsing straight into an enum (or into
+   `Role`) would apply that same argument one layer up. Style only.
 
 ## Definition of done
 

@@ -1,11 +1,22 @@
-// ltlf-ek-deps --- CLI front end for the maximally-dependent-output search
-// (docs/prd/output-dependencies-tool.md, \cref{def:outdep}).  Thin
-// orchestration only: parse argv, assemble a VariablePartition, call
-// dependent_outputs, format the result and (optionally) emit an updated part
-// file and a Tout transducer file --- mirrors src/ltlf_ek_synth.cpp's style.
+// ltlf-ek-deps --- CLI front end for the maximally-dependent-output /
+// maximally-dependent-input search (docs/prd/output-dependencies-tool.md,
+// \cref{def:outdep}; docs/prd/input-dependencies-tool.md, \cref{def:indep}).
+// Thin orchestration only: parse argv, assemble a VariablePartition, call
+// dependent_outputs or dependent_inputs per `--direction`, format the result
+// and (optionally) emit an updated part file and a transducer file ---
+// mirrors src/ltlf_ek_synth.cpp's style.
 //
-// Exit codes: 0 success (including Xdep = empty), 2 usage error, 3 phi
-// unsatisfiable, 1 internal (PRD "Phase 3 -- the binary").
+// `--direction out` (the default, so every pre-existing invocation is
+// unchanged) runs dependent_outputs; `--direction in` runs dependent_inputs.
+// Everything else --- flags, exit codes, the file-alias guards, the
+// PendingArtifact/CommitArtifacts/RemoveStaleTransducer keystone-ordering ---
+// is shared between the two directions (docs/prd/input-dependencies-tool.md
+// Phase 2).
+//
+// Exit codes, same meaning in both directions: 0 success (including
+// Xdep = empty), 2 usage error, 3 the analysed language is empty (phi
+// unsatisfiable for `out`, phi valid for `in`), 1 internal (PRD "Phase 3 --
+// the binary").
 
 #include <algorithm>
 #include <filesystem>
@@ -24,6 +35,7 @@
 #include <spot/twa/bdddict.hh>
 
 #include "ltlf_ek/cli.hpp"
+#include "ltlf_ek/dependent_inputs.hpp"
 #include "ltlf_ek/dependent_outputs.hpp"
 #include "ltlf_ek/detail/util.hpp"
 #include "ltlf_ek/transducer_io.hpp"
@@ -31,6 +43,7 @@
 
 namespace {
 
+using ltlf_ek::DependentInputs;
 using ltlf_ek::DependentOutputs;
 using ltlf_ek::VariablePartition;
 
@@ -60,6 +73,9 @@ struct CliArgs {
   std::optional<std::string> emit_part;
   std::optional<std::string> transducer;
   bool verbose = false;
+  // Which dependency to extract; PRD Phase 2, default "out" so every
+  // pre-existing invocation (no --direction at all) is byte-identical.
+  std::string direction = "out";
 };
 
 struct Flag {
@@ -118,6 +134,12 @@ CliArgs ParseArgs(int argc, char** argv) {
     } else if (f.name == "verbose") {
       reject_value();
       args.verbose = true;
+    } else if (f.name == "direction") {
+      const std::string v = need_value();
+      if (v != "in" && v != "out")
+        throw UsageError("--direction must be 'in' or 'out' (got '" + v +
+                         "')");
+      args.direction = v;
     } else {
       throw UsageError("unrecognised flag: --" + f.name);
     }
@@ -276,28 +298,32 @@ void CommitArtifacts(const std::vector<PendingArtifact>& artifacts) {
   }
 }
 
-// Xdep = empty (Edge cases): there is no Tout to write, and a trivial one
+// Xdep = empty (Edge cases): there is no Tout/Tin to write, and a trivial one
 // would break the pipeline this tool feeds (ltlf-ek-synth rejects
-// --known-output-transducer when output_known is empty, "ambiguous").  But
-// writing nothing is not the same as leaving nothing: a file left at that path
-// by an EARLIER run describes a different Xdep than the part file this run
-// just wrote, so the pair on disk contradicts itself and a caller passing both
-// flags every time gets that stale Tout silently paired with a fresh part
-// file.  The path is an output argument of THIS invocation --- the tool would
-// have overwritten it outright had Xdep been non-empty --- so clearing it
-// falls under the same mandate, and the note says out loud when it did.
+// --known-{output,input}-transducer when the corresponding known set is
+// empty, "ambiguous").  But writing nothing is not the same as leaving
+// nothing: a file left at that path by an EARLIER run describes a different
+// Xdep than the part file this run just wrote, so the pair on disk
+// contradicts itself and a caller passing both flags every time gets that
+// stale transducer silently paired with a fresh part file.  The path is an
+// output argument of THIS invocation --- the tool would have overwritten it
+// outright had Xdep been non-empty --- so clearing it falls under the same
+// mandate, and the note says out loud when it did.
 //
 // Runs after CommitArtifacts, so a removal that fails cannot strand a
 // half-installed artifact set; the worst case is the stale file staying put,
-// which is where we started.
-void RemoveStaleTransducer(const std::string& path) {
+// which is where we started.  `noun` is "outputs" or "inputs" (PRD Phase 2:
+// the exit-3 message and every direction-dependent line of stdout/stderr
+// names the direction).
+void RemoveStaleTransducer(const std::string& path, const std::string& noun) {
   namespace fs = std::filesystem;
   std::error_code ec;
   const bool existed = fs::remove(path, ec);
   if (ec)
     throw UsageError("cannot remove the stale --transducer file: " + path +
                      " (" + ec.message() + ")");
-  std::cerr << "note: dependent outputs is empty; no --transducer file written"
+  std::cerr << "note: dependent " << noun
+            << " is empty; no --transducer file written"
             << (existed ? " (removed the stale file at that path)" : "")
             << "\n";
 }
@@ -343,10 +369,11 @@ int main(int argc, char** argv) {
 
     const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
 
-    // --verbose narrates the REAL greedy search, through dependent_outputs'
-    // observer hook rather than a local re-derivation of it, so the narration
-    // cannot drift from the verdict printed below.  It goes to stderr: stdout
-    // carries the one machine-readable line the PRD specifies, nothing else.
+    // --verbose narrates the REAL greedy search, through the observer hook
+    // shared by both directions rather than a local re-derivation of it, so
+    // the narration cannot drift from the verdict printed below.  It goes to
+    // stderr: stdout carries the one machine-readable line the PRD specifies,
+    // nothing else.
     ltlf_ek::CandidateObserver on_candidate;
     if (args.verbose)
       on_candidate = [](const std::string& z, bool accepted,
@@ -358,14 +385,37 @@ int main(int argc, char** argv) {
                     << ": rejected (undetermined: " << *undetermined << ")\n";
       };
 
-    DependentOutputs result;
+    // `--direction` selects which library entry runs, which two part-file
+    // keys are owned and the noun in the stdout/stderr messages (PRD Phase
+    // 2); unified into direction-neutral locals immediately below so the
+    // rest of main() does not need to know which struct produced them.
+    const bool is_in = (args.direction == "in");
+    const std::string noun = is_in ? "inputs" : "outputs";
+
+    std::set<std::string> dependent;
+    VariablePartition result_partition;
+    std::optional<ltlf_ek::OutputLabeledTransducer> transducer;
     try {
-      result = ltlf_ek::dependent_outputs(phi, partition, dict, on_candidate);
+      if (is_in) {
+        DependentInputs result =
+            ltlf_ek::dependent_inputs(phi, partition, dict, on_candidate);
+        dependent = std::move(result.dependent);
+        result_partition = std::move(result.partition);
+        transducer = std::move(result.t_in);
+      } else {
+        DependentOutputs result =
+            ltlf_ek::dependent_outputs(phi, partition, dict, on_candidate);
+        dependent = std::move(result.dependent);
+        result_partition = std::move(result.partition);
+        transducer = std::move(result.t_out);
+      }
     } catch (const ltlf_ek::UnsatisfiableFormula& e) {
-      // The one dependent_outputs failure with its own exit code (PRD "Edge
-      // cases"); its own exception type, so no other invalid_argument can be
-      // mistaken for it.  Thrown before the greedy loop runs, so --verbose
-      // has narrated nothing yet.
+      // The one failure with its own exit code (PRD "Edge cases"); its own
+      // exception type, so no other invalid_argument can be mistaken for it.
+      // Thrown before the greedy loop runs, so --verbose has narrated
+      // nothing yet.  e.what() already names the direction (I11: "phi is
+      // unsatisfiable" for out, "phi is valid" for in), so no separate
+      // dispatch is needed here.
       std::cerr << "error: " << e.what() << "\n";
       return 3;
     }
@@ -373,14 +423,15 @@ int main(int argc, char** argv) {
     // Compose both artifacts before writing either (see CommitArtifacts).
     // The part file is pushed LAST, and that ordering is load-bearing rather
     // than cosmetic: it is the keystone artifact, the one whose
-    // `output_known: Xdep` makes the transducer mandatory downstream, so it
-    // must be the last thing to appear on disk.  See CommitArtifacts.
+    // `output_known`/`input_known: Xdep` makes the transducer mandatory
+    // downstream, so it must be the last thing to appear on disk.  See
+    // CommitArtifacts.
     std::vector<PendingArtifact> artifacts;
     std::optional<std::string> stale_transducer;
     if (args.transducer) {
-      if (result.t_out) {
+      if (transducer) {
         std::ostringstream t_out;
-        ltlf_ek::print_transducer(t_out, *result.t_out);
+        ltlf_ek::print_transducer(t_out, *transducer);
         artifacts.push_back({*args.transducer, t_out.str(), "--transducer"});
       } else {
         stale_transducer = *args.transducer;  // see RemoveStaleTransducer
@@ -388,20 +439,21 @@ int main(int argc, char** argv) {
     }
     if (args.emit_part) {
       std::ostringstream part;
-      ltlf_ek::print_partition_file(part, result.partition);
+      ltlf_ek::print_partition_file(part, result_partition);
       artifacts.push_back({*args.emit_part, part.str(), "--emit-part"});
     }
     CommitArtifacts(artifacts);
-    if (stale_transducer) RemoveStaleTransducer(*stale_transducer);
+    if (stale_transducer) RemoveStaleTransducer(*stale_transducer, noun);
 
     // Printed only once every artifact is on disk, so the success line never
     // outlives a failed run.
-    const std::set<std::string> outputs = partition.outputs();
-    if (result.dependent.empty()) {
-      std::cout << "dependent outputs: none\n";
+    const std::set<std::string> universe_set =
+        is_in ? partition.inputs() : partition.outputs();
+    if (dependent.empty()) {
+      std::cout << "dependent " << noun << ": none\n";
     } else {
-      std::cout << "dependent outputs: " << Join(result.dependent) << "   (of "
-                << Join(outputs) << ")\n";
+      std::cout << "dependent " << noun << ": " << Join(dependent)
+                << "   (of " << Join(universe_set) << ")\n";
     }
 
     return 0;
