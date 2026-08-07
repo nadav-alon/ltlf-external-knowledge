@@ -24,12 +24,10 @@
 // search for a maximally *Dependent input set* Xdep and its materialisation
 // as a Tin.
 //
-// CONCURRENT WORKFLOW: written against the PRD's frozen Phase 1 *Interfaces &
-// types* block (dependency_types.hpp, dependent_inputs.hpp) before the
-// implementation lands on its own branch. This translation unit is expected
-// NOT to compile in this worktree; that is correct, not a bug to fix here. A
-// difference from the frozen block found once the code lands is a
-// PRD-change event, not something to patch here.
+// Written against the PRD's frozen Phase 1 *Interfaces & types* block
+// (dependency_types.hpp, dependent_inputs.hpp) rather than against the
+// implementation, so these assertions bind to the published contract: a
+// divergence found here is a PRD-change event, not a test to patch.
 namespace {
 
 using ltlf_ek::DependentInputs;

@@ -4,17 +4,11 @@
 // binary as a subprocess with the frozen `--direction in|out` flag
 // (PRD "Interfaces & types -> Phase 2 -- the CLI flag").
 //
-// CONCURRENT WORKFLOW, PARTIALLY: Phase 1 (`dependent_inputs`,
-// `dependency_types.hpp`) is already landed and green, so the library-level
-// pieces here (the corpus's Xdep-rate pre-filter) run today. The
-// `--direction` flag itself (Phase 2) is being implemented on a separate
-// branch in parallel and is NOT present in this worktree, so every assertion
-// below that actually invokes `--direction` is written against the PRD's
-// frozen contract and is expected to FAIL until that branch lands and is
-// merged -- this file deliberately does not stub or DISABLE those cases; see
-// the test-writer's report for exactly which ones and why. Once merged, no
-// edit should be needed here unless the implementation reveals the frozen
-// block was wrong (a PRD-change event per that section's own escape clause).
+// Written against the PRD's frozen "Interfaces & types" contract rather than
+// against the implementation, so these assertions bind to the published
+// surface: a divergence found here is a PRD-change event, not a test to
+// patch. Both phases landed 2026-08-03, so every case below is expected to
+// pass -- a failure here is a real regression.
 
 #include <cstdio>
 #include <cstdlib>
