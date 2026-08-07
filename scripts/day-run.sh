@@ -54,6 +54,22 @@ LOCK="$LOG_DIR/day-run.lock"
 STATUS="$LOG_DIR/last-status"
 mkdir -p "$LOG_DIR"
 
+# --- pause switch ------------------------------------------------------------
+# `touch build/runs/PAUSED` the evening before to skip a day outright.  The case
+# it exists for: no PRD is ranked and launchable, so a run would burn a whole
+# allowance window re-deriving that there is nothing to do -- or worse, pick up a
+# PRD whose work is already landed on an unmerged branch and redo it.  What to
+# build next is a decision the user owns, and a paused day is the honest way to
+# say it has not been made yet.  Untracked (build/ is gitignored), so it never
+# shows up as a repo change; its contents, if any, are echoed as the reason.
+PAUSE="$LOG_DIR/PAUSED"
+if [ -e "$PAUSE" ]; then
+	echo "day-run: paused -- $PAUSE exists; nothing to do."
+	[ -s "$PAUSE" ] && cat "$PAUSE"
+	echo "day-run: resume with: rm $PAUSE"
+	exit 0
+fi
+
 # --- idempotence -------------------------------------------------------------
 # Fired on logon, this can be invoked more than once a day (re-login, WSL
 # restart).  A stale lock from a killed run must not wedge the pipeline

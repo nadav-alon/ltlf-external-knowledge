@@ -67,6 +67,19 @@ WAVES=1 MAX_PHASES=1 scripts/day-run.sh     # one wave, exactly one phase
 DRY_RUN=1 scripts/day-run.sh                # show the wave plan, run nothing
 ```
 
+**Skip a day with `touch build/runs/PAUSED`.** The trigger fires on logon and you
+cannot un-log-on, so the off switch lives in the script: while that file exists,
+`day-run.sh` prints the reason and exits before starting a single session. Write
+the reason into it (`echo 'nothing ranked' > build/runs/PAUSED`) and it is echoed
+back on the skipped day. Resume with `rm build/runs/PAUSED`.
+
+Pause the evening you realise **no PRD is ranked and launchable** — the backlog's
+`Now / next` slot is unranked, or its `#1` is already implemented on a branch that
+is not merged. The second case is the expensive one: `master`'s copy of the PRD
+still reads `Status: draft`, so the launcher picks it up under Step 0 rule 2 and
+redoes landed work. Merging the branch first is the real fix; pausing is what you
+do when you are too tired to decide tonight.
+
 **Fire it on logon, not at a fixed time.** Your PC is off overnight, so a cron
 entry at 08:30 silently loses the entire day if the machine boots at 08:45.
 Logon triggers whenever you actually turn it on.
