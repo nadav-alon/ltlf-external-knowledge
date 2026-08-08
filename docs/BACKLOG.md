@@ -62,6 +62,21 @@ method to beat the standing champion). Its Phase 2 (`otf_solve_fused`) is spun
 out below._
 
 ### Acceptance mark lost on an edgeless accepting state — **known live bug, TWO sites** (found 2026-07-17; widened from one site to a class 2026-07-27) — **#1**
+- **GRILLED 2026-08-08 → [`docs/prd/acceptance-mark-on-edgeless-states.md`](prd/acceptance-mark-on-edgeless-states.md);
+  launch gate CLEAN.** One phase, concurrent workflow, no glossary gap. The
+  semantics seed below is **settled**: an edgeless product state is accepting
+  **iff its goal component is**, faithful to `alg:dfa_product:final` — the mark
+  is restored, not reinterpreted. The fix locus is one named helper,
+  `detail::ensure_acceptance_readable`, adopted by **all four** builders so the
+  `bddfalse`-self-loop idiom stops being an unwritten convention.
+- **What the grill turned up that was not in this entry:** the class is **three**
+  broken methods, not two sites in the abstract — `DfaProduct` + `NfaProduct`
+  (via `materialize_product`) and `MtdfaProduct` (via `emits_dfa`), against
+  `MtnfaProduct` + `OtfMtdfaProduct` **immune** (both key acceptance on the
+  incoming transition). And the *non-accepting* edgeless case, not the accepting
+  one the seed asked about, is what discriminates the readings — it predicts the
+  **first known divergence** from the `ltlfsynt` monolithic oracle. See the PRD's
+  oracle O5 and the "Prove the monolithic reduction" item below.
 - **The class:** a builder computes acceptance correctly, then attaches the mark
   **only inside a per-edge loop** — so a state with **zero** out-edges emits no edges
   and no marks, and Spot's `state_is_accepting` (which reads a state-based mark off a
@@ -507,7 +522,19 @@ exactly when it was realizable without it.}
     copy-from-step-1, not delay); with the corrected delay $\psi_{in}$
     (`(!k) & G(a -> X k) & G(!a -> X !k)`) the same pair **agrees** (both
     REALIZABLE). There is currently **no known divergence witness** for the
-    conjecture, and no known sound-fragment carve-out is needed. A mechanical
+    conjecture, and no known sound-fragment carve-out is needed — **but one is
+    now predicted, and about to be measured.** The 2026-08-08 acceptance-mark
+    grill (#1) argued that a **partial $\Tin$** is exactly where the reduction
+    and the methods must part company: once $\delta_{in}$ is undefined
+    everywhere, the system can *continue past* the assumption boundary, making
+    $\psi_{in}\!\rightarrow\!\varphi$ vacuously true, whereas
+    `alg:dfa_product:final` leaves it stuck at an edgeless non-accepting product
+    state. Witness $\varphi=X[!]\mathtt{tt}$ with a $\delta$-dead $\Tin$; it
+    ships as oracle **O5** of
+    [`docs/prd/acceptance-mark-on-edgeless-states.md`](prd/acceptance-mark-on-edgeless-states.md).
+    **Update this bullet with the observed verdicts once that PRD lands** — if
+    they match the prediction, this is the conjecture's first soundness boundary
+    and the fragment needs carving out. A mechanical
     **faithfulness guard** now cross-checks every corpus $(\Tin,\psi_{in})$ pair
     against itself so this class of drift cannot recur silently
     (`tests/ltlfsynt_oracle_test.cpp`).
