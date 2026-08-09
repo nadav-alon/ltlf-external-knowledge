@@ -20,8 +20,9 @@ An unattended run must **stop and record**, never guess, on any of these.
 1. **The aperiodicity claim behind tier T3.** The parity-toggle $\Tin$ is asserted non-aperiodic (hence no $\psi$ exists at any size) on the standard LTLf $\equiv$ star-free correspondence, which is **not stated in `main.tex` and not otherwise verified** (`docs/handoffs/2026-08-08-benchmark-suite.md` S4). The family ships with the tier **declared as data**; a run must not attempt to prove, disprove, or "check" the claim, and must not promote a T3 row into a comparison table.
 2. **A family whose structural numbers do not discriminate.** If `mirror-small`'s Goal NFA is not $O(n)$, or `cons-prunes`'s product is not $O(n)$ while its Goal is $2^n$, the family has degenerated exactly as `docs/prd/mtnfa-product.md:620` warns. Record the measured counts and stop — **choosing a replacement $\varphi_n$ is a user decision**, not a repair.
 3. **Any need to change the `Synthesis` interface** to record a metric. The metric sink is deliberately out-of-band for this reason; if a method's count is unreachable from inside `synthesize`, record the hole and stop.
-4. **A verdict disagreement in the Phase 3 `ltlfsynt` race.** The T1 race compares wall-clock, but it also incidentally compares verdicts against the monolithic reduction — a conjecture with a **known divergence witness** as of 2026-08-09 (O5, `docs/runs/2026-08-09-acceptance-mark-edgeless.md`). A disagreement is an O5-class theory finding, not a benchmark bug.
-5. **A historical result that fails to reproduce** (Phase 3). Record the measured ratio beside the historical one and stop; do not tune the family, the timeout, or the repetition count to recover the old number.
+4. **A verdict disagreement in the Phase 2 `ltlfsynt` race.** The T1 race compares wall-clock, but it also incidentally compares verdicts against the monolithic reduction — a conjecture with a **known divergence witness** as of 2026-08-09 (O5, `docs/runs/2026-08-09-acceptance-mark-edgeless.md`). A disagreement is an O5-class theory finding, not a benchmark bug.
+5. **A historical result that fails to reproduce** (Phase 2). Record the measured ratio beside the historical one and stop; do not tune the family, the timeout, or the repetition count to recover the old number.
+   - **Standing exception for the 2026-08-11 run only** (the sweep feeding the 2026-08-12 presentation): **record and continue.** Finish the sweep, write the workbook, and flag the non-reproduction at the top of the run report. The protection this item exists for is intact — continuing is not tuning, and no family, timeout or repetition count may be adjusted to chase the old number. What the exception refuses is trading an entire deliverable for a caveat that would have been read the same evening anyway.
 
 ## Goal
 
@@ -206,9 +207,9 @@ std::vector<BenchRow> run_bench_case(const BenchCase& c, const BenchSubject& s);
 
 The **row key is generic** — `(family, params, subject, key)` — deliberately, so a differently-shaped benchmark with different metrics can be added without a schema migration of the committed baseline. Fixed columns are the thing that would block it.
 
-**Baseline store:** `tests/fixtures/bench_structural_baseline.tsv`, one row per `(family, params, subject, metric, value)`, sorted deterministically by that key so a diff is readable. Absent means absent (B2 rule 1) — a missing row is not a zero.
+**Baseline store** (built in **Phase 3**, specified here because it keys off the registry above): `tests/fixtures/bench_structural_baseline.tsv`, one row per `(family, params, subject, metric, value)`, sorted deterministically by that key so a diff is readable. Absent means absent (B2 rule 1) — a missing row is not a zero.
 
-**Regenerate path** (Phase 2, no binary needed):
+**Regenerate path** (Phase 3, no binary needed):
 
 ```sh
 LTLF_EK_BENCH_REGEN=1 ctest --test-dir build -R BenchStructural   # rewrites the .tsv
@@ -217,7 +218,7 @@ git diff tests/fixtures/bench_structural_baseline.tsv             # review every
 
 The env-var switch follows the `LTLF_EK_SOAK` precedent. Without it, the test **asserts** every cell exactly.
 
-### Phase 3 — the timing runner (`ltlf-ek-bench`)
+### Phase 2 (cont.) — the timing runner (`ltlf-ek-bench`)
 
 ```
 ltlf-ek-bench --families=<csv|all> --subjects=<csv|all> --n-min=N --n-max=N
@@ -232,19 +233,39 @@ Reports the **minimum** of `K` repetitions (both prior harnesses did; `--repeat=
 
 - **Phase 1 — metric sink + instrumentation.** `SizeMetric`, `size_metric_name`, `record_size_metric`, `BenchSizeMetric`, the `BenchReport::metrics` member and its JSON emission; then the charge table of B2 wired into all five methods at the sites that already open a `BenchTimer`. **Green checkpoint:** suite green with `tests/bench_test.cpp`'s schema case knowingly updated, plus new cases asserting that each method emits exactly its charge-table row set, and a **zero-perturbation** case (verdict and controller identical with and without an active `BenchScope`) mirroring the one `docs/prd/benchmarking.md` already ships. No families exist yet. *This is the only phase that edits the five method `.cpp` files.*
 
-- **Phase 2 — registry, families, committed structural baseline.** `bench_suite.hpp` per above; the five families of B4; the five-method `BenchSubject`; the baseline `.tsv`; the `BenchStructural` ctest case asserting every cell exactly; the regenerate path. Sweep $n = 2..8$, sized to add **≤ ~30 s** to `ctest`. **That budget is an estimate, not a measurement** — 5 families × 2 polarities × 7 values of $n$ × 5 methods is ~350 runs, two of whose methods spawn `mona` per run. Measure it; if it busts the budget, **lower `n_max` and regenerate the baseline** (the assertion's sensitivity does not depend on reaching large $n$ — B1). Do not instead move the case behind an opt-in label: a label the day-run does not execute protects nothing. **Green checkpoint:** `BenchStructural` passes against the committed baseline; the regenerate path reproduces it byte-for-byte; the discrimination assertions of *Test oracles* O2 pass. May stub the timing binary entirely.
+- **Phase 2 — registry, families, timing sweep, workbook, `ltlfsynt` race.** `bench_suite.hpp` per above; the five families of B4; the five-method `BenchSubject`; the `ltlf-ek-bench` binary with repetition / timeout / provenance; the gitignored output dir and the `docs/runs/` snapshot; the **T1 race** against `ltlfsynt`; the cross-method table; and the **spreadsheet export** (B6). **Green checkpoint:** the binary builds and runs a bounded sweep end to end; a snapshot lands in `docs/runs/` with full provenance; `docs/runs/<date>-benchmarks.xlsx` exists and opens; the re-derived 5488x and 16x-slower ratios are reported **beside** their historical values with an explicit delta. No test asserts a timing ratio.
 
-- **Phase 3 — timing layer + the `ltlfsynt` T1 race.** The `ltlf-ek-bench` binary, repetition/timeout/provenance, the gitignored output dir and the `docs/runs/` snapshot; the T1 race against `ltlfsynt` using each T1 family's declared $\psiin$; the cross-method table. **Green checkpoint:** binary builds and runs a small sweep end to end in CI-safe time; a snapshot lands in `docs/runs/` carrying full provenance and reporting the re-derived 5488x and 16x-slower ratios **beside** their historical values with an explicit delta. No test asserts a timing ratio.
+- **Phase 3 — committed structural baseline + `ctest` assertions.** The baseline `.tsv`; the `BenchStructural` ctest case asserting every cell exactly; the regenerate path. Sweep $n = 2..8$, sized to add **≤ ~30 s** to `ctest`. **That budget is an estimate, not a measurement** — 5 families × 2 polarities × 7 values of $n$ × 5 methods is ~350 runs, two of whose methods spawn `mona` per run. Measure it; if it busts the budget, **lower `n_max` and regenerate the baseline** (the assertion's sensitivity does not depend on reaching large $n$ — B1). Do not instead move the case behind an opt-in label: a label the day-run does not execute protects nothing. **Green checkpoint:** `BenchStructural` passes against the committed baseline; the regenerate path reproduces it byte-for-byte; the discrimination assertions of *Test oracles* O2 pass.
+
+**Phases 2 and 3 were swapped on 2026-08-09** against a Wednesday 2026-08-12 progress presentation. The original order put the committed baseline before the sweep; the baseline is **regression protection with no presentation value**, while the sweep is the deliverable, and only the sweep is on the critical path. Nothing else moved: Phase 3 still consumes only what Phase 2 defines, so the dependency direction is unchanged and each phase still lands independently.
 
 Each phase leaves the tree compiling and independently testable.
+
+### B6. Spreadsheet export (Phase 2)
+
+`ltlf-ek-bench --xlsx=FILE` writes a workbook via a **Python helper invoked by the binary** (or a standalone script the runner shells out to) using **`openpyxl`** — installed 2026-08-09 specifically for this; `pandas` alone cannot write `.xlsx`. If `openpyxl` is **absent**, the runner must **fall back to CSV and say so loudly in its exit message** rather than failing the sweep: the measurements are the expensive part and must never be lost to a formatting dependency.
+
+Workbook shape — one sheet per concern, because a single flat table is what made the previous results unreadable:
+
+| Sheet | Contents |
+|---|---|
+| `summary` | one row per (family, method): best time at the largest $n$ that completed, the speedup vs `MtdfaProduct`, and the declared *Comparability tier*. |
+| `timings` | the full sweep: family, $n$, realizable, method, per-*stage* nanoseconds and the wall total; timeouts marked as such, never blank. |
+| `structural` | the *Canonical size metric* rows for the same cases — the honesty column, so a reader can tell "slower" from "builds more". |
+| `ltlfsynt` | the T1 race only. T2/T3 rows appear with an explicit `n/a — by expressibility` string, **never** an empty cell that reads as a missing measurement. |
+| `provenance` | machine, `ldd`-resolved Spot version, repo commit, timeout, repetition count, date. |
+
+**Sweep budget.** Bound the whole run to a stated wall-clock ceiling (default **2 h**) and per-family $n$ ranges rather than one global range — `cons-inert` at $n = 20$ costs seconds per run per method while `cons-prunes` is flat. On exceeding the ceiling the runner **stops cleanly and writes what it has**; a partial workbook beats no workbook.
+
+**`ltlfsynt` invocation.** `ltlfsynt` is a **shell alias** on this machine (`~/opt/spot-2.15.1/bin/ltlfsynt`), so it is **not on a spawned subprocess's `PATH`**. Always pass `--ltlfsynt=<absolute path>`; if the flag is absent and the name does not resolve, skip the race and record it as skipped — never report an unraced tier as a loss.
 
 ## Edge cases
 
 - **MONA absent.** `NfaProduct` and `MtnfaProduct` shell out to mona. Their subjects **skip** (the existing `MONA_FOUND` gate is the precedent), and the baseline assertion must treat their rows as *skipped*, never as failures or zeros — otherwise the suite goes red on a machine without mona.
-- **`OtfMtdfaProduct` has no Goal automaton.** It emits no `goal_*` metric at all; the table shows a hole. It also has no `automaton_construction` span, which is why `docs/prd/otf-mtdfa-product.md` reports `automaton_construction + product_construction` **summed** — the Phase 3 table must do the same or it flatters `MtdfaProduct` by exactly the `spot::ltlf_to_mtdfa` cost under test.
+- **`OtfMtdfaProduct` has no Goal automaton.** It emits no `goal_*` metric at all; the table shows a hole. It also has no `automaton_construction` span, which is why `docs/prd/otf-mtdfa-product.md` reports `automaton_construction + product_construction` **summed** — the Phase 2 table must do the same or it flatters `MtdfaProduct` by exactly the `spot::ltlf_to_mtdfa` cost under test.
 - **$n = 0$ and $n = 1$.** $X[!]^0$ degenerates to $\varphi$ itself; the sweep starts at $n = 2$, and a family must reject a parameter below its own floor rather than emit a malformed formula.
 - **Unrealizable instances.** Every family instantiates both polarities; `synthesize` returning `nullopt` is a normal outcome, and `controller_states` is then **absent**, not zero.
-- **Timeout (Phase 3).** A case exceeding `--timeout` records a timeout marker with the elapsed bound; it is not an error, and it must not abort the remaining sweep. Structural rows already gathered for that case stay valid.
+- **Timeout (Phase 2).** A case exceeding `--timeout` records a timeout marker with the elapsed bound; it is not an error, and it must not abort the remaining sweep. Structural rows already gathered for that case stay valid.
 - **Empty $\Sigma_1$.** `cons-inert` deliberately relies on the fact that a *functional* $\lambda$ over a non-empty $\Sigma_1$ always prunes something; a family must not "simplify" itself into an empty $\Sigma_1$.
 - **Partial transducers are out of scope.** Every family's $\Tin$/$\Tout$ is total. Given the O5 witness (a partial $\Tin$ changes the verdict, `docs/runs/2026-08-09-acceptance-mark-edgeless.md`), a partial-transducer family would entangle measurement with an open theory question.
 - **Nested `BenchScope`.** Already forbidden (asserts) by the shipped infrastructure; the runner must open exactly one per case.
@@ -252,8 +273,8 @@ Each phase leaves the tree compiling and independently testable.
 ## Test oracles (for /test-writer)
 
 1. **Size-metric emission oracle (Phase 1).** For each of the five methods, the set of canonical metrics emitted under a `BenchScope` equals **exactly** its row in the B2 charge table — no extras, no omissions. This is what makes a silently-dropped metric visible.
-2. **Discrimination oracle (Phase 2) — the family validity check.** Assert the structural *shape* each family claims, not just its committed integers: `cons-prunes` has `goal_dfa_states` exponential in $n$ while `product_states` is linear; `cons-inert` has `product_states` ≥ `goal_dfa_states`; `mirror-small` has `goal_nfa_states` linear in $n$ while the mtdfa route is exponential; `mirror-degenerate` has `goal_nfa_states` of the **same order as the DFA** — its degeneracy is asserted deliberately, since that is the property being preserved as a warning.
-3. **Exact-baseline oracle (Phase 2).** Every committed cell matches, and the regenerate path is idempotent (regenerating an unchanged tree produces a byte-identical file).
+2. **Discrimination oracle (Phase 2, asserted in Phase 3) — the family validity check.** Assert the structural *shape* each family claims, not just its committed integers: `cons-prunes` has `goal_dfa_states` exponential in $n$ while `product_states` is linear; `cons-inert` has `product_states` ≥ `goal_dfa_states`; `mirror-small` has `goal_nfa_states` linear in $n$ while the mtdfa route is exponential; `mirror-degenerate` has `goal_nfa_states` of the **same order as the DFA** — its degeneracy is asserted deliberately, since that is the property being preserved as a warning.
+3. **Exact-baseline oracle (Phase 3).** Every committed cell matches, and the regenerate path is idempotent (regenerating an unchanged tree produces a byte-identical file).
 4. **Zero-perturbation oracle (Phase 1).** A run's verdict and controller are identical with and without an active `BenchScope` — the invariant `docs/prd/benchmarking.md` already established for spans, extended to metrics.
 5. **Cross-method agreement on the families (Phase 2).** All five methods agree on realizability for every case, and each agrees with the family's declared `expected_realizable`. This reuses the existing cross-method oracle machinery and turns the benchmark corpus into an additional differential corpus for free.
 6. **Determinism oracle (Phase 2).** Running the same case twice in one process yields identical structural rows — cheap, and it pins B5.
@@ -262,7 +283,7 @@ Each phase leaves the tree compiling and independently testable.
 ## Open theory questions touched
 
 - **The T3 aperiodicity claim.** That the parity-toggle $\Tin$ admits **no** $\psiin$ at any size rests on LTLf $\equiv$ FO[$<$] $\equiv$ star-free, a correspondence `main.tex` does not state and which has not been checked against a source here. It is a paper-level claim; the suite only needs the tier as *data*. Stop-list item 1. A `\cl` note stating the correspondence would be the natural home for it — for `/theory-review`, not for a day-run.
-- **The monolithic reduction.** The Phase 3 `ltlfsynt` race hands the tool $\psiin \rightarrow (\varphi \wedge \psiout)$, which is a **conjecture, not a theorem**, and as of 2026-08-09 has a divergence witness on partial transducers (O5). All families here are total, where no divergence is known — but the paper's external comparison carries the caveat until it is resolved. Stop-list item 4.
+- **The monolithic reduction.** The Phase 2 `ltlfsynt` race hands the tool $\psiin \rightarrow (\varphi \wedge \psiout)$, which is a **conjecture, not a theorem**, and as of 2026-08-09 has a divergence witness on partial transducers (O5). All families here are total, where no divergence is known — but the paper's external comparison carries the caveat until it is resolved. Stop-list item 4.
 - **No `\na` in `main.tex` is touched.** This PRD adds no math.
 
 ## Definition of done
@@ -272,5 +293,6 @@ Each phase leaves the tree compiling and independently testable.
 - `tests/fixtures/bench_structural_baseline.tsv` is committed, asserted cell-exact by `BenchStructural`, and regenerable by the documented one-line command.
 - All five methods emit exactly their charge-table metrics; the holes (`OtfMtdfaProduct` goal, `NfaProduct`/`MtnfaProduct` under absent mona) are explicit rather than zero.
 - One timing snapshot is committed under `docs/runs/` with full provenance, reporting the re-derived 5488x and 16x-slower ratios beside their historical values.
+- A spreadsheet (`docs/runs/<date>-benchmarks.xlsx`, five sheets per B6) is produced and opens; if `openpyxl` was unavailable the runner fell back to CSV and said so, rather than losing the sweep.
 - `docs/prd/otf-mtdfa-product.md` and `docs/prd/mtnfa-product.md` each gain a one-line pointer from their "harness not committed" note to the suite that now owns those numbers.
 - The four gates in the header are ticked by the skills that perform them.

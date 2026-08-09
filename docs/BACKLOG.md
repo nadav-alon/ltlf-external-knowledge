@@ -45,10 +45,10 @@ which is why day one is a grill._
 |---|---|---|
 | **Sat 08-08** (today) | — | Housekeeping: merge PR #7, fast-forward local `master`, prune the ten stale worktrees. Then **Grill A: acceptance-mark semantics** — weekend energy, and it is one decision. |
 | **Sun 08-09** | `#1` acceptance-mark fix | *Light.* Review the PR, merge — **done** (merged `8c1b6b5`, deferred findings `c9bc742`). Then **Grill B pulled forward** (see below). |
-| **Mon 08-10** | `#2` benchmark **Phase 1** — metric sink + instrument the five methods | *Light.* Review. |
-| **Tue 08-11** | `#2` benchmark **Phase 2** — registry + families + committed structural baseline | *Light.* Review, eyeball the structural table. |
-| **Wed 08-12** | `#2` benchmark **Phase 3** — timing layer + the ltlfsynt T1 race | *Light.* Review, read the numbers. |
-| **Thu 08-13** | — | *Low energy.* Apply the three parked `\cl` notes for `main.tex` §`indep` (needs the main checkout). Optionally **Grill C: the `#3` gallery**, if there is energy. |
+| **Mon 08-10** | **two jobs:** `#2` benchmark **Phase 1** (metric sink + instrument the five methods), then `docs/prd/presentation-materials.md` (tools, capabilities, example runs) | *Light.* Review both. |
+| **Tue 08-11** | `#2` benchmark **Phase 2** — registry + families + **timing sweep + xlsx workbook + ltlfsynt T1 race** | **Build the deck** from Monday's document + Tuesday's workbook. |
+| **Wed 08-12** | — | **Present progress.** |
+| **Thu 08-13** | `#2` benchmark **Phase 3** — committed structural baseline + exact `ctest` assertions | *Low energy.* Apply the three parked `\cl` notes for `main.tex` §`indep` (needs the main checkout). Optionally **Grill C: the `#3` gallery**. |
 
 _Two heavy evenings, both placed deliberately: Saturday has weekend energy,
 Monday is the freshest weekday. The other three are review-only. Thursday is
@@ -62,6 +62,24 @@ up a day** and `#2` now fills Mon–Wed as three phases (the grill split it into
 three, not two — see the PRD). `#3` is not dropped; its grill is Thursday's
 optional slot. The carry-forward lesson: **the queue must be filled the evening
 before, and an item with no PRD is not a queued item.**_
+
+_**Revised again, later the same evening — a Wednesday 2026-08-12 progress
+presentation.** It must include the tools and their capabilities, example runs,
+and benchmark results **as a spreadsheet**, all in hand by **Tuesday evening**.
+Two changes followed. (1) **Benchmark Phases 2 and 3 swapped**: the committed
+structural baseline is regression protection with no presentation value, while
+the timing sweep is the deliverable, so the sweep moved onto the critical path
+and the baseline moved to Thursday. (2) **A second Monday job**,
+[`docs/prd/presentation-materials.md`](prd/presentation-materials.md) — the
+tools/capabilities/example-runs document, which needs none of the evening to
+produce and only reading to consume. Three decisions taken with it: `openpyxl`
+is installed **tonight** (the sandbox has GitHub-only egress and cannot install
+it, and `pandas` alone cannot write `.xlsx`); Stop-list item 5 gets a
+**record-and-continue exception for the 08-11 run only**, since stopping on a
+non-reproducing ratio would trade the whole deliverable for a caveat; and the
+**ltlfsynt T1 race is in**, because "what the standard tool cannot express at any
+size" is the one claim an outside audience can evaluate. Watch: `ltlfsynt` is a
+**shell alias**, so the runner must be given an absolute path._
 
 _The $\Tout$ oracle **shipped 2026-08-03** (see Done), which retired the previous
 "3.2 or the $\Tout$ oracle" pairing. **Method 3.1 is DONE** (see Done; it landed
