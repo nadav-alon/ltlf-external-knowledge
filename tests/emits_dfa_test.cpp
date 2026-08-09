@@ -310,20 +310,16 @@ TEST(EmitsDfa, MarksStateBasedAcceptanceExplicitly) {
 // states is accepting --- so the initial state must be accepting for every
 // fixture, independent of tau's own structure.
 //
-// GENUINE GAP found while retargeting this test onto the no-sink contract
-// (tests/-only territory here; not fixed, flagged for /theory-review or
-// /developer): acceptance is encoded ENTIRELY via edge marks --- "every
-// out-edge of q carries the mark" (PRD "Acceptance", Phase 0/Q1) --- and
-// spot::twa_graph::state_is_accepting(s) (spot/twa/twagraph.hh:684-695) reads
-// the mark off s's FIRST out-edge, returning false when s has none. Before
-// the sink was dropped, a state whose lambda is undefined everywhere still
-// got one out-edge (to the sink) carrying the mark, so it read as accepting
-// despite rejecting every word. Now such a state (fixture C,
-// "UndefinedAtState") has ZERO out-edges, so Spot reports it NOT accepting
-// --- contradicting the PRD's literal "every q accepting" / "accepts the
-// empty word ... independent of tau's own structure" claim on exactly this
-// one case (lambda undefined at every letter of a state). Encoded below as
-// the observed truth, not smoothed over.
+// Retired exception (docs/prd/acceptance-mark-on-edgeless-states.md "Tests
+// this PRD knowingly changes" #3): fixture C ("UndefinedAtState") used to be
+// a documented gap here, because its only (= initial) state has zero
+// out-edges and spot::twa_graph::state_is_accepting reads a state's mark off
+// its FIRST out-edge --- an accepting 0-out-edge state was unrepresentable.
+// emits_dfa now calls detail::ensure_acceptance_readable after its discovery
+// loop for every accepting state, giving a still-edgeless accepting state a
+// bddfalse-guarded self-loop so its mark survives that read.  The PRD's
+// original "every q accepting" / "accepts the empty word ... independent of
+// tau's own structure" claim is restored exactly, no exception left.
 TEST(EmitsDfa, AcceptsTheEmptyWordAcrossEveryFixture) {
   for (auto build : {&BuildAgreesWithPreviousLetterFixture,
                      &BuildTotalPermissiveFixture, &BuildSingleStateFixture}) {
@@ -332,20 +328,13 @@ TEST(EmitsDfa, AcceptsTheEmptyWordAcrossEveryFixture) {
     EXPECT_TRUE(g->state_is_accepting(g->get_init_state_number()));
   }
 
-  // UndefinedAtState is the documented exception, NOT a bug to be fixed
-  // (/theory-review 2026-07-16): lambda is undefined at its only (= initial)
-  // state, so that state has zero out-edges, and Spot carries state-based
-  // acceptance ON the edges (state_is_accepting reads the first out-edge and
-  // returns false when there are none) --- an accepting 0-out-edge state is
-  // unrepresentable.  The PRD's "all accepting" was simply too strong; it is
-  // now qualified there ("Edge cases").  Harmless: L(phi) excludes the empty
-  // word, so the product never accepts it however emits_dfa answers here.
   const EmitsDfaFixture undefined_at_state = BuildUndefinedAtStateFixture();
   const spot::twa_graph_ptr g =
       emits_dfa(undefined_at_state.tau, undefined_at_state.dict);
-  EXPECT_FALSE(g->state_is_accepting(g->get_init_state_number()))
-      << "if this now fails, emits_dfa's acceptance encoding changed --- "
-         "re-check the PRD's Edge cases entry and update this expectation";
+  EXPECT_TRUE(g->state_is_accepting(g->get_init_state_number()))
+      << "lambda undefined at the only state is still an accepting state "
+         "(PRD Behaviour item 4, emits_dfa's language is unchanged); its "
+         "mark must now survive via the bddfalse self-loop carrier";
 }
 
 // Fixture B: no sink is ever needed (PRD "Sink state: create it only if some
@@ -362,20 +351,29 @@ TEST(EmitsDfa, TotalPermissiveCreatesNoSinkState) {
 }
 
 // Fixture C: lambda undefined at the (only) state means EVERY letter is
-// uncovered --- no sink is materialised (2026-07-15 no-sink contract); the
-// state simply has zero outgoing edges (PRD "Edge cases": "q has no
-// outgoing edges"), an implicit reject of every non-empty word.
-TEST(EmitsDfa, UndefinedAtStateHasNoOutgoingEdgesForAnyLetter) {
+// uncovered --- no sink is materialised (2026-07-15 no-sink contract). The
+// state used to have zero outgoing edges; it now has EXACTLY ONE, the
+// bddfalse-guarded self-loop detail::ensure_acceptance_readable adds so this
+// (accepting) state's mark survives state_is_accepting
+// (docs/prd/acceptance-mark-on-edgeless-states.md "Tests this PRD knowingly
+// changes" #2). Still one state (no sink), and the carrier edge is never
+// taken by any real letter, so every non-empty word is still rejected.
+TEST(EmitsDfa, UndefinedAtStateHasOneBddfalseSelfLoopForAcceptanceOnly) {
   const EmitsDfaFixture f = BuildUndefinedAtStateFixture();
   const spot::twa_graph_ptr g = emits_dfa(f.tau, f.dict);
   EXPECT_EQ(g->num_states(), 1u) << "no sink state should be materialised";
   const unsigned init = g->get_init_state_number();
   const auto out = g->out(init);
-  EXPECT_EQ(out.begin(), out.end())
-      << "lambda undefined at q means every letter is uncovered --- q must "
-         "have no outgoing edges (no sink, no dead edges)";
-  // Every non-empty word is rejected --- there is no out-edge to follow for
-  // the very first letter, so the run is undefined (implicit reject).
+  auto it = out.begin();
+  ASSERT_NE(it, out.end())
+      << "the acceptance-mark carrier self-loop must exist now";
+  EXPECT_EQ(it->src, init);
+  EXPECT_EQ(it->dst, init) << "self-loop";
+  EXPECT_EQ(it->cond, bddfalse) << "never taken by any real letter";
+  ++it;
+  EXPECT_EQ(it, out.end()) << "exactly one out-edge, no more";
+  // Every non-empty word is still rejected --- the sole out-edge is
+  // bddfalse-guarded, so no real letter can ever follow it.
   const std::vector<bdd> alphabet = AllLettersOverTwoVars(f.a_var, f.k_var);
   for (const bdd& letter : alphabet)
     EXPECT_FALSE(GraphAccepts(g, {letter}));
@@ -411,12 +409,11 @@ TEST(EmitsDfa, LanguageMatchesTheRunOfTauClaim) {
     const spot::twa_graph_ptr g = emits_dfa(f.tau, f.dict);
     const std::vector<bdd> alphabet = AllLettersOverTwoVars(f.a_var, f.k_var);
     for (const auto& word : AllWordsUpToLength(alphabet, 4)) {
-      // UndefinedAtState's empty word is a documented, separately pinned
-      // EXCEPTION, not a gap (see AcceptsTheEmptyWordAcrossEveryFixture and
-      // the PRD's "Edge cases"): a 0-out-edge state cannot carry an accepting
-      // mark, and it is harmless because L(phi) excludes the empty word.
-      // Every non-empty word still agrees (checked below).
-      if (word.empty() && build == &BuildUndefinedAtStateFixture) continue;
+      // O3 (docs/prd/acceptance-mark-on-edgeless-states.md "Test oracles"):
+      // no exemption left --- UndefinedAtState's empty word now agrees too,
+      // since its state's acceptance mark survives via the
+      // detail::ensure_acceptance_readable self-loop (see
+      // AcceptsTheEmptyWordAcrossEveryFixture, above).
       SCOPED_TRACE("word length " + std::to_string(word.size()));
       EXPECT_EQ(GraphAccepts(g, word), ReferenceAccepts(f.tau, word))
           << "emits_dfa's language diverges from \"the run of tau is defined "

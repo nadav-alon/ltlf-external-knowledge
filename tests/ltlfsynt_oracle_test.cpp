@@ -1527,6 +1527,98 @@ TEST(FaithfulnessGuardMetaOracle, FiresOnOldCopyFromStepOnePsiInDelayPairing) {
 }
 
 // ---------------------------------------------------------------------------
+// O5 (docs/prd/acceptance-mark-on-edgeless-states.md "Test oracles"): the
+// SPECULATIVE divergence witness, governed by that PRD's Stop-list.
+//
+// IMPORTANT -- if this test is present in the tree, it is because BOTH the
+// faithfulness-guard precondition passed AND the predicted verdict pair was
+// OBSERVED, exactly as required before committing it (Stop-list 1 / 2).  If
+// it is ever seen to fail, that means the boundary MOVED since it was
+// pinned -- this PINS a known boundary of reading A (Behaviour, "Not decided
+// here, and deliberately so"), NOT correct behaviour to be "fixed" by a
+// later reader.  Do NOT edit the expectations to match a new observed pair
+// and do NOT adjust src/ or include/ to make this test agree with ltlfsynt
+// -- report to /theory-review instead (docs/prd/acceptance-mark-on-edgeless-
+// states.md "Open theory questions touched" #1/#2).
+//
+// Witness (PRD O5): phi = X[!] tt (a trace must have length >= 2 to satisfy
+// it).  Tin: delta(0, .) = 1 unconditionally, state 1 is DELTA-DEAD;
+// lambda_in(0) commits k := a (the copy relation, same convention kTinCopy
+// uses).  psi_in = (k <-> a) & !(X[!] tt) -- Tin's own trace never continues
+// past one letter, so psi_in pins exactly that.  Tout = trivial_transducer,
+// psi_out = top (the reduction below omits --known-output-transducer, same
+// as every KnownInputOracleTest row).
+constexpr char kTinO5PartialDeltaDead[] =
+    "HOA: v1\n"
+    "States: 2\n"
+    "Start: 0\n"
+    "AP: 2 \"a\" \"k\"\n"
+    "acc-name: all\n"
+    "Acceptance: 0 t\n"
+    "--BODY--\n"
+    "State: 0\n"
+    "  [t] 1\n"
+    "State: 1\n"
+    "--END--\n"
+    "%%LAMBDA\n"
+    "state 0: a <-> k\n"
+    "state 1: 0\n";
+
+constexpr char kPhiO5[] = "X[!] 1";
+constexpr char kPsiInO5[] = "(k <-> a) & !(X[!] 1)";
+
+TEST_F(LtlfsyntOracleTest, PartialTinDivergesFromLtlfsyntUnderXBangTtWitness) {
+  // Precondition, load-bearing (PRD O5 / Stop-list 2): if the guard fails,
+  // the witness is a psi_in mis-encoding, not a soundness boundary -- the
+  // exact 2026-07-05 delay-fixture trap.  Fatal: nothing below is meaningful
+  // if this does not hold.
+  const GuardResult guard = run_faithfulness_guard(
+      kTinO5PartialDeltaDead, kPsiInO5, kPartitionAKO, Role::t_in);
+  ASSERT_TRUE(guard.ok)
+      << "Stop-list 2: run_faithfulness_guard failed on the O5 witness's "
+         "(Tin, psi_in) pair -- " << guard.detail
+      << " -- the divergence claim is void, do not commit this fixture";
+
+  const ScopedTempFile part_file(kPartFileAKO);
+  const ScopedTempFile transducer_file(kTinO5PartialDeltaDead);
+
+  const CliResult ek =
+      RunEkSynth({"--dfa-product", std::string("--formula=") + kPhiO5,
+                  "--part-file", part_file.path(), "--known-input-transducer",
+                  transducer_file.path(), "--realizable"});
+  const Verdict ek_verdict = ParseEkSynthVerdict(ek);
+
+  const std::string reduced =
+      "(" + std::string(kPsiInO5) + ") -> (" + kPhiO5 + ")";
+  const CliResult synt =
+      RunLtlfsynt({"--ins=a,k", "--outs=o", "--semantics=Mealy",
+                   "--realizability", "-f", reduced});
+  const Verdict synt_verdict = ParseLtlfsyntVerdict(synt);
+
+  // Predicted (PRD O5): ltlf-ek-synth -> UNREALIZABLE (reading A: after one
+  // step the product state is edgeless and its goal component is
+  // non-accepting, so the system is stuck), ltlfsynt -> REALIZABLE (the
+  // system continues to length 2, psi_in becomes false, the implication
+  // holds vacuously).  Stop-list 1 governs any other observed pair -- see
+  // the IMPORTANT note above this test.
+  EXPECT_EQ(ek_verdict, Verdict::kUnrealizable)
+      << "ltlf-ek-synth: predicted UNREALIZABLE under reading A; if this is "
+         "REALIZABLE, Stop-list 1 fires -- do not flip, report prominently "
+         "instead, it falsifies reading A";
+  EXPECT_EQ(synt_verdict, Verdict::kRealizable)
+      << "ltlfsynt: predicted REALIZABLE (psi_in -> phi holds vacuously past "
+         "the delta-dead boundary); if this is UNREALIZABLE, Stop-list 1 "
+         "fires -- report prominently, do not flip";
+
+  if (ek_verdict == Verdict::kUnrealizable &&
+      synt_verdict == Verdict::kRealizable)
+    SUCCEED() << "First known divergence witness for the equirealizability "
+                 "conjecture (docs/BACKLOG.md \"Prove the monolithic "
+                 "reduction\") -- see docs/prd/acceptance-mark-on-edgeless-"
+                 "states.md O5.";
+}
+
+// ---------------------------------------------------------------------------
 // Faithfulness guard applied to the Tout corpus (docs/prd/ltlfsynt-oracle-
 // known-output.md "Phase 2" / "Implementation phases" -- Phase 2's green
 // checkpoint: "every Tout pair passes its guard").  The engine above is

@@ -144,6 +144,8 @@ if(LTLF_EK_BUILD_TESTS)
     tests/mtnfa_test.cpp
     tests/mtnfa_product_test.cpp
     tests/otf_mtdfa_product_test.cpp
+    tests/acceptance_test.cpp
+    tests/acceptance_partiality_matrix_test.cpp
     tests/verify_controller_test.cpp
     tests/cli_test.cpp
     tests/ltlf_ek_synth_test.cpp
