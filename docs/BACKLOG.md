@@ -45,7 +45,7 @@ which is why day one is a grill._
 |---|---|---|
 | **Sat 08-08** (today) | — | Housekeeping: merge PR #7, fast-forward local `master`, prune the ten stale worktrees. Then **Grill A: acceptance-mark semantics** — weekend energy, and it is one decision. |
 | **Sun 08-09** | `#1` acceptance-mark fix | *Light.* Review the PR, merge — **done** (merged `8c1b6b5`, deferred findings `c9bc742`). Then **Grill B pulled forward** (see below). |
-| **Mon 08-10** | **two jobs:** `#2` benchmark **Phase 1** (metric sink + instrument the five methods), then `docs/prd/presentation-materials.md` (tools, capabilities, example runs) | *Light.* Review both. |
+| **Mon 08-10** | **two jobs, in this order:** `#0` presentation materials (short, docs-only), then `#2` benchmark **Phase 1** (metric sink + instrument the five methods) | *Light.* Review both. |
 | **Tue 08-11** | `#2` benchmark **Phase 2** — registry + families + **timing sweep + xlsx workbook + ltlfsynt T1 race** | **Build the deck** from Monday's document + Tuesday's workbook. |
 | **Wed 08-12** | — | **Present progress.** |
 | **Thu 08-13** | `#2` benchmark **Phase 3** — committed structural baseline + exact `ctest` assertions | *Low energy.* Apply the three parked `\cl` notes for `main.tex` §`indep` (needs the main checkout). Optionally **Grill C: the `#3` gallery**. |
@@ -87,6 +87,26 @@ as `OtfMtdfaProduct` in `0ce5fab`, closed every gate, and benchmarked
 **POSITIVE** — up to 5488x over `MtdfaProduct` where $\cons$ prunes, the first
 method to beat the standing champion). Its Phase 2 (`otf_solve_fused`) is spun
 out below._
+
+### Presentation materials — tools, capabilities, example runs — **#0, this week only**
+
+- **PRD: [`docs/prd/presentation-materials.md`](prd/presentation-materials.md),
+  written 2026-08-09; launch gate CLEAN, unattended-ready.** Docs-only: no
+  header, no source, no test. Produces `docs/presentation/tools-and-capabilities.md`
+  plus real captured transcripts, for the **Wednesday 2026-08-12** progress
+  presentation.
+- **Ranked #0 deliberately, and it is a mechanical necessity, not a preference.**
+  `/launcher` Step 0 Rule 2 picks *the first Now/next item with a PRD on master*,
+  and `#2`'s benchmark suite has unlanded phases all week — so anything ranked
+  **below** `#2` is unreachable by the launcher until `#2` is finished, and this
+  item would simply never run. Rule 3 cannot rescue it either: that rule only
+  matches a PRD added on an **unmerged branch**, and this one is on `master`.
+  Ranking it first costs almost nothing, because it is a single short docs phase
+  with no build/test loop, so Monday's remaining waves still reach `#2` Phase 1.
+- **When it lands, move it to *Done* in the same commit** — otherwise it keeps
+  shadowing `#2` for the rest of the week, which is the same trap in reverse.
+- **Out of scope:** all benchmark numbers. Those come from `#2` Phase 2 on
+  Tuesday; this document links to them and measures nothing itself.
 
 ### Acceptance mark lost on an edgeless accepting state — **DONE 2026-08-09** (found 2026-07-17; widened from one site to a class 2026-07-27) — **#1**
 - **LANDED 2026-08-09** by the unattended day-run, branch
