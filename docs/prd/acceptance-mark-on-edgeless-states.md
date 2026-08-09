@@ -6,10 +6,10 @@
 **main.tex ref:** `\cref{alg:dfa_product}` line `alg:dfa_product:final`; `\cref{def:consistency}`; §`Transducers` (the partiality paragraph, "In the methods below we dont assume totality of the transducers")
 
 **Gates:**
-- [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
+- [x] glossary        — no new term (see §"Ubiquitous-language terms used": `ensure_acceptance_readable` deliberately gets no entry). One pre-existing `doc-bug` fixed instead, found by /theory-review 2026-08-09: `docs/GLOSSARY.md`'s *Output-agreement automaton* entry still claimed "uncovered letters to a rejecting sink; deterministic **and** complete", contradicted by its own next sentence since the 2026-07-15 sink drop
 - [x] tests           — `tests/acceptance_test.cpp` (O4), `tests/acceptance_partiality_matrix_test.cpp` (O1/O2), `tests/mtnfa_product_test.cpp`/`tests/emits_dfa_test.cpp` (the three knowingly-changed tests, O3), `tests/ltlfsynt_oracle_test.cpp` (O5, observed as predicted — see docs/BACKLOG.md); suite green 582/582 (`7bf0fe8`)
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] theory-review   — /theory-review (faithfulness mode) 2026-08-09, **no `code-bug`**: all four sites faithful to `alg:dfa_product:final` (acc read from `goal->state_is_accepting`, never from $\delta_{Dprod}$) and to `\cref{def:consistency}`'s partiality clause (δ-dead and λ-undefined reach an identical zero-out-edge state at every site). Two `doc-bug`s, drafted not applied — `latex/` is an uninitialized submodule in a worktree, so three `\cl` notes went to `docs/BACKLOG.md` *Later* → "Pending `\cl` notes on partiality". O5 assessed **genuine, not an artifact**
 
 **Unattended-ready:** yes — every decision below was closed in the grill of
 2026-08-08. The one speculative element (the predicted `ltlfsynt` divergence) is
@@ -305,6 +305,38 @@ Flagged for `/theory-review`; **none** may be resolved by an unattended run.
    where `ltlf-ek-synth` and `ltlfsynt` diverge, so enabling Case B would make
    the corpus differential oracle fail legitimately. Case B cannot land until
    that boundary is characterised. Stays a `docs/BACKLOG.md` item.
+
+## Developer comments / PRD disagreements
+
+**From `/code-reviewer`, 2026-08-09 — one "consider", deliberately not acted on.**
+
+`src/reverse_dfa_to_nfa.cpp:38-44`. The adoption there is *not* the same
+construction as the code it replaced, and the comment justifying it overstates
+the equivalence. The old code added the `bddfalse` self-loop on $s_0$
+**unconditionally** and leaned on `purge_dead_states()`; the new code adds it
+only when $s_0$ has zero out-edges. The new comment claims that no-op condition
+is "exactly the condition under which the old unconditional self-loop was itself
+pruned … same final graph either way". That is the part to distrust:
+
+- The **language and the mark read are** equivalent, which is what Stop-list 4
+  actually bars, and the suite is green — all of $s_0$'s real out-edges already
+  carry `kFinal` (`:30`), so `state_is_accepting(s0)` reads `true` either way.
+  Stop-list 4 did **not** fire.
+- But `purge_dead_states()` is a **Büchi** liveness purge, and $F_N = \{s_0\}$.
+  The old unconditional `kFinal` self-loop made $s_0$ *unconditionally* sit on an
+  accepting cycle; without it, $s_0$ survives the purge only if some cycle
+  through $s_0$ genuinely exists. So the refactor silently narrows the input
+  domain on which this function is safe, from "any DFA" to "**a DFA all of whose
+  states are reachable from its initial state**" (given that, an edge into $s_0$
+  implies a cycle through $s_0$, so the case is vacuous — which is why nothing
+  went red).
+
+Not fixed here because it is not a verdict change and the PRD's own bar
+(Stop-list 4) is verdict change. **For the evening:** decide whether to state
+that reachability precondition in `detail::reverse_dfa_to_nfa`'s header
+doc-comment, or to restore the unconditional self-loop at that one site and let
+the helper cover only the other three. Either way the comment at `:41-43` should
+stop asserting "same final graph".
 
 ## Definition of done
 

@@ -616,9 +616,13 @@ the existing term or update this file via `/glossary` — do not let drift happe
   The **automaton** form is the *Output-agreement automaton* `emits_dfa(tau, dict)`
   → `spot::twa_graph_ptr` (new; `docs/prd/mtdfa-product.md`): the DFA accepting
   exactly those words whose every letter agrees with $\lambda$ along $\tau$'s run —
-  $\delta$ from `delta_edges` guarded by `emits_region`, all of $Q$ accepting,
-  uncovered letters to a rejecting sink; deterministic **and** complete by
-  construction. Exactly as with the symbolic form, the automaton $\cons$ is the
+  $\delta$ from `delta_edges` guarded by `emits_region`, all of $Q$ accepting;
+  deterministic but **incomplete** — an uncovered letter is a *missing edge*, and
+  an edgeless state carries a `bddfalse`-guarded self-loop so its
+  $F$-membership survives a `state_is_accepting` read
+  (`detail::ensure_acceptance_readable`;
+  `docs/prd/acceptance-mark-on-edgeless-states.md`).
+  Exactly as with the symbolic form, the automaton $\cons$ is the
   **intersection** `product(emits_dfa(t_in), emits_dfa(t_out))` and there is **no
   cons automaton** — $\cons$ has a per-letter form and nothing else. Where the
   per-letter/symbolic forms *skip* a non-agreeing letter (`\cref{def:consistency}`,
