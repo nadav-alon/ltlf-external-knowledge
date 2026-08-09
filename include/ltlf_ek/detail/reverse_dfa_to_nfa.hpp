@@ -36,6 +36,17 @@ namespace ltlf_ek::detail {
 // 3): alg:nfa_product tolerates an empty delta_N(s,v), so no rejecting sink
 // is added.
 //
+// PRECONDITION beyond determinism + completeness: every state of D must be
+// reachable from s_{D,0}. An unreachable state t with an edge t --v--> s_{D,0}
+// gives s_{D,0} a real out-edge in N that leads nowhere useful, and the purges
+// below can then drop s_{D,0} -- N's only accepting state -- leaving
+// L(N) = {} instead of rev(L(D)). This holds of past_ltlf_to_dfa's D (Spot
+// builds only reachable states), it predates the acceptance-helper adoption
+// below, and it is NOT repaired by adding the defensive self-loop
+// unconditionally: purge_dead_states erases an appended bddfalse self-loop as
+// soon as the state has any other edge. See
+// ReverseDfaToNfaSelfLoopEquivalence.* in tests/reverse_dfa_to_nfa_test.cpp.
+//
 // Accepting dead-end: s_{D,0} may end up with zero out-edges in N (whenever
 // nothing in D transitions into D's own initial state). A defensive
 // guard=bddfalse self-loop is added on s_{D,0} before purging so the
@@ -45,13 +56,17 @@ namespace ltlf_ek::detail {
 // used to store colors on state without successor with state-based
 // acceptance", spot/twa/twagraph.cc) -- the self-loop survives purging iff
 // it really is s_{D,0}'s only outgoing edge, and is otherwise pruned away
-// like any other bddfalse edge (so it is safe to add unconditionally).
+// like any other bddfalse edge. Since the acceptance-helper adoption
+// (docs/prd/acceptance-mark-on-edgeless-states.md) it is added only in that
+// surviving case; adding it unconditionally instead is provably the same
+// graph, not merely the same language.
 //
 // Ends with purge_unreachable_states() then purge_dead_states() (PRD
 // S207-209) to drop the dead/unreachable states reversing D's completeness
 // leaves behind (the old reject sink's reversed edges, etc) -- an
-// optimization, not a correctness requirement; the self-loop above ensures
-// this never drops the accepting state itself.
+// optimization, not a correctness requirement; given the reachability
+// precondition above, the self-loop ensures this never drops the accepting
+// state itself.
 spot::twa_graph_ptr reverse_dfa_to_nfa(const spot::twa_graph_ptr& d);
 
 }  // namespace ltlf_ek::detail

@@ -61,7 +61,35 @@ as `OtfMtdfaProduct` in `0ce5fab`, closed every gate, and benchmarked
 method to beat the standing champion). Its Phase 2 (`otf_solve_fused`) is spun
 out below._
 
-### Acceptance mark lost on an edgeless accepting state — **known live bug, TWO sites** (found 2026-07-17; widened from one site to a class 2026-07-27) — **#1**
+### Acceptance mark lost on an edgeless accepting state — **DONE 2026-08-09** (found 2026-07-17; widened from one site to a class 2026-07-27) — **#1**
+- **LANDED 2026-08-09** by the unattended day-run, branch
+  `acceptance-mark-edgeless` — see `docs/runs/2026-08-09-acceptance-mark-edgeless.md`.
+  `detail::ensure_acceptance_readable` exists and is the sole implementation of
+  the idiom at all four builder sites; `ctest` 582/582 green; domain review and
+  theory review both clean (**no `code-bug`**). Outcome: the three broken methods
+  (`DfaProduct`, `NfaProduct`, `MtdfaProduct`) now agree with the two immune ones
+  on the whole {δ-dead, λ-undefined} × {$\Tin$, $\Tout$} partiality matrix, and
+  `emits_dfa`'s empty-word exception in `docs/prd/mtdfa-product.md` is retired.
+  **The one result worth the evening: O5 fired as predicted** — see "Prove the
+  monolithic reduction" below; this run produced the project's first divergence
+  witness. The three `doc-bug` `\cl` notes are now **written** and ship as a
+  patch — see "`\cl` notes on partiality" under *Later*; one `git apply` lands
+  them.
+- **GRILLED 2026-08-08 → [`docs/prd/acceptance-mark-on-edgeless-states.md`](prd/acceptance-mark-on-edgeless-states.md);
+  launch gate CLEAN.** One phase, concurrent workflow, no glossary gap. The
+  semantics seed below is **settled**: an edgeless product state is accepting
+  **iff its goal component is**, faithful to `alg:dfa_product:final` — the mark
+  is restored, not reinterpreted. The fix locus is one named helper,
+  `detail::ensure_acceptance_readable`, adopted by **all four** builders so the
+  `bddfalse`-self-loop idiom stops being an unwritten convention.
+- **What the grill turned up that was not in this entry:** the class is **three**
+  broken methods, not two sites in the abstract — `DfaProduct` + `NfaProduct`
+  (via `materialize_product`) and `MtdfaProduct` (via `emits_dfa`), against
+  `MtnfaProduct` + `OtfMtdfaProduct` **immune** (both key acceptance on the
+  incoming transition). And the *non-accepting* edgeless case, not the accepting
+  one the seed asked about, is what discriminates the readings — it predicts the
+  **first known divergence** from the `ltlfsynt` monolithic oracle. See the PRD's
+  oracle O5 and the "Prove the monolithic reduction" item below.
 - **The class:** a builder computes acceptance correctly, then attaches the mark
   **only inside a per-edge loop** — so a state with **zero** out-edges emits no edges
   and no marks, and Spot's `state_is_accepting` (which reads a state-based mark off a
@@ -477,6 +505,32 @@ exactly when it was realizable without it.}
   surfaced `DfaProduct`/semantics bug lands as a small reproducer.
 - **Seeds for grilling:** _(tbd)_
 
+### `\cl` notes on partiality — WRITTEN 2026-08-09, waiting on one `git apply`
+
+- **State:** the three notes drafted by `/theory-review` are now **written against
+  `main.tex`** and shipped as
+  [`docs/handoffs/2026-08-09-cl-notes-partiality.patch`](handoffs/2026-08-09-cl-notes-partiality.patch)
+  (13 added lines, verified to apply cleanly to the submodule at `c80719b`). They
+  are a patch and not a submodule edit only because the run was isolated in a
+  worktree, where `latex/` cannot be written.
+- **To land them**, from the main checkout:
+  `git -C latex apply docs/handoffs/2026-08-09-cl-notes-partiality.patch`.
+  Leave the submodule **uncommitted** per `CLAUDE.md` until you want an Overleaf
+  round-trip. `scripts/check-main-tex-refs.py --fix` is **not** wanted yet — the
+  submodule pointer is unchanged, so every existing `main.tex:NNN` citation is
+  still correct; run it in the same commit as the eventual bump, after the notes
+  are pushed to Overleaf.
+- **What the three notes say.** Note 1, after the equirealizability `\na`
+  following `\cref{def:probDefTransducer}`: records O5 as the conjecture's first
+  divergence witness and says the conjecture needs a totality hypothesis or a
+  ruling on runs leaving a transducer's domain. Note 2, on §`Transducers`'
+  totalization sentence: that claim is true of the transducer and false of the
+  synthesis verdict. Note 3, after the `\cref{alg:dfa_product}` prose: an
+  edgeless product state is final iff its goal component is (PRD open question #3).
+- **Provenance:** faithfulness review of `docs/prd/acceptance-mark-on-edgeless-states.md`
+  (`d813834`), open theory questions #2 and #3, plus the O5 result. The code was
+  found **faithful**; all three notes are doc-side.
+
 ### Prove the monolithic reduction $\psi_{in}\!\rightarrow\!(\varphi \land \psi_{out})$
 - **Intent:** prove that synthesis with external information
   (`main.tex` `def:probDefTransducer`) is **equirealizable** with plain
@@ -507,10 +561,42 @@ exactly when it was realizable without it.}
     copy-from-step-1, not delay); with the corrected delay $\psi_{in}$
     (`(!k) & G(a -> X k) & G(!a -> X !k)`) the same pair **agrees** (both
     REALIZABLE). There is currently **no known divergence witness** for the
-    conjecture, and no known sound-fragment carve-out is needed. A mechanical
+    conjecture, and no known sound-fragment carve-out is needed — **but one is
+    now predicted, and about to be measured.** The 2026-08-08 acceptance-mark
+    grill (#1) argued that a **partial $\Tin$** is exactly where the reduction
+    and the methods must part company: once $\delta_{in}$ is undefined
+    everywhere, the system can *continue past* the assumption boundary, making
+    $\psi_{in}\!\rightarrow\!\varphi$ vacuously true, whereas
+    `alg:dfa_product:final` leaves it stuck at an edgeless non-accepting product
+    state. Witness $\varphi=X[!]\mathtt{tt}$ with a $\delta$-dead $\Tin$; it
+    ships as oracle **O5** of
+    [`docs/prd/acceptance-mark-on-edgeless-states.md`](prd/acceptance-mark-on-edgeless-states.md).
+    **OBSERVED 2026-08-09, and it matched the prediction exactly:**
+    `ltlf-ek-synth` → **UNREALIZABLE**, `ltlfsynt` on
+    $\psi_{in}\!\rightarrow\!\varphi$ → **REALIZABLE**, with
+    `run_faithfulness_guard` **passing** on $(\Tin,\psi_{in})$ (so Stop-list 2
+    did not fire and this is not a mis-encoding). **This is the conjecture's
+    first known divergence witness** — the sentence above ("no known divergence
+    witness") is now false, and the partial-transducer fragment needs carving
+    out. It ships as an `IMPORTANT`-headed test in
+    `tests/ltlfsynt_oracle_test.cpp` that **pins a known boundary, not correct
+    behaviour**; do not "fix" it. The consequence for the proof: it now needs
+    either a **totality hypothesis** on $\Tin/\Tout$, or a ruling on runs that
+    leave the transducer's domain — which bottoms out on the open termination
+    `\na` after `def:probDef`, i.e. it is **not** independently decidable. A
+    mechanical
     **faithfulness guard** now cross-checks every corpus $(\Tin,\psi_{in})$ pair
     against itself so this class of drift cannot recur silently
     (`tests/ltlfsynt_oracle_test.cpp`).
+  - **`/theory-review` 2026-08-09 assessment of O5: genuine, not an artifact.**
+    $\psi_{in}$ is exactly $\Tin$'s produced-trace language (length-1 traces with
+    $k \leftrightarrow a$) and the faithfulness guard passes, so it is not a
+    mis-encoding; the acceptance-mark fix is not the cause either, since the
+    edgeless state in the witness is **non**-accepting and
+    `ensure_acceptance_readable` no-ops on it. The divergence is the same
+    phenomenon as the totalization claim in `main.tex` §`Transducers`: partiality
+    **deletes letters for both players**, and the reduction's escape route is one
+    of the deleted letters. Drafted `\cl` notes 1 and 2 in the item above.
   - Interacts with the **non-empty-trace / empty-word** convention (`1` rejects
     the empty word) and **system-controlled termination** — both bite exactly at
     trace-continuation boundaries, so any future divergence candidate should be

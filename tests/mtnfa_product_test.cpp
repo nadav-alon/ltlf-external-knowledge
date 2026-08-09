@@ -920,14 +920,19 @@ TEST(MtnfaProductApLifetime, DiscardingTheMtnfaTemporaryKeepsTheProductLanguageC
 }
 
 // ---------------------------------------------------------------------------
-// SECTION E -- The expected-divergence test (REQUIRED, PRD "Test oracles").
+// SECTION E -- Acceptance-mark parity on an accepting edgeless product state
+// (docs/prd/acceptance-mark-on-edgeless-states.md "Test oracles" / "Tests
+// this PRD knowingly changes" #1).  Renamed off "ExpectedDivergence": the
+// class this test used to PIN as a known bug is now FIXED at all four
+// builder sites (detail::ensure_acceptance_readable, adopted by
+// materialize_product and emits_dfa), so all three methods below now agree.
 //
 // Reproduction (docs/BACKLOG.md "materialize_product drops F_P on an
-// edgeless accepting product state"): phi=b, Ofree={b}, a delta-dead t_in
-// state. vars: input_free={} (empty), input_known={"a"}, output_free={"b"},
-// output_known={}. t_in: state 0 --(bddtrue)--> state 1, committing a=true
-// unconditionally (Sigma0=Ifree=empty, so this is a constant relation);
-// state 1 has NO out-edges at all (delta-dead).
+// edgeless accepting product state", now Done): phi=b, Ofree={b}, a
+// delta-dead t_in state. vars: input_free={} (empty), input_known={"a"},
+// output_free={"b"}, output_known={}. t_in: state 0 --(bddtrue)--> state 1,
+// committing a=true unconditionally (Sigma0=Ifree=empty, so this is a
+// constant relation); state 1 has NO out-edges at all (delta-dead).
 //
 // A length-1 trace with b=true satisfies phi="b" outright (LTLf: only the
 // FIRST letter matters). The only cons-passing letter at the initial move
@@ -939,62 +944,33 @@ TEST(MtnfaProductApLifetime, DiscardingTheMtnfaTemporaryKeepsTheProductLanguageC
 //
 //   - MtnfaProduct puts the acceptance bit on the INCOMING terminal
 //     (Relabel, "Novel mechanisms (c)"), so this accepting dead-end keeps
-//     its mark regardless of having zero outgoing edges --> predicted
-//     REALIZABLE (the PRD's "Known divergence" claim).
+//     its mark regardless of having zero outgoing edges: REALIZABLE, and was
+//     never affected by the bug class (acceptance never passes through a
+//     twa_graph for this method -- see below).
 //   - NfaProduct materializes the product via materialize_product
-//     (src/product.cpp:341), which only attaches F_P INSIDE its
-//     per-destination guard loop; an edgeless accepting state emits no
-//     edges, so Spot's state_is_accepting (reading a state's FIRST
-//     out-edge) reads the mark back as false --> UNREALIZABLE. This is the
-//     KNOWN, PRE-EXISTING bug docs/BACKLOG.md records (not introduced by
-//     NfaProduct or MtnfaProduct) -- this assertion PINS the bug, it does
-//     NOT assert correct behaviour of NfaProduct.
-//   - MtdfaProduct was PREDICTED REALIZABLE by the same argument, and that
-//     prediction was WRONG -- established by this very fixture, on first
-//     run, 2026-07-27.  It reports UNREALIZABLE, for a SECOND INSTANCE of
-//     exactly the bug class above: emits_dfa (src/emits_dfa.cpp:49) attaches
-//     its acceptance mark only INSIDE the per-edge loop, so a delta-dead
-//     transducer state still gets a state (via discover(d)) but ZERO edges
-//     and ZERO marks; spot::twadfa_to_mtdfa then reads it back
-//     non-accepting, and the intersection rejects.  Confirmed empirically:
-//     adding the defensive bddfalse-guarded self-loop that nfa_to_dfa.cpp:105
-//     already uses makes this test pass (but breaks two emits_dfa tests, one
-//     of which deliberately pins the current edgeless shape -- so the fix is
-//     NOT a drive-by).  Fix deliberately DEFERRED, see below.
+//     (src/product.cpp), which now calls detail::ensure_acceptance_readable
+//     after the per-destination guard loop for every accepting state: an
+//     edgeless accepting state gets a bddfalse-guarded self-loop carrying
+//     the mark, so Spot's state_is_accepting reads it back TRUE: REALIZABLE.
+//     Before the fix this read FALSE (the pre-existing, now-retired bug
+//     docs/BACKLOG.md recorded).
+//   - MtdfaProduct routes acceptance through emits_dfa -> twadfa_to_mtdfa,
+//     i.e. through state_is_accepting's read-off-the-first-out-edge, and
+//     emits_dfa now calls the same helper after its discovery loop for every
+//     (always-accepting) state: REALIZABLE, the SECOND site of the same
+//     fixed bug class.
 //
-// WHY MtnfaProduct ESCAPES and MtdfaProduct does not -- the load-bearing
+// WHY MtnfaProduct was NEVER exposed to the class -- the load-bearing
 // distinction, worth not re-deriving: MtnfaProduct computes the acceptance
 // bit as `any(goal.accepting[s] for s in S)` straight off Mtnfa::accepting
-// (Relabel), so acceptance NEVER passes through a twa_graph.  MtdfaProduct
-// launders it through emits_dfa -> twadfa_to_mtdfa, i.e. through
-// state_is_accepting's read-off-the-first-out-edge.  The PRD's "sink-both is
-// sound in the mtdfa representation" argument is therefore CONFIRMED where it
-// is actually about the mtdfa terminal encoding; what was wrong was
-// extrapolating it to a route that round-trips through an explicit automaton.
-// The PRD's Behaviour §3 claim stands; only its aside about MtdfaProduct did
-// not.
-//
-// IMPORTANT (PRD "Test oracles", "the divergence direction is predicted,
-// not observed"): if MtnfaProduct ever reports UNREALIZABLE here, do NOT
-// flip its assertion to match -- that WOULD falsify the sink-both argument
-// (Behaviour §3, "Open theory questions touched").  Report it and route it to
-// /theory-review.  That warning is specifically about the MtnfaProduct line;
-// the MtdfaProduct line below was flipped only because the mechanism was
-// identified first, which is the bar for flipping.
-//
-// WHEN THE CLASS IS FIXED (docs/BACKLOG.md "acceptance mark lost on an
-// edgeless accepting state" -- three sites: materialize_product
-// src/product.cpp:341, emits_dfa src/emits_dfa.cpp:49, while nfa_to_dfa and
-// reverse_dfa_to_nfa defend correctly): flip BOTH the NfaProduct and the
-// MtdfaProduct expectations below to EXPECT_TRUE, so all four methods agree,
-// and update this comment.
-// ---------------------------------------------------------------------------
-
-TEST(MtnfaProductExpectedDivergence,
-    MaterializeProductBugMakesNfaProductWronglyUnrealizableButMtnfaAndMtdfaProductAreCorrect) {
+// (Relabel), so acceptance NEVER passes through a twa_graph. MtdfaProduct and
+// NfaProduct both launder it through a twa_graph's state_is_accepting, which
+// is exactly what detail::ensure_acceptance_readable repairs.
+TEST(MtnfaProductAcceptanceMarkParity,
+    MaterializeProductAndEmitsDfaNowAgreeWithMtnfaProductOnAnAcceptingEdgelessState) {
 #ifndef MONA_FOUND
   GTEST_SKIP() << "mona not found (CMake find_program(mona)); skipping the "
-                  "expected-divergence partial-transducer test";
+                  "acceptance-mark-parity partial-transducer test";
 #else
   const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
   const VariablePartition vars =
@@ -1018,18 +994,20 @@ TEST(MtnfaProductExpectedDivergence,
   MtdfaProduct mtdfa_method;
 
   EXPECT_TRUE(mtnfa_method.synthesize(phi, vars, t_in, t_out).has_value())
-      << "MtnfaProduct: predicted REALIZABLE (transition-based acceptance "
-        "survives the delta-dead t_in state). If this is FALSE, see the "
-        "IMPORTANT block above this test: do NOT flip, report prominently "
-        "instead -- it would falsify the PRD's sink-both soundness claim";
-  EXPECT_FALSE(nfa_method.synthesize(phi, vars, t_in, t_out).has_value())
-      << "NfaProduct: KNOWN BUG (docs/BACKLOG.md, materialize_product drops "
-        "F_P on an edgeless accepting product state) -- this PINS the bug, "
-        "not correct behaviour; flip to EXPECT_TRUE once it is fixed";
-  EXPECT_FALSE(mtdfa_method.synthesize(phi, vars, t_in, t_out).has_value())
-      << "MtdfaProduct: SAME KNOWN BUG CLASS as NfaProduct above, SECOND SITE "
-        "(emits_dfa.cpp:49) -- this PINS the bug, not correct behaviour; flip "
-        "to EXPECT_TRUE once the class is fixed";
+      << "MtnfaProduct: REALIZABLE (transition-based acceptance survives the "
+        "delta-dead t_in state) -- unaffected by the class, see the WHY note "
+        "above";
+  EXPECT_TRUE(nfa_method.synthesize(phi, vars, t_in, t_out).has_value())
+      << "NfaProduct: REALIZABLE now that materialize_product calls "
+        "detail::ensure_acceptance_readable "
+        "(docs/prd/acceptance-mark-on-edgeless-states.md) -- this used to be "
+        "FALSE, pinning the now-fixed bug; if this regresses, that is a "
+        "real regression, not a re-pin";
+  EXPECT_TRUE(mtdfa_method.synthesize(phi, vars, t_in, t_out).has_value())
+      << "MtdfaProduct: REALIZABLE now that emits_dfa calls "
+        "detail::ensure_acceptance_readable, the second site of the same "
+        "fixed bug class; if this regresses, that is a real regression, not "
+        "a re-pin";
 #endif
 }
 

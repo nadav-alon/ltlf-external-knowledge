@@ -788,19 +788,24 @@ pinned rather than left to be guessed.
   the two are the same question wearing different hats ("stuck transducer": does
   the system lose, or end the trace and win on $F_D$? `main.tex` says the latter;
   our code says the former; Case A means it never happens).
-- **`emits_dfa` accepts the empty word** — **true only when $\lambda$ is defined
-  somewhere at the initial state.** The original claim ("initial state $\in Q$, all
-  accepting") is **too strong** and the language oracle now falsifies it: with
-  $\lambda$ undefined at the initial state, that state has $0$ out-edges and Spot
-  reports it **not** accepting (see the $\lambda$-undefined bullet above), so
-  `emits_dfa` there accepts *nothing*, not even $\varepsilon$.
-  **Harmless either way, and the reasoning is unchanged:** the product is a language
-  *intersection* and $L(\varphi)$ excludes $\varepsilon$ (non-empty traces; `1`
-  rejects the empty word), so $s_{D,0}\notin F_D$ and the intersection never accepts
-  $\varepsilon$ regardless. Still do not "fix" this by making the initial state
-  rejecting *on purpose* — that would break the *Output-agreement automaton*'s
-  language on the cases that do matter. Pinned by
-  `EmitsDfa.AcceptsTheEmptyWordAcrossEveryFixture`.
+- **`emits_dfa` accepts the empty word** — **unconditionally. The exception
+  recorded here is RETIRED (2026-08-09).** This bullet used to say the claim held
+  "only when $\lambda$ is defined somewhere at the initial state", because with
+  $\lambda$ undefined there the state had $0$ out-edges and Spot reported it
+  **not** accepting. That was never a language fact: it was the *acceptance mark
+  being lost in transit*, since `state_is_accepting` reads a state-based mark off
+  the state's **first out-edge** and an edgeless state has none. The original
+  claim ("initial state $\in Q$, all accepting") was right all along.
+  `docs/prd/acceptance-mark-on-edgeless-states.md` repairs the encoding at all
+  four builder sites via `detail::ensure_acceptance_readable`, and
+  `EmitsDfa.AcceptsTheEmptyWordAcrossEveryFixture` now expects `true` on **every**
+  fixture with no exemption.
+  **The harmlessness reasoning is unchanged and still load-bearing:** the product
+  is a language *intersection* and $L(\varphi)$ excludes $\varepsilon$ (non-empty
+  traces; `1` rejects the empty word), so $s_{D,0}\notin F_D$ and the intersection
+  never accepts $\varepsilon$ regardless. Still do not "fix" this by making the
+  initial state rejecting *on purpose* — that would break the *Output-agreement
+  automaton*'s language on the cases that do matter.
 - **Empty $\Ofree$.** `set_controllable_variables` receives $\Iknown \cup \Oknown$
   only; if that is also empty it receives `bddtrue`. Smoke-test both, mirroring the
   existing empty-`Ofree` cases in `tests/ltlfsynt_oracle_test.cpp`.
