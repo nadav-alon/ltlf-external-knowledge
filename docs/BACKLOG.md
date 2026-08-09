@@ -44,15 +44,24 @@ which is why day one is a grill._
 | Day | Unattended day-run | Evening (≤45 min) |
 |---|---|---|
 | **Sat 08-08** (today) | — | Housekeeping: merge PR #7, fast-forward local `master`, prune the ten stale worktrees. Then **Grill A: acceptance-mark semantics** — weekend energy, and it is one decision. |
-| **Sun 08-09** | `#1` acceptance-mark fix | *Light.* Review the PR, merge. |
-| **Mon 08-10** | `#3` input-dependency gallery (generate + auto-verify) | **Grill B: benchmark suite** — primed by `docs/handoffs/2026-08-08-benchmark-suite.md`, so it starts from the open questions, not from discovery. |
-| **Tue 08-11** | `#2` benchmark Phase 1 — families + runner + structural layer | *Light.* Review, eyeball the structural table. |
-| **Wed 08-12** | `#2` benchmark Phase 2 — timing layer + the ltlfsynt T1 race | *Light.* Review, read the numbers. |
-| **Thu 08-13** | — | *Low energy.* Read the gallery from Monday; apply the three parked `\cl` notes for `main.tex` §`indep` (needs the main checkout). |
+| **Sun 08-09** | `#1` acceptance-mark fix | *Light.* Review the PR, merge — **done** (merged `8c1b6b5`, deferred findings `c9bc742`). Then **Grill B pulled forward** (see below). |
+| **Mon 08-10** | `#2` benchmark **Phase 1** — metric sink + instrument the five methods | *Light.* Review. |
+| **Tue 08-11** | `#2` benchmark **Phase 2** — registry + families + committed structural baseline | *Light.* Review, eyeball the structural table. |
+| **Wed 08-12** | `#2` benchmark **Phase 3** — timing layer + the ltlfsynt T1 race | *Light.* Review, read the numbers. |
+| **Thu 08-13** | — | *Low energy.* Apply the three parked `\cl` notes for `main.tex` §`indep` (needs the main checkout). Optionally **Grill C: the `#3` gallery**, if there is energy. |
 
 _Two heavy evenings, both placed deliberately: Saturday has weekend energy,
 Monday is the freshest weekday. The other three are review-only. Thursday is
 reading-and-checking, not designing._
+
+_**Revised 2026-08-09 evening.** The original table put `#3` (the gallery) on
+Monday's day-run, but `#3` has **no PRD and was never scheduled a grill** — so
+Monday would have repeated `docs/runs/2026-08-08-no-launchable-phase.md`. Since
+`#1` landed and merged during the day, the evening was free, so **Grill B moved
+up a day** and `#2` now fills Mon–Wed as three phases (the grill split it into
+three, not two — see the PRD). `#3` is not dropped; its grill is Thursday's
+optional slot. The carry-forward lesson: **the queue must be filled the evening
+before, and an item with no PRD is not a queued item.**_
 
 _The $\Tout$ oracle **shipped 2026-08-03** (see Done), which retired the previous
 "3.2 or the $\Tout$ oracle" pairing. **Method 3.1 is DONE** (see Done; it landed
@@ -163,6 +172,21 @@ out below._
 
 ### Parametric benchmark suite, committed and reproducible — **#2**
 
+- **GRILLED 2026-08-09 → [`docs/prd/benchmark-suite.md`](prd/benchmark-suite.md);
+  launch gate BLOCKED on one thing only — `/glossary`.** Three phases (P1 metric
+  sink + instrument the five methods; P2 registry + families + committed
+  structural baseline; P3 timing binary + the ltlfsynt T1 race). Every open
+  question in the handoff below is now closed *except* the two new glossary terms
+  the PRD introduces — *Canonical benchmark metric* (`Metric`) and *Comparability
+  tier* (`Tier`) — which must be in `docs/GLOSSARY.md` before `/developer` runs,
+  or it will stop to interview. **What the grill added beyond the handoff:**
+  structural counts come from a **metric sink inside `bench.hpp`** (not an
+  external recomputation, which cannot report a product size for the on-the-fly
+  method at all, and not a `Synthesis` interface change); the registry is
+  **subject-pluggable** with a generic `(family, params, subject, metric)` row key
+  so a differently-shaped future benchmark needs no schema migration; and the
+  monolithic internal baseline was **rejected** — as of today it would bake a
+  conjecture with a known divergence witness (O5) into the reference column.
 - **Handoff with the full grill state:
   [`docs/handoffs/2026-08-08-benchmark-suite.md`](handoffs/2026-08-08-benchmark-suite.md).**
   Read that before the next grill — it carries the evidence, four settled
