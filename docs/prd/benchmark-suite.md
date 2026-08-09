@@ -1,17 +1,17 @@
 # PRD: Parametric benchmark suite
 
 **Status:** draft
-**Interface:** extends the existing benchmarking infrastructure (`docs/prd/benchmarking.md`) with a **metric sink** in `include/ltlf_ek/bench.hpp` (`Metric` / `metric_name` / `record_metric`), a **benchmark registry** (`BenchFamily` / `BenchSubject` / `BenchCase`, `include/ltlf_ek/bench_suite.hpp`), and a new `ltlf-ek-bench` binary. **Does not change the `Synthesis` contract.**
+**Interface:** extends the existing benchmarking infrastructure (`docs/prd/benchmarking.md`) with a **metric sink** in `include/ltlf_ek/bench.hpp` (`SizeMetric` / `size_metric_name` / `record_size_metric`), a **benchmark registry** (`BenchFamily` / `BenchSubject` / `BenchCase`, `include/ltlf_ek/bench_suite.hpp`), and a new `ltlf-ek-bench` binary. **Does not change the `Synthesis` contract.**
 **Recommended workflow:** **concurrent for Phase 1** (the metric sink mirrors the existing `Stage` registry one-for-one — high freeze confidence), **sequential for Phases 2–3** (the registry and the runner are genuinely being invented here; the test-writer should bind to the real signatures).
 **main.tex ref:** none — this is infrastructure, like `docs/prd/benchmarking.md` and `docs/prd/cli-wrapper.md`. The measured quantities trace to the algorithm blocks they size: `alg:dfa_product` (§`fulldfa`), `alg:nfa_product` (§`nfa`), `alg:otfdfa_product` (§`otf`). The **comparability tier** rests on the LTLf $\equiv$ star-free correspondence, which `main.tex` does **not** currently state — see *Open theory questions touched*.
 
 **Gates:**
-- [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
+- [x] glossary        — *Canonical size metric* (`SizeMetric`) and *Comparability tier* (`ComparabilityTier`) added 2026-08-09, pre-`/developer`; the shipped *Canonical benchmarking stage* entry's "Do not call it" line was amended to point at the new size axis
 - [ ] tests           — unit + oracle coverage
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex
 
-**Unattended-ready:** **no, until `/glossary` runs** — two domain terms this PRD introduces (*Canonical benchmark metric*, *Comparability tier*) are not in `docs/GLOSSARY.md`, and `/developer` stops to interview when it meets one. Everything else is closed: interfaces are frozen below, each phase has a machine-checkable checkpoint, and the open theory question is on the Stop-list rather than in the implementation path. Run `/glossary` once, tick the gate, and all three phases are launchable.
+**Unattended-ready:** **yes** (2026-08-09). Both domain terms this PRD introduces are now in `docs/GLOSSARY.md` — *Canonical size metric* (`SizeMetric`) and *Comparability tier* (`ComparabilityTier`); interfaces are frozen below; each phase has a machine-checkable checkpoint; and the one open theory question is on the Stop-list rather than in the implementation path. All three phases are launchable.
 
 ## Stop-list
 
@@ -38,10 +38,10 @@ Existing, used as spelled in `docs/GLOSSARY.md`:
 - **Goal automaton**, **Product**, **Controller**, **Knowledge transducer** ($\Tin$, $\Tout$), **Variable partition** ($\Ifree$, $\Iknown$, $\Ofree$, $\Oknown$), **Consistency filter** ($\cons$).
 - **Generated corpus** — referenced only to keep `random_tin` **out of scope**.
 
-**Missing from `docs/GLOSSARY.md` — run `/glossary` before `/developer`:**
+**Added to `docs/GLOSSARY.md` 2026-08-09 by `/glossary`, before `/developer`:**
 
-- **Canonical benchmark metric** (`Metric` / `metric_name` / `record_metric`) — the size analogue of *Canonical benchmarking stage*: a closed registry of comparable **size** axes, carrying the same comparability caveat (two methods' same-named metric is comparable only when they charge the **same structure** to it).
-- **Comparability tier** (`Tier`, values `t1`/`t2`/`t3`) — the declared expressibility class of a family's $\Tin$, governing whether an external `ltlfsynt` comparison is a legitimate claim for that family.
+- **Canonical size metric** (`SizeMetric` / `size_metric_name` / `record_size_metric`) — the size analogue of *Canonical benchmarking stage*: a closed registry of comparable **size** axes, carrying the same comparability caveat (two methods' same-named metric is comparable only when they charge the **same structure** to it).
+- **Comparability tier** (`ComparabilityTier`, values `t1`/`t2`/`t3`) — the declared expressibility class of a family's $\Tin$, governing whether an external `ltlfsynt` comparison is a legitimate claim for that family.
 
 Following the `bench.hpp` and `cli.hpp` precedent, the surrounding plumbing (`BenchFamily`, `BenchSubject`, `BenchCase`, `BenchParams`, the runner, the baseline reader/writer) is **infrastructure, not a domain concept**, and gets **no** glossary entry.
 
@@ -56,9 +56,9 @@ The structural layer is **not a supplement — it is the validity check on the f
 
 ### B2. The metric registry, and what each method charges
 
-`Metric` is a **closed canonical registry**, exactly like `Stage`: adding a value is deliberate (enum value + name row + glossary line), and a non-canonical quantity gets a free-form label instead. Recording is out-of-band — a method calls `record_metric` in the same place it opens a `BenchTimer`, and it is a near-zero-cost no-op when no `BenchScope` is active, so a run's verdict and controller stay byte-identical whether measurement is on or off.
+`SizeMetric` is a **closed canonical registry**, exactly like `Stage`: adding a value is deliberate (enum value + name row + glossary line), and a non-canonical quantity gets a free-form label instead. Recording is out-of-band — a method calls `record_size_metric` in the same place it opens a `BenchTimer`, and it is a near-zero-cost no-op when no `BenchScope` is active, so a run's verdict and controller stay byte-identical whether measurement is on or off.
 
-| `Metric` | Meaning | Unit |
+| `SizeMetric` | Meaning | Unit |
 |---|---|---|
 | `goal_dfa_states` | states of the deterministic Goal automaton for $\varphi$ | states |
 | `goal_nfa_states` | states of the nondeterministic Goal automaton for $\varphi$ | states |
@@ -84,7 +84,7 @@ Two rules make the holes safe:
 
 ### B3. Tiers are declared, never sniffed
 
-A family declares its `Tier`. Nothing inspects a transducer at run time to decide one.
+A family declares its `ComparabilityTier`. Nothing inspects a transducer at run time to decide one.
 
 | Tier | Condition | `ltlfsynt` cell |
 |---|---|---|
@@ -122,7 +122,7 @@ Nothing in the suite draws random numbers: every $\varphi_n$ is a formula templa
 
 ```cpp
 // Canonical comparable size axes --- the same soft registry as Stage.
-enum class Metric {
+enum class SizeMetric {
   goal_dfa_states,
   goal_nfa_states,
   nfa_product_states,
@@ -131,28 +131,28 @@ enum class Metric {
   controller_states,
 };
 
-std::string_view metric_name(Metric m);
+std::string_view size_metric_name(SizeMetric m);
 
 // Record one measurement into the active BenchScope's collector.
 // No-op (near-zero cost) if no BenchScope is active --- the BenchTimer rule.
-void record_metric(Metric m, std::uint64_t value);
-void record_metric(std::string label, std::uint64_t value);  // free-form tier
+void record_size_metric(SizeMetric m, std::uint64_t value);
+void record_size_metric(std::string label, std::uint64_t value);  // free-form tier
 
 // One recorded measurement.
-struct BenchMetric {
-  std::string label;      // metric_name(Metric) or a free string
+struct BenchSizeMetric {
+  std::string label;      // size_metric_name(SizeMetric) or a free string
   bool canonical;         // true => label is a registry key
   std::uint64_t value;
 };
 ```
 
-`BenchReport` gains one member, `std::vector<BenchMetric> metrics;` — **flat, not nested**: a metric belongs to the run, not to a span. `BenchReport::to_json` always emits a `"metrics"` array, empty when nothing was recorded; that is an additive but **visible** schema change, so `tests/bench_test.cpp`'s JSON-schema case is a **knowingly-changed test**.
+`BenchReport` gains one member, `std::vector<BenchSizeMetric> metrics;` — **flat, not nested**: a metric belongs to the run, not to a span. `BenchReport::to_json` always emits a `"metrics"` array, empty when nothing was recorded; that is an additive but **visible** schema change, so `tests/bench_test.cpp`'s JSON-schema case is a **knowingly-changed test**.
 
 ### Phase 2 — the registry (`include/ltlf_ek/bench_suite.hpp`)
 
 ```cpp
-enum class Tier { t1, t2, t3 };
-std::string_view tier_name(Tier t);
+enum class ComparabilityTier { t1, t2, t3 };
+std::string_view comparability_tier_name(ComparabilityTier t);
 
 // Ordered so a row key is stable across runs.
 using BenchParams = std::map<std::string, std::int64_t>;
@@ -164,8 +164,8 @@ struct BenchCase {
   VariablePartition vars;
   Transducer t_in;
   Transducer t_out;
-  Tier tier;                           // DECLARED by the family (B3)
-  std::optional<std::string> psi_in;   // required iff tier == Tier::t1
+  ComparabilityTier tier;              // DECLARED by the family (B3)
+  std::optional<std::string> psi_in;   // required iff tier == ComparabilityTier::t1
   bool expected_realizable;
 };
 
@@ -196,7 +196,7 @@ struct BenchRow {
   std::string family;
   BenchParams params;
   std::string subject;
-  std::string key;          // metric_name(...) or stage_name(...)
+  std::string key;          // size_metric_name(...) or stage_name(...)
   std::uint64_t value;      // count, or nanoseconds
 };
 
@@ -230,7 +230,7 @@ Reports the **minimum** of `K` repetitions (both prior harnesses did; `--repeat=
 
 ## Implementation phases
 
-- **Phase 1 — metric sink + instrumentation.** `Metric`, `metric_name`, `record_metric`, `BenchMetric`, the `BenchReport::metrics` member and its JSON emission; then the charge table of B2 wired into all five methods at the sites that already open a `BenchTimer`. **Green checkpoint:** suite green with `tests/bench_test.cpp`'s schema case knowingly updated, plus new cases asserting that each method emits exactly its charge-table row set, and a **zero-perturbation** case (verdict and controller identical with and without an active `BenchScope`) mirroring the one `docs/prd/benchmarking.md` already ships. No families exist yet. *This is the only phase that edits the five method `.cpp` files.*
+- **Phase 1 — metric sink + instrumentation.** `SizeMetric`, `size_metric_name`, `record_size_metric`, `BenchSizeMetric`, the `BenchReport::metrics` member and its JSON emission; then the charge table of B2 wired into all five methods at the sites that already open a `BenchTimer`. **Green checkpoint:** suite green with `tests/bench_test.cpp`'s schema case knowingly updated, plus new cases asserting that each method emits exactly its charge-table row set, and a **zero-perturbation** case (verdict and controller identical with and without an active `BenchScope`) mirroring the one `docs/prd/benchmarking.md` already ships. No families exist yet. *This is the only phase that edits the five method `.cpp` files.*
 
 - **Phase 2 — registry, families, committed structural baseline.** `bench_suite.hpp` per above; the five families of B4; the five-method `BenchSubject`; the baseline `.tsv`; the `BenchStructural` ctest case asserting every cell exactly; the regenerate path. Sweep $n = 2..8$, sized to add **≤ ~30 s** to `ctest`. **That budget is an estimate, not a measurement** — 5 families × 2 polarities × 7 values of $n$ × 5 methods is ~350 runs, two of whose methods spawn `mona` per run. Measure it; if it busts the budget, **lower `n_max` and regenerate the baseline** (the assertion's sensitivity does not depend on reaching large $n$ — B1). Do not instead move the case behind an opt-in label: a label the day-run does not execute protects nothing. **Green checkpoint:** `BenchStructural` passes against the committed baseline; the regenerate path reproduces it byte-for-byte; the discrimination assertions of *Test oracles* O2 pass. May stub the timing binary entirely.
 
@@ -251,13 +251,13 @@ Each phase leaves the tree compiling and independently testable.
 
 ## Test oracles (for /test-writer)
 
-1. **Metric-emission oracle (Phase 1).** For each of the five methods, the set of canonical metrics emitted under a `BenchScope` equals **exactly** its row in the B2 charge table — no extras, no omissions. This is what makes a silently-dropped metric visible.
+1. **Size-metric emission oracle (Phase 1).** For each of the five methods, the set of canonical metrics emitted under a `BenchScope` equals **exactly** its row in the B2 charge table — no extras, no omissions. This is what makes a silently-dropped metric visible.
 2. **Discrimination oracle (Phase 2) — the family validity check.** Assert the structural *shape* each family claims, not just its committed integers: `cons-prunes` has `goal_dfa_states` exponential in $n$ while `product_states` is linear; `cons-inert` has `product_states` ≥ `goal_dfa_states`; `mirror-small` has `goal_nfa_states` linear in $n$ while the mtdfa route is exponential; `mirror-degenerate` has `goal_nfa_states` of the **same order as the DFA** — its degeneracy is asserted deliberately, since that is the property being preserved as a warning.
 3. **Exact-baseline oracle (Phase 2).** Every committed cell matches, and the regenerate path is idempotent (regenerating an unchanged tree produces a byte-identical file).
 4. **Zero-perturbation oracle (Phase 1).** A run's verdict and controller are identical with and without an active `BenchScope` — the invariant `docs/prd/benchmarking.md` already established for spans, extended to metrics.
 5. **Cross-method agreement on the families (Phase 2).** All five methods agree on realizability for every case, and each agrees with the family's declared `expected_realizable`. This reuses the existing cross-method oracle machinery and turns the benchmark corpus into an additional differential corpus for free.
 6. **Determinism oracle (Phase 2).** Running the same case twice in one process yields identical structural rows — cheap, and it pins B5.
-7. **Tier-declaration oracle (Phase 2).** Every `Tier::t1` family carries a non-empty `psi_in`; no other tier does. This is the mechanical form of "the tier is declared, never sniffed".
+7. **Tier-declaration oracle (Phase 2).** Every `ComparabilityTier::t1` family carries a non-empty `psi_in`; no other tier does. This is the mechanical form of "the tier is declared, never sniffed".
 
 ## Open theory questions touched
 

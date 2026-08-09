@@ -173,13 +173,17 @@ out below._
 ### Parametric benchmark suite, committed and reproducible — **#2**
 
 - **GRILLED 2026-08-09 → [`docs/prd/benchmark-suite.md`](prd/benchmark-suite.md);
-  launch gate BLOCKED on one thing only — `/glossary`.** Three phases (P1 metric
-  sink + instrument the five methods; P2 registry + families + committed
-  structural baseline; P3 timing binary + the ltlfsynt T1 race). Every open
-  question in the handoff below is now closed *except* the two new glossary terms
-  the PRD introduces — *Canonical benchmark metric* (`Metric`) and *Comparability
-  tier* (`Tier`) — which must be in `docs/GLOSSARY.md` before `/developer` runs,
-  or it will stop to interview. **What the grill added beyond the handoff:**
+  launch gate CLEAN.** Three phases (P1 metric sink + instrument the five methods;
+  P2 registry + families + committed structural baseline; P3 timing binary + the
+  ltlfsynt T1 race). Every open question in the handoff below is closed, and
+  `/glossary` ran the same evening: *Canonical size metric* (`SizeMetric`) and
+  *Comparability tier* (`ComparabilityTier`) are in `docs/GLOSSARY.md`, so
+  `/developer` has no term to stop on. **The glossary pass found a collision worth
+  remembering:** the shipped *Canonical benchmarking stage* entry had already
+  rejected "metric" as a synonym — a metric is the recorded **datum**, not an axis
+  — so the new registry is `SizeMetric` (the **size** axis) beside `Stage` (the
+  **time** axis), and "metric" bare still means the datum.
+  **What the grill added beyond the handoff:**
   structural counts come from a **metric sink inside `bench.hpp`** (not an
   external recomputation, which cannot report a product size for the on-the-fly
   method at all, and not a `Synthesis` interface change); the registry is
