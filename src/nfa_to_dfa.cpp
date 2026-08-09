@@ -9,6 +9,8 @@
 #include <bddx.h>
 #include <spot/twa/acc.hh>
 
+#include "ltlf_ek/detail/acceptance.hpp"
+
 namespace ltlf_ek {
 
 namespace {
@@ -69,7 +71,6 @@ spot::twa_graph_ptr nfa_to_dfa(const spot::twa_graph_ptr& nfa) {
     const unsigned src = interned.at(cur);
     const bool acc = is_accepting_subset(cur);
     const spot::acc_cond::mark_t mark = acc ? kFinal : kNone;
-    bool added_real_edge = false;
 
     for (const bdd& v : minterms) {
       // R' = union over s in R of nfa's out-edges from s whose guard v
@@ -93,16 +94,14 @@ spot::twa_graph_ptr nfa_to_dfa(const spot::twa_graph_ptr& nfa) {
         dst = it->second;
       }
       dfa->new_edge(src, dst, v, mark);
-      added_real_edge = true;
     }
 
     // Defensive self-loop (same pattern as detail::reverse_dfa_to_nfa's
     // accepting-dead-end fix): if R is accepting but every letter was
     // ∅-skipped, R has zero real out-edges, and twa_graph::state_is_accepting
     // reads its mark off the FIRST out-edge --- with none, it would silently
-    // read back false.  A bddfalse-guarded self-loop is never taken by any
-    // real letter but gives Spot an edge whose mark to read.
-    if (acc && !added_real_edge) dfa->new_edge(src, src, bddfalse, kFinal);
+    // read back false.  See docs/prd/acceptance-mark-on-edgeless-states.md.
+    detail::ensure_acceptance_readable(dfa, src, mark);
   }
   return dfa;
 }

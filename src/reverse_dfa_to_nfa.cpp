@@ -3,6 +3,8 @@
 #include <bddx.h>
 #include <spot/twa/acc.hh>
 
+#include "ltlf_ek/detail/acceptance.hpp"
+
 namespace ltlf_ek::detail {
 
 spot::twa_graph_ptr reverse_dfa_to_nfa(const spot::twa_graph_ptr& d) {
@@ -33,11 +35,13 @@ spot::twa_graph_ptr reverse_dfa_to_nfa(const spot::twa_graph_ptr& d) {
     }
   }
 
-  // Defensive self-loop on s0 (see header doc-comment): added
-  // unconditionally, purge_dead_states() below keeps it only if it really
-  // is s0's sole outgoing edge (Spot's own documented exception for
-  // exactly this pattern).
-  n->new_edge(s0, s0, bddfalse, kFinal);
+  // Defensive self-loop on s0 (see header doc-comment): s0 is unconditionally
+  // in F_N, so it must read as accepting even if the loop above gave it no
+  // real out-edges. ensure_acceptance_readable no-ops when s0 already has an
+  // out-edge, which is exactly the condition under which the old
+  // unconditional self-loop was itself pruned by purge_dead_states() below --
+  // same final graph either way (docs/prd/acceptance-mark-on-edgeless-states.md).
+  ensure_acceptance_readable(n, s0, kFinal);
 
   n->purge_unreachable_states();
   n->purge_dead_states();

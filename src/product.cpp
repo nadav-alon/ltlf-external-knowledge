@@ -8,6 +8,7 @@
 #include <string>
 
 #include "ltlf_ek/consistency.hpp"
+#include "ltlf_ek/detail/acceptance.hpp"
 
 namespace ltlf_ek {
 
@@ -341,6 +342,12 @@ spot::twa_graph_ptr materialize_product(const ProductGuards& pg,
     const spot::acc_cond::mark_t mark = acc ? kFinalMark : kNoMark;
     for (const auto& [dst, guard] : guards)
       product->new_edge(src, index.at(dst), guard, mark);
+    // alg:dfa_product:final gives F_P no dependence on delta_Dprod, so an
+    // edgeless-but-accepting state (every letter non-cons/non-enabled, a
+    // legal end of an allowed trace per the Transducers partiality
+    // paragraph) must still read as accepting --- see
+    // docs/prd/acceptance-mark-on-edgeless-states.md.
+    detail::ensure_acceptance_readable(product, src, mark);
   }
   return product;
 }

@@ -6,6 +6,8 @@
 
 #include <bddx.h>
 
+#include "ltlf_ek/detail/acceptance.hpp"
+
 namespace ltlf_ek {
 
 spot::twa_graph_ptr emits_dfa(const Transducer& tau,
@@ -48,6 +50,12 @@ spot::twa_graph_ptr emits_dfa(const Transducer& tau,
       if (eg == bddfalse) continue;  // non-agreeing: no dead edges.
       g->new_edge(src, discover(d), eg, kAccepting);
     }
+    // Every state is accepting (this function's whole contract): q may be
+    // edgeless here (tau.delta undefined at q, or emits_region(q) ==
+    // bddfalse), which is a legal end of an allowed trace, not an error --
+    // give it a carrier so state_is_accepting still reads true.  See
+    // docs/prd/acceptance-mark-on-edgeless-states.md.
+    detail::ensure_acceptance_readable(g, src, kAccepting);
   }
 
   return g;

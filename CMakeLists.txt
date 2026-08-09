@@ -70,6 +70,7 @@ add_library(ltlf_ek
   src/verify_controller.cpp
   src/cli.cpp
   src/bench.cpp
+  src/detail/acceptance.cpp
   src/detail/dependency_core.cpp
   src/dependent_outputs.cpp
   src/dependent_inputs.cpp
