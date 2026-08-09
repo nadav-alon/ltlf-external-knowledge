@@ -345,4 +345,140 @@ TEST(ReverseDfaToNfa, AlphabetCarriesEveryApNotJustOne) {
   EXPECT_EQ(ApNames(n), (std::set<std::string>{"a", "b"}));
 }
 
+// --- The conditional-vs-unconditional self-loop equivalence -----------------
+//
+// docs/prd/acceptance-mark-on-edgeless-states.md adopted
+// detail::ensure_acceptance_readable here, which adds the bddfalse self-loop on
+// s_{D,0} only when s_{D,0} is edgeless, replacing an UNCONDITIONAL
+// new_edge(s0, s0, bddfalse, kFinal). The /code-reviewer pass asked whether
+// that is really "the same final graph either way". These tests answer it by
+// measurement rather than by argument: they rebuild the pre-adoption body
+// verbatim and compare the two graphs edge for edge.
+//
+// The mechanism, from spot/twa/twagraph.cc: purge_dead_states() is a
+// NO-SUCCESSOR purge, not a Buchi-liveness purge -- acceptance marks play no
+// part in it, so a kFinal self-loop cannot keep a state alive by putting it on
+// an "accepting cycle". Its documented exception keeps a bddfalse self-loop
+// only when it is the state's FIRST edge with no next_succ, i.e. its sole
+// outgoing edge. An unconditionally APPENDED self-loop is therefore erased
+// whenever s_{D,0} already has a real out-edge -- exactly the case in which
+// ensure_acceptance_readable declines to add it.
+
+// The pre-adoption reverse_dfa_to_nfa body, verbatim except that the defensive
+// self-loop is added unconditionally (as it was before the helper).
+spot::twa_graph_ptr ReverseWithUnconditionalSelfLoop(
+    const spot::twa_graph_ptr& d) {
+  spot::twa_graph_ptr n = spot::make_twa_graph(d->get_dict());
+  for (const spot::formula& ap : d->ap()) n->register_ap(ap.ap_name());
+  n->set_buchi();
+  n->prop_state_acc(true);
+  const unsigned num_d_states = d->num_states();
+  n->new_states(num_d_states + 1);
+  const unsigned fresh_init = num_d_states;
+  n->set_init_state(fresh_init);
+  const spot::acc_cond::mark_t kFinal = {0};
+  const spot::acc_cond::mark_t kNone = {};
+  const unsigned s0 = d->get_init_state_number();
+  for (unsigned s = 0; s < num_d_states; ++s)
+    for (const auto& e : d->out(s)) {
+      n->new_edge(e.dst, s, e.cond, e.dst == s0 ? kFinal : kNone);
+      if (d->state_is_accepting(e.dst)) n->new_edge(fresh_init, s, e.cond, kNone);
+    }
+  n->new_edge(s0, s0, bddfalse, kFinal);
+  n->purge_unreachable_states();
+  n->purge_dead_states();
+  return n;
+}
+
+// Structural equality of two twa_graphs: same states, same init, and the same
+// (src, cond, dst, mark) edge multiset in the same per-state order.
+::testing::AssertionResult SameGraph(const spot::twa_graph_ptr& x,
+                                     const spot::twa_graph_ptr& y) {
+  if (x->num_states() != y->num_states())
+    return ::testing::AssertionFailure()
+           << "state count " << x->num_states() << " != " << y->num_states();
+  if (x->get_init_state_number() != y->get_init_state_number())
+    return ::testing::AssertionFailure() << "different initial state";
+  for (unsigned s = 0; s < x->num_states(); ++s) {
+    auto xi = x->out(s).begin();
+    auto yi = y->out(s).begin();
+    for (;; ++xi, ++yi) {
+      const bool xend = !(xi != x->out(s).end());
+      const bool yend = !(yi != y->out(s).end());
+      if (xend != yend)
+        return ::testing::AssertionFailure()
+               << "different out-degree at state " << s;
+      if (xend) break;
+      if (xi->dst != yi->dst || xi->cond != yi->cond || xi->acc != yi->acc)
+        return ::testing::AssertionFailure() << "different edge at state " << s;
+    }
+  }
+  return ::testing::AssertionSuccess();
+}
+
+// D with a state UNREACHABLE from s_{D,0} whose edge targets s_{D,0}: the one
+// shape in which s_{D,0} gains a real out-edge in N without lying on any cycle,
+// so it is where a Buchi-liveness reading would predict the two constructions to
+// diverge. They do not.
+TEST(ReverseDfaToNfaSelfLoopEquivalence, UnreachablePredecessorOfInitState) {
+  spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  spot::twa_graph_ptr registrar = spot::make_twa_graph(dict);
+  const int a = registrar->register_ap("a");
+  // 0 = s_{D,0}, 1 accepting, 2 unreachable from 0 with 2 --a--> 0.
+  const std::vector<DEdge> edges = {
+      {0, bdd_ithvar(a), 1},  {0, bdd_nithvar(a), 0},
+      {1, bdd_ithvar(a), 1},  {1, bdd_nithvar(a), 0},
+      {2, bdd_ithvar(a), 0},  {2, bdd_nithvar(a), 2},
+  };
+  EXPECT_TRUE(SameGraph(
+      reverse_dfa_to_nfa(BuildDfa(dict, {"a"}, 3, 0, {1}, edges)),
+      ReverseWithUnconditionalSelfLoop(BuildDfa(dict, {"a"}, 3, 0, {1}, edges))));
+}
+
+// Sharper: s_{D,0}'s sole N-out-edge leads to a state with no successors, so
+// s_{D,0} is itself purged. The unconditional self-loop does NOT rescue it --
+// which is the direct evidence that the purge is not liveness-based. (Both
+// constructions lose the accepting state here; that is a genuine precondition
+// on D -- all states reachable from s_{D,0} -- and it predates this PRD.)
+TEST(ReverseDfaToNfaSelfLoopEquivalence, UnreachablePredecessorThatIsAlsoADeadEnd) {
+  spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  spot::twa_graph_ptr registrar = spot::make_twa_graph(dict);
+  const int a = registrar->register_ap("a");
+  const std::vector<DEdge> edges = {
+      {0, bdd_ithvar(a), 1},
+      {1, bdd_ithvar(a), 1},
+      {2, bdd_ithvar(a), 0},  // 2 unreachable from 0, sole predecessor of 0
+  };
+  EXPECT_TRUE(SameGraph(
+      reverse_dfa_to_nfa(BuildDfa(dict, {"a"}, 3, 0, {1}, edges)),
+      ReverseWithUnconditionalSelfLoop(BuildDfa(dict, {"a"}, 3, 0, {1}, edges))));
+}
+
+// And the two shapes the production pipeline actually produces: s_{D,0} with
+// real out-edges (fixture 1) and the accepting dead-end (fixture 2).
+TEST(ReverseDfaToNfaSelfLoopEquivalence, ProductionShapes) {
+  spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  spot::twa_graph_ptr registrar = spot::make_twa_graph(dict);
+  const int a = registrar->register_ap("a");
+  const std::vector<DEdge> last_letter = {
+      {0, bdd_ithvar(a), 1},
+      {0, bdd_nithvar(a), 0},
+      {1, bdd_ithvar(a), 1},
+      {1, bdd_nithvar(a), 0},
+  };
+  EXPECT_TRUE(SameGraph(
+      reverse_dfa_to_nfa(BuildDfa(dict, {"a"}, 2, 0, {1}, last_letter)),
+      ReverseWithUnconditionalSelfLoop(
+          BuildDfa(dict, {"a"}, 2, 0, {1}, last_letter))));
+
+  const std::vector<DEdge> dead_end = {
+      {0, bdd_ithvar(a), 1}, {0, bdd_nithvar(a), 2}, {1, bdd_ithvar(a), 2},
+      {1, bdd_nithvar(a), 2}, {2, bdd_ithvar(a), 2}, {2, bdd_nithvar(a), 2},
+  };
+  EXPECT_TRUE(SameGraph(
+      reverse_dfa_to_nfa(BuildDfa(dict, {"a"}, 3, 0, {1}, dead_end)),
+      ReverseWithUnconditionalSelfLoop(
+          BuildDfa(dict, {"a"}, 3, 0, {1}, dead_end))));
+}
+
 }  // namespace

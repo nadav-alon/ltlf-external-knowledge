@@ -1,0 +1,38 @@
+diff --git a/main.tex b/main.tex
+index a691ec4..7e01f52 100644
+--- a/main.tex
++++ b/main.tex
+@@ -115,6 +115,10 @@ The $\delta$ functions stay standard, as they need to track the entire state his
+ 
+ In the methods below we dont assume totality of the transducers.
+ That means that some transitions in $\delta$ and some output values of $\lambda$ can be undefined. The transducer can be totalized in a way that does not impact its behaviour in allowed traces by adding a sink state that $\delta$ sends to on undefined transitions, and adding the missing $\lambda$ values.
++\cl[inline]{Read as a statement about the transducer alone this holds, but it does not survive being carried into the methods, where the sink-totalization changes the realizability verdict.
++With the $\delta$-dead $\Tin$ of the witness noted after~\cref{def:probDefTransducer}, the partial $\Tin$ makes $\varphi = X[!]\mathtt{tt}$ unrealizable, while any totalization of it supplies consistent letters at the sink and so lets the system reach an accepting product state.
++The cause is that~\cref{def:consistency}'s partiality clause turns an undefined $\delta$ or $\lambda$ into a \emph{deleted letter}, which removes moves from the system just as much as from the environment, and the sink gives them back.
++Partiality is therefore a modelling commitment here rather than a notational convenience, and which of the two the methods implement should be said explicitly.}
+ 
+ \pagebreak
+ 
+@@ -145,6 +149,12 @@ To be proven: Definition 2 is equirealizable with the normal LTLf Synthesis of t
+ % This monolithic reduction is the external oracle behind \texttt{docs/prd/ltlfsynt-oracle.md}, cross-checked there against Spot's \texttt{ltlfsynt} on the known-input fragment ($\Tout$ absent, $\psiout=\top$); no reduction-soundness boundary is currently known.
+ % An earlier apparent divergence on $\varphi = \text{X[!]}(a \rightarrow \text{X[!]}\,k)$ under a delay $\Tin$ was traced (2026-07-05, \texttt{docs/prd/oracle-faithfulness-guard.md}) to a mis-encoded $\psiin$ (copy-from-step-1, $k_0 = \bot$ and $k_t \leftrightarrow a_t$ for $t \ge 1$, rather than the delay $k_t = a_{t-1}$), not a reduction unsoundness.
+ % With the corrected $\psiin$ the same $\varphi, \Tin$ pair agrees (both realizable), and a mechanical faithfulness guard now cross-checks every $(\Tin, \psiin)$ pair against its transducer so this drift cannot recur.}
++\cl[inline]{Divergence witness, 2026-08-09: as stated the conjecture fails once $\Tin$ or $\Tout$ is partial, and it needs either a totality hypothesis or an explicit ruling on what it means for a run to leave a transducer's domain.
++Take $\varphi = X[!]\mathtt{tt}$, a $\Tin$ with $\delta_{in}(q_{in,0},v) = q_1$ for every $v$, $q_1$ $\delta$-dead, and $\lambda_{in}(q_{in,0})$ the copy relation $k \leftrightarrow a$, together with a trivial $\Tout$; then $\psiin = (k \leftrightarrow a) \wedge \lnot X[!]\mathtt{tt}$ is exactly the produced-trace language of $\Tin$.
++Plain synthesis of $\psiin \rightarrow \varphi$ is realizable, since the system extends the trace to length two and thereby falsifies $\psiin$ and discharges the implication vacuously, whereas the methods here report unrealizable: by the partiality clause of~\cref{def:consistency} no letter is consistent at $q_1$, so the single product state reachable after one step is edgeless and its goal component is not in $F_D$.
++Both verdicts are measured rather than argued (\texttt{tests/ltlfsynt\_oracle\_test.cpp}), and the $(\Tin,\psiin)$ pairing is checked mechanically, so this is not a repeat of the 2026-07-05 mis-encoding.
++The gap is that partiality deletes letters from the arena for \emph{both} players, so it denies the system the very continuation by which the monolithic reduction escapes the assumption --- the same reason a totality hypothesis was already needed in the note after~\cref{lem:outdep-transducer}.
++Which side is right is not settled here: the disagreement is entirely about whether the system may step outside the transducers' domain in order to end the trace there, which is what the note after~\cref{def:probDef} leaves open.}
+ 
+ 
+ \section{Method 1 - NFA product}\label{nfa}
+@@ -333,6 +343,9 @@ with
+ 
+ The algorithm works by constructing the product automaton explicitly (lines~\ref{alg:dfa_product:states},~\ref{alg:dfa_product:final}), while ignoring transitions that represent disagreements with the external knowledge (line~\ref{alg:dfa_product:cons}).
+ The product is then solved directly (line~\ref{alg:dfa_product:solve})
++\cl[inline]{Line~\ref{alg:dfa_product:final} is a plain cartesian product, so $\langle s, q_{in}, q_{out}\rangle$ with $s \in F_D$ is final even when $\delta_{Dprod}$ is undefined at it for every letter, which happens exactly when no letter is consistent at $(q_{in},q_{out})$ by the partiality clause of~\cref{def:consistency}.
++The algorithm is silent on this rather than ambiguous, but the case is easy to lose in an implementation that carries acceptance on transitions (\texttt{docs/prd/acceptance-mark-on-edgeless-states.md}), so it is worth stating: edgelessness is a property of $\delta_{Dprod}$ and contributes nothing to $F_P$.
++Such a state is a legal end of an allowed trace, and the system wins there iff $s \in F_D$.}
+ 
+ \section{Method 3 - on-the-fly DFA-products}\label{otf}
+ \na[inline]{As written, this is on-the-fly product construction without on-the-fly game solving. Should probably be amended so it also solves the game on-the-fly, otherwise this is missing a hanging fruit optimization.

@@ -38,9 +38,14 @@ spot::twa_graph_ptr reverse_dfa_to_nfa(const spot::twa_graph_ptr& d) {
   // Defensive self-loop on s0 (see header doc-comment): s0 is unconditionally
   // in F_N, so it must read as accepting even if the loop above gave it no
   // real out-edges. ensure_acceptance_readable no-ops when s0 already has an
-  // out-edge, which is exactly the condition under which the old
-  // unconditional self-loop was itself pruned by purge_dead_states() below --
-  // same final graph either way (docs/prd/acceptance-mark-on-edgeless-states.md).
+  // out-edge, which is exactly the condition under which the previously
+  // unconditional self-loop was itself erased by purge_dead_states() below:
+  // that purge is a NO-SUCCESSOR purge (marks play no part in it), and its
+  // documented exception keeps a bddfalse self-loop only when it is the
+  // state's sole outgoing edge. Same final graph either way -- pinned by
+  // ReverseDfaToNfaSelfLoopEquivalence.* in tests/reverse_dfa_to_nfa_test.cpp,
+  // which compares the two constructions edge for edge on the shapes where
+  // they could differ (docs/prd/acceptance-mark-on-edgeless-states.md).
   ensure_acceptance_readable(n, s0, kFinal);
 
   n->purge_unreachable_states();

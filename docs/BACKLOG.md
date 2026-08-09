@@ -72,8 +72,9 @@ out below._
   `emits_dfa`'s empty-word exception in `docs/prd/mtdfa-product.md` is retired.
   **The one result worth the evening: O5 fired as predicted** — see "Prove the
   monolithic reduction" below; this run produced the project's first divergence
-  witness. Two `doc-bug`s were drafted, not applied — see "Pending `\cl` notes on
-  partiality" under *Later*.
+  witness. The three `doc-bug` `\cl` notes are now **written** and ship as a
+  patch — see "`\cl` notes on partiality" under *Later*; one `git apply` lands
+  them.
 - **GRILLED 2026-08-08 → [`docs/prd/acceptance-mark-on-edgeless-states.md`](prd/acceptance-mark-on-edgeless-states.md);
   launch gate CLEAN.** One phase, concurrent workflow, no glossary gap. The
   semantics seed below is **settled**: an edgeless product state is accepting
@@ -504,51 +505,31 @@ exactly when it was realizable without it.}
   surfaced `DfaProduct`/semantics bug lands as a small reproducer.
 - **Seeds for grilling:** _(tbd)_
 
-### Pending `\cl` notes on partiality — drafted by `/theory-review` 2026-08-09 (acceptance-mark PRD)
+### `\cl` notes on partiality — WRITTEN 2026-08-09, waiting on one `git apply`
 
-- **Why they are here and not in `main.tex`:** the review ran in a worktree, where
-  `latex/` is an uninitialized submodule, so the notes are drafted rather than
-  applied (per `CLAUDE.md`). Apply them from the main checkout, leave the submodule
-  **uncommitted**, and re-run `scripts/check-main-tex-refs.py --fix` afterwards
-  since added lines shift the `main.tex:NNN` citations.
+- **State:** the three notes drafted by `/theory-review` are now **written against
+  `main.tex`** and shipped as
+  [`docs/handoffs/2026-08-09-cl-notes-partiality.patch`](handoffs/2026-08-09-cl-notes-partiality.patch)
+  (13 added lines, verified to apply cleanly to the submodule at `c80719b`). They
+  are a patch and not a submodule edit only because the run was isolated in a
+  worktree, where `latex/` cannot be written.
+- **To land them**, from the main checkout:
+  `git -C latex apply docs/handoffs/2026-08-09-cl-notes-partiality.patch`.
+  Leave the submodule **uncommitted** per `CLAUDE.md` until you want an Overleaf
+  round-trip. `scripts/check-main-tex-refs.py --fix` is **not** wanted yet — the
+  submodule pointer is unchanged, so every existing `main.tex:NNN` citation is
+  still correct; run it in the same commit as the eventual bump, after the notes
+  are pushed to Overleaf.
+- **What the three notes say.** Note 1, after the equirealizability `\na`
+  following `\cref{def:probDefTransducer}`: records O5 as the conjecture's first
+  divergence witness and says the conjecture needs a totality hypothesis or a
+  ruling on runs leaving a transducer's domain. Note 2, on §`Transducers`'
+  totalization sentence: that claim is true of the transducer and false of the
+  synthesis verdict. Note 3, after the `\cref{alg:dfa_product}` prose: an
+  edgeless product state is final iff its goal component is (PRD open question #3).
 - **Provenance:** faithfulness review of `docs/prd/acceptance-mark-on-edgeless-states.md`
   (`d813834`), open theory questions #2 and #3, plus the O5 result. The code was
   found **faithful**; all three notes are doc-side.
-
-**Note 1 — target: `main.tex`, immediately after the `\na` on the equirealizability
-conjecture that follows `\cref{def:probDefTransducer}` (currently ~`:142`), on its own
-source line.** Records O5 as the conjecture's first divergence witness.
-
-```latex
-\cl[inline]{Divergence witness, 2026-08-09: as stated the conjecture fails once $\Tin$ or $\Tout$ is partial, and it needs either a totality hypothesis or an explicit ruling on what it means for a run to leave a transducer's domain.
-Take $\varphi = X[!]\mathtt{tt}$, a $\Tin$ with $\delta_{in}(q_{in,0},v) = q_1$ for every $v$, $q_1$ $\delta$-dead, and $\lambda_{in}(q_{in,0})$ the copy relation $k \leftrightarrow a$, together with a trivial $\Tout$; then $\psiin = (k \leftrightarrow a) \wedge \lnot X[!]\mathtt{tt}$ is exactly the produced-trace language of $\Tin$.
-Plain synthesis of $\psiin \rightarrow \varphi$ is realizable, since the system extends the trace to length two and thereby falsifies $\psiin$ and discharges the implication vacuously, whereas the methods here report unrealizable: by the partiality clause of~\cref{def:consistency} no letter is consistent at $q_1$, so the single product state reachable after one step is edgeless and its goal component is not in $F_D$.
-Both verdicts are measured rather than argued (\texttt{tests/ltlfsynt\_oracle\_test.cpp}), and the $(\Tin,\psiin)$ pairing is checked mechanically, so this is not a repeat of the 2026-07-05 mis-encoding.
-The gap is that partiality deletes letters from the arena for \emph{both} players, so it denies the system the very continuation by which the monolithic reduction escapes the assumption --- the same reason a totality hypothesis was already needed in the note after~\cref{lem:outdep-transducer}.
-Which side is right is not settled here: the disagreement is entirely about whether the system may step outside the transducers' domain in order to end the trace there, which is what the note after~\cref{def:probDef} leaves open.}
-```
-
-**Note 2 — target: `main.tex` §`Transducers`, adjacent to the totalization sentence
-("The transducer can be totalized in a way that does not impact its behaviour in
-allowed traces", currently ~`:117`).** The claim is true of the transducer and false
-of the synthesis verdict.
-
-```latex
-\cl[inline]{Read as a statement about the transducer alone this holds, but it does not survive being carried into the methods, where the sink-totalization changes the realizability verdict.
-With the $\delta$-dead $\Tin$ of the witness noted after~\cref{def:probDefTransducer}, the partial $\Tin$ makes $\varphi = X[!]\mathtt{tt}$ unrealizable, while any totalization of it supplies consistent letters at the sink and so lets the system reach an accepting product state.
-The cause is that~\cref{def:consistency}'s partiality clause turns an undefined $\delta$ or $\lambda$ into a \emph{deleted letter}, which removes moves from the system just as much as from the environment, and the sink gives them back.
-Partiality is therefore a modelling commitment here rather than a notational convenience, and which of the two the methods implement should be said explicitly.}
-```
-
-**Note 3 — target: `main.tex`, after the prose paragraph explaining
-`\cref{alg:dfa_product}` (currently ~`:335`).** Makes the edgeless case explicit;
-PRD open question #3 asked for a draft only.
-
-```latex
-\cl[inline]{Line~\ref{alg:dfa_product:final} is a plain cartesian product, so $\langle s, q_{in}, q_{out}\rangle$ with $s \in F_D$ is final even when $\delta_{Dprod}$ is undefined at it for every letter, which happens exactly when no letter is consistent at $(q_{in},q_{out})$ by the partiality clause of~\cref{def:consistency}.
-The algorithm is silent on this rather than ambiguous, but the case is easy to lose in an implementation that carries acceptance on transitions (\texttt{docs/prd/acceptance-mark-on-edgeless-states.md}), so it is worth stating: edgelessness is a property of $\delta_{Dprod}$ and contributes nothing to $F_P$.
-Such a state is a legal end of an allowed trace, and the system wins there iff $s \in F_D$.}
-```
 
 ### Prove the monolithic reduction $\psi_{in}\!\rightarrow\!(\varphi \land \psi_{out})$
 - **Intent:** prove that synthesis with external information

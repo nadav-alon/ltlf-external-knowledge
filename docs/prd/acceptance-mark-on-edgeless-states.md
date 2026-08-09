@@ -295,11 +295,16 @@ Flagged for `/theory-review`; **none** may be resolved by an unattended run.
    partial-transducer fragment. A `\cl` note recording the witness belongs on
    that conjecture — but `latex/` is a submodule that builds only on Overleaf, so
    **draft the note into `docs/BACKLOG.md`** and leave `main.tex` untouched from
-   a worktree (per `CLAUDE.md`).
+   a worktree (per `CLAUDE.md`). **2026-08-09:** the note is now written against
+   `main.tex` and ships as
+   `docs/handoffs/2026-08-09-cl-notes-partiality.patch` (note 1 of three);
+   `main.tex` itself is still untouched, so this stays one `git apply` from the
+   main checkout. The conjecture itself remains open.
 3. **`\cref{alg:dfa_product}` is silent on edgeless states.** It is only silent,
    not ambiguous — `alg:dfa_product:final` is a plain cartesian product. But a
    `\cl` note making the edgeless case explicit would stop the next reader from
-   rediscovering this. Draft, do not apply.
+   rediscovering this. Draft, do not apply. **2026-08-09: written** — note 3 of
+   the same patch, placed after the `\cref{alg:dfa_product}` prose paragraph.
 4. **Whether the generated corpus wants a partial-transducer (Case B) regime.**
    Deliberately **out of scope**: O5 predicts that partial $\Tin$ is exactly
    where `ltlf-ek-synth` and `ltlfsynt` diverge, so enabling Case B would make
@@ -308,35 +313,48 @@ Flagged for `/theory-review`; **none** may be resolved by an unattended run.
 
 ## Developer comments / PRD disagreements
 
-**From `/code-reviewer`, 2026-08-09 — one "consider", deliberately not acted on.**
+**From `/code-reviewer`, 2026-08-09 — one "consider". RESOLVED 2026-08-09 by
+measurement; the finding's mechanism does not hold.**
 
-`src/reverse_dfa_to_nfa.cpp:38-44`. The adoption there is *not* the same
-construction as the code it replaced, and the comment justifying it overstates
-the equivalence. The old code added the `bddfalse` self-loop on $s_0$
-**unconditionally** and leaned on `purge_dead_states()`; the new code adds it
-only when $s_0$ has zero out-edges. The new comment claims that no-op condition
-is "exactly the condition under which the old unconditional self-loop was itself
-pruned … same final graph either way". That is the part to distrust:
+The "consider" was: `src/reverse_dfa_to_nfa.cpp:38-44` replaced an
+**unconditional** `new_edge(s0, s0, bddfalse, kFinal)` with a call to
+`ensure_acceptance_readable`, which adds the self-loop only when $s_0$ is
+edgeless — and the comment claiming "same final graph either way" was
+unverified. The review reasoned that `purge_dead_states()` is a **Büchi
+liveness** purge with $F_N=\{s_0\}$, so the old unconditional `kFinal`
+self-loop put $s_0$ on an accepting cycle unconditionally, and dropping it
+narrows the safe input domain to DFAs all of whose states are reachable from
+$s_0$.
 
-- The **language and the mark read are** equivalent, which is what Stop-list 4
-  actually bars, and the suite is green — all of $s_0$'s real out-edges already
-  carry `kFinal` (`:30`), so `state_is_accepting(s0)` reads `true` either way.
-  Stop-list 4 did **not** fire.
-- But `purge_dead_states()` is a **Büchi** liveness purge, and $F_N = \{s_0\}$.
-  The old unconditional `kFinal` self-loop made $s_0$ *unconditionally* sit on an
-  accepting cycle; without it, $s_0$ survives the purge only if some cycle
-  through $s_0$ genuinely exists. So the refactor silently narrows the input
-  domain on which this function is safe, from "any DFA" to "**a DFA all of whose
-  states are reachable from its initial state**" (given that, an edge into $s_0$
-  implies a cycle through $s_0$, so the case is vacuous — which is why nothing
-  went red).
+**What `purge_dead_states()` actually is** (`spot/twa/twagraph.cc`): a
+**no-successor** purge. Acceptance marks play no part in it — a `kFinal`
+self-loop cannot make a state "live" by putting it on an accepting cycle. Its
+documented exception keeps a `bddfalse` self-loop only when that edge is the
+state's *first* edge with no `next_succ`, i.e. its **sole** outgoing edge. The
+old code **appended** the self-loop after the reversal loop, so whenever $s_0$
+already had a real out-edge the appended edge was erased in the same pass —
+exactly when `ensure_acceptance_readable` declines to add it. The two
+constructions are therefore identical as **graphs**, not merely as languages.
 
-Not fixed here because it is not a verdict change and the PRD's own bar
-(Stop-list 4) is verdict change. **For the evening:** decide whether to state
-that reachability precondition in `detail::reverse_dfa_to_nfa`'s header
-doc-comment, or to restore the unconditional self-loop at that one site and let
-the helper cover only the other three. Either way the comment at `:41-43` should
-stop asserting "same final graph".
+Pinned by `ReverseDfaToNfaSelfLoopEquivalence.*` in
+`tests/reverse_dfa_to_nfa_test.cpp`, which rebuilds the pre-adoption body
+verbatim and compares edge for edge on the shapes where a divergence could
+show: an unreachable predecessor of $s_0$; the same with $s_0$'s sole successor
+a dead end; and the two production shapes.
+
+**What survived the finding, and was acted on.** The reachability requirement is
+real — it is just **pre-existing**, not introduced by the adoption. A state
+unreachable from $s_0$ with an edge into $s_0$ can make the purges drop $s_0$,
+N's only accepting state, giving $L(N)=\emptyset$; the old unconditional
+self-loop did **not** rescue that case either (second test above). It is now
+stated as a precondition in `detail/reverse_dfa_to_nfa.hpp`, satisfied by
+`past_ltlf_to_dfa`'s D since Spot builds only reachable states. The comment at
+the call site now cites the mechanism and the test instead of asserting the
+equivalence bare.
+
+**Not** done: making the function total by skipping D-states unreachable from
+$s_0$. That would change production behaviour only on inputs the contract
+already excludes, so it stays a decision for the user rather than a drive-by.
 
 ## Definition of done
 
