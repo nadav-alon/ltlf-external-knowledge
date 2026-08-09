@@ -7,7 +7,7 @@
 
 **Gates:**
 - [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
-- [x] tests           — `tests/acceptance_test.cpp` (O4), `tests/acceptance_partiality_matrix_test.cpp` (O1/O2), `tests/mtnfa_product_test.cpp`/`tests/emits_dfa_test.cpp` (the three knowingly-changed tests, O3), `tests/ltlfsynt_oracle_test.cpp` (O5, observed as predicted — see docs/BACKLOG.md); suite green 582/582 (`<pending commit>`)
+- [x] tests           — `tests/acceptance_test.cpp` (O4), `tests/acceptance_partiality_matrix_test.cpp` (O1/O2), `tests/mtnfa_product_test.cpp`/`tests/emits_dfa_test.cpp` (the three knowingly-changed tests, O3), `tests/ltlfsynt_oracle_test.cpp` (O5, observed as predicted — see docs/BACKLOG.md); suite green 582/582 (`7bf0fe8`)
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex
 
