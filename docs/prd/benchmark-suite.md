@@ -225,7 +225,7 @@ ltlf-ek-bench --families=<csv|all> --subjects=<csv|all> --n-min=N --n-max=N
               --repeat=K --timeout=SECONDS --out=FILE [--ltlfsynt=PATH]
 ```
 
-Reports the **minimum** of `K` repetitions (both prior harnesses did; `--repeat=3` default, `--timeout=20` default). Writes JSON to a gitignored directory; the committed snapshot under `docs/runs/` carries provenance: machine, **`ldd`-resolved Spot version** (not `pkg-config` — several installs shadow each other via `LD_LIBRARY_PATH`), repo commit, timeout, repetition count, and the structural numbers observed during the sweep (unasserted at these larger $n$).
+Reports the **minimum** of `K` repetitions (both prior harnesses did; `--repeat=3` default, `--timeout=20` default). Writes JSON to a gitignored directory **inside the repository** — `build/benchout/` is the default, and `--out` must resolve there or under `docs/runs/`. **Never `/tmp`, never `$TMPDIR`:** verified 2026-08-09, the sandbox mounts `/tmp` (and the background-job tmp dir) **read-only**, so a run that measures for two hours and then writes to `/tmp` loses everything at the last step. Writes inside the repo succeed. The committed snapshot under `docs/runs/` carries provenance: machine, **`ldd`-resolved Spot version** (not `pkg-config` — several installs shadow each other via `LD_LIBRARY_PATH`), repo commit, timeout, repetition count, and the structural numbers observed during the sweep (unasserted at these larger $n$).
 
 **If implementation proves this contract wrong:** that is a PRD-change event — update this section and propagate to any in-flight test branch; the developer does not silently re-shape the interface on its own branch.
 
@@ -243,7 +243,7 @@ Each phase leaves the tree compiling and independently testable.
 
 ### B6. Spreadsheet export (Phase 2)
 
-`ltlf-ek-bench --xlsx=FILE` writes a workbook via a **Python helper invoked by the binary** (or a standalone script the runner shells out to) using **`openpyxl`** — installed 2026-08-09 specifically for this; `pandas` alone cannot write `.xlsx`. If `openpyxl` is **absent**, the runner must **fall back to CSV and say so loudly in its exit message** rather than failing the sweep: the measurements are the expensive part and must never be lost to a formatting dependency.
+`ltlf-ek-bench --xlsx=FILE` writes a workbook via a **Python helper invoked by the binary** (or a standalone script the runner shells out to) using **`openpyxl`** — installed and **verified 2026-08-09**: version 3.1.5 at `~/.local/lib/python3.10/site-packages`, importable from the sandboxed `/usr/bin/python3`, and confirmed to round-trip a 3-sheet workbook through `pandas.ExcelWriter(engine="openpyxl")` preserving numeric cell types and non-ASCII text. `pandas` alone cannot write `.xlsx`. If `openpyxl` is **absent**, the runner must **fall back to CSV and say so loudly in its exit message** rather than failing the sweep: the measurements are the expensive part and must never be lost to a formatting dependency.
 
 Workbook shape — one sheet per concern, because a single flat table is what made the previous results unreadable:
 
