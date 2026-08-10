@@ -290,6 +290,40 @@ exactly when it was realizable without it.}
 
 ## Later
 
+### Two open generic `/code-review` halves — **low**, expected Thu 2026-08-13
+
+- **What is open.** Both PRDs closed their *domain* half (`/code-reviewer`) and
+  their theory review; only the **generic** half of the `code-review` gate is
+  unticked. Neither blocks anything downstream — this is gate hygiene, which is
+  why it sits in *Later* at low priority and is pencilled in for Thursday's
+  low-energy slot.
+- **`docs/prd/acceptance-mark-on-edgeless-states.md`** — PR **#10**, merged as
+  `8c1b6b5` on 2026-08-09. Review range **`54facb3..c9bc742`** (21 files,
+  +1496/-139): `54facb3` is the merge base, `c9bc742` the branch tip (it carries
+  the four deferred findings acted on after the PR). Semantic C++ — this is the
+  half worth actually doing.
+- **`docs/prd/presentation-materials.md`** — PR **#11**, merged as `57d1348` on
+  2026-08-10. Review range **`8c1b6b5..76bbfa7`** (18 files, +1368/-6), and it is
+  **docs-only** (`docs/presentation/**`), so the generic pass is a prose and
+  cross-reference check, not a bug hunt. Lowest value of the two; close it or
+  consciously mark it N/A.
+- **The prompts, and the one trap.** `/code-review` carries
+  `disable-model-invocation`, so **no agent and no unattended run can invoke it**
+  — it must be typed by a human in an interactive session. Do not queue this for
+  the launcher; it is what `docs/prd/ltlfsynt-oracle-known-output.md`'s entry
+  already recorded, and why `/launcher` Step 6a uses `/review <PR#>` instead.
+
+  ```
+  /code-review high 10          # or: /code-review high 54facb3..c9bc742
+  /code-review high 11          # or: /code-review high 8c1b6b5..76bbfa7
+  ```
+
+  The PR-number form is the one to try first (both PRs are merged, which the
+  skill handles); fall back to the explicit range if it cannot resolve the PR.
+  Add `--fix` only if you want findings applied to the working tree. Then tick
+  the `code-review` line in each PRD with the date and what the pass returned —
+  the gate wants *both* halves named, not just "reviewed".
+
 ### X-shift second formulation of the input-dependency criterion (cross-check oracle)
 - **Intent:** an independent second derivation of
   `\cref{lem:indep-diagonal}`'s criterion, to cross-check the shipped one.
