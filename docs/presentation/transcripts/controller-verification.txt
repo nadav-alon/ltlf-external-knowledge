@@ -1,0 +1,10 @@
+$ /home/cowclaw/ltlf-external-knowledge/build/ltlf-ek-synth --dfa-product --formula="X[!] k" --part-file docs/presentation/inputs/part-a-k-o.txt --known-input-transducer docs/presentation/inputs/tin-eventual-k.hoa --model-check
+
+--- stdout ---
+SAFE
+
+--- stderr ---
+(empty)
+
+--- exit code ---
+0

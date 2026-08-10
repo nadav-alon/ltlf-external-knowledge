@@ -1,0 +1,14 @@
+HOA: v1
+States: 2
+Start: 0
+AP: 2 "a" "k"
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0
+  [t] 1
+State: 1
+--END--
+%%LAMBDA
+state 0: a <-> k
+state 1: 0

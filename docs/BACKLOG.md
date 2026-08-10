@@ -88,26 +88,6 @@ as `OtfMtdfaProduct` in `0ce5fab`, closed every gate, and benchmarked
 method to beat the standing champion). Its Phase 2 (`otf_solve_fused`) is spun
 out below._
 
-### Presentation materials — tools, capabilities, example runs — **#0, this week only**
-
-- **PRD: [`docs/prd/presentation-materials.md`](prd/presentation-materials.md),
-  written 2026-08-09; launch gate CLEAN, unattended-ready.** Docs-only: no
-  header, no source, no test. Produces `docs/presentation/tools-and-capabilities.md`
-  plus real captured transcripts, for the **Wednesday 2026-08-12** progress
-  presentation.
-- **Ranked #0 deliberately, and it is a mechanical necessity, not a preference.**
-  `/launcher` Step 0 Rule 2 picks *the first Now/next item with a PRD on master*,
-  and `#2`'s benchmark suite has unlanded phases all week — so anything ranked
-  **below** `#2` is unreachable by the launcher until `#2` is finished, and this
-  item would simply never run. Rule 3 cannot rescue it either: that rule only
-  matches a PRD added on an **unmerged branch**, and this one is on `master`.
-  Ranking it first costs almost nothing, because it is a single short docs phase
-  with no build/test loop, so Monday's remaining waves still reach `#2` Phase 1.
-- **When it lands, move it to *Done* in the same commit** — otherwise it keeps
-  shadowing `#2` for the rest of the week, which is the same trap in reverse.
-- **Out of scope:** all benchmark numbers. Those come from `#2` Phase 2 on
-  Tuesday; this document links to them and measures nothing itself.
-
 ### Acceptance mark lost on an edgeless accepting state — **DONE 2026-08-09** (found 2026-07-17; widened from one site to a class 2026-07-27) — **#1**
 - **LANDED 2026-08-09** by the unattended day-run, branch
   `acceptance-mark-edgeless` — see `docs/runs/2026-08-09-acceptance-mark-edgeless.md`.
@@ -752,6 +732,39 @@ exactly when it was realizable without it.}
   parse; also drops the temp-file write + `-w` table parsing, or keep those?
 
 ## Done
+
+### Presentation materials — tools, capabilities, example runs — **DONE 2026-08-10** (was `#0`, this week only)
+
+- **LANDED 2026-08-10** by the unattended day-run, branch `presentation-materials`
+  — see [`docs/runs/2026-08-10-presentation-materials.md`](runs/2026-08-10-presentation-materials.md).
+  `docs/presentation/tools-and-capabilities.md` (five sections) plus seven literal
+  transcripts and five re-runnable input files. `ctest` **585/585** green before
+  *and* after, nothing changed outside `docs/`. Moved to *Done* in the landing
+  commit, as the entry required — leaving it in *Now / next* would have shadowed
+  `#2` for the rest of the week.
+- **All seven examples ran, and the review pass re-ran each and got its stored
+  transcript back byte-for-byte.** No capability was found not to work; neither
+  `mona`- nor `ltlfsynt`-absent edge case fired. **The O5 divergence reproduced
+  live** — ours `UNREALIZABLE`, `ltlfsynt` on the monolithic reduction
+  `REALIZABLE` — which is now demonstrable on demand rather than only recorded.
+- **What the run turned up that was not in this entry.** The transcripts were
+  faithful; the *prose around them* was not, in four places, and every one was a
+  claim slightly stronger than the evidence: a wrong count of unwired method
+  flags, `input_parsing` called a *Canonical benchmarking stage* when its own
+  transcript says `canonical:false`, "all six examples share the partition" when
+  (d) does not, and — the one that mattered — §4f **ruling `main.tex`'s
+  consistency filter unsound**, i.e. deciding the open question the same section
+  twice disclaims deciding. All fixed. The carry-forward: a docs-only PRD still
+  needs the theory pass, because prose is where an unproved thing quietly becomes
+  a proved one.
+- **`ltlf-ek-synth` has no `--help`** — an unrecognised flag reports a usage error
+  instead, so the flag table was reconstructed from the argument parser. Fine for
+  the presentation; a gap for anyone handed the binaries afterwards.
+- **Still open, for the evening:** whether §4g (the `--benchmark` shape example)
+  should exist at all — it sits between Stop-list 1 and Stop-list 4 — and whether
+  §4d's "dependence does not decompose" parenthetical should be demonstrated or
+  cut, since no transcript shows it. Seven "consider" findings are parked in the
+  PRD's *Developer comments* section.
 
 ### Input-dependency extraction (`ltlf-ek-deps --direction in`) — **DONE 2026-08-03**
 - **Shipped in two unattended day-run phases**, both on branch
