@@ -8,7 +8,7 @@
 **Gates:**
 - [x] glossary        — *Canonical size metric* (`SizeMetric`) and *Comparability tier* (`ComparabilityTier`) added 2026-08-09, pre-`/developer`; the shipped *Canonical benchmarking stage* entry's "Do not call it" line was amended to point at the new size axis
 - [x] tests           — **Phase 1 only.** `tests/bench_size_metric_test.cpp` (17 cases) + 2 schema cases in `tests/bench_test.cpp`; verified 2026-08-10 against the Phase 1 green checkpoint: a per-method *exactly its charge-table row set* case for all five methods, the two absent-never-zero cases (`OtfMtdfaProduct` emits no `goal_*`; unrealizable emits no `controller_states`), and a `BenchScopeZeroPerturbation` case for all five. Suite green: 603/603 on `bench-phase1`. Phases 2–3 uncovered.
-- [ ] code-review     — domain (/code-reviewer) **done** 2026-08-10 on `master..bench-phase1`, clean, no must-fix (3 `consider`s recorded in *Developer comments*). Generic half **open**: `/code-review` is not agent-invocable (`disable-model-invocation`), so a manual generic pass was substituted; run `/review` on the PR to close.
+- [ ] code-review     — domain (/code-reviewer) done 2026-08-10; generic (`/code-review` on PR #12) done 2026-08-10 and returned **two MEDIUM findings that are still open** — see *Blocker: the `goal_*` / `product_states` unit mismatch* below. The gate stays open until that spec decision is made.
 - [ ] theory-review   — **no theory surface in Phase 1.** The diff adds no semantics: `cons`, progression, sink placement, final-state classification and the `Synthesis`/`Transducer` contracts are untouched, and every method edit is a `record_size_metric` call plus a mechanical `return f(x)` → `auto c = f(x); …; return c;` refactor. Per this PRD's own header (*main.tex ref: none — this is infrastructure*) the theory-reviewer was **not** spawned. The gate stays open for Phases 2–3, where the *comparability tier* lands and with it the unstated LTLf $\equiv$ star-free claim (Stop-list 1).
 
 **Unattended-ready:** **yes** (2026-08-09). Both domain terms this PRD introduces are now in `docs/GLOSSARY.md` — *Canonical size metric* (`SizeMetric`) and *Comparability tier* (`ComparabilityTier`); interfaces are frozen below; each phase has a machine-checkable checkpoint; and the one open theory question is on the Stop-list rather than in the implementation path. All three phases are launchable.
@@ -301,6 +301,69 @@ Workbook shape — one sheet per concern, because a single flat table is what ma
 - One timing snapshot is committed under `docs/runs/` with full provenance, reporting the re-derived 5488x and 16x-slower ratios beside their historical values.
 - A spreadsheet (`docs/runs/<date>-benchmarks.xlsx`, five sheets per B6) is produced and opens; if `openpyxl` was unavailable the runner fell back to CSV and said so, rather than losing the sweep.
 - `docs/prd/otf-mtdfa-product.md` and `docs/prd/mtnfa-product.md` each gain a one-line pointer from their "harness not committed" note to the suite that now owns those numbers.
+
+## Blocker: the `goal_*` / `product_states` unit mismatch
+
+**Opened 2026-08-10 by the generic `/code-review` on PR #12. This is a spec
+decision the user owns; the unattended run records it and stops rather than
+guessing.** Phase 1 ships with the mismatch **present**, because it faithfully
+implements the B2 charge table — the table itself is what is wrong.
+
+B2 note 2 and *Canonical size metric* consequence (1) both assert that
+`spot::mtdfa::num_roots()` and `twa_graph::num_states()` are "the same unit".
+**They are not**, and Spot's own header says so: `num_roots()` is "the size of
+the `states` array — it does not account for any bddfalse or bddtrue state",
+while a sibling `mtdfa::num_states()` exists precisely as "the size that the
+transition-based output of `as_twa()` would have"
+(`spot/twaalgos/ltlf2dfa.hh:146-160`).
+
+This is not academic. `ltlf_to_dfa` (`src/ltlf_to_dfa.cpp:14-21`) is
+`ltlf_to_mtdfa` → `as_twa(state_based=true)` → `complete_here`, so `DfaProduct`
+and `MtdfaProduct` start from **the same mtdfa** and then charge the same axis
+two different counts. Measured directly against Spot 2.15.1:
+
+| $\varphi$ | `MtdfaProduct` charges (`num_roots`) | `mtdfa::num_states()` | `DfaProduct` charges |
+|---|---|---|---|
+| `G(i -> o)` | 1 | 1 | 3 |
+| `G(i) \| F(o)` | 2 | 3 | 4 |
+| `(i U o) & G(!i \| o)` | 2 | 2 | 3 |
+| `X[!]X[!]a` | 3 | 4 | 5 |
+| `F(a & X[!]b)` | 2 | 3 | 3 |
+
+Two consequences decide the fix:
+
+1. **The gap is not a constant**, so it cannot be corrected downstream in the
+   workbook.
+2. **Swapping to `num_states()` does not close it either** — the deltas become
+   2, 1, 1, 1, 0. The remaining gap is `as_twa(state_based=true)`'s state
+   splitting plus `complete_here`'s rejecting sink. There is **no accessor**
+   that makes the two numbers commensurable, because the underlying objects are
+   not the same object: `DfaProduct`'s Goal is a materialized, state-split,
+   completed `twa_graph`; `MtdfaProduct`'s is a symbolic mtdfa.
+
+The same mismatch applies to `product_states` at `src/mtdfa_product.cpp:77`,
+`src/mtnfa_product.cpp:270`, `src/otf_mtdfa_product.cpp:242` — and that is the
+cell the glossary **explicitly blessed**, on the premise now shown false.
+
+**Why it matters now:** the `DfaProduct`-vs-`MtdfaProduct` goal-size ratio is
+one of the headline numbers this suite exists to produce for the 2026-08-12
+presentation. Phase 2's cross-method table would present these side by side.
+
+**The options, none taken:**
+
+- **(a) Split the axis.** `goal_dfa_states` (explicit) and a new
+  `goal_mtdfa_roots` (symbolic) never share a column; same for `product_states`
+  vs a `product_mtdfa_roots`. Honest, and costs a comparison the presentation
+  may want.
+- **(b) Charge both from the same materialized artifact.** Comparable, but the
+  mtdfa family would have to build the explicit automaton *just to measure it* —
+  which perturbs the very cost being measured and defeats the point of the
+  symbolic methods.
+- **(c) Keep one column, declare the axis non-comparable** via the tier
+  machinery, and never rank on it.
+
+Whichever is chosen is a **PRD-change event** for B2 and a glossary edit for
+consequence (1) — not a silent re-wiring.
 
 ## Developer comments / PRD disagreements
 

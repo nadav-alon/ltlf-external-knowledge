@@ -90,12 +90,20 @@ std::set<std::string> NamesOf(const std::vector<SizeMetric>& metrics) {
 // ---------------------------------------------------------------------------
 
 TEST(RecordSizeMetric, NoOpWithoutActiveScopeRecordsNothingAndDoesNotCrash) {
-  // No BenchScope is constructed anywhere in this test: both overloads must
-  // take the no-op path (the BenchTimer rule the PRD extends to metrics) and
-  // must not crash.
+  // No BenchScope is active for these two calls: both overloads must take the
+  // no-op path (the BenchTimer rule the PRD extends to metrics) and must not
+  // crash.
   record_size_metric(SizeMetric::product_states, 7);
   record_size_metric(std::string("scratch"), 7);
-  SUCCEED();
+
+  // ...and *recorded nothing*, which the calls above cannot show on their own.
+  // A later scope is the only way to observe it: if ~BenchScope stopped
+  // nulling the thread-local collector, or a process-global fallback
+  // collector were introduced, the two values would leak into the next run
+  // and a SUCCEED()-only test would stay green. This is the no-op contract
+  // the bench_scope_active() repair round exists to protect.
+  BenchScope scope;
+  EXPECT_TRUE(scope.report().metrics.empty());
 }
 
 TEST(RecordSizeMetric, BenchScopeActivePredicateReflectsWhetherAScopeIsInstalled) {

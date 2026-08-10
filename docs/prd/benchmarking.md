@@ -22,7 +22,10 @@ path) and, via an end-to-end wall total, against external tools such as
 benchmarking shares one uniform design. This PRD **sets the repo-wide contract**
 and wires **`DfaProduct` only**; the other four methods adopt it later by adding
 span guards (no infra change), and it is designed so the metric container can
-also hold size metrics (deferred — see BACKLOG).
+also hold size metrics (**no longer deferred** — delivered 2026-08-10 by
+`docs/prd/benchmark-suite.md` Phase 1, which added `SizeMetric` /
+`record_size_metric` and the `BenchReport::metrics` member; the schema below is
+updated accordingly).
 
 The design resolves the stated tension — *dynamic* stage timing (a new phase must
 need no infra addition) vs *comparable* parts (DFA-construction time must line up
@@ -260,8 +263,12 @@ structure, ordering, non-negativity, and containment only.
 - **Nested scope asserts** — installing a second `BenchScope` triggers the
   assertion (death test).
 - **`to_json` schema** — output parses as one JSON object with `total_ns` (int),
-  `roots` (array); each node has `label` (string), `canonical` (bool),
-  `duration_ns` (int), `children` (array). Assert **keys/structure**, not values.
+  `roots` (array) and, **since 2026-08-10**, `metrics` (array — always emitted,
+  empty when nothing was recorded); each `roots` node has `label` (string),
+  `canonical` (bool), `duration_ns` (int), `children` (array), and each
+  `metrics` node has `label` (string), `canonical` (bool), `value` (int).
+  Assert **keys/structure**, not values — and note the object now has **three**
+  top-level fields, not two, so a `fields.size() == 2u` assertion is stale.
 
 **Integration (`DfaProduct` under a scope):** run a small realizable case inside a
 `BenchScope`; assert exactly the three canonical stages

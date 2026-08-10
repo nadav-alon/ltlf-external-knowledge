@@ -1,7 +1,17 @@
 # Day-run 2026-08-10 — parametric benchmark suite, Phase 1
 
-**Verdict: landed, green, domain review clean.** Phase 1 of three (metric sink +
-charge-table instrumentation). Branch `bench-phase1`.
+**Verdict: landed and green, but the numbers are not yet trustworthy — one open
+blocker needs a user decision.** Phase 1 of three (metric sink + charge-table
+instrumentation). Branch `bench-phase1`, PR #12.
+
+> **Read this first.** The generic `/code-review` (run after this report was
+> first written) found that the B2 charge table asks two methods to charge the
+> **same axis in different units**, so the `DfaProduct`-vs-`MtdfaProduct` goal
+> and product size ratios — headline numbers for the 2026-08-12 presentation —
+> are wrong as specified. The code faithfully implements the table; the table is
+> what is wrong. Full analysis, measurements and options: *Blocker* in
+> [`docs/prd/benchmark-suite.md`](../prd/benchmark-suite.md). **Phase 2 should
+> not build its cross-method table until this is decided.**
 
 PRD: [`docs/prd/benchmark-suite.md`](../prd/benchmark-suite.md), grilled
 2026-08-09. Backlog item **#2**.
@@ -75,10 +85,21 @@ per `CLAUDE.md`.
   own explicit exemption for "recording / emission plumbing", the same rule that
   exempts `BenchScope`/`BenchTimer`.
 - **tests** ✅ — see the checkpoint above.
-- **code-review** — **domain half done and clean** (`/code-reviewer`, no
-  must-fix). The **generic half is open**: `/code-review` is not agent-invocable
-  (`disable-model-invocation`), so a manual generic pass was substituted and the
-  box is deliberately **left unticked**. Run `/review` on the PR to close it.
+- **code-review** — **open, and now for a substantive reason.** The domain half
+  (`/code-reviewer`) was clean. The generic half then ran on PR #12 and returned
+  **two MEDIUM findings**, both real and both independently reproduced against
+  Spot 2.15.1 — see the *Blocker* above. Two LOW findings were fixed in the
+  follow-up commit.
+
+  Worth recording **why the domain pass missed it**: it verified the code
+  against the charge table cell-for-cell and found exact agreement, and it
+  verified the glossary rows exist and are spelled right. What it did **not** do
+  is test the charge table's own premise — the claim that `num_roots()` and
+  `num_states()` are "the same unit" was taken as given because the spec and the
+  glossary both asserted it. Conformance to a spec cannot catch a false claim
+  *inside* the spec. The cheap check that would have caught it — print both
+  counts for three formulas — took about two minutes once someone thought to
+  doubt the sentence.
 - **theory-review** — **not spawned, deliberately.** Phase 1 has no theory
   surface: `cons`, progression, sink placement, final-state classification and
   the `Synthesis`/`Transducer` contracts are all untouched, and the PRD's own
@@ -110,8 +131,17 @@ same day; nothing was re-implemented, only verified and recorded.
 
 ## Next
 
-Phase 2 — registry, families, timing sweep, workbook, `ltlfsynt` T1 race. It is
-the Tuesday 2026-08-11 day-run and the **only phase on the critical path** for
-the Wednesday 2026-08-12 progress presentation; Phase 3 (committed structural
-baseline) is regression protection with no presentation value and was
+**Decide the unit mismatch first** (*Blocker* in the PRD — options (a)/(b)/(c)).
+It is a one-decision evening, it is a PRD-change event for B2 plus a glossary
+edit, and Phase 2's cross-method table is the thing that would publish the wrong
+ratio. Tuesday's run should not start until it is settled.
+
+Then Phase 2 — registry, families, timing sweep, workbook, `ltlfsynt` T1 race.
+It is the Tuesday 2026-08-11 day-run and the **only phase on the critical path**
+for the Wednesday 2026-08-12 progress presentation; Phase 3 (committed
+structural baseline) is regression protection with no presentation value and was
 deliberately swapped behind it.
+
+Note that only the **cross-method size columns** are blocked. The timing sweep,
+the `ltlfsynt` T1 race and the workbook plumbing are unaffected, so Phase 2 is
+not wholly stalled if the decision slips.
