@@ -153,6 +153,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/ltlf_ek_deps_test.cpp
     tests/ltlf_ek_deps_input_test.cpp
     tests/bench_test.cpp
+    tests/bench_size_metric_test.cpp
   )
   target_link_libraries(unit_tests PRIVATE ltlf_ek GTest::gtest_main)
   # tests/ltlf_ek_synth_test.cpp drives the built ltlf-ek-synth binary as a
