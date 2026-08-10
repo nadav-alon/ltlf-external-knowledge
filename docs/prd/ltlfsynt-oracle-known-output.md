@@ -641,10 +641,10 @@ $\Tin$. Decide in the evening grill whether to amend the contract or the code.
   for the oracle**, not merely a note. A `\cl` note was drafted and deliberately
   **not** written: in a worktree `latex/` is an uninitialized submodule. Nothing
   is dirty.
-- `underspecified` — `main.tex:139`, the live conjecture states the formula but
+- `underspecified` — `main.tex:144`, the live conjecture states the formula but
   not who owns $\Iknown$/$\Oknown$ in the reduced problem — which is the entire
   content of `--ins=a --outs=o,x` and *Behaviour* #1. The fixing clause already
-  exists **commented out** at `main.tex:141-142`; activating it is the user's
+  exists **commented out** at `main.tex:145-146`; activating it is the user's
   call and was left untouched.
 - `doc-bug` (this PRD, minor) — *Behaviour* #5 understates the J-bad mechanism;
   see the next item for why.
@@ -731,6 +731,6 @@ exists to exclude. Fixed by asserting `result.detail` contains "too STRONG".
 guard demands language equality at $\Iknown$ valuations $\Tin$ would never
 produce — a *larger* trace set than the reduction $\psiin \to (\varphi \land
 \psiout)$ ever exercises. That is the stronger and safe reading, and it is what
-`main.tex:139` states (each transducer's $\psi$ defined independently), so it
+`main.tex:144` states (each transducer's $\psi$ defined independently), so it
 folds into the existing `underspecified` flag on that line rather than being a
 new finding.

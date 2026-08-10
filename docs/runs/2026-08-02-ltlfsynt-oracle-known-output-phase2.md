@@ -91,7 +91,7 @@ ref drifted.
 5. **Theory-review observation, not a finding.** For mixed M1/M2 the guard
    demands language equality at $\Iknown$ valuations $\Tin$ would never produce —
    a larger trace set than the reduction exercises. That is the stronger, safe
-   reading and is what `main.tex:139` says, so it folds into the existing
+   reading and is what `main.tex:144` says, so it folds into the existing
    `underspecified` flag on that line.
 
 ## Questions for the evening grill
@@ -121,7 +121,7 @@ ref drifted.
    the contract, or amend the code? Unchanged and still harmless.
 5. **Two `underspecified` `main.tex` sites from Phase 1 remain unwritten** —
    `main.tex:101`'s termination `\na` (now load-bearing for this oracle) and
-   `main.tex:139`'s commented-out ownership clause at `:141-142`. Both need
+   `main.tex:144`'s commented-out ownership clause at `:141-142`. Both need
    `latex/` initialized and both are your call.
 6. **Run `/code-review` by hand** on `master...worktree-prd-tout-oracle` — the
    agent-invocable path is blocked, so the generic gate cannot be closed

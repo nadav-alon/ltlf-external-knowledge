@@ -252,7 +252,7 @@ $\lambda^X = \bot$ when the successor set is empty. Ported literally that is
 $\delta$ or $\lambda$ makes the letter **inconsistent**, and an inconsistent
 letter is skipped for *every* party — so a partial $\Tout$ deletes $\Ifree$
 letters and constrains the **environment**, which $\Tout$ has no right to do
-($\Sigma_1 = \Oknown$, `main.tex:129`). Witness, and a required test fixture:
+($\Sigma_1 = \Oknown$, `main.tex:133`). Witness, and a required test fixture:
 $\varphi = G(\lnot a)\wedge G(x)$, $\mathcal{I}=\{a\}$, $\mathcal{O}=\{x\}$. One
 live state, $\liveset{s} = (\lnot a \wedge x)$, which *is* functional from
 $\{a\}$ to $\{x\}$, so $x$ is reported dependent with
@@ -307,7 +307,7 @@ error text.
 **I8 — scope is outputs only, and that is a turn-order constraint.** For
 $\Xdep\subseteq\mathcal{O}$, DepSynt's $\Ydep=(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$
 **equals** $\mathcal{I}\cup\Ofree$, which is exactly $\Sigma_0$ for
-`Role::t_out` (`main.tex:129`) — a verbatim fit. Input dependencies are **out of
+`Role::t_out` (`main.tex:133`) — a verbatim fit. Input dependencies are **out of
 scope** and are *not* a parameter change: `Role::t_in` has
 $\Sigma_0=\Ifree$, so a $\Tin$'s $\lambda$ may never observe $\mathcal{O}$, and
 $\Ydep=(\mathcal{I}\cup\mathcal{O})\setminus\Xdep$ would let it — violating the
@@ -321,7 +321,7 @@ See *Open theory questions*.
 input-dependency tool composes by owning those two keys and passing ours
 through — disjoint keys, order-independent, either tool may run first. It
 **refuses** a non-empty `output_known` on input (`std::invalid_argument` /
-usage error): `main.tex:127` has exactly one $\Sout$ producing all of $\Oknown$,
+usage error): `main.tex:131` has exactly one $\Sout$ producing all of $\Oknown$,
 so there is no "compose two $\Tout$s" notion, and an already-governed output
 $o\in\Ydep$ would let our $\lambda_{out}$ observe a variable produced in the
 same turn-order phase.
@@ -617,7 +617,7 @@ assert a non-empty `output_known` input is refused with exit `2`; assert
   dependent on $\mathcal{I}\setminus\Xdep$ *alone* — strictly stronger than
   `\cref{def:outdep}`, since $\Sigma_0=\Ifree$ for `Role::t_in` forbids
   observing $\mathcal{O}$. This is the notion the **commented-out**
-  `latex/main.tex:613` block gropes toward ("a potential set of dependent
+  `latex/main.tex:626` block gropes toward ("a potential set of dependent
   input variables $D\subseteq I$"), including its own suggestion of deciding
   dependence by *counting synthesis strategies*. Left commented (author's call);
   a separate PRD. **Answered 2026-07-31 by `docs/prd/input-dependencies-tool.md`**
@@ -626,7 +626,7 @@ assert a non-empty `output_known` input is refused with exit `2`; assert
   $L(\varphi)$ — input dependencies are the moves the *environment* must play or
   lose, so they live on the violation automaton. The $\Ydep=\Ifree$ restriction
   this bullet identified is real but is the *second* difference, realized as an
-  $\exists\mathcal{O}$ projection of $\liveset{s}$. The commented `main.tex:613`
+  $\exists\mathcal{O}$ projection of $\liveset{s}$. The commented `main.tex:626`
   block remains open and commented: it asks a different question, over an
   external knowledge base $\Gamma$ rather than over $\varphi$.
 - **Refining the analysis by a given $\Tin$ (I10)** — sound-but-incomplete
@@ -779,7 +779,7 @@ permission allowlist.
    `docs/GLOSSARY.md`'s *Determinacy witness* entry) using §101→§108,
    §107→§114-115, §124-133→§121-131, and **:125→:130** — note the last: `λ_C` is
    at line **130**; line 125 is the `\Tout` row, so every "Σ0 = I, Σ1 = Ofree
-   (main.tex:127)" citation was pointing at the wrong row. A repo-wide sweep
+   (main.tex:131)" citation was pointing at the wrong row. A repo-wide sweep
    shows the drift is much broader than this PRD's loose-end list (`main.tex:98`,
    `:133`, `:241`, `:300`, `:335` and friends recur across ~10 `docs/prd/` files
    and several headers) — that is a `/glossary` sweep, not a phase task. Prefer

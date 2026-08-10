@@ -203,7 +203,7 @@ TEST(SigmaSlicesDirect, EmptyKnownSetGivesEmptySigma1) {
   EXPECT_TRUE(s.sigma1.empty());
 }
 
-// Role::t_c (docs/prd/controller-verifier.md, main.tex:132): Sigma0 = I,
+// Role::t_c (docs/prd/controller-verifier.md, main.tex:136): Sigma0 = I,
 // Sigma1 = Ofree --- the controller's own align-block row.
 TEST(SigmaSlicesDirect, TCIsIAndOfree) {
   // I = {a, k}, Ofree = {x}, Oknown = {y}.
@@ -273,7 +273,7 @@ TEST(ParseTransducer, RoleTcSigma0IsInputsSigma1IsOutputFree) {
   auto t = Parse(kExample, part, Role::t_c, dict);
   EXPECT_EQ(t.sigma0_cube(), VarBdd(probe, "a"));
   EXPECT_EQ(t.sigma1_cube(), VarBdd(probe, "k"));
-  // state 0: a <-> k --- lambda_C commits Ofree k := a (main.tex:132).
+  // state 0: a <-> k --- lambda_C commits Ofree k := a (main.tex:136).
   EXPECT_EQ(t.lambda(0, LetterAK(probe, /*a=*/true, /*k=*/false)),
             std::optional<bdd>(VarBdd(probe, "k")));
 }

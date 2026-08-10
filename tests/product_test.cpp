@@ -494,7 +494,7 @@ TEST(BuildProductNondet, GoalBranchYieldsMultiDestinationEdges) {
 // Independent, test-local subset construction directly over ProductGuards
 // (NOT nfa_to_dfa, which is separately unit-tested in tests/nfa_to_dfa_test
 // .cpp): mirrors its algorithm one level up, in ProductState space, purely
-// so the reachability invariant (main.tex:243) can be checked against the
+// so the reachability invariant (main.tex:253) can be checked against the
 // taus of whichever raw ProductStates end up sharing a subset. Subsets are
 // std::set<ProductState> (ordered by ProductState::operator<); BFS from
 // {init} over `alphabet.letters()`; R' = union over p in R of
@@ -552,7 +552,7 @@ TEST(BuildProductNondet, EveryReachableSubsetHasASingleTausPair) {
   // goal components (1 vs 2) paired with the exact SAME (q_in,q_out) =
   // (1,0). That subset is NOT a singleton (the goal's nondeterminism really
   // did merge two distinct P-states together), yet its taus is uniform ---
-  // the main.tex:243 reachability invariant made concrete.
+  // the main.tex:253 reachability invariant made concrete.
   bool found_nonsingleton = false;
   for (const std::set<ProductState>& subset : subsets) {
     ASSERT_FALSE(subset.empty());
@@ -560,7 +560,7 @@ TEST(BuildProductNondet, EveryReachableSubsetHasASingleTausPair) {
     for (const ProductState& p : subset)
       EXPECT_EQ(p.taus, first_taus)
           << "reachable subset mixes (q_in,q_out) pairs -- violates the "
-             "main.tex:243 reachability invariant";
+             "main.tex:253 reachability invariant";
     if (subset.size() > 1) found_nonsingleton = true;
   }
   EXPECT_TRUE(found_nonsingleton)

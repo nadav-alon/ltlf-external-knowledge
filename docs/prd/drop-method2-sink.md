@@ -154,7 +154,7 @@ anchor). This PRD records **intent**; `/theory-review` owns the actual edits and
 their soundness:
 
 - **Delete `lem:sink_skip` entirely** (author's decision) — the lemma
-  (`main.tex:266-280`), its proof, and the `\na[inline]{Rewrite}` marker. Its
+  (`main.tex:276-290`), its proof, and the `\na[inline]{Rewrite}` marker. Its
   content (non-`$\cons$` letters are never played) is **not** restated; Method 2
   leans on the same unstated skip-soundness as Methods 1/3.
 - **De-sink §`fulldfa`:**

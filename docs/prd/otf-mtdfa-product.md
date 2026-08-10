@@ -32,7 +32,7 @@ after. The **domain oracles parallelize regardless** — they bind to
 (the $\cons$ filter), `:fp` (`\algname{FP}`), `:in_succ`/`:out_succ`,
 `:states:insert`, `:final_insert` ($F_P$) and `:solve` (`\algname{SolveDfa}`) —
 plus `\cref{alg:fp}` (the `FP` stub this realizes), `\cref{def:consistency}`
-(§203), and the `\na` pair at `main.tex:338`/`main.tex:337`.
+(§203), and the `\na` pair at `main.tex:351`/`main.tex:350`.
 
 **Gates:**
 - [x] glossary        — *closed 2026-07-28* (`/glossary`, this commit). Mostly
@@ -132,18 +132,18 @@ plus `\cref{alg:fp}` (the `FP` stub this realizes), `\cref{def:consistency}`
       already commit to. I7.3's row-key is a *sound* strengthening, and
       stronger than a bisimulation argument: expansion is a pure function of
       `(row, q)`. $\cons$'s slice projection rides variable scope, exactly the
-      argument already live as a `\cl` at `main.tex:218-220`.
+      argument already live as a `\cl` at `main.tex:228-230`.
       **Four `\cl` patches proposed and NOT applied** (`latex/` is the
       Overleaf submodule) — one is a genuine **doc-bug**:
       `alg:otfdfa_product:final_insert` is *unsound as written* (state-keyed
       $F_P$ over-accepts; witness $\varphi = (c \wedge G(a \rightarrow Xb))
       \vee (\lnot c \wedge X[!]G(a \rightarrow Xb))$ with trivial
       transducers), which answers the open `\na` after `\cref{alg:otfdfa_agg_product}`
-      (`main.tex:454`) — re-key on the
+      (`main.tex:467`) — re-key on the
       transition, don't delete the line — and shows the defect is *not*
       confined to aggregation. The mtdfa realization avoids it for free since
       terminal $2d+b$ is transition-keyed. The other three are
-      *underspecified*: I5's pruning + language cost, `main.tex:342`'s
+      *underspecified*: I5's pruning + language cost, `main.tex:355`'s
       "semantically equal" over-claim, and `\cref{alg:fp}`'s four pinned
       commitments (weak `X` / strong `X[!]`, $b$ on the transition, all four
       $(\psi',b)$ corners reachable, $\psi'$ already canonical) — note
@@ -157,7 +157,7 @@ constructed **on the fly** by forward progression, so that only the goal states
 reachable *under* the $\cons$ filter are ever built — instead of materializing the
 whole Goal automaton first and intersecting afterwards, as Method 2 does
 (`docs/prd/mtdfa-product.md`). The method is realized in the **mtdfa**
-*Representation*, which is what the `\na` at `main.tex:337` anticipates
+*Representation*, which is what the `\na` at `main.tex:350` anticipates
 (*"This likely requires adjusting the definitions for MTDFA usage"*); the
 explicit cell of Method 3.1 is deliberately left unbuilt.
 
@@ -170,7 +170,7 @@ substrate and the state-interning rule constant, the only difference between
 asked the analogous question about late determinization and the answer was **no**;
 this PRD is built so that a negative answer here is equally attributable.
 
-Phase 2 additionally discharges the *other* `\na` (`main.tex:338`): on-the-fly
+Phase 2 additionally discharges the *other* `\na` (`main.tex:351`): on-the-fly
 product construction that still solves the game at the end is *"missing a hanging
 fruit optimization"*. It lands as a **knob**, not a replacement, so Phase 1's
 build-then-solve path stays live as Phase 2's internal differential oracle and as
@@ -252,7 +252,7 @@ against the linked libspot:
 If both transitions occur in one product, a state-keyed $F_P$ marks that state
 accepting and the product **over-accepts**. This is the same hazard the author
 already flagged for Method 3.2 (the `\na` after `\cref{alg:otfdfa_agg_product}`,
-`main.tex:454` — the "aggregated final-state
+`main.tex:467` — the "aggregated final-state
 overwrite" `\na`), but it bites the **un-aggregated** method too. The mtdfa
 substrate encodes acceptance on the transition ($2d+b$ terminals, see *MTDFA*), so
 this implementation is **strictly more faithful to $\text{LTL}_f$ than the
@@ -664,15 +664,15 @@ Flag, do not resolve — these are `/theory-review`'s.
   this project's committed semantics but is not written in `main.tex`.
 - **State-keyed $F_P$ is lossy** (`alg:otfdfa_product:final_insert`) — the new
   finding of I4. Likely a **doc-bug**; note it also strengthens the existing
-  Method 3.2 `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:454`) from
+  Method 3.2 `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:467`) from
   "am I unsure?" to "demonstrably yes".
-- **On-the-fly game solving** (`main.tex:338` `\na`) — Phase 2 implements it; the
+- **On-the-fly game solving** (`main.tex:351` `\na`) — Phase 2 implements it; the
   *definitional* half stays open.
-- **MTDFA definitions for Method 3** (`main.tex:337` `\na`) — this PRD is that
+- **MTDFA definitions for Method 3** (`main.tex:350` `\na`) — this PRD is that
   adjustment, made in code first. `main.tex` still commits to no MTDFA definition.
 - **Trace-termination semantics** (`main.tex:98` `\na`) — newly load-bearing: the
   I5 accepting-sink collapse is sound *because* termination is system-controlled.
-- **Governed-variable projection** (`main.tex:303` `\na`) and **Mealy-only
+- **Governed-variable projection** (`main.tex:315` `\na`) and **Mealy-only
   signatures** (`main.tex:105` `\na`) — inherited unchanged via `solve_mtdfa` and
   the *Turn order* contract.
 
@@ -766,7 +766,7 @@ solving.
 small (14 states at $n=12$) — `spot::product` prunes perfectly well. The entire
 difference is that it must **materialize the $2^n$-state goal first**. So this method
 does not beat the product; it beats the **materialization**, which is exactly the
-claim `\cref{alg:otfdfa_product}` makes and exactly what `main.tex:337`'s `\na`
+claim `\cref{alg:otfdfa_product}` makes and exactly what `main.tex:350`'s `\na`
 anticipated.
 
 **Open observation, not chased.** In family B, `game_solving` is consistently ~2x
@@ -783,7 +783,7 @@ before Phase 2, since Phase 2 fuses solving into that same build.
 
 All four are written into `latex/main.tex` as `\cl[inline]` notes, each on its
 own source line per `/latex-style`, +15 lines, nothing else touched:
-after `main.tex:342` (#4), after `alg:fp`'s `\end{algorithm}` (#2), and two
+after `main.tex:355` (#4), after `alg:fp`'s `\end{algorithm}` (#2), and two
 after the prose closing `\cref{alg:otfdfa_product}` (#1 then #3). Verified by
 reading, not by compiling (the paper builds on Overleaf only): all seven
 `\cl[inline]` blocks brace-balanced, and every `\cref` target pre-existing and
@@ -799,8 +799,8 @@ reset. Ordered by how much they matter.
 ### 1. `alg:otfdfa_product:final_insert` is unsound as written — **doc-bug**
 
 The only one that is a *defect* rather than a gap. Place on its own source line
-after the prose closing `\cref{alg:otfdfa_product}` (now `main.tex:403`). Answers
-the open `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:454`): do **not** delete the
+after the prose closing `\cref{alg:otfdfa_product}` (now `main.tex:416`). Answers
+the open `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:467`): do **not** delete the
 line, re-key it — and note the defect is present already without aggregation, so
 `alg:otfdfa_dyn_agg_product` inherits it too.
 
@@ -813,7 +813,7 @@ This is the same defect suspected in the note after \cref{alg:otfdfa_agg_product
 
 ### 2. `\cref{alg:fp}`'s four pinned commitments — *underspecified*
 
-Own source line after `\cref{alg:fp}`'s `\end{algorithm}` (now `main.tex:354`) —
+Own source line after `\cref{alg:fp}`'s `\end{algorithm}` (now `main.tex:367`) —
 adjacent, not nested, so the stub's `\label` and the build are untouched).
 Note `main.tex` has **no LTLf preliminaries at all**, so the weak-`X` reading is
 unwritten paper-wide, not merely unwritten in `alg:fp`.
@@ -838,9 +838,9 @@ They are nonetheless equirealizable and give the same controller up to behaviour
 That last step is exactly the system-controlled-termination reading left open by the note after \cref{def:probDef}, so this pruning would have to be revisited --- not merely re-measured --- if that reading changed.}
 ```
 
-### 4. `main.tex:342`'s "semantically equal" over-claims — *underspecified*
+### 4. `main.tex:355`'s "semantically equal" over-claims — *underspecified*
 
-Own source line after `main.tex:342`. Nothing depends on completeness; only the
+Own source line after `main.tex:355`. Nothing depends on completeness; only the
 state count does.
 
 ```latex
@@ -851,7 +851,7 @@ The realization uses Spot's propositional-equivalence representative over maxima
 ### Non-blocking, no patch drafted
 
 - **Complexity.** The single-exponential-in-$\varphi$ / polynomial-in-transducers
-  theorem is stated only for `alg:nfa_product` (`main.tex:238-244`). The
+  theorem is stated only for `alg:nfa_product` (`main.tex:248-254`). The
   reachable-state bound here is
   $|\{\text{reachable rows}\}|\cdot|Q_{in}|\cdot|Q_{out}|$ and the same claim
   holds, but the paper never states it for Method 3.
@@ -861,9 +861,9 @@ The realization uses Spot's propositional-equivalence representative over maxima
   touched anyway.
 - **Inherited dependency, now with a third consumer.** "The system never plays
   into that `bddfalse`" rests on $\Iknown,\Oknown$ being *controllable* in
-  `solve_mtdfa` (`src/solve_mtdfa.cpp:38-42`), i.e. on the `main.tex:303`
+  `solve_mtdfa` (`src/solve_mtdfa.cpp:38-42`), i.e. on the `main.tex:315`
   governed-variable-projection `\na`, whose drafted argument is still commented
-  out at `main.tex:307-308`.
+  out at `main.tex:317-318`.
 - **Wasted state (efficiency, not theory).** An $(\mathtt{ff},\top)$ leaf interns
   a state whose row is provably `bddfalse`, one per reachable $q$-vector,
   instead of emitting $2j+1$ into a shared dead index.

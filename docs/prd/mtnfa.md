@@ -17,9 +17,9 @@ signatures first and `/test-writer` binds to them after.
 **main.tex ref:** §`nfa` (`\cref{nfa}`), `\cref{alg:ltlftonfa}` (the NFA $N$ this
 lifts), and `\cref{alg:nfa_product}` line `alg:nfa_product:determinize`
 (`\algname{NfaToDfa}`, the subset construction this realizes at the mtdfa
-representation); the reachability-invariant note at `main.tex:243`. The **MTNFA
+representation); the reachability-invariant note at `main.tex:253`. The **MTNFA
 representation itself has no `main.tex` symbol** — like *MTDFA* it is a code-only
-data structure on the *Representation* axis (the `\na` at `main.tex:337`,
+data structure on the *Representation* axis (the `\na` at `main.tex:350`,
 *"This likely requires adjusting the definitions for MTDFA usage"*, is the closest
 gesture, and it is about Method 3, not a commitment to this).
 
@@ -48,7 +48,7 @@ gesture, and it is about Method 3, not a commitment to this).
   status-noted, unchanged. Four follow-ups; F2/F3/F4 actioned 2026-07-17, F1
   remains OPEN (none were blocking):
   **F1** (`underspecified`, **OPEN**) `\algname{NfaToDfa}` is never defined in `main.tex` —
-  a drafted `\cl` for after `main.tex:243` is in the review; load-bearing for
+  a drafted `\cl` for after `main.tex:253` is in the review; load-bearing for
   `MtnfaProduct`, worth pinning before it lands. Deferred: Overleaf-only
   `main.tex` edit, only load-bearing once `MtnfaProduct` lands.
   **F2** (`underspecified`, latent) — **DONE 2026-07-17:** `mtnfa_to_mtdfa`
@@ -141,7 +141,7 @@ The representation is code-only, but its two operations must be faithful:
    $\delta_N$: for every state $s$ and letter $v$, the set named by the terminal
    that `states[s]` reaches on $v$ equals $\delta_N(s,v)$ (`\cref{alg:ltlftonfa}`'s
    $N$, $\delta_N : S_N \times 2^{\mathcal I\cup\mathcal O} \to 2^{S_N}$,
-   `main.tex:200`). A letter covered by **no** out-edge maps to $\emptyset$ — $N$ is
+   `main.tex:210`). A letter covered by **no** out-edge maps to $\emptyset$ — $N$ is
    partial/uncompleted (`alg:nfa_product` tolerates an empty $\delta_N(s,v)$), and
    the representation must preserve that (empty set, **not** a sink state).
 
@@ -155,7 +155,7 @@ The representation is code-only, but its two operations must be faithful:
    **product** $P$; running it on $N$ alone is the isolated, transducer-free special
    case that makes this PRD independently testable. Generalizing the *same*
    determinizer to the $(R,q_{in},q_{out})$ product states is `MtnfaProduct`'s job,
-   backed by the reachability invariant `main.tex:243`.)
+   backed by the reachability invariant `main.tex:253`.)
 
 3. **Empty word / non-empty traces.** $L(\varphi)$ excludes $\varepsilon$
    (`1` rejects the empty word; project commitment). **Corrected argument

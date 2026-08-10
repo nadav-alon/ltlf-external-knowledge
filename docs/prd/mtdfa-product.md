@@ -53,7 +53,7 @@ answers* before binding.
 **main.tex ref:** §Method 2 (`\cref{fulldfa}`, `alg:dfa_product`); $\cons$
 (`\cref{def:consistency}`, §203); *enabled* (`\cref{def:consistency}`, §107–116);
 $T_C$'s interface (`\cref{def:probDefTransducer}`, §129); the projection `\na`
-(`main.tex:303`) and its commented-out `\cl` argument (`main.tex:307–308`).
+(`main.tex:315`) and its commented-out `\cl` argument (`main.tex:317–318`).
 No new algorithm — a representation change to an existing one.
 
 **Gates (Phase 2 delta — reopened for the new surface below; Phase 1's closures
@@ -118,7 +118,7 @@ are kept as history in each bullet):**
   controllable then existentially projecting (`solve_mtdfa.cpp:69`) is
   equivalent-in-outcome to `solve_dfa`'s arena-side projection — a forced move is
   invariant to which player owns it, so neither realizability nor a winning
-  strategy changes; discharges the same `main.tex:303` `\na` by a different route.
+  strategy changes; discharges the same `main.tex:315` `\na` by a different route.
   Three low-severity *consider* items only (skipped guard on empty `Ifree` →
   bare `out_of_range`; redundant double `require_turn_order_aps`; shared
   AP-registration order shifted for `DfaProduct` too but correctness-safe as the
@@ -199,7 +199,7 @@ these names as canonical:
   a sixth row would assert a sixth method, the exact claim we are avoiding. Five
   rows still mean five methods; `MtdfaProduct` is the Method-2 × mtdfa **cell**.
 - **`solve_mtdfa`** — added to *Game solving (SolveDfa)* as the mtdfa sibling of
-  `solve_dfa`, recording that the two discharge `main.tex:303`'s projection `\na`
+  `solve_dfa`, recording that the two discharge `main.tex:315`'s projection `\na`
   by different routes.
 - ***Product*** and ***Goal DFA construction*** each gained their mtdfa row. The
   latter's mtdfa wrapper is **deliberately unnamed** pending Phase 0/Q2 — with a
@@ -257,9 +257,9 @@ comment. No new *Canonical benchmarking stage* — see "Benchmarking" below.
    (`synthesis.hpp`) reads $\lambda_C$ off the strategy's edge guards **expecting a
    relation over $\Ifree \times \Ofree$**, so step 5's projection is *mandatory*,
    not cosmetic.
-5. **Projecting the governed variables.** `main.tex:303` (`\na`) asserts the game
+5. **Projecting the governed variables.** `main.tex:315` (`\na`) asserts the game
    "can project these variables out without loss"; the argument is drafted in the
-   commented-out `\cl` at `main.tex:307–308`. `solve_dfa` does this **arena-side**
+   commented-out `\cl` at `main.tex:317–318`. `solve_dfa` does this **arena-side**
    (`bdd_exist` per edge guard, `src/solve_dfa.cpp:49`). This PRD reaches the same
    endpoint **strategy-side** — see decision 2. Same result, different route;
    flagged for `/theory-review`, not claimed as conformance.
@@ -290,7 +290,7 @@ own terminal encoding, state numbering, and `fuse_same_bdds`.
 shape and is the wrong operator here. Implication is only needed when $\Iknown$ is
 a *free* environment move that could be broken to win vacuously; under decision 2
 it is not an environment move at all. This is **not** blocked on the monolithic
-conjecture (`main.tex:135`) — and the transducer$\to\psiin$ star-free obstruction
+conjecture (`main.tex:139`) — and the transducer$\to\psiin$ star-free obstruction
 does not bite, because it blocks an $\text{LTL}_f$ *formula*, not a DFA
 ($\text{LTL}_f \subsetneq$ regular), and the *Output-agreement automaton* is a DFA.
 
@@ -417,7 +417,7 @@ class MtdfaProduct final : public Synthesis {
 //
 // make_synthesis_method gains "mtdfa-product" -> MtdfaProduct.  The doc comment
 // at cli.hpp:37 ("the five methods") MUST be reworded: this is a sixth *flag*
-// over five methods.  Known trade-off, accepted: if main.tex:337's MTDFA-for-
+// over five methods.  Known trade-off, accepted: if main.tex:350's MTDFA-for-
 // Method-3 ever lands, this shape yields names like "--mtdfa-otf-dfa-product".
 // Out of scope here.
 
@@ -880,9 +880,9 @@ Bind to the frozen contract above; the domain oracles parallelize regardless.
 
 Flagged for `/theory-review`; not resolved here.
 
-- **The projection `\na` (`main.tex:303`)** asserts the game "can project these
+- **The projection `\na` (`main.tex:315`)** asserts the game "can project these
   variables out without loss", argued in the commented-out `\cl` at
-  `main.tex:307–308`. Decision 2 reaches the same endpoint **strategy-side**
+  `main.tex:317–318`. Decision 2 reaches the same endpoint **strategy-side**
   (pin as forced system moves, project from the strategy) rather than **arena-side**
   (project from the guards, as `solve_dfa` does). Same result, different
   justification — needs review, not an assumed conformance.
@@ -910,7 +910,7 @@ Flagged for `/theory-review`; not resolved here.
 - **`emits_region` ↔ `\cref{def:consistency}` faithfulness** — already flagged by
   `docs/prd/symbolic-dfa-product.md`; `emits_dfa` inherits it, now one level further
   from the definition (region → automaton).
-- **MTDFA for Method 3** (`main.tex:337` `\na`: *"This likely requires adjusting the
+- **MTDFA for Method 3** (`main.tex:350` `\na`: *"This likely requires adjusting the
   definitions for MTDFA usage"*). Out of scope; noted because it is evidence that
   MTDFA is a representation axis crossing methods, which the chosen sixth-flag CLI
   shape does not model.

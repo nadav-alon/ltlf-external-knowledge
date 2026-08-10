@@ -8,7 +8,7 @@
 - [x] glossary        — `parse_transducer`, `Role`, transducer file format added to `docs/GLOSSARY.md`
 - [x] tests           — `tests/transducer_io_test.cpp` (22 cases, `ctest` green; branch `master`, uncommitted)
 - [x] code-review     — `/code-reviewer` clean (2 non-blocking "consider"s); branch `master`, uncommitted. Generic `/code-review` still pending.
-- [x] theory-review   — code ↔ `main.tex` §98–133 faithful (Mealy/Moore already resolved by `\cl` at main.tex:135-136); branch `master`, uncommitted
+- [x] theory-review   — code ↔ `main.tex` §98–133 faithful (Mealy/Moore already resolved by `\cl` at main.tex:139-140); branch `master`, uncommitted
 
 ## Goal
 

@@ -268,7 +268,7 @@ event**. As in the output tool, $\Aneg$, the live set and every $\liveproj{s}$ a
 $\Ifree\uplus\Xdep$) and **passes `output_free` / `output_known` through
 verbatim**. It **refuses** a non-empty `input_known` on input
 (`std::invalid_argument` / usage error), for the dual of the output tool's
-reason: `main.tex:126` has exactly one $\lambda_{in}$ producing all of $\Iknown$, so
+reason: `main.tex:130` has exactly one $\lambda_{in}$ producing all of $\Iknown$, so
 there is no "compose two $\Tin$s" notion.
 
 **I10 — a $\Tout$ present on input does not refine the analysis.** If
@@ -611,7 +611,7 @@ public surface, which is a PRD-change event on
   here (it needs a formula rewriter, an un-shift register on the emitted
   transducer, and a decision on the trailing position under weak $X$) — captured
   in `docs/BACKLOG.md`.
-- **The `main.tex:613` commented block is a different question and stays
+- **The `main.tex:626` commented block is a different question and stays
   commented.** It proposes deciding input dependence over an external knowledge
   base $\Gamma$ by synthesizing $\Gamma$ with $D$ as outputs and counting
   strategies. That is a different input object ($\Gamma$, not $\varphi$) and a

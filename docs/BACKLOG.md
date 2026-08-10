@@ -203,7 +203,7 @@ out below._
 - **Blocking, and now PROVEN not merely suspected:** `\cref{alg:otfdfa_product}`'s
   state-keyed $F_P$ **over-accepts** — theory review (2026-07-29) produced a
   one-state witness, $\varphi=(c \wedge G(a \rightarrow Xb)) \vee (\lnot c \wedge
-  X[!]G(a \rightarrow Xb))$ with trivial transducers. the `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:454`) asked
+  X[!]G(a \rightarrow Xb))$ with trivial transducers. the `\na` after `\cref{alg:otfdfa_agg_product}` (`main.tex:467`) asked
   whether to drop the $F_P$ insert; the answer is **re-key it on the transition**.
   3.1 dodges this for free (an mtdfa terminal $2d+b$ is transition-keyed); an
   aggregating method must face it. `\cl` note written into `latex/main.tex`,
@@ -315,16 +315,16 @@ exactly when it was realizable without it.}
 
 ### `main.tex` `\algname{NfaToDfa}` empty-subset rule is underspecified (LaTeX-only, from theory-review 2026-07-17)
 - **Intent:** a *documentation* fix in `main.tex` (the latex submodule), not a code
-  change. The `\algname{NfaToDfa}` black box (~main.tex:270) states no rule for the
+  change. The `\algname{NfaToDfa}` black box (~main.tex:280) states no rule for the
   empty subset, and both sources of an empty $\delta_{prod}$ — a **non-$\cons$**
   letter and a **$\cons$-dead** letter ($\delta_N(s,v)=\emptyset$) — collapse to
-  $\emptyset$ in the paper (main.tex:227–234). No uniform reading of the black box is
+  $\emptyset$ in the paper (main.tex:237–244). No uniform reading of the black box is
   sound: skip-both → spuriously realizable; sink-both → spuriously unrealizable. The
   explicit `NfaProduct` already corrects this by completing $N$ before the product
   (`complete_here`), exactly as Method 2 completes $A$ — but the paper is silent.
 - **Fix:** apply the drafted `\cl[inline]{…}` note (verbatim in
   `docs/prd/nfa-product.md` "Open theory questions touched") after the reachability
-  note at ~main.tex:243. **Verified faithful; code needs no change** — this is purely
+  note at ~main.tex:253. **Verified faithful; code needs no change** — this is purely
   a clarity gap in the write-up.
 - **Why Later:** main.tex is a submodule that only builds on Overleaf; batch it with
   the next LaTeX pass (re-run `/glossary` + `/theory-review` after the Overleaf pull,
@@ -908,7 +908,7 @@ exactly when it was realizable without it.}
   `docs/prd/otf-mtdfa-product.md` "Benchmark results, 2026-07-29".
 - **What it actually beats:** not the product — `spot::product` prunes fine (14
   states at $n=12$) — but the **materialization** of the $2^n$-state goal that
-  Method 2 must build first. Exactly `main.tex:337`'s `\na`.
+  Method 2 must build first. Exactly `main.tex:350`'s `\na`.
 - **What it cost:** one deliberate deviation from `\cref{alg:otfdfa_product}` (I5:
   collapse to the accepting sink once $\varphi$ is irrevocably satisfied), which
   makes $L(P)$ a strict superset of the paper's product language — equirealizable,
@@ -943,7 +943,7 @@ exactly when it was realizable without it.}
 - **PRD:** `docs/prd/mtnfa-product.md` (draft, grilled 2026-07-27) — ready for
   `/glossary` then concurrent `/developer` + `/test-writer`. Both seeds below were
   settled in the grill: the product stays symbolic and the transducer states are
-  **tracked alongside** the goal subset (the `(R,q_{in},q_{out})` key, `main.tex:243`),
+  **tracked alongside** the goal subset (the `(R,q_{in},q_{out})` key, `main.tex:253`),
   **not** folded into the terminal; `turn_order.hpp` is reused exactly as
   `MtdfaProduct` does.
 - **Intent:** once the MTNFA representation lands (`docs/prd/mtnfa.md` — the data

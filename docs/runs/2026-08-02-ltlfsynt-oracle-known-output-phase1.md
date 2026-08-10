@@ -98,9 +98,9 @@ written. No citation drift from this run.
    meaningful and a near-vacuous meta-oracle. **Answer this before Phase 2 runs.**
 2. **`MixedRow`'s missing `{t_in_src, psi_in}`** — amend the frozen interface, or
    make the code match it?
-3. **`main.tex:139`, the live conjecture** — the fixing clause that names who owns
+3. **`main.tex:144`, the live conjecture** — the fixing clause that names who owns
    $\Iknown$/$\Oknown$ in the reduced problem already exists **commented out** at
-   `main.tex:141-142`. Activating it is yours. It is now load-bearing for this
+   `main.tex:145-146`. Activating it is yours. It is now load-bearing for this
    oracle's correctness argument.
 4. **`main.tex:101`, the trace-termination `\na`** — Table J is the first corpus
    evidence that this note decides real verdicts (system-controlled termination

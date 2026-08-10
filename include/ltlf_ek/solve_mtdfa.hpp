@@ -18,7 +18,7 @@ namespace ltlf_ek {
 // Decision 2 (docs/prd/mtdfa-product.md): the mtdfa game solver has only one
 // knob (set_controllable_variables), so Iknown/Oknown are made controllable
 // alongside Ofree --- pinned as forced system moves rather than projected
-// arena-side, the way solve_dfa does it (main.tex:303's projection \na,
+// arena-side, the way solve_dfa does it (main.tex:315's projection \na,
 // reached by a different route; flagged for /theory-review).  Every Spot
 // argument below is pinned by Phase 0's probes against the actual linked
 // libspot, not guessed:
