@@ -11,6 +11,32 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 
 ## Now / next
 
+> **For the automatic day-run** (`scripts/day-run.sh` fires on logon with no
+> argument, so it selects by the launcher's Step-0 rule 2 — *the first item under
+> this heading that has a `docs/prd/` file on `master`*).
+>
+> - **The target is the first item below, `#2` the parametric benchmark suite**
+>   ([`docs/prd/benchmark-suite.md`](prd/benchmark-suite.md)), and **the next
+>   phase is Phase 2.** Phase 1 landed 2026-08-10 (PR #12; gates closed, theory
+>   review ruled N/A for that phase). Everything above this line is prose, not an
+>   item — every `###` item that used to sit ahead of `#2` is now in *Done*, for
+>   the reason the presentation-materials entry records: an item left here after
+>   it lands **shadows the next one**.
+> - **Phase 3 is fair game the same day** if the budget outlasts Phase 2 — but
+>   only *after* Phase 2's workbook lands, since the 2026-08-12 presentation
+>   depends on Phase 2's sweep and not at all on Phase 3's regression baseline.
+> - **Do not fall through past this PRD.** `#3` has no PRD, and Method 3.2 /
+>   Method 3.1 Phase 2 both fail the launch gate (see their entries). When
+>   `benchmark-suite.md` is exhausted, the correct end of day is `DONE`, not a
+>   fourth candidate — rule 3 finds nothing either (no unmerged branch adds a
+>   PRD; checked 2026-08-10).
+> - **Two run-time facts live in the PRD, deliberately not duplicated here:**
+>   `ltlfsynt` must be handed an **absolute path**
+>   (`~/opt/spot-2.15.1/bin/ltlfsynt`) — the bare name resolves through `PATH` to
+>   a **2.14.4.dev** install and would silently race the wrong version (PRD,
+>   *`ltlfsynt` invocation*) — and Stop-list item 5 carries a
+>   **record-and-continue exception for the 08-11 run only**.
+
 _**Ranked 2026-08-08, in a grill.** The ranking criterion **changed**, and that is
 the thing to carry forward. Since the full-time job started (2026-08-01) the
 binding constraint is no longer day-hours — the launcher supplies those — it is
@@ -19,7 +45,8 @@ unattended launch gate**, not by research value. Under the old criterion the two
 method items below were the only candidates; under the new one they both lose,
 because each needs several evenings before a launch gate is even conceivable._
 
-_**The order: #1 the acceptance-mark bug, #2 the parametric benchmark suite,
+_**The order (as ranked on 08-08): #1 the acceptance-mark bug — now DONE and
+moved to *Done*, so `#2` heads this section — #2 the parametric benchmark suite,
 #3 the input-dependency example gallery.** All three were promoted from
 elsewhere — #1 from *Later*, and #2/#3 did not exist at all, because this file
 tracks *things to build* and had no way to see *things to measure, verify
@@ -43,12 +70,12 @@ which is why day one is a grill._
 
 | Day | Unattended day-run | Evening (≤45 min) |
 |---|---|---|
-| **Sat 08-08** (today) | — | Housekeeping: merge PR #7, fast-forward local `master`, prune the ten stale worktrees. Then **Grill A: acceptance-mark semantics** — weekend energy, and it is one decision. |
+| **Sat 08-08** | — | Housekeeping: merge PR #7, fast-forward local `master`, prune the ten stale worktrees. Then **Grill A: acceptance-mark semantics** — weekend energy, and it is one decision. |
 | **Sun 08-09** | `#1` acceptance-mark fix | *Light.* Review the PR, merge — **done** (merged `8c1b6b5`, deferred findings `c9bc742`). Then **Grill B pulled forward** (see below). |
-| **Mon 08-10** | **two jobs, in this order:** `#0` presentation materials (short, docs-only), then `#2` benchmark **Phase 1** (metric sink + instrument the five methods) | *Light.* Review both. |
-| **Tue 08-11** | `#2` benchmark **Phase 2** — registry + families + **timing sweep + xlsx workbook + ltlfsynt T1 race** | **Build the deck** from Monday's document + Tuesday's workbook. |
+| **Mon 08-10** | **two jobs, in this order:** `#0` presentation materials (short, docs-only), then `#2` benchmark **Phase 1** (metric sink + instrument the five methods) | *Light.* Review both — **both done** (`#0` merged PR #11; Phase 1 merged PR #12, `master` at `368f9e0`, `ctest` 603/603). |
+| **Tue 08-11** (today) | `#2` benchmark **Phase 2** — registry + families + **timing sweep + xlsx workbook + ltlfsynt T1 race**. *This is what the no-arg `day-run.sh` picks; see the box at the top of this section.* | **Build the deck** from Monday's document + Tuesday's workbook. If there is energy left, close the **two open generic `/code-review` halves** — `acceptance-mark-on-edgeless-states` and `presentation-materials`; both PRs are merged, so this is `/review 11` / `/review 12`-style on the merged PR, or a local `/code-review` on the landed diff. Neither blocks the day-run. |
 | **Wed 08-12** | — | **Present progress.** |
-| **Thu 08-13** | `#2` benchmark **Phase 3** — committed structural baseline + exact `ctest` assertions | *Low energy.* Apply the three parked `\cl` notes for `main.tex` §`indep` (needs the main checkout). Optionally **Grill C: the `#3` gallery**. |
+| **Thu 08-13** | `#2` benchmark **Phase 3** — committed structural baseline + exact `ctest` assertions (*may land Tuesday already if the budget outlasts Phase 2*) | *Low energy.* The three parked `\cl` notes for `main.tex` §`indep` are **already written into `latex/main.tex`** in the main checkout (uncommitted, 13 lines) — all that is left is committing and pushing them to Overleaf. Optionally **Grill C: the `#3` gallery**. |
 
 _Two heavy evenings, both placed deliberately: Saturday has weekend energy,
 Monday is the freshest weekday. The other three are review-only. Thursday is
@@ -88,112 +115,19 @@ as `OtfMtdfaProduct` in `0ce5fab`, closed every gate, and benchmarked
 method to beat the standing champion). Its Phase 2 (`otf_solve_fused`) is spun
 out below._
 
-### Acceptance mark lost on an edgeless accepting state — **DONE 2026-08-09** (found 2026-07-17; widened from one site to a class 2026-07-27) — **#1**
-- **LANDED 2026-08-09** by the unattended day-run, branch
-  `acceptance-mark-edgeless` — see `docs/runs/2026-08-09-acceptance-mark-edgeless.md`.
-  `detail::ensure_acceptance_readable` exists and is the sole implementation of
-  the idiom at all four builder sites; `ctest` 582/582 green; domain review and
-  theory review both clean (**no `code-bug`**). Outcome: the three broken methods
-  (`DfaProduct`, `NfaProduct`, `MtdfaProduct`) now agree with the two immune ones
-  on the whole {δ-dead, λ-undefined} × {$\Tin$, $\Tout$} partiality matrix, and
-  `emits_dfa`'s empty-word exception in `docs/prd/mtdfa-product.md` is retired.
-  **The one result worth the evening: O5 fired as predicted** — see "Prove the
-  monolithic reduction" below; this run produced the project's first divergence
-  witness. The three `doc-bug` `\cl` notes are now **written** and ship as a
-  patch — see "`\cl` notes on partiality" under *Later*; one `git apply` lands
-  them.
-- **GRILLED 2026-08-08 → [`docs/prd/acceptance-mark-on-edgeless-states.md`](prd/acceptance-mark-on-edgeless-states.md);
-  launch gate CLEAN.** One phase, concurrent workflow, no glossary gap. The
-  semantics seed below is **settled**: an edgeless product state is accepting
-  **iff its goal component is**, faithful to `alg:dfa_product:final` — the mark
-  is restored, not reinterpreted. The fix locus is one named helper,
-  `detail::ensure_acceptance_readable`, adopted by **all four** builders so the
-  `bddfalse`-self-loop idiom stops being an unwritten convention.
-- **What the grill turned up that was not in this entry:** the class is **three**
-  broken methods, not two sites in the abstract — `DfaProduct` + `NfaProduct`
-  (via `materialize_product`) and `MtdfaProduct` (via `emits_dfa`), against
-  `MtnfaProduct` + `OtfMtdfaProduct` **immune** (both key acceptance on the
-  incoming transition). And the *non-accepting* edgeless case, not the accepting
-  one the seed asked about, is what discriminates the readings — it predicts the
-  **first known divergence** from the `ltlfsynt` monolithic oracle. See the PRD's
-  oracle O5 and the "Prove the monolithic reduction" item below.
-- **The class:** a builder computes acceptance correctly, then attaches the mark
-  **only inside a per-edge loop** — so a state with **zero** out-edges emits no edges
-  and no marks, and Spot's `state_is_accepting` (which reads a state-based mark off a
-  state's *first out-edge*) reads the flag back as `false`. **Lost in transit**, not
-  deliberately reinterpreted. Four builders, two broken:
-  - `materialize_product` (`src/product.cpp:341`) — **broken.** Affects `DfaProduct`
-    and `NfaProduct`.
-  - `emits_dfa` (`src/emits_dfa.cpp:49`) — **broken; found 2026-07-27** by the
-    `MtnfaProduct` expected-divergence fixture on its first run. A $\delta$-dead
-    transducer state still gets a state (via `discover(d)`) but zero edges, so
-    `spot::twadfa_to_mtdfa` reads it non-accepting and the product intersection
-    rejects. Affects **`MtdfaProduct`** — which this item previously implied was
-    immune, because acceptance in the mtdfa representation rides the *incoming*
-    terminal. The correction: that is true only when acceptance never passes through
-    a `twa_graph`. `MtdfaProduct` launders it through `emits_dfa`
-    → `twadfa_to_mtdfa`, so it is exposed; `MtnfaProduct` reads
-    `any(goal.accepting[s])` straight off `Mtnfa::accepting` and is genuinely immune.
-  - `nfa_to_dfa` (`src/nfa_to_dfa.cpp:105`) and `reverse_dfa_to_nfa` (`:40`) —
-    **defend correctly**, with a `bddfalse`-guarded self-loop carrying the mark. That
-    is the known-good idiom the two broken sites are missing.
-- **Intent:** fix, and decide the semantics first. Fixing `emits_dfa` alone is a
-  *partial* fix (the mtdfa route becomes right while the explicit route stays wrong —
-  the methods still disagree, just along a different line), so the class wants fixing
-  together, which is what makes the semantics call below load-bearing.
-- **Confirmed fix shape, verified 2026-07-27:** adding the defensive self-loop to
-  `emits_dfa` makes the divergence fixture pass — but breaks two existing tests,
-  `EmitsDfa.UndefinedAtStateHasNoOutgoingEdgesForAnyLetter` (which deliberately pins
-  the current edgeless shape) and `EmitsDfa.AcceptsTheEmptyWordAcrossEveryFixture`.
-  So the fix is **not a drive-by**: it re-opens `emits_dfa`'s contract.
-- **Reachability:** needs a **partial transducer** — a $\cons$-passing product state
-  whose $\delta$ is undefined on every letter. Legal (`transducer.hpp:24`,
-  `main.tex:116-117`) and explicitly handled by `build_product_nondet`. Reproduced end
-  to end: $\varphi=b$, $\Ofree=\{b\}$, `t_in` with a delta-dead state 1 →
-  **both** `DfaProduct` and `NfaProduct` say UNREALIZABLE where REALIZABLE is
-  expected.
-- **Pre-existing, NOT introduced by `NfaProduct`** (found by its domain review;
-  deliberately deferred out of `docs/prd/nfa-product.md` on 2026-07-17 to keep that
-  PRD's scope to Method 1 explicit). It affects `DfaProduct` equally, so fixing it
-  **changes shipped `DfaProduct` verdicts on partial transducers** — a semantic
-  change worth its own grill, which is why it isn't a drive-by.
-- **Why the oracles were blind to it — the load-bearing lesson:**
-  - the **cross-method** oracle couldn't see it while only the explicit route existed:
-    `DfaProduct` and `NfaProduct` share `materialize_product` + `solve_dfa`, so they
-    fail **identically and agree**. This changed on 2026-07-27: `MtnfaProduct` is
-    genuinely immune, so the cross-method oracle now *would* catch the class — but only
-    on a partial transducer, which is the next bullet;
-  - the **generated corpus** can't see it: `random_tin` is deterministic + **total**
-    by construction (the committed Case-A regime,
-    `tests/ltlfsynt_oracle_test.cpp:1337`) and `t_out` is `trivial_transducer`, so
-    the partial-transducer regime is simply unexercised at corpus scale.
-  A green suite was fully consistent with this bug, and that is how it survived from
-  2026-07-17 to 2026-07-27 with a second site undiscovered. **Now pinned:**
-  `MtnfaProductExpectedDivergence.*` (`tests/mtnfa_product_test.cpp`) asserts the
-  current wrong verdicts of **both** broken sites, so the class can no longer regress
-  silently and the eventual fix has its regression test ready — flip both
-  `EXPECT_FALSE`s to `EXPECT_TRUE`. Any fix must still ship coverage for a partial
-  `t_out` too (the fixture only exercises a $\delta$-dead `t_in`).
-- **Seeds for grilling:**
-  - **Semantics first:** is a $\cons$-dead transducer state reached *after*
-    acceptance a **win**? LTLf acceptance is at the end of a finite trace, so an
-    accepting state where the trace can only stop looks like a win — but that is a
-    $\Tin$/$\Tout$ partiality reading (`\cref{def:consistency}`), not something
-    `alg:dfa_product` spells out. Settle this before touching code; the bug is real
-    either way (the flag is *lost*, not deliberately reinterpreted).
-  - Fix locus: the defensive self-loop in `materialize_product` (mirrors the two
-    existing precedents), or make `ProductGuards`→graph carry acceptance
-    out-of-band so no caller can lose it again?
-  - Does the corpus want a **partial-transducer regime** (Case B) generally? This
-    bug is evidence the total-by-construction corpus has a systematic blind spot,
-    not just this one gap.
-
 ### Parametric benchmark suite, committed and reproducible — **#2**
 
+- **STATE 2026-08-10: Phase 1 landed** (PR #12 on `master`, `368f9e0`; `ctest`
+  603/603). **Phase 2 is next** and is what the unattended run should pick up.
 - **GRILLED 2026-08-09 → [`docs/prd/benchmark-suite.md`](prd/benchmark-suite.md);
-  launch gate CLEAN.** Three phases (P1 metric sink + instrument the five methods;
-  P2 registry + families + committed structural baseline; P3 timing binary + the
-  ltlfsynt T1 race). Every open question in the handoff below is closed, and
+  launch gate CLEAN.** Three phases — **and Phases 2 and 3 were swapped on
+  2026-08-09**, so the order is: P1 metric sink + instrument the five methods;
+  **P2 registry + families + timing binary + xlsx workbook + the `ltlfsynt` T1
+  race**; **P3 committed structural baseline + exact `ctest` assertions**. The
+  sweep moved onto the critical path because it is the presentation deliverable
+  and the baseline is regression protection with no presentation value; the PRD
+  is authoritative on this, and this line is here only so the two do not drift
+  apart again. Every open question in the handoff below is closed, and
   `/glossary` ran the same evening: *Canonical size metric* (`SizeMetric`) and
   *Comparability tier* (`ComparabilityTier`) are in `docs/GLOSSARY.md`, so
   `/developer` has no term to stop on. **The glossary pass found a collision worth
@@ -765,6 +699,117 @@ exactly when it was realizable without it.}
   §4d's "dependence does not decompose" parenthetical should be demonstrated or
   cut, since no transcript shows it. Seven "consider" findings are parked in the
   PRD's *Developer comments* section.
+
+### Acceptance mark lost on an edgeless accepting state — **DONE 2026-08-09** (found 2026-07-17; widened from one site to a class 2026-07-27) — was **#1**
+
+- **Moved here 2026-08-10.** It stayed in *Now / next* after it landed, which
+  meant the no-argument `day-run.sh` would have re-selected it (launcher Step-0
+  rule 2 picks the first item with a PRD, done or not). Same lesson the
+  presentation-materials entry records: **an entry that has landed belongs in
+  *Done* the same day, or it shadows the next item.**
+- **One gate is still open** and is an evening job, not a day-run job: the
+  **generic** half of `code-review` in
+  [`docs/prd/acceptance-mark-on-edgeless-states.md`](prd/acceptance-mark-on-edgeless-states.md)
+  (the domain half and theory review are closed). It is deliberately not a
+  reason to keep the item in *Now / next*.
+- **LANDED 2026-08-09** by the unattended day-run, branch
+  `acceptance-mark-edgeless` — see `docs/runs/2026-08-09-acceptance-mark-edgeless.md`.
+  `detail::ensure_acceptance_readable` exists and is the sole implementation of
+  the idiom at all four builder sites; `ctest` 582/582 green; domain review and
+  theory review both clean (**no `code-bug`**). Outcome: the three broken methods
+  (`DfaProduct`, `NfaProduct`, `MtdfaProduct`) now agree with the two immune ones
+  on the whole {δ-dead, λ-undefined} × {$\Tin$, $\Tout$} partiality matrix, and
+  `emits_dfa`'s empty-word exception in `docs/prd/mtdfa-product.md` is retired.
+  **The one result worth the evening: O5 fired as predicted** — see "Prove the
+  monolithic reduction" below; this run produced the project's first divergence
+  witness. The three `doc-bug` `\cl` notes are now **written** and ship as a
+  patch — see "`\cl` notes on partiality" under *Later*; one `git apply` lands
+  them.
+- **GRILLED 2026-08-08 → [`docs/prd/acceptance-mark-on-edgeless-states.md`](prd/acceptance-mark-on-edgeless-states.md);
+  launch gate CLEAN.** One phase, concurrent workflow, no glossary gap. The
+  semantics seed below is **settled**: an edgeless product state is accepting
+  **iff its goal component is**, faithful to `alg:dfa_product:final` — the mark
+  is restored, not reinterpreted. The fix locus is one named helper,
+  `detail::ensure_acceptance_readable`, adopted by **all four** builders so the
+  `bddfalse`-self-loop idiom stops being an unwritten convention.
+- **What the grill turned up that was not in this entry:** the class is **three**
+  broken methods, not two sites in the abstract — `DfaProduct` + `NfaProduct`
+  (via `materialize_product`) and `MtdfaProduct` (via `emits_dfa`), against
+  `MtnfaProduct` + `OtfMtdfaProduct` **immune** (both key acceptance on the
+  incoming transition). And the *non-accepting* edgeless case, not the accepting
+  one the seed asked about, is what discriminates the readings — it predicts the
+  **first known divergence** from the `ltlfsynt` monolithic oracle. See the PRD's
+  oracle O5 and the "Prove the monolithic reduction" item below.
+- **The class:** a builder computes acceptance correctly, then attaches the mark
+  **only inside a per-edge loop** — so a state with **zero** out-edges emits no edges
+  and no marks, and Spot's `state_is_accepting` (which reads a state-based mark off a
+  state's *first out-edge*) reads the flag back as `false`. **Lost in transit**, not
+  deliberately reinterpreted. Four builders, two broken:
+  - `materialize_product` (`src/product.cpp:341`) — **broken.** Affects `DfaProduct`
+    and `NfaProduct`.
+  - `emits_dfa` (`src/emits_dfa.cpp:49`) — **broken; found 2026-07-27** by the
+    `MtnfaProduct` expected-divergence fixture on its first run. A $\delta$-dead
+    transducer state still gets a state (via `discover(d)`) but zero edges, so
+    `spot::twadfa_to_mtdfa` reads it non-accepting and the product intersection
+    rejects. Affects **`MtdfaProduct`** — which this item previously implied was
+    immune, because acceptance in the mtdfa representation rides the *incoming*
+    terminal. The correction: that is true only when acceptance never passes through
+    a `twa_graph`. `MtdfaProduct` launders it through `emits_dfa`
+    → `twadfa_to_mtdfa`, so it is exposed; `MtnfaProduct` reads
+    `any(goal.accepting[s])` straight off `Mtnfa::accepting` and is genuinely immune.
+  - `nfa_to_dfa` (`src/nfa_to_dfa.cpp:105`) and `reverse_dfa_to_nfa` (`:40`) —
+    **defend correctly**, with a `bddfalse`-guarded self-loop carrying the mark. That
+    is the known-good idiom the two broken sites are missing.
+- **Intent:** fix, and decide the semantics first. Fixing `emits_dfa` alone is a
+  *partial* fix (the mtdfa route becomes right while the explicit route stays wrong —
+  the methods still disagree, just along a different line), so the class wants fixing
+  together, which is what makes the semantics call below load-bearing.
+- **Confirmed fix shape, verified 2026-07-27:** adding the defensive self-loop to
+  `emits_dfa` makes the divergence fixture pass — but breaks two existing tests,
+  `EmitsDfa.UndefinedAtStateHasNoOutgoingEdgesForAnyLetter` (which deliberately pins
+  the current edgeless shape) and `EmitsDfa.AcceptsTheEmptyWordAcrossEveryFixture`.
+  So the fix is **not a drive-by**: it re-opens `emits_dfa`'s contract.
+- **Reachability:** needs a **partial transducer** — a $\cons$-passing product state
+  whose $\delta$ is undefined on every letter. Legal (`transducer.hpp:24`,
+  `main.tex:116-117`) and explicitly handled by `build_product_nondet`. Reproduced end
+  to end: $\varphi=b$, $\Ofree=\{b\}$, `t_in` with a delta-dead state 1 →
+  **both** `DfaProduct` and `NfaProduct` say UNREALIZABLE where REALIZABLE is
+  expected.
+- **Pre-existing, NOT introduced by `NfaProduct`** (found by its domain review;
+  deliberately deferred out of `docs/prd/nfa-product.md` on 2026-07-17 to keep that
+  PRD's scope to Method 1 explicit). It affects `DfaProduct` equally, so fixing it
+  **changes shipped `DfaProduct` verdicts on partial transducers** — a semantic
+  change worth its own grill, which is why it isn't a drive-by.
+- **Why the oracles were blind to it — the load-bearing lesson:**
+  - the **cross-method** oracle couldn't see it while only the explicit route existed:
+    `DfaProduct` and `NfaProduct` share `materialize_product` + `solve_dfa`, so they
+    fail **identically and agree**. This changed on 2026-07-27: `MtnfaProduct` is
+    genuinely immune, so the cross-method oracle now *would* catch the class — but only
+    on a partial transducer, which is the next bullet;
+  - the **generated corpus** can't see it: `random_tin` is deterministic + **total**
+    by construction (the committed Case-A regime,
+    `tests/ltlfsynt_oracle_test.cpp:1337`) and `t_out` is `trivial_transducer`, so
+    the partial-transducer regime is simply unexercised at corpus scale.
+  A green suite was fully consistent with this bug, and that is how it survived from
+  2026-07-17 to 2026-07-27 with a second site undiscovered. **Now pinned:**
+  `MtnfaProductExpectedDivergence.*` (`tests/mtnfa_product_test.cpp`) asserts the
+  current wrong verdicts of **both** broken sites, so the class can no longer regress
+  silently and the eventual fix has its regression test ready — flip both
+  `EXPECT_FALSE`s to `EXPECT_TRUE`. Any fix must still ship coverage for a partial
+  `t_out` too (the fixture only exercises a $\delta$-dead `t_in`).
+- **Seeds for grilling:**
+  - **Semantics first:** is a $\cons$-dead transducer state reached *after*
+    acceptance a **win**? LTLf acceptance is at the end of a finite trace, so an
+    accepting state where the trace can only stop looks like a win — but that is a
+    $\Tin$/$\Tout$ partiality reading (`\cref{def:consistency}`), not something
+    `alg:dfa_product` spells out. Settle this before touching code; the bug is real
+    either way (the flag is *lost*, not deliberately reinterpreted).
+  - Fix locus: the defensive self-loop in `materialize_product` (mirrors the two
+    existing precedents), or make `ProductGuards`→graph carry acceptance
+    out-of-band so no caller can lose it again?
+  - Does the corpus want a **partial-transducer regime** (Case B) generally? This
+    bug is evidence the total-by-construction corpus has a systematic blind spot,
+    not just this one gap.
 
 ### Input-dependency extraction (`ltlf-ek-deps --direction in`) — **DONE 2026-08-03**
 - **Shipped in two unattended day-run phases**, both on branch
