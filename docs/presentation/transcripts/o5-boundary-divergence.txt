@@ -1,0 +1,26 @@
+$ /home/cowclaw/ltlf-external-knowledge/build/ltlf-ek-synth --dfa-product --formula="X[!] 1" --part-file docs/presentation/inputs/part-a-k-o.txt --known-input-transducer docs/presentation/inputs/tin-o5-partial-delta-dead.hoa --realizable
+
+--- stdout ---
+UNREALIZABLE
+
+--- stderr ---
+(empty)
+
+--- exit code ---
+20
+
+$ /home/cowclaw/opt/spot-2.15.1/bin/ltlfsynt --ins=a,k --outs=o --semantics=Mealy --realizability -F docs/presentation/inputs/o5-reduced-formula.ltlf
+
+(docs/presentation/inputs/o5-reduced-formula.ltlf contains, verbatim:
+((k <-> a) & !(X[!] 1)) -> (X[!] 1)
+-- the monolithic reduction psi_in -> phi, psi_in = "(k <-> a) & !(X[!] 1)",
+phi = "X[!] 1", per docs/prd/acceptance-mark-on-edgeless-states.md O5.)
+
+--- stdout ---
+REALIZABLE
+
+--- stderr ---
+(empty)
+
+--- exit code ---
+0

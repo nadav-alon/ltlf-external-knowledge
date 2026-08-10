@@ -1,0 +1,4 @@
+input_free:   a
+input_known:  k
+output_free:  o
+output_known:

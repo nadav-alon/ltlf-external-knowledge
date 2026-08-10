@@ -1,0 +1,25 @@
+$ /home/cowclaw/ltlf-external-knowledge/build/ltlf-ek-synth --dfa-product --formula="X[!] k" --part-file docs/presentation/inputs/part-a-k-o.txt --known-input-transducer docs/presentation/inputs/tin-eventual-k.hoa
+
+--- stdout ---
+HOA: v1
+States: 2
+Start: 0
+AP: 2 "a" "o"
+acc-name: all
+Acceptance: 0 t
+properties: trans-labels explicit-labels state-acc complete
+properties: deterministic
+spot-state-player: 0 1
+controllable-AP: 1
+--BODY--
+State: 0
+[t] 1
+State: 1
+[t] 0
+--END--
+
+--- stderr ---
+(empty)
+
+--- exit code ---
+0

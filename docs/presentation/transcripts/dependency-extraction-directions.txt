@@ -1,0 +1,21 @@
+$ /home/cowclaw/ltlf-external-knowledge/build/ltlf-ek-deps --formula="F(a ^ b)" --inputs a,b --outputs o --direction in
+
+--- stdout ---
+dependent inputs: a   (of a, b)
+
+--- stderr ---
+(empty)
+
+--- exit code ---
+0
+
+$ /home/cowclaw/ltlf-external-knowledge/build/ltlf-ek-deps --formula="F(a ^ b)" --inputs a,b --outputs o --direction out
+
+--- stdout ---
+dependent outputs: none
+
+--- stderr ---
+(empty)
+
+--- exit code ---
+0

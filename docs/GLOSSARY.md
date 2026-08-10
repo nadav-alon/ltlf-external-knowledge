@@ -1201,8 +1201,77 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   `BenchTimer`, `BenchSpan`, `BenchReport`) is **infra, not a domain concept**, so
   — like the `cli.hpp` CLI plumbing — it gets **no** glossary entry.
 - **Do not call it:** phase, step, part (for a canonical stage); metric /
-  measurement (that is the recorded datum, not the axis); for the free-form tier,
+  measurement (that is the recorded datum, not the axis — and the **size** axis is
+  *Canonical size metric*, below, not a stage); for the free-form tier,
   not "custom stage" (it is a *sub-span*, not a registry value).
+
+### Canonical size metric
+- **`main.tex`:** — (no symbol; code-only observability, `docs/prd/benchmark-suite.md`).
+  Like timing, sizes are infrastructure with no math; the metric *values* alias
+  existing spine-algorithm terms (*NFA / DFA for the Goal*, *MTDFA*, *Product*,
+  *Controller*).
+- **Definition:** one of a small **closed, soft registry** naming the **size** axes
+  that are **comparable across methods** — the size sibling of *Canonical
+  benchmarking stage*, which names the **time** axes. Two methods' same-named size
+  metric is comparable **only when they charge the same structure to it**, the
+  exact analogue of the stage rule. Three consequences worth stating, because each
+  is a way the numbers could go quietly wrong:
+  (1) `product_states` is defined by **role** — "the states of the structure handed
+  to *Game solving*" — and *not* by representation, which is what lets the mtdfa
+  cells (`spot::mtdfa::num_roots()`, the `states` array) share one column with the
+  explicit cells (`twa_graph::num_states()`): both count **states**, the same unit.
+  (2) Where the unit genuinely differs there is a **separate value** rather than a
+  shared column — `product_bdd_nodes` counts decision nodes
+  (`spot::mtdfa_stats::nodes`) and no explicit-representation cell emits it.
+  (3) **An absent metric is absent, never zero.** `OtfMtdfaProduct` builds no Goal
+  automaton and so emits no `goal_*` value at all — the same shape as its missing
+  `automaton_construction` stage — and an unrealizable run emits no
+  `controller_states`. The registry is **soft** on the same terms as *Stage*:
+  adding or re-mapping a value touches the enum, its name table and this entry
+  only, and is **not** a PRD-change event. Its counterpart is the **free-form
+  label**, for a quantity that is not comparable across methods.
+- **C++:** `enum class SizeMetric { goal_dfa_states, goal_nfa_states,
+  nfa_product_states, product_states, product_bdd_nodes, controller_states }` with
+  `size_metric_name(SizeMetric)` → `std::string_view` and
+  `record_size_metric(SizeMetric, std::uint64_t)`
+  (`include/ltlf_ek/bench.hpp`). Which method charges which value is the **charge
+  table** in `docs/prd/benchmark-suite.md` (B2), not restated here. The recording /
+  emission plumbing (`BenchSizeMetric`, the collector) and the benchmark registry
+  types (`BenchFamily`, `BenchSubject`, `BenchCase`, `BenchParams`, `BenchRow`) are
+  **infra, not domain concepts**, so — like `BenchScope`/`BenchTimer` and the
+  `cli.hpp` plumbing — they get **no** glossary entry.
+- **Do not call it:** metric or measurement **bare** (that is the recorded datum,
+  per *Canonical benchmarking stage* above); size *stage* (a stage is the time
+  axis); state count (too narrow — `product_bdd_nodes` counts no states);
+  statistic; size *class* (that is *Comparability tier*, below).
+
+### Comparability tier
+- **`main.tex`:** — (no symbol; code-only, `docs/prd/benchmark-suite.md`).
+  **`main.tex` states no LTLf preliminaries at all**, and in particular not the
+  LTLf $\equiv$ FO[$<$] $\equiv$ star-free correspondence that tier T3 rests on —
+  see *Open theory questions*.
+- **Definition:** the **declared** expressibility class of a benchmark family's
+  $\Tin$, which governs whether racing an external tool (`ltlfsynt`) on that family
+  is a legitimate claim. **T1** — a $\psiin$ exists and is $O(\lvert\tau\rvert)$:
+  an honest wall-clock race, the only tier where an external comparison is a claim
+  rather than an artifact. **T2** — $\tau$ is aperiodic so a $\psiin$ exists, but
+  DFA→LTLf is non-elementary in general: reportable **only** with $\lvert\psi\rvert$
+  as a column and never merged into the T1 table, because racing there measures the
+  *encoding*, not the method. **T3** — $\tau$ is non-aperiodic, so **no** $\psiin$
+  exists at any size: `n/a` **by expressibility**, a capability separation rather
+  than a timing result. The load-bearing rule is that a tier is **declared by the
+  family and never sniffed at run time**; a T1 family therefore also carries its
+  $\psiin$ as data (the hand-authored encodings in `tests/ltlfsynt_oracle_test.cpp`
+  are the precedent), and nothing derives a $\psiin$ from a *Transducer*. If T2
+  could silently drift into the T1 table, the headline external comparison would
+  become dishonest by accident.
+- **C++:** `enum class ComparabilityTier { t1, t2, t3 }` with
+  `comparability_tier_name(ComparabilityTier)` → `std::string_view`
+  (`include/ltlf_ek/bench_suite.hpp`); carried per case as `BenchCase::tier`.
+- **Do not call it:** tier **bare** (tier of *what* — the name is the warning that
+  a correctness rule rides on it); class, level, difficulty, category;
+  encodability (that is the *condition* a tier records, not the declared label);
+  and never speak of a tier as *measured* or *detected* — it is declared.
 
 ## Testing & oracles
 
@@ -1475,3 +1544,24 @@ is seeded with them:
     longer resolves** and every reference was repointed to `def:consistency`.
     *Enabled* survives as **this project's** term for the same predicate — it is
     ours now, not `main.tex`'s. Cite `def:consistency`, never `def:enabled`.
+  - **Sharpened 2026-08-09 by the O5 witness.** "Partial and total transducers are
+    language-equivalent" holds of the *transducer*, but **not of the synthesis
+    verdict**: totalizing a $\delta$-dead $\Tin$ via a sink supplies consistent
+    letters that flip $\varphi = X[!]\mathtt{tt}$ from unrealizable to realizable
+    (`docs/runs/2026-08-09-acceptance-mark-edgeless.md`). The partiality clause
+    deletes a letter for **both** players. A `\cl` note is applied to
+    `latex/main.tex` (uncommitted).
+
+- **LTLf $\equiv$ star-free is not stated in `main.tex`** — and *Comparability
+  tier* T3 depends on it. The claim that a benchmark family's non-aperiodic $\Tin$
+  (the input-triggered parity toggle) admits **no** $\psiin$ **at any size** rests
+  on LTLf $\equiv$ FO[$<$] $\equiv$ star-free / aperiodic. `main.tex` contains no
+  occurrence of *star-free*, *aperiodic* or FO[$<$] — consistent with its having no
+  LTLf preliminaries at all (see the `FP` entry above). The benchmark suite needs
+  the tier only as **declared data**, so nothing in the code depends on the proof;
+  but it is a paper-level claim and `docs/prd/benchmark-suite.md` puts it on that
+  PRD's Stop-list, off-limits to an unattended run. For `/theory-review`: the
+  natural home is a `\cl` note introducing the correspondence. Note the near-miss
+  recorded there — "$k$ alternates T,F,T,F" **is** star-free
+  (`k & G(k -> X !k) & G(!k -> X k)`) and is not a witness; the toggle must be
+  input-triggered.

@@ -1,0 +1,22 @@
+$ /home/cowclaw/ltlf-external-knowledge/build/ltlf-ek-synth --dfa-product --formula="X[!] k" --part-file docs/presentation/inputs/part-a-k-o.txt --known-input-transducer docs/presentation/inputs/tin-eventual-k.hoa --realizable --benchmark /tmp/report.json
+
+--- stdout ---
+REALIZABLE
+
+--- stderr ---
+(empty)
+
+--- exit code ---
+0
+
+--- contents written to /tmp/report.json ---
+{"total_ns":8867700,"roots":[{"label":"input_parsing","canonical":false,"duration_ns":2484545,"children":[]},{"label":"automaton_construction","canonical":true,"duration_ns":602658,"children":[]},{"label":"product_construction","canonical":true,"duration_ns":31136,"children":[]},{"label":"game_solving","canonical":true,"duration_ns":51355,"children":[]}]}
+
+NOTE (Stop-list 4, docs/prd/presentation-materials.md): this file is
+reproduced verbatim (Stop-list 1) to show the REPORT'S SHAPE -- one JSON
+object per canonical benchmarking stage the run emitted, each carrying a
+duration_ns field -- not as a timing claim. The instance above is a
+two-state toy; its microsecond-scale numbers are noise (dominated by
+process-startup and parsing overhead, see input_parsing above), not data.
+Real, comparable measurements are docs/prd/benchmark-suite.md's job (Phase
+2, landing 2026-08-11) -- see tools-and-capabilities.md Section 5.
