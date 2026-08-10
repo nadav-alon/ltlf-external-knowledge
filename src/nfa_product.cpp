@@ -34,6 +34,10 @@ std::optional<Controller> NfaProduct::synthesize(const spot::formula& phi,
     BenchTimer t(Stage::automaton_construction);
     nfa = ltlf_to_nfa(phi, dict);
   }
+  // Charge table: NfaProduct charges goal_nfa_states to the Goal NFA's
+  // num_states() (before complete_here adds the sink, matching the "Goal
+  // automaton" as built by ltlf_to_nfa).
+  record_size_metric(SizeMetric::goal_nfa_states, nfa->num_states());
 
   // --- Product P (alg:nfa_product:cons) via the nondeterministic build
   //     (docs/prd/nfa-product.md): N is completed FIRST (N -> N_c, a fresh
@@ -52,15 +56,31 @@ std::optional<Controller> NfaProduct::synthesize(const spot::formula& phi,
                             {t_in.initial_state(), t_out.initial_state()}};
     const ProductGuards pg = build_product_nondet(nfa, taus, init, alphabet);
     const spot::twa_graph_ptr P = materialize_product(pg, init, dict, vars);
-    {
-      BenchTimer sub("determinize");  // free-form nested sub-span
-      D = nfa_to_dfa(P);
-    }
+    // Charge table: nfa_product_states is the pre-determinization product's
+    // num_states().
+    record_size_metric(SizeMetric::nfa_product_states, P->num_states());
+    // BenchTimer(std::string) takes its label by value, so an unguarded call
+    // builds the std::string even with no BenchScope active; guard it, same
+    // as the get_stats() sites above.
+    std::optional<BenchTimer> sub;
+    if (bench_scope_active()) sub.emplace(std::string("determinize"));
+    D = nfa_to_dfa(P);
   }
+  // Charge table: product_states is the determinized D handed to game
+  // solving.
+  record_size_metric(SizeMetric::product_states, D->num_states());
 
   // --- SolveDfa: solve the product game and lift the controller. ---
-  BenchTimer t(Stage::game_solving);
-  return solve_dfa(D, vars);
+  std::optional<Controller> controller;
+  {
+    BenchTimer t(Stage::game_solving);
+    controller = solve_dfa(D, vars);
+  }
+  // Charge table: controller_states, absent (not zero) when unrealizable.
+  if (controller)
+    record_size_metric(SizeMetric::controller_states,
+                       controller->strategy->num_states());
+  return controller;
 }
 
 }  // namespace ltlf_ek

@@ -236,9 +236,28 @@ std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
     BenchTimer t(Stage::product_construction);
     product = otf_product_to_mtdfa(phi, taus, vars, dict);
   }
+  // Charge table: OtfMtdfaProduct builds no Goal automaton --- no goal_*
+  // metric at all (B2, "Edge cases"). product_mtdfa_roots (the symbolic axis,
+  // NOT the explicit product_states) / product_bdd_nodes on the explored
+  // product mtdfa handed to game solving.
+  record_size_metric(SizeMetric::product_mtdfa_roots, product->num_roots());
+  // get_stats(nodes=true) is a full BDD-node traversal (linear in the
+  // largest structure in the run) --- guard it so it never runs when no
+  // BenchScope is active, matching bench.hpp's no-op contract.
+  if (bench_scope_active())
+    record_size_metric(SizeMetric::product_bdd_nodes,
+                       product->get_stats(/*nodes=*/true, /*paths=*/false).nodes);
 
-  BenchTimer t(Stage::game_solving);
-  return solve_mtdfa(product, vars);
+  std::optional<Controller> controller;
+  {
+    BenchTimer t(Stage::game_solving);
+    controller = solve_mtdfa(product, vars);
+  }
+  // Charge table: controller_states, absent (not zero) when unrealizable.
+  if (controller)
+    record_size_metric(SizeMetric::controller_states,
+                       controller->strategy->num_states());
+  return controller;
 }
 
 }  // namespace ltlf_ek

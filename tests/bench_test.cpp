@@ -438,8 +438,13 @@ TEST(BenchReportToJson, NonEmptyReportParsesAsOneObjectMatchingTheFrozenSchema) 
   const JsonValue root = JsonParser(os.str()).Parse();
 
   ASSERT_EQ(root.kind, JsonValue::Kind::kObject);
-  ASSERT_EQ(root.object_fields.size(), 2u)
-      << "schema is exactly {total_ns, roots}";
+  // Knowingly-changed schema case (docs/prd/benchmark-suite.md "Interfaces &
+  // types -> Phase 1": "BenchReport::to_json always emits a 'metrics' array,
+  // empty when nothing was recorded; that is an additive but VISIBLE schema
+  // change"): the object now carries {total_ns, roots, metrics}, not just
+  // {total_ns, roots}.
+  ASSERT_EQ(root.object_fields.size(), 3u)
+      << "schema is exactly {total_ns, roots, metrics}";
   ASSERT_TRUE(root.object_fields.count("total_ns"));
   const JsonValue& total_ns = root.object_fields.at("total_ns");
   EXPECT_EQ(total_ns.kind, JsonValue::Kind::kNumber);
@@ -452,9 +457,22 @@ TEST(BenchReportToJson, NonEmptyReportParsesAsOneObjectMatchingTheFrozenSchema) 
   EXPECT_EQ(roots.array_items.size(), 3u);
   for (const JsonValue& node : roots.array_items)
     ExpectNodeMatchesFrozenSchema(node);
+
+  // No record_size_metric call was made anywhere in this test -- only
+  // BenchTimer spans -- so "metrics" must still be present but empty, even
+  // though "roots" itself is non-empty here (the two arrays are independent;
+  // see EmptyReportStillParsesAsOneObjectWithAnEmptyRootsAndMetricsArray and
+  // MetricsArrayIsEmptyWhenNoSizeMetricIsRecordedEvenWhenRootsIsNonEmpty
+  // below for the two ends of that independence).
+  ASSERT_TRUE(root.object_fields.count("metrics"));
+  const JsonValue& metrics = root.object_fields.at("metrics");
+  ASSERT_EQ(metrics.kind, JsonValue::Kind::kArray);
+  EXPECT_TRUE(metrics.array_items.empty())
+      << "no record_size_metric call was made in this test; the metrics "
+        "array is empty when nothing was recorded, independent of roots";
 }
 
-TEST(BenchReportToJson, EmptyReportStillParsesAsOneObjectWithAnEmptyRootsArray) {
+TEST(BenchReportToJson, EmptyReportStillParsesAsOneObjectWithAnEmptyRootsAndMetricsArray) {
   BenchScope scope;
   const BenchReport report = scope.report();
   std::ostringstream os;
@@ -465,6 +483,43 @@ TEST(BenchReportToJson, EmptyReportStillParsesAsOneObjectWithAnEmptyRootsArray) 
   ASSERT_TRUE(root.object_fields.count("roots"));
   EXPECT_EQ(root.object_fields.at("roots").kind, JsonValue::Kind::kArray);
   EXPECT_TRUE(root.object_fields.at("roots").array_items.empty());
+  ASSERT_TRUE(root.object_fields.count("metrics"));
+  EXPECT_EQ(root.object_fields.at("metrics").kind, JsonValue::Kind::kArray);
+  EXPECT_TRUE(root.object_fields.at("metrics").array_items.empty());
+}
+
+// Sanctioned schema change, isolated case (docs/prd/benchmark-suite.md
+// "Interfaces & types -> Phase 1"): "metrics" is empty whenever nothing was
+// recorded via record_size_metric -- even when "roots" itself is non-empty
+// (i.e. the emptiness of the two arrays is independent, not one flag).  This
+// PRD only wires record_size_metric into the five methods' .cpp files, not
+// into this file's hand-built BenchTimer-only fixtures, so no test in this
+// file ever exercises record_size_metric directly; the size-metric sink's
+// own unit fixtures (including a non-empty "metrics" array) live in
+// tests/bench_size_metric_test.cpp, disjoint from this file's Stage/span
+// territory.
+TEST(BenchReportToJson, MetricsArrayIsEmptyWhenNoSizeMetricIsRecordedEvenWhenRootsIsNonEmpty) {
+  BenchScope scope;
+  { BenchTimer automaton(Stage::automaton_construction); }
+  const BenchReport report = scope.report();
+
+  std::ostringstream os;
+  report.to_json(os);
+  const JsonValue root = JsonParser(os.str()).Parse();
+
+  ASSERT_EQ(root.kind, JsonValue::Kind::kObject);
+  ASSERT_TRUE(root.object_fields.count("roots"));
+  EXPECT_FALSE(root.object_fields.at("roots").array_items.empty())
+      << "one BenchTimer fired; roots must stay non-empty so this test "
+        "isolates the metrics-emptiness claim from the "
+        "roots-emptiness one already covered above";
+  ASSERT_TRUE(root.object_fields.count("metrics"));
+  const JsonValue& metrics = root.object_fields.at("metrics");
+  ASSERT_EQ(metrics.kind, JsonValue::Kind::kArray);
+  EXPECT_TRUE(metrics.array_items.empty())
+      << "PRD 'Interfaces & types' Phase 1: BenchReport::to_json always "
+        "emits a \"metrics\" array, empty when nothing was recorded -- "
+        "independent of whether roots itself is empty";
 }
 
 // ---------------------------------------------------------------------------

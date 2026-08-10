@@ -1,15 +1,15 @@
 # PRD: Parametric benchmark suite
 
-**Status:** draft
+**Status:** **Phase 1 complete** (glossary / tests / code-review closed; theory-review N/A for this phase — see the gates). Implemented (`SizeMetric`/`size_metric_name`/`record_size_metric`/`BenchSizeMetric`/`BenchReport::metrics` in `include/ltlf_ek/bench.hpp` + `src/bench.cpp`; the B2 charge table wired into `src/dfa_product.cpp`, `src/nfa_product.cpp`, `src/mtdfa_product.cpp`, `src/mtnfa_product.cpp`, `src/otf_mtdfa_product.cpp`), branch `worktree-agent-a4f183dc855ffa8b4`; **repair round** on branch `bench-phase1` added `bench_scope_active()` and guarded the four call sites that evaluated an expensive argument before `record_size_metric`'s own no-op check (see *Developer comments* below). Phases 2–3 not started.
 **Interface:** extends the existing benchmarking infrastructure (`docs/prd/benchmarking.md`) with a **metric sink** in `include/ltlf_ek/bench.hpp` (`SizeMetric` / `size_metric_name` / `record_size_metric`), a **benchmark registry** (`BenchFamily` / `BenchSubject` / `BenchCase`, `include/ltlf_ek/bench_suite.hpp`), and a new `ltlf-ek-bench` binary. **Does not change the `Synthesis` contract.**
 **Recommended workflow:** **concurrent for Phase 1** (the metric sink mirrors the existing `Stage` registry one-for-one — high freeze confidence), **sequential for Phases 2–3** (the registry and the runner are genuinely being invented here; the test-writer should bind to the real signatures).
 **main.tex ref:** none — this is infrastructure, like `docs/prd/benchmarking.md` and `docs/prd/cli-wrapper.md`. The measured quantities trace to the algorithm blocks they size: `alg:dfa_product` (§`fulldfa`), `alg:nfa_product` (§`nfa`), `alg:otfdfa_product` (§`otf`). The **comparability tier** rests on the LTLf $\equiv$ star-free correspondence, which `main.tex` does **not** currently state — see *Open theory questions touched*.
 
 **Gates:**
 - [x] glossary        — *Canonical size metric* (`SizeMetric`) and *Comparability tier* (`ComparabilityTier`) added 2026-08-09, pre-`/developer`; the shipped *Canonical benchmarking stage* entry's "Do not call it" line was amended to point at the new size axis
-- [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [x] tests           — **Phase 1 only.** `tests/bench_size_metric_test.cpp` (17 cases) + 2 schema cases in `tests/bench_test.cpp`; verified 2026-08-10 against the Phase 1 green checkpoint: a per-method *exactly its charge-table row set* case for all five methods, the two absent-never-zero cases (`OtfMtdfaProduct` emits no `goal_*`; unrealizable emits no `controller_states`), and a `BenchScopeZeroPerturbation` case for all five. Suite green: 603/603 on `bench-phase1`. Phases 2–3 uncovered.
+- [x] code-review     — **both halves closed 2026-08-10.** Domain (`/code-reviewer`) clean. Generic (`/code-review` on PR #12) returned 4 findings, all verified and all acted on: the two MEDIUM ones (the `num_roots()`/`num_states()` unit mismatch) resolved by the user's choice of option (a) — see *Resolved: the `goal_*` / `product_states` unit mismatch* below, which also rewrote B2 note 2 and the glossary entry it rested on; the two LOW ones fixed (`docs/prd/benchmarking.md`'s stale `to_json` schema, and a `SUCCEED()`-only no-op test that could not observe its own claim). Three `consider`-level notes recorded, not acted on.
+- [ ] theory-review   — **no theory surface in Phase 1.** The diff adds no semantics: `cons`, progression, sink placement, final-state classification and the `Synthesis`/`Transducer` contracts are untouched, and every method edit is a `record_size_metric` call plus a mechanical `return f(x)` → `auto c = f(x); …; return c;` refactor. Per this PRD's own header (*main.tex ref: none — this is infrastructure*) the theory-reviewer was **not** spawned. The gate stays open for Phases 2–3, where the *comparability tier* lands and with it the unstated LTLf $\equiv$ star-free claim (Stop-list 1).
 
 **Unattended-ready:** **yes** (2026-08-09). Both domain terms this PRD introduces are now in `docs/GLOSSARY.md` — *Canonical size metric* (`SizeMetric`) and *Comparability tier* (`ComparabilityTier`); interfaces are frozen below; each phase has a machine-checkable checkpoint; and the one open theory question is on the Stop-list rather than in the implementation path. All three phases are launchable.
 
@@ -59,29 +59,33 @@ The structural layer is **not a supplement — it is the validity check on the f
 
 `SizeMetric` is a **closed canonical registry**, exactly like `Stage`: adding a value is deliberate (enum value + name row + glossary line), and a non-canonical quantity gets a free-form label instead. Recording is out-of-band — a method calls `record_size_metric` in the same place it opens a `BenchTimer`, and it is a near-zero-cost no-op when no `BenchScope` is active, so a run's verdict and controller stay byte-identical whether measurement is on or off.
 
-| `SizeMetric` | Meaning | Unit |
-|---|---|---|
-| `goal_dfa_states` | states of the deterministic Goal automaton for $\varphi$ | states |
-| `goal_nfa_states` | states of the nondeterministic Goal automaton for $\varphi$ | states |
-| `nfa_product_states` | states of the **pre-determinization** product | states |
-| `product_states` | states of the structure **handed to the game solver** | states |
-| `product_bdd_nodes` | internal decision nodes of that structure | BDD nodes |
-| `controller_states` | states of the returned `Controller`'s strategy | states |
+| `SizeMetric` | Meaning | Representation | Unit |
+|---|---|---|---|
+| `goal_dfa_states` | states of the deterministic Goal automaton for $\varphi$ | explicit (`twa_graph::num_states`) | states |
+| `goal_nfa_states` | states of the nondeterministic Goal automaton for $\varphi$ | either — **measured comparable** | states |
+| `goal_mtdfa_roots` | roots of the symbolic Goal mtdfa for $\varphi$ | symbolic (`mtdfa::num_roots`) | roots |
+| `nfa_product_states` | states of the **pre-determinization** product | explicit | states |
+| `product_states` | states of the explicit structure handed to the game solver | explicit (`twa_graph::num_states`) | states |
+| `product_mtdfa_roots` | roots of the symbolic structure handed to the game solver | symbolic (`mtdfa::num_roots`) | roots |
+| `product_bdd_nodes` | internal decision nodes of that structure | symbolic | BDD nodes |
+| `controller_states` | states of the returned `Controller`'s strategy | explicit — **all five** | states |
 
 **The charge table is the contract** — the number a method reports must come from the structure it actually built:
 
-| Method | `goal_dfa_states` | `goal_nfa_states` | `nfa_product_states` | `product_states` | `product_bdd_nodes` | `controller_states` |
-|---|---|---|---|---|---|---|
-| `DfaProduct` | `goal->num_states()` | — | — | materialized product `num_states()` | — | ✓ |
-| `NfaProduct` | — | Goal NFA `num_states()` | explicit NFA product `num_states()` | determinized product `num_states()` | — | ✓ |
-| `MtdfaProduct` | `mtdfa->num_roots()` | — | — | product mtdfa `num_roots()` | `get_stats(nodes)` | ✓ |
-| `MtnfaProduct` | — | `Mtnfa::states.size()` | — (product and determinization are fused) | product mtdfa `num_roots()` | `get_stats(nodes)` | ✓ |
-| `OtfMtdfaProduct` | — (builds no Goal automaton) | — | — | explored product mtdfa `num_roots()` | `get_stats(nodes)` | ✓ |
+| Method | `goal_dfa_states` | `goal_nfa_states` | `goal_mtdfa_roots` | `nfa_product_states` | `product_states` | `product_mtdfa_roots` | `product_bdd_nodes` | `controller_states` |
+|---|---|---|---|---|---|---|---|---|
+| `DfaProduct` | `goal->num_states()` | — | — | — | materialized product `num_states()` | — | — | ✓ |
+| `NfaProduct` | — | Goal NFA `num_states()` | — | explicit NFA product `num_states()` | determinized product `num_states()` | — | — | ✓ |
+| `MtdfaProduct` | — | — | `mtdfa->num_roots()` | — | — | product mtdfa `num_roots()` | `get_stats(nodes)` | ✓ |
+| `MtnfaProduct` | — | `Mtnfa::states.size()` | — | — (product and determinization are fused) | — | product mtdfa `num_roots()` | `get_stats(nodes)` | ✓ |
+| `OtfMtdfaProduct` | — (builds no Goal automaton) | — | — | — | — | explored product mtdfa `num_roots()` | `get_stats(nodes)` | ✓ |
 
 Two rules make the holes safe:
 
 1. **An absent metric is absent, never zero.** The baseline schema distinguishes them, and a method that starts emitting a metric it previously omitted is a baseline diff, not a silent change.
-2. **`product_states` is defined by *role*, not by representation** — "the structure handed to the game solver" — which is why the mtdfa cells share the column with the explicit cells. `spot::mtdfa::num_roots()` counts states (the `states` array), the same unit as `twa_graph::num_states()`; this is already how `docs/prd/otf-mtdfa-product.md:718`'s table compared them. Where the units genuinely differ — decision-diagram size — there is a **separate** value, `product_bdd_nodes`, which no explicit cell emits.
+2. **A value names a count *and the representation it was counted on*; a shared column is a measured claim.** *(Rewritten 2026-08-10 — see the resolved blocker below. This rule previously said the opposite: that `product_states` was defined by **role**, so the mtdfa cells could share the explicit column because `num_roots()` and `num_states()` were "the same unit". That was false and produced wrong cross-method ratios.)* An explicit value and a symbolic value never share a column, which is why `goal_mtdfa_roots` and `product_mtdfa_roots` exist. Two columns **are** shared, and each was measured rather than assumed: `goal_nfa_states` (`NfaProduct` vs `MtnfaProduct` — equal on all five probe formulas, because `Mtnfa::states` is one MTBDD per NFA state with set-valued terminals) and `controller_states` (all five return the same `spot::twa_graph_ptr`). Where the unit genuinely differs — decision-diagram size — there is a **separate** value, `product_bdd_nodes`, which no explicit cell emits.
+
+3. **Cross-representation comparison is a deliberate act.** The workbook may still put `product_states` beside `product_mtdfa_roots`, but it must say what each counts; an equal column name must never imply it silently. Note `docs/prd/otf-mtdfa-product.md:718`'s existing table compared `num_roots()` against `num_states()` directly — that comparison inherits this defect and should be re-checked when Phase 2 re-derives those numbers.
 
 ### B3. Tiers are declared, never sniffed
 
@@ -138,6 +142,12 @@ std::string_view size_metric_name(SizeMetric m);
 // No-op (near-zero cost) if no BenchScope is active --- the BenchTimer rule.
 void record_size_metric(SizeMetric m, std::uint64_t value);
 void record_size_metric(std::string label, std::uint64_t value);  // free-form tier
+
+// True iff a BenchScope is active on this thread --- lets a call site guard
+// an expensive-to-compute argument (e.g. a BDD-node traversal) before
+// evaluating it, since record_size_metric's own no-op check only runs after
+// its argument is already evaluated by the caller.
+bool bench_scope_active();
 
 // One recorded measurement.
 struct BenchSizeMetric {
@@ -295,4 +305,92 @@ Workbook shape — one sheet per concern, because a single flat table is what ma
 - One timing snapshot is committed under `docs/runs/` with full provenance, reporting the re-derived 5488x and 16x-slower ratios beside their historical values.
 - A spreadsheet (`docs/runs/<date>-benchmarks.xlsx`, five sheets per B6) is produced and opens; if `openpyxl` was unavailable the runner fell back to CSV and said so, rather than losing the sweep.
 - `docs/prd/otf-mtdfa-product.md` and `docs/prd/mtnfa-product.md` each gain a one-line pointer from their "harness not committed" note to the suite that now owns those numbers.
+
+## Resolved: the `goal_*` / `product_states` unit mismatch
+
+**Opened 2026-08-10 by the generic `/code-review` on PR #12; resolved the same
+day by the user, who chose option (a) — split the axis.** Kept here in full
+because the reasoning is the justification for the B2 rewrite above, and because
+the *shape* of the mistake is the reusable lesson: a conformance check against a
+spec cannot catch a false claim inside the spec.
+
+B2 note 2 and *Canonical size metric* consequence (1) both assert that
+`spot::mtdfa::num_roots()` and `twa_graph::num_states()` are "the same unit".
+**They are not**, and Spot's own header says so: `num_roots()` is "the size of
+the `states` array — it does not account for any bddfalse or bddtrue state",
+while a sibling `mtdfa::num_states()` exists precisely as "the size that the
+transition-based output of `as_twa()` would have"
+(`spot/twaalgos/ltlf2dfa.hh:146-160`).
+
+This is not academic. `ltlf_to_dfa` (`src/ltlf_to_dfa.cpp:14-21`) is
+`ltlf_to_mtdfa` → `as_twa(state_based=true)` → `complete_here`, so `DfaProduct`
+and `MtdfaProduct` start from **the same mtdfa** and then charge the same axis
+two different counts. Measured directly against Spot 2.15.1:
+
+| $\varphi$ | `MtdfaProduct` charges (`num_roots`) | `mtdfa::num_states()` | `DfaProduct` charges |
+|---|---|---|---|
+| `G(i -> o)` | 1 | 1 | 3 |
+| `G(i) \| F(o)` | 2 | 3 | 4 |
+| `(i U o) & G(!i \| o)` | 2 | 2 | 3 |
+| `X[!]X[!]a` | 3 | 4 | 5 |
+| `F(a & X[!]b)` | 2 | 3 | 3 |
+
+Two consequences decide the fix:
+
+1. **The gap is not a constant**, so it cannot be corrected downstream in the
+   workbook.
+2. **Swapping to `num_states()` does not close it either** — the deltas become
+   2, 1, 1, 1, 0. The remaining gap is `as_twa(state_based=true)`'s state
+   splitting plus `complete_here`'s rejecting sink. There is **no accessor**
+   that makes the two numbers commensurable, because the underlying objects are
+   not the same object: `DfaProduct`'s Goal is a materialized, state-split,
+   completed `twa_graph`; `MtdfaProduct`'s is a symbolic mtdfa.
+
+The same mismatch applies to `product_states` at `src/mtdfa_product.cpp:77`,
+`src/mtnfa_product.cpp:270`, `src/otf_mtdfa_product.cpp:242` — and that is the
+cell the glossary **explicitly blessed**, on the premise now shown false.
+
+**Why it matters now:** the `DfaProduct`-vs-`MtdfaProduct` goal-size ratio is
+one of the headline numbers this suite exists to produce for the 2026-08-12
+presentation. Phase 2's cross-method table would present these side by side.
+
+**Chosen: (a), split the axis.** `goal_mtdfa_roots` and `product_mtdfa_roots`
+were added to the registry; `MtdfaProduct` moved off `goal_dfa_states`, and all
+three mtdfa-family methods moved off `product_states`. The two rejected options,
+recorded because the reasoning still applies if this is ever revisited:
+
+- **(b) Charge both from the same materialized artifact.** Comparable, but the
+  mtdfa family would have to build the explicit automaton *just to measure it* —
+  perturbing the very cost being measured and defeating the point of the
+  symbolic methods.
+- **(c) Keep one column, declare the axis non-comparable** via the tier
+  machinery, and never rank on it. Rejected: a column that exists but must not
+  be compared is a trap for the next reader.
+
+**What (a) costs, stated plainly:** there is no longer a single number comparing
+`DfaProduct`'s Goal to `MtdfaProduct`'s. That comparison was never sound, so
+nothing true was lost — but the deck cannot show one, and Phase 2's cross-method
+table gains two columns that are mostly holes.
+
+**What the split does NOT cover.** Only the DFA/product axes split. Two columns
+stay shared, and both were **measured** rather than assumed during the fix:
+
+- `goal_nfa_states` — `NfaProduct`'s explicit Goal NFA vs `MtnfaProduct`'s
+  `Mtnfa::states.size()`: **equal on all five probe formulas** (3/3, 5/5, 4/4,
+  10/10, 5/5). `Mtnfa::states` holds one MTBDD per NFA state with set-valued
+  terminals interpreted by the pool, so there is no `bddtrue`/`bddfalse` state
+  to inflate or deflate the count. The column is sound.
+- `controller_states` — all five methods return `Controller{spot::twa_graph_ptr}`,
+  the same type counted the same way.
+
+This is the rule the rewrite of B2 note 2 encodes: **a shared column is a
+measured claim, not a naming convention.**
+
+## Developer comments / PRD disagreements
+
+- **2026-08-10 — `bench_scope_active()` added to the Phase 1 interface.** B2 and `bench.hpp:57` both promise `record_size_metric` is a "near-zero cost no-op if no `BenchScope` is active", but that promise was never reachable from a call site: `record_size_metric(m, expr)` evaluates `expr` (a normal function argument) **before** the function's own `g_active_collector == nullptr` check runs, so an expensive `expr` pays its full cost regardless of whether a scope is active. At `product_bdd_nodes`'s three call sites (`src/{mtdfa,mtnfa,otf_mtdfa}_product.cpp`), `expr` is `product->get_stats(/*nodes=*/true, .../*paths=*/false).nodes` — a full BDD-node traversal, linear in the largest structure in the run, on the hot path of every production `synthesize()` call of all three mtdfa-family methods. Added `bool bench_scope_active()` (declared in `bench.hpp`, defined in `bench.cpp` as `g_active_collector != nullptr`) so a call site can guard the expensive argument itself; guarded the three `get_stats()` sites and the smaller `BenchTimer(std::string("determinize"))` construction in `src/nfa_product.cpp`. This is additive to the frozen Phase 1 block, not a re-shaping: `record_size_metric`'s own signatures and no-op behaviour are unchanged, the new predicate is infrastructure (no `docs/GLOSSARY.md` entry, same as the rest of `bench.hpp`'s plumbing).
+- **2026-08-10 — `/code-reviewer` (domain), `master..bench-phase1`: clean, no must-fix.** Verified cell-for-cell that all five methods charge exactly their B2 row and nothing else; that `product_states` is taken by *role* (post-`minimize_mtdfa` in `MtdfaProduct`, post-determinization in `NfaProduct`), per the glossary entry's consequence (1); and that `bench_scope_active()` is covered by that entry's explicit infra exemption, so no glossary row is owed. Three `consider`-level notes, none acted on:
+  1. `src/nfa_product.cpp:65` — the `std::optional<BenchTimer> sub` guard is the one guard of the four that buys nothing: `"determinize"` is 11 chars, inside libstdc++'s 15-char SSO buffer, so the unguarded ctor never allocated. It trades that for an `optional` and a wider destruction scope. Behaviour is identical either way — `sub` is constructed after the `product_construction` timer, so it still pops first and the sub-span still nests. Reverting that one site to the plain nested block `{ BenchTimer sub("determinize"); D = nfa_to_dfa(P); }` would read better; the other three guards are load-bearing and must stay.
+  2. The three `get_stats(nodes)` guards are verbatim triplicates (3-line comment + 3-line guard) in `src/{mtdfa,mtnfa,otf_mtdfa}_product.cpp`. The obvious dedup — a helper in `bench.hpp` — would drag `spot::mtdfa_ptr` into an infra header whose includes are currently pure-`std`, which is the worse trade, so the duplication is **deliberate**. Noted so Phase 2 does not add a fourth copy by reflex.
+  3. `src/nfa_product.cpp:53` `spot::complete_here(nfa)` mutates `nfa` **in place**, so recording `goal_nfa_states` at line 37 *before* the product block is order-critical, not stylistic — after completion `nfa->num_states()` counts the sink. It cannot silently regress (the charge-table case asserts the exact value), but a reader moving that line for tidiness would change the number.
 - The four gates in the header are ticked by the skills that perform them.

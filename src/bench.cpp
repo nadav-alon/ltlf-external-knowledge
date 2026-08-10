@@ -24,6 +24,28 @@ std::string_view stage_name(Stage s) {
   return "unknown_stage";
 }
 
+std::string_view size_metric_name(SizeMetric m) {
+  switch (m) {
+    case SizeMetric::goal_dfa_states:
+      return "goal_dfa_states";
+    case SizeMetric::goal_nfa_states:
+      return "goal_nfa_states";
+    case SizeMetric::goal_mtdfa_roots:
+      return "goal_mtdfa_roots";
+    case SizeMetric::nfa_product_states:
+      return "nfa_product_states";
+    case SizeMetric::product_states:
+      return "product_states";
+    case SizeMetric::product_mtdfa_roots:
+      return "product_mtdfa_roots";
+    case SizeMetric::product_bdd_nodes:
+      return "product_bdd_nodes";
+    case SizeMetric::controller_states:
+      return "controller_states";
+  }
+  return "unknown_size_metric";
+}
+
 // The collector: a stack of open frames (spans still running) plus the
 // finished top-level spans (`roots`). A BenchTimer pushes a frame on
 // construction and pops it (appending the finished BenchSpan to the new
@@ -51,6 +73,14 @@ class BenchCollector {
 
   const std::vector<BenchSpan>& roots() const { return roots_; }
 
+  // Metrics are flat --- a measurement belongs to the run, not to whichever
+  // span happens to be open when it is recorded (B2).
+  void record_metric(std::string label, bool canonical, std::uint64_t value) {
+    metrics_.push_back(BenchSizeMetric{std::move(label), canonical, value});
+  }
+
+  const std::vector<BenchSizeMetric>& metrics() const { return metrics_; }
+
  private:
   struct Frame {
     std::string label;
@@ -61,6 +91,7 @@ class BenchCollector {
 
   std::vector<Frame> stack_;
   std::vector<BenchSpan> roots_;
+  std::vector<BenchSizeMetric> metrics_;
 };
 
 namespace {
@@ -82,7 +113,7 @@ BenchScope::~BenchScope() { g_active_collector = nullptr; }
 
 BenchReport BenchScope::report() const {
   return BenchReport{std::chrono::steady_clock::now() - start_,
-                     collector_->roots()};
+                     collector_->roots(), collector_->metrics()};
 }
 
 BenchTimer::BenchTimer(Stage s) : active_(false) {
@@ -101,6 +132,20 @@ BenchTimer::~BenchTimer() {
   if (!active_) return;
   g_active_collector->pop();
 }
+
+void record_size_metric(SizeMetric m, std::uint64_t value) {
+  if (g_active_collector == nullptr) return;
+  g_active_collector->record_metric(std::string(size_metric_name(m)),
+                                    /*canonical=*/true, value);
+}
+
+void record_size_metric(std::string label, std::uint64_t value) {
+  if (g_active_collector == nullptr) return;
+  g_active_collector->record_metric(std::move(label), /*canonical=*/false,
+                                    value);
+}
+
+bool bench_scope_active() { return g_active_collector != nullptr; }
 
 namespace {
 
@@ -154,6 +199,14 @@ void WriteSpan(std::ostream& os, const BenchSpan& span) {
   os << "]}";
 }
 
+void WriteMetric(std::ostream& os, const BenchSizeMetric& metric) {
+  os << "{\"label\":";
+  WriteJsonString(os, metric.label);
+  os << ",\"canonical\":" << (metric.canonical ? "true" : "false");
+  os << ",\"value\":" << metric.value;
+  os << "}";
+}
+
 }  // namespace
 
 void BenchReport::to_json(std::ostream& os) const {
@@ -163,6 +216,13 @@ void BenchReport::to_json(std::ostream& os) const {
     if (!first) os << ",";
     first = false;
     WriteSpan(os, span);
+  }
+  os << "],\"metrics\":[";
+  first = true;
+  for (const BenchSizeMetric& metric : metrics) {
+    if (!first) os << ",";
+    first = false;
+    WriteMetric(os, metric);
   }
   os << "]}";
 }

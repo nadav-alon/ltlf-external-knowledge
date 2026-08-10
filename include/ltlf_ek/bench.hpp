@@ -38,10 +38,54 @@ struct BenchSpan {
   std::vector<BenchSpan> children;
 };
 
+// Canonical comparable size axes --- the same soft registry as Stage (PRD
+// docs/prd/benchmark-suite.md B2, "Canonical size metric" in
+// docs/GLOSSARY.md). Which method charges which value is the charge table
+// in that PRD, not restated here.
+// A value names a count AND the representation it was counted on: an
+// explicit-automaton value and a symbolic-mtdfa value never share a column,
+// because the two are not the same object and no accessor makes them
+// commensurable (B2 note 2, measured). Comparing across representations is a
+// deliberate act, done in the workbook with the difference stated --- not
+// something an equal column name quietly implies.
+enum class SizeMetric {
+  goal_dfa_states,      // explicit Goal DFA   (twa_graph::num_states)
+  goal_nfa_states,      // Goal NFA            (explicit or Mtnfa --- comparable)
+  goal_mtdfa_roots,     // symbolic Goal mtdfa (mtdfa::num_roots)
+  nfa_product_states,
+  product_states,       // explicit product    (twa_graph::num_states)
+  product_mtdfa_roots,  // symbolic product    (mtdfa::num_roots)
+  product_bdd_nodes,
+  controller_states,
+};
+
+std::string_view size_metric_name(SizeMetric m);
+
+// Record one measurement into the active BenchScope's collector.
+// No-op (near-zero cost) if no BenchScope is active --- the BenchTimer rule.
+void record_size_metric(SizeMetric m, std::uint64_t value);
+void record_size_metric(std::string label, std::uint64_t value);  // free-form tier
+
+// True iff a BenchScope is currently installed on this thread. Lets a call
+// site guard an *expensive-to-compute argument* (e.g. a BDD-node traversal)
+// before evaluating it, since record_size_metric's own no-op check only runs
+// after its argument is already evaluated by the caller. Infra, not a domain
+// concept --- no glossary entry, same as the rest of this header.
+bool bench_scope_active();
+
+// One recorded measurement.
+struct BenchSizeMetric {
+  std::string label;      // size_metric_name(SizeMetric) or a free string
+  bool canonical;         // true => label is a registry key
+  std::uint64_t value;
+};
+
 // The report for one BenchScope lifetime.
 struct BenchReport {
   std::chrono::nanoseconds total;       // the BenchScope's own wall lifetime
   std::vector<BenchSpan> roots;         // spans with no open parent
+  std::vector<BenchSizeMetric> metrics; // flat: a metric belongs to the run,
+                                         // not to a span (B2).
   // Structured nested JSON (schema in PRD "Test oracles"); integer nanoseconds.
   void to_json(std::ostream& os) const;
 };

@@ -48,6 +48,12 @@ std::optional<Controller> MtdfaProduct::synthesize(const spot::formula& phi,
     BenchTimer timer(Stage::automaton_construction);
     goal = spot::ltlf_to_mtdfa(phi, dict);
   }
+  // Charge table: MtdfaProduct charges goal_mtdfa_roots --- its OWN axis, not
+  // DfaProduct's goal_dfa_states. num_roots() excludes the bddtrue/bddfalse
+  // terminal states, so it is not DfaProduct's count even though both methods
+  // start from this same mtdfa (ltlf_to_dfa is as_twa(state_based) +
+  // complete_here on it). See B2 note 2.
+  record_size_metric(SizeMetric::goal_mtdfa_roots, goal->num_roots());
 
   spot::mtdfa_ptr product;
   {
@@ -67,10 +73,30 @@ std::optional<Controller> MtdfaProduct::synthesize(const spot::formula& phi,
     product = spot::minimize_mtdfa(product);
   }
 
+  // Charge table: product_mtdfa_roots (the symbolic axis, NOT the explicit
+  // product_states) / product_bdd_nodes, on the structure actually handed to
+  // the game solver --- i.e. after the optional minimize_mtdfa knob, not the
+  // pre-minimization product.
+  record_size_metric(SizeMetric::product_mtdfa_roots, product->num_roots());
+  // get_stats(nodes=true) is a full BDD-node traversal (linear in the
+  // largest structure in the run) --- guard it so it never runs when no
+  // BenchScope is active, matching bench.hpp's no-op contract.
+  if (bench_scope_active())
+    record_size_metric(SizeMetric::product_bdd_nodes,
+                       product->get_stats(/*nodes=*/true, /*paths=*/false).nodes);
+
   // SolveDfa (mtdfa sibling): decision 2 pins Iknown, Oknown as forced
   // system moves; nullopt = unrealizable.
-  BenchTimer timer(Stage::game_solving);
-  return solve_mtdfa(product, vars);
+  std::optional<Controller> controller;
+  {
+    BenchTimer timer(Stage::game_solving);
+    controller = solve_mtdfa(product, vars);
+  }
+  // Charge table: controller_states, absent (not zero) when unrealizable.
+  if (controller)
+    record_size_metric(SizeMetric::controller_states,
+                       controller->strategy->num_states());
+  return controller;
 }
 
 }  // namespace ltlf_ek
