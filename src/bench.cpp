@@ -141,6 +141,8 @@ void record_size_metric(std::string label, std::uint64_t value) {
                                     value);
 }
 
+bool bench_scope_active() { return g_active_collector != nullptr; }
+
 namespace {
 
 // Minimal JSON string escaping --- labels are canonical stage names or

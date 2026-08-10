@@ -75,8 +75,12 @@ std::optional<Controller> MtdfaProduct::synthesize(const spot::formula& phi,
   // actually handed to the game solver --- i.e. after the optional
   // minimize_mtdfa knob, not the pre-minimization product.
   record_size_metric(SizeMetric::product_states, product->num_roots());
-  record_size_metric(SizeMetric::product_bdd_nodes,
-                     product->get_stats(/*nodes=*/true, /*paths=*/false).nodes);
+  // get_stats(nodes=true) is a full BDD-node traversal (linear in the
+  // largest structure in the run) --- guard it so it never runs when no
+  // BenchScope is active, matching bench.hpp's no-op contract.
+  if (bench_scope_active())
+    record_size_metric(SizeMetric::product_bdd_nodes,
+                       product->get_stats(/*nodes=*/true, /*paths=*/false).nodes);
 
   // SolveDfa (mtdfa sibling): decision 2 pins Iknown, Oknown as forced
   // system moves; nullopt = unrealizable.

@@ -98,6 +98,19 @@ TEST(RecordSizeMetric, NoOpWithoutActiveScopeRecordsNothingAndDoesNotCrash) {
   SUCCEED();
 }
 
+TEST(RecordSizeMetric, BenchScopeActivePredicateReflectsWhetherAScopeIsInstalled) {
+  // Pins the repair-round predicate (docs/prd/benchmark-suite.md "Developer
+  // comments"): call sites use this to guard an expensive-to-compute metric
+  // argument *before* evaluating it, since record_size_metric's own no-op
+  // check only runs after the caller has already evaluated its argument.
+  EXPECT_FALSE(ltlf_ek::bench_scope_active());
+  {
+    BenchScope scope;
+    EXPECT_TRUE(ltlf_ek::bench_scope_active());
+  }
+  EXPECT_FALSE(ltlf_ek::bench_scope_active());
+}
+
 TEST(RecordSizeMetric, CanonicalCallAppendsACanonicalTrueEntryWithTheRegistryNameAndValue) {
   BenchScope scope;
   record_size_metric(SizeMetric::controller_states, 42);

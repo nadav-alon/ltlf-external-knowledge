@@ -240,8 +240,12 @@ std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
   // metric at all (B2, "Edge cases"). product_states / product_bdd_nodes on
   // the explored product mtdfa handed to game solving.
   record_size_metric(SizeMetric::product_states, product->num_roots());
-  record_size_metric(SizeMetric::product_bdd_nodes,
-                     product->get_stats(/*nodes=*/true, /*paths=*/false).nodes);
+  // get_stats(nodes=true) is a full BDD-node traversal (linear in the
+  // largest structure in the run) --- guard it so it never runs when no
+  // BenchScope is active, matching bench.hpp's no-op contract.
+  if (bench_scope_active())
+    record_size_metric(SizeMetric::product_bdd_nodes,
+                       product->get_stats(/*nodes=*/true, /*paths=*/false).nodes);
 
   std::optional<Controller> controller;
   {

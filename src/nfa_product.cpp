@@ -59,10 +59,12 @@ std::optional<Controller> NfaProduct::synthesize(const spot::formula& phi,
     // Charge table: nfa_product_states is the pre-determinization product's
     // num_states().
     record_size_metric(SizeMetric::nfa_product_states, P->num_states());
-    {
-      BenchTimer sub("determinize");  // free-form nested sub-span
-      D = nfa_to_dfa(P);
-    }
+    // BenchTimer(std::string) takes its label by value, so an unguarded call
+    // builds the std::string even with no BenchScope active; guard it, same
+    // as the get_stats() sites above.
+    std::optional<BenchTimer> sub;
+    if (bench_scope_active()) sub.emplace(std::string("determinize"));
+    D = nfa_to_dfa(P);
   }
   // Charge table: product_states is the determinized D handed to game
   // solving.

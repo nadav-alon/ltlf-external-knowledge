@@ -1,6 +1,6 @@
 # PRD: Parametric benchmark suite
 
-**Status:** Phase 1 implemented — this commit (`SizeMetric`/`size_metric_name`/`record_size_metric`/`BenchSizeMetric`/`BenchReport::metrics` in `include/ltlf_ek/bench.hpp` + `src/bench.cpp`; the B2 charge table wired into `src/dfa_product.cpp`, `src/nfa_product.cpp`, `src/mtdfa_product.cpp`, `src/mtnfa_product.cpp`, `src/otf_mtdfa_product.cpp`), branch `worktree-agent-a4f183dc855ffa8b4`. Phases 2–3 not started.
+**Status:** Phase 1 implemented — this commit (`SizeMetric`/`size_metric_name`/`record_size_metric`/`BenchSizeMetric`/`BenchReport::metrics` in `include/ltlf_ek/bench.hpp` + `src/bench.cpp`; the B2 charge table wired into `src/dfa_product.cpp`, `src/nfa_product.cpp`, `src/mtdfa_product.cpp`, `src/mtnfa_product.cpp`, `src/otf_mtdfa_product.cpp`), branch `worktree-agent-a4f183dc855ffa8b4`; **repair round** on branch `bench-phase1` added `bench_scope_active()` and guarded the four call sites that evaluated an expensive argument before `record_size_metric`'s own no-op check (see *Developer comments* below). Phases 2–3 not started.
 **Interface:** extends the existing benchmarking infrastructure (`docs/prd/benchmarking.md`) with a **metric sink** in `include/ltlf_ek/bench.hpp` (`SizeMetric` / `size_metric_name` / `record_size_metric`), a **benchmark registry** (`BenchFamily` / `BenchSubject` / `BenchCase`, `include/ltlf_ek/bench_suite.hpp`), and a new `ltlf-ek-bench` binary. **Does not change the `Synthesis` contract.**
 **Recommended workflow:** **concurrent for Phase 1** (the metric sink mirrors the existing `Stage` registry one-for-one — high freeze confidence), **sequential for Phases 2–3** (the registry and the runner are genuinely being invented here; the test-writer should bind to the real signatures).
 **main.tex ref:** none — this is infrastructure, like `docs/prd/benchmarking.md` and `docs/prd/cli-wrapper.md`. The measured quantities trace to the algorithm blocks they size: `alg:dfa_product` (§`fulldfa`), `alg:nfa_product` (§`nfa`), `alg:otfdfa_product` (§`otf`). The **comparability tier** rests on the LTLf $\equiv$ star-free correspondence, which `main.tex` does **not** currently state — see *Open theory questions touched*.
@@ -138,6 +138,12 @@ std::string_view size_metric_name(SizeMetric m);
 // No-op (near-zero cost) if no BenchScope is active --- the BenchTimer rule.
 void record_size_metric(SizeMetric m, std::uint64_t value);
 void record_size_metric(std::string label, std::uint64_t value);  // free-form tier
+
+// True iff a BenchScope is active on this thread --- lets a call site guard
+// an expensive-to-compute argument (e.g. a BDD-node traversal) before
+// evaluating it, since record_size_metric's own no-op check only runs after
+// its argument is already evaluated by the caller.
+bool bench_scope_active();
 
 // One recorded measurement.
 struct BenchSizeMetric {
@@ -295,4 +301,8 @@ Workbook shape — one sheet per concern, because a single flat table is what ma
 - One timing snapshot is committed under `docs/runs/` with full provenance, reporting the re-derived 5488x and 16x-slower ratios beside their historical values.
 - A spreadsheet (`docs/runs/<date>-benchmarks.xlsx`, five sheets per B6) is produced and opens; if `openpyxl` was unavailable the runner fell back to CSV and said so, rather than losing the sweep.
 - `docs/prd/otf-mtdfa-product.md` and `docs/prd/mtnfa-product.md` each gain a one-line pointer from their "harness not committed" note to the suite that now owns those numbers.
+
+## Developer comments / PRD disagreements
+
+- **2026-08-10 — `bench_scope_active()` added to the Phase 1 interface.** B2 and `bench.hpp:57` both promise `record_size_metric` is a "near-zero cost no-op if no `BenchScope` is active", but that promise was never reachable from a call site: `record_size_metric(m, expr)` evaluates `expr` (a normal function argument) **before** the function's own `g_active_collector == nullptr` check runs, so an expensive `expr` pays its full cost regardless of whether a scope is active. At `product_bdd_nodes`'s three call sites (`src/{mtdfa,mtnfa,otf_mtdfa}_product.cpp`), `expr` is `product->get_stats(/*nodes=*/true, .../*paths=*/false).nodes` — a full BDD-node traversal, linear in the largest structure in the run, on the hot path of every production `synthesize()` call of all three mtdfa-family methods. Added `bool bench_scope_active()` (declared in `bench.hpp`, defined in `bench.cpp` as `g_active_collector != nullptr`) so a call site can guard the expensive argument itself; guarded the three `get_stats()` sites and the smaller `BenchTimer(std::string("determinize"))` construction in `src/nfa_product.cpp`. This is additive to the frozen Phase 1 block, not a re-shaping: `record_size_metric`'s own signatures and no-op behaviour are unchanged, the new predicate is infrastructure (no `docs/GLOSSARY.md` entry, same as the rest of `bench.hpp`'s plumbing).
 - The four gates in the header are ticked by the skills that perform them.

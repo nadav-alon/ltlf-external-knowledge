@@ -58,6 +58,13 @@ std::string_view size_metric_name(SizeMetric m);
 void record_size_metric(SizeMetric m, std::uint64_t value);
 void record_size_metric(std::string label, std::uint64_t value);  // free-form tier
 
+// True iff a BenchScope is currently installed on this thread. Lets a call
+// site guard an *expensive-to-compute argument* (e.g. a BDD-node traversal)
+// before evaluating it, since record_size_metric's own no-op check only runs
+// after its argument is already evaluated by the caller. Infra, not a domain
+// concept --- no glossary entry, same as the rest of this header.
+bool bench_scope_active();
+
 // One recorded measurement.
 struct BenchSizeMetric {
   std::string label;      // size_metric_name(SizeMetric) or a free string

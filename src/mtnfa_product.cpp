@@ -270,8 +270,12 @@ std::optional<Controller> MtnfaProduct::synthesize(const spot::formula& phi,
   // nfa_product_states cell); product_states / product_bdd_nodes on the
   // fused product mtdfa handed to game solving.
   record_size_metric(SizeMetric::product_states, product->num_roots());
-  record_size_metric(SizeMetric::product_bdd_nodes,
-                     product->get_stats(/*nodes=*/true, /*paths=*/false).nodes);
+  // get_stats(nodes=true) is a full BDD-node traversal (linear in the
+  // largest structure in the run) --- guard it so it never runs when no
+  // BenchScope is active, matching bench.hpp's no-op contract.
+  if (bench_scope_active())
+    record_size_metric(SizeMetric::product_bdd_nodes,
+                       product->get_stats(/*nodes=*/true, /*paths=*/false).nodes);
 
   std::optional<Controller> controller;
   {
