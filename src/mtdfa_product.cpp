@@ -48,6 +48,10 @@ std::optional<Controller> MtdfaProduct::synthesize(const spot::formula& phi,
     BenchTimer timer(Stage::automaton_construction);
     goal = spot::ltlf_to_mtdfa(phi, dict);
   }
+  // Charge table: MtdfaProduct charges goal_dfa_states to goal->num_roots()
+  // --- num_roots() counts states (the `states` array), the same unit as
+  // twa_graph::num_states() (docs/GLOSSARY.md "Canonical size metric" (1)).
+  record_size_metric(SizeMetric::goal_dfa_states, goal->num_roots());
 
   spot::mtdfa_ptr product;
   {
@@ -67,10 +71,25 @@ std::optional<Controller> MtdfaProduct::synthesize(const spot::formula& phi,
     product = spot::minimize_mtdfa(product);
   }
 
+  // Charge table: product_states / product_bdd_nodes on the structure
+  // actually handed to the game solver --- i.e. after the optional
+  // minimize_mtdfa knob, not the pre-minimization product.
+  record_size_metric(SizeMetric::product_states, product->num_roots());
+  record_size_metric(SizeMetric::product_bdd_nodes,
+                     product->get_stats(/*nodes=*/true, /*paths=*/false).nodes);
+
   // SolveDfa (mtdfa sibling): decision 2 pins Iknown, Oknown as forced
   // system moves; nullopt = unrealizable.
-  BenchTimer timer(Stage::game_solving);
-  return solve_mtdfa(product, vars);
+  std::optional<Controller> controller;
+  {
+    BenchTimer timer(Stage::game_solving);
+    controller = solve_mtdfa(product, vars);
+  }
+  // Charge table: controller_states, absent (not zero) when unrealizable.
+  if (controller)
+    record_size_metric(SizeMetric::controller_states,
+                       controller->strategy->num_states());
+  return controller;
 }
 
 }  // namespace ltlf_ek

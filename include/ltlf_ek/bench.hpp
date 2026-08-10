@@ -38,10 +38,39 @@ struct BenchSpan {
   std::vector<BenchSpan> children;
 };
 
+// Canonical comparable size axes --- the same soft registry as Stage (PRD
+// docs/prd/benchmark-suite.md B2, "Canonical size metric" in
+// docs/GLOSSARY.md). Which method charges which value is the charge table
+// in that PRD, not restated here.
+enum class SizeMetric {
+  goal_dfa_states,
+  goal_nfa_states,
+  nfa_product_states,
+  product_states,
+  product_bdd_nodes,
+  controller_states,
+};
+
+std::string_view size_metric_name(SizeMetric m);
+
+// Record one measurement into the active BenchScope's collector.
+// No-op (near-zero cost) if no BenchScope is active --- the BenchTimer rule.
+void record_size_metric(SizeMetric m, std::uint64_t value);
+void record_size_metric(std::string label, std::uint64_t value);  // free-form tier
+
+// One recorded measurement.
+struct BenchSizeMetric {
+  std::string label;      // size_metric_name(SizeMetric) or a free string
+  bool canonical;         // true => label is a registry key
+  std::uint64_t value;
+};
+
 // The report for one BenchScope lifetime.
 struct BenchReport {
   std::chrono::nanoseconds total;       // the BenchScope's own wall lifetime
   std::vector<BenchSpan> roots;         // spans with no open parent
+  std::vector<BenchSizeMetric> metrics; // flat: a metric belongs to the run,
+                                         // not to a span (B2).
   // Structured nested JSON (schema in PRD "Test oracles"); integer nanoseconds.
   void to_json(std::ostream& os) const;
 };

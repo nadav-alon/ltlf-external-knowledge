@@ -258,15 +258,31 @@ std::optional<Controller> MtnfaProduct::synthesize(const spot::formula& phi,
     BenchTimer t(Stage::automaton_construction);
     goal = ltlf_to_mtnfa(phi, dict);
   }
+  // Charge table: MtnfaProduct charges goal_nfa_states to Mtnfa::states.size().
+  record_size_metric(SizeMetric::goal_nfa_states, goal.states.size());
 
   spot::mtdfa_ptr product;
   {
     BenchTimer t(Stage::product_construction);
     product = mtnfa_product_to_mtdfa(goal, taus, vars);
   }
+  // Charge table: product and determinization are fused here (no separate
+  // nfa_product_states cell); product_states / product_bdd_nodes on the
+  // fused product mtdfa handed to game solving.
+  record_size_metric(SizeMetric::product_states, product->num_roots());
+  record_size_metric(SizeMetric::product_bdd_nodes,
+                     product->get_stats(/*nodes=*/true, /*paths=*/false).nodes);
 
-  BenchTimer t(Stage::game_solving);
-  return solve_mtdfa(product, vars);
+  std::optional<Controller> controller;
+  {
+    BenchTimer t(Stage::game_solving);
+    controller = solve_mtdfa(product, vars);
+  }
+  // Charge table: controller_states, absent (not zero) when unrealizable.
+  if (controller)
+    record_size_metric(SizeMetric::controller_states,
+                       controller->strategy->num_states());
+  return controller;
 }
 
 }  // namespace ltlf_ek

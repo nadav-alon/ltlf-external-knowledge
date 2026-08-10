@@ -30,6 +30,9 @@ std::optional<Controller> DfaProduct::synthesize(const spot::formula& phi,
     BenchTimer timer(Stage::automaton_construction);
     dfa = ltlf_to_dfa(phi, dict);
   }
+  // Charge table (docs/prd/benchmark-suite.md B2): DfaProduct charges
+  // goal_dfa_states to goal->num_states().
+  record_size_metric(SizeMetric::goal_dfa_states, dfa->num_states());
 
   // --- Product P (alg:dfa_product) via the symbolic build (docs/prd/
   //     symbolic-dfa-product.md): per-dst guards computed directly from
@@ -45,10 +48,21 @@ std::optional<Controller> DfaProduct::synthesize(const spot::formula& phi,
     const ProductGuards pg = build_product_symbolic(dfa, taus, init);
     product = materialize_product(pg, init, dict, vars);
   }
+  // Charge table: DfaProduct charges product_states to the materialized
+  // product's num_states() --- the structure handed to game solving.
+  record_size_metric(SizeMetric::product_states, product->num_states());
 
   // --- SolveDfa: solve the product game and lift the controller. ---
-  BenchTimer timer(Stage::game_solving);
-  return solve_dfa(product, vars);
+  std::optional<Controller> controller;
+  {
+    BenchTimer timer(Stage::game_solving);
+    controller = solve_dfa(product, vars);
+  }
+  // Charge table: controller_states, absent (not zero) when unrealizable.
+  if (controller)
+    record_size_metric(SizeMetric::controller_states,
+                       controller->strategy->num_states());
+  return controller;
 }
 
 }  // namespace ltlf_ek
