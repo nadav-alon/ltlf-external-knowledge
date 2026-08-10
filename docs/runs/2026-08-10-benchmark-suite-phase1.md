@@ -1,17 +1,18 @@
 # Day-run 2026-08-10 — parametric benchmark suite, Phase 1
 
-**Verdict: landed and green, but the numbers are not yet trustworthy — one open
-blocker needs a user decision.** Phase 1 of three (metric sink + charge-table
-instrumentation). Branch `bench-phase1`, PR #12.
+**Verdict: landed, green, all reachable gates closed.** Phase 1 of three (metric
+sink + charge-table instrumentation). Branch `bench-phase1`, PR #12.
 
-> **Read this first.** The generic `/code-review` (run after this report was
-> first written) found that the B2 charge table asks two methods to charge the
-> **same axis in different units**, so the `DfaProduct`-vs-`MtdfaProduct` goal
-> and product size ratios — headline numbers for the 2026-08-12 presentation —
-> are wrong as specified. The code faithfully implements the table; the table is
-> what is wrong. Full analysis, measurements and options: *Blocker* in
-> [`docs/prd/benchmark-suite.md`](../prd/benchmark-suite.md). **Phase 2 should
-> not build its cross-method table until this is decided.**
+> **The headline is a spec bug the reviews caught, not the feature.** The generic
+> `/code-review` found that the B2 charge table asked two methods to charge the
+> **same axis in different units** — so the `DfaProduct`-vs-`MtdfaProduct` goal
+> and product size ratios, headline numbers for the 2026-08-12 presentation,
+> were wrong *as specified*. The code faithfully implemented the table; the
+> table was wrong. Resolved the same day: the user chose **(a) split the axis**,
+> and `goal_mtdfa_roots` / `product_mtdfa_roots` now exist so an explicit count
+> and a symbolic count never share a column. B2 note 2 and the glossary entry it
+> rested on were rewritten. Full reasoning, measurements and the rejected
+> options: *Resolved* in [`docs/prd/benchmark-suite.md`](../prd/benchmark-suite.md).
 
 PRD: [`docs/prd/benchmark-suite.md`](../prd/benchmark-suite.md), grilled
 2026-08-09. Backlog item **#2**.
@@ -79,17 +80,19 @@ per `CLAUDE.md`.
 ## Gates
 
 - **glossary** ✅ — closed 2026-08-09, pre-`/developer`. Re-checked here:
-  `SizeMetric`, its six values, `size_metric_name` and `record_size_metric`
+  `SizeMetric`, its values (**six at first, eight after the axis split**),
+  `size_metric_name` and `record_size_metric`
   appear in `docs/GLOSSARY.md` spelled exactly. `bench_scope_active()` is new
   since that entry was written and gets **no** row — it falls under the entry's
   own explicit exemption for "recording / emission plumbing", the same rule that
   exempts `BenchScope`/`BenchTimer`.
 - **tests** ✅ — see the checkpoint above.
-- **code-review** — **open, and now for a substantive reason.** The domain half
-  (`/code-reviewer`) was clean. The generic half then ran on PR #12 and returned
-  **two MEDIUM findings**, both real and both independently reproduced against
-  Spot 2.15.1 — see the *Blocker* above. Two LOW findings were fixed in the
-  follow-up commit.
+- **code-review** ✅ — **both halves closed.** The domain half (`/code-reviewer`)
+  was clean. The generic half then ran on PR #12 and returned four findings, all
+  verified and all acted on: the two MEDIUM ones (the unit mismatch) resolved by
+  splitting the axis per the user's choice; the two LOW ones fixed
+  (`benchmarking.md`'s stale `to_json` schema, and a `SUCCEED()`-only no-op test
+  that could not observe its own claim).
 
   Worth recording **why the domain pass missed it**: it verified the code
   against the charge table cell-for-cell and found exact agreement, and it
@@ -107,14 +110,14 @@ per `CLAUDE.md`.
   for Phases 2–3, where the *comparability tier* lands and with it the unstated
   LTLf $\equiv$ star-free claim (Stop-list 1).
 
-Verified cell-for-cell that each method charges exactly its B2 row: `DfaProduct`
-(`goal_dfa_states`, `product_states`), `NfaProduct` (`goal_nfa_states`,
-`nfa_product_states`, `product_states`), `MtdfaProduct` / `MtnfaProduct` /
-`OtfMtdfaProduct` (`product_states`, `product_bdd_nodes`, plus their respective
-`goal_*` or its absence), all five plus `controller_states` when realizable.
-`product_states` is taken by **role** — post-`minimize_mtdfa` in `MtdfaProduct`,
-post-determinization in `NfaProduct` — matching consequence (1) of the glossary
-entry.
+Verified cell-for-cell that each method charges exactly its B2 row, **as
+rewritten after the split**: `DfaProduct` (`goal_dfa_states`, `product_states`),
+`NfaProduct` (`goal_nfa_states`, `nfa_product_states`, `product_states`),
+`MtdfaProduct` (`goal_mtdfa_roots`, `product_mtdfa_roots`, `product_bdd_nodes`),
+`MtnfaProduct` (`goal_nfa_states`, `product_mtdfa_roots`, `product_bdd_nodes`),
+`OtfMtdfaProduct` (`product_mtdfa_roots`, `product_bdd_nodes`, no `goal_*` at
+all) — plus `controller_states` on all five when realizable. Each row is pinned
+by a set-equality assertion, so an extra or missing metric fails the build.
 
 Three `consider`-level notes, none acted on, all recorded in the PRD's
 *Developer comments*: the `std::optional<BenchTimer>` guard in
@@ -131,12 +134,17 @@ same day; nothing was re-implemented, only verified and recorded.
 
 ## Next
 
-**Decide the unit mismatch first** (*Blocker* in the PRD — options (a)/(b)/(c)).
-It is a one-decision evening, it is a PRD-change event for B2 plus a glossary
-edit, and Phase 2's cross-method table is the thing that would publish the wrong
-ratio. Tuesday's run should not start until it is settled.
+The unit mismatch is **settled** — option (a), axis split, landed here — so
+Tuesday's run is unblocked. Phase 2 inherits two consequences: its cross-method
+table has two more columns and more holes, and it can no longer show a single
+`DfaProduct`-vs-`MtdfaProduct` goal-size number. That comparison was never
+sound, so nothing true was lost, but the deck should not be built expecting one.
 
-Then Phase 2 — registry, families, timing sweep, workbook, `ltlfsynt` T1 race.
+Also re-check `docs/prd/otf-mtdfa-product.md:718` when Phase 2 re-derives its
+numbers: that existing table compared `num_roots()` against `num_states()`
+directly and inherits the same defect.
+
+Phase 2 — registry, families, timing sweep, workbook, `ltlfsynt` T1 race.
 It is the Tuesday 2026-08-11 day-run and the **only phase on the critical path**
 for the Wednesday 2026-08-12 progress presentation; Phase 3 (committed
 structural baseline) is regression protection with no presentation value and was

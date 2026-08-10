@@ -267,9 +267,10 @@ std::optional<Controller> MtnfaProduct::synthesize(const spot::formula& phi,
     product = mtnfa_product_to_mtdfa(goal, taus, vars);
   }
   // Charge table: product and determinization are fused here (no separate
-  // nfa_product_states cell); product_states / product_bdd_nodes on the
-  // fused product mtdfa handed to game solving.
-  record_size_metric(SizeMetric::product_states, product->num_roots());
+  // nfa_product_states cell); product_mtdfa_roots (the symbolic axis, NOT the
+  // explicit product_states) / product_bdd_nodes on the fused product mtdfa
+  // handed to game solving.
+  record_size_metric(SizeMetric::product_mtdfa_roots, product->num_roots());
   // get_stats(nodes=true) is a full BDD-node traversal (linear in the
   // largest structure in the run) --- guard it so it never runs when no
   // BenchScope is active, matching bench.hpp's no-op contract.

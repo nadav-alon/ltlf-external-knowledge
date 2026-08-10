@@ -30,10 +30,14 @@ std::string_view size_metric_name(SizeMetric m) {
       return "goal_dfa_states";
     case SizeMetric::goal_nfa_states:
       return "goal_nfa_states";
+    case SizeMetric::goal_mtdfa_roots:
+      return "goal_mtdfa_roots";
     case SizeMetric::nfa_product_states:
       return "nfa_product_states";
     case SizeMetric::product_states:
       return "product_states";
+    case SizeMetric::product_mtdfa_roots:
+      return "product_mtdfa_roots";
     case SizeMetric::product_bdd_nodes:
       return "product_bdd_nodes";
     case SizeMetric::controller_states:

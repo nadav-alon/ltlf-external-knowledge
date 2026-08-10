@@ -1216,12 +1216,29 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   metric is comparable **only when they charge the same structure to it**, the
   exact analogue of the stage rule. Three consequences worth stating, because each
   is a way the numbers could go quietly wrong:
-  (1) `product_states` is defined by **role** — "the states of the structure handed
-  to *Game solving*" — and *not* by representation, which is what lets the mtdfa
-  cells (`spot::mtdfa::num_roots()`, the `states` array) share one column with the
-  explicit cells (`twa_graph::num_states()`): both count **states**, the same unit.
-  (2) Where the unit genuinely differs there is a **separate value** rather than a
-  shared column — `product_bdd_nodes` counts decision nodes
+  (1) A value names a count **and the representation it was counted on**. An
+  explicit-automaton value and a symbolic-mtdfa value **never share a column**:
+  `goal_dfa_states` / `product_states` are `twa_graph::num_states()` on an
+  explicit automaton, while `goal_mtdfa_roots` / `product_mtdfa_roots` are
+  `spot::mtdfa::num_roots()` on a symbolic one. *(Corrected 2026-08-10. This
+  entry previously defined `product_states` by **role** — "the structure handed
+  to *Game solving*" — and claimed `num_roots()` and `num_states()` were "the
+  same unit", so the two representations shared one column. **That claim was
+  false**: `num_roots()` excludes the `bddtrue`/`bddfalse` terminal states, and
+  Spot ships a separate `mtdfa::num_states()` for exactly this reason. Because
+  `ltlf_to_dfa` is `ltlf_to_mtdfa` → `as_twa(state_based=true)` →
+  `complete_here`, `DfaProduct` and `MtdfaProduct` were charging one column two
+  different counts of the same underlying object — 3 vs 1 on `G(i -> o)`. The
+  gap is not constant, and `mtdfa::num_states()` does not close it either,
+  because `as_twa`'s state splitting and `complete_here`'s sink remain. No
+  accessor makes them commensurable, so the axis split.)*
+  (2) **A shared column is a measured claim, not an assumption.**
+  `goal_nfa_states` *is* shared by `NfaProduct` and `MtnfaProduct` — verified
+  equal on five formulas, because `Mtnfa::states` holds one MTBDD per NFA state
+  with set-valued terminals, so nothing inflates or deflates the count. Likewise
+  `controller_states`, where all five methods return the same
+  `spot::twa_graph_ptr`. Where the unit genuinely differs there is a **separate
+  value** — `product_bdd_nodes` counts decision nodes
   (`spot::mtdfa_stats::nodes`) and no explicit-representation cell emits it.
   (3) **An absent metric is absent, never zero.** `OtfMtdfaProduct` builds no Goal
   automaton and so emits no `goal_*` value at all — the same shape as its missing
@@ -1231,7 +1248,8 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   only, and is **not** a PRD-change event. Its counterpart is the **free-form
   label**, for a quantity that is not comparable across methods.
 - **C++:** `enum class SizeMetric { goal_dfa_states, goal_nfa_states,
-  nfa_product_states, product_states, product_bdd_nodes, controller_states }` with
+  goal_mtdfa_roots, nfa_product_states, product_states, product_mtdfa_roots,
+  product_bdd_nodes, controller_states }` with
   `size_metric_name(SizeMetric)` → `std::string_view` and
   `record_size_metric(SizeMetric, std::uint64_t)`
   (`include/ltlf_ek/bench.hpp`). Which method charges which value is the **charge

@@ -237,9 +237,10 @@ std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
     product = otf_product_to_mtdfa(phi, taus, vars, dict);
   }
   // Charge table: OtfMtdfaProduct builds no Goal automaton --- no goal_*
-  // metric at all (B2, "Edge cases"). product_states / product_bdd_nodes on
-  // the explored product mtdfa handed to game solving.
-  record_size_metric(SizeMetric::product_states, product->num_roots());
+  // metric at all (B2, "Edge cases"). product_mtdfa_roots (the symbolic axis,
+  // NOT the explicit product_states) / product_bdd_nodes on the explored
+  // product mtdfa handed to game solving.
+  record_size_metric(SizeMetric::product_mtdfa_roots, product->num_roots());
   // get_stats(nodes=true) is a full BDD-node traversal (linear in the
   // largest structure in the run) --- guard it so it never runs when no
   // BenchScope is active, matching bench.hpp's no-op contract.

@@ -142,9 +142,10 @@ TEST(RecordSizeMetric, FreeFormCallAppendsACanonicalFalseEntryWithTheGivenLabelA
 
 TEST(SizeMetricName, EveryRegistryValueHasADistinctNonEmptyName) {
   const std::vector<SizeMetric> all = {
-      SizeMetric::goal_dfa_states,   SizeMetric::goal_nfa_states,
-      SizeMetric::nfa_product_states, SizeMetric::product_states,
-      SizeMetric::product_bdd_nodes,  SizeMetric::controller_states};
+      SizeMetric::goal_dfa_states,  SizeMetric::goal_nfa_states,
+      SizeMetric::goal_mtdfa_roots, SizeMetric::nfa_product_states,
+      SizeMetric::product_states,   SizeMetric::product_mtdfa_roots,
+      SizeMetric::product_bdd_nodes, SizeMetric::controller_states};
   std::set<std::string> names;
   for (SizeMetric m : all) {
     const std::string name(size_metric_name(m));
@@ -243,11 +244,15 @@ TEST(BenchScopeSizeMetricEmission, MtdfaProductEmitsExactlyItsChargeTableRow) {
   }
 
   const std::set<std::string> expected =
-      NamesOf({SizeMetric::goal_dfa_states, SizeMetric::product_states,
+      NamesOf({SizeMetric::goal_mtdfa_roots, SizeMetric::product_mtdfa_roots,
                SizeMetric::product_bdd_nodes, SizeMetric::controller_states});
   EXPECT_EQ(CanonicalMetricLabels(report), expected)
-      << "PRD B2 charge table, MtdfaProduct row: exactly {goal_dfa_states, "
-        "product_states, product_bdd_nodes, controller_states}";
+      << "PRD B2 charge table, MtdfaProduct row: exactly {goal_mtdfa_roots, "
+        "product_mtdfa_roots, product_bdd_nodes, controller_states} -- the "
+        "SYMBOLIC axes. It must never charge DfaProduct's explicit "
+        "goal_dfa_states / product_states: num_roots() excludes the "
+        "bddtrue/bddfalse terminals, so the counts are not commensurable "
+        "(B2 note 2)";
 }
 
 TEST(BenchScopeSizeMetricEmission, MtnfaProductEmitsExactlyItsChargeTableRow) {
@@ -275,12 +280,15 @@ TEST(BenchScopeSizeMetricEmission, MtnfaProductEmitsExactlyItsChargeTableRow) {
   }
 
   const std::set<std::string> expected =
-      NamesOf({SizeMetric::goal_nfa_states, SizeMetric::product_states,
+      NamesOf({SizeMetric::goal_nfa_states, SizeMetric::product_mtdfa_roots,
                SizeMetric::product_bdd_nodes, SizeMetric::controller_states});
   EXPECT_EQ(CanonicalMetricLabels(report), expected)
       << "PRD B2 charge table, MtnfaProduct row: exactly {goal_nfa_states, "
-        "product_states, product_bdd_nodes, controller_states} -- no "
-        "nfa_product_states (product and determinization are fused)";
+        "product_mtdfa_roots, product_bdd_nodes, controller_states} -- no "
+        "nfa_product_states (product and determinization are fused). It DOES "
+        "share goal_nfa_states with NfaProduct: unlike the mtdfa axes that "
+        "was measured commensurable, since Mtnfa::states is one MTBDD per "
+        "NFA state with set-valued terminals (B2 note 2)";
 }
 
 TEST(BenchScopeSizeMetricEmission, OtfMtdfaProductEmitsExactlyItsChargeTableRowWithNoGoalRowAtAll) {
@@ -305,11 +313,11 @@ TEST(BenchScopeSizeMetricEmission, OtfMtdfaProductEmitsExactlyItsChargeTableRowW
 
   const std::set<std::string> labels = CanonicalMetricLabels(report);
   const std::set<std::string> expected =
-      NamesOf({SizeMetric::product_states, SizeMetric::product_bdd_nodes,
+      NamesOf({SizeMetric::product_mtdfa_roots, SizeMetric::product_bdd_nodes,
                SizeMetric::controller_states});
   EXPECT_EQ(labels, expected)
-      << "PRD B2 charge table, OtfMtdfaProduct row: exactly {product_states, "
-        "product_bdd_nodes, controller_states}";
+      << "PRD B2 charge table, OtfMtdfaProduct row: exactly "
+        "{product_mtdfa_roots, product_bdd_nodes, controller_states}";
 
   // Edge case (PRD "Edge cases": "OtfMtdfaProduct has no Goal automaton...
   // it emits no goal_* metric at all"), asserted explicitly and not just via
@@ -387,9 +395,9 @@ TEST(BenchScopeSizeMetricEmission, OtfMtdfaProductUnrealizableRunOmitsController
       << "PRD 'Edge cases': an unrealizable run emits no controller_states "
         "row -- absent, never a zero value";
   const std::set<std::string> expected_without_controller =
-      NamesOf({SizeMetric::product_states, SizeMetric::product_bdd_nodes});
+      NamesOf({SizeMetric::product_mtdfa_roots, SizeMetric::product_bdd_nodes});
   EXPECT_EQ(labels, expected_without_controller)
-      << "product_states / product_bdd_nodes are charged during the fused "
+      << "product_mtdfa_roots / product_bdd_nodes are charged during the fused "
         "on-the-fly construction regardless of the verdict";
 }
 

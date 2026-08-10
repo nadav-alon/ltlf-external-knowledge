@@ -42,11 +42,19 @@ struct BenchSpan {
 // docs/prd/benchmark-suite.md B2, "Canonical size metric" in
 // docs/GLOSSARY.md). Which method charges which value is the charge table
 // in that PRD, not restated here.
+// A value names a count AND the representation it was counted on: an
+// explicit-automaton value and a symbolic-mtdfa value never share a column,
+// because the two are not the same object and no accessor makes them
+// commensurable (B2 note 2, measured). Comparing across representations is a
+// deliberate act, done in the workbook with the difference stated --- not
+// something an equal column name quietly implies.
 enum class SizeMetric {
-  goal_dfa_states,
-  goal_nfa_states,
+  goal_dfa_states,      // explicit Goal DFA   (twa_graph::num_states)
+  goal_nfa_states,      // Goal NFA            (explicit or Mtnfa --- comparable)
+  goal_mtdfa_roots,     // symbolic Goal mtdfa (mtdfa::num_roots)
   nfa_product_states,
-  product_states,
+  product_states,       // explicit product    (twa_graph::num_states)
+  product_mtdfa_roots,  // symbolic product    (mtdfa::num_roots)
   product_bdd_nodes,
   controller_states,
 };
