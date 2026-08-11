@@ -15,16 +15,23 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 > argument, so it selects by the launcher's Step-0 rule 2 — *the first item under
 > this heading that has a `docs/prd/` file on `master`*).
 >
-> - **The target is the first item below, `#2` the parametric benchmark suite**
+> - **`#1` is a grill item and has no PRD, so rule 2 skips it** — it is the
+>   user's evening, not a day-run's. It sits first because it is ranked first,
+>   not because a launcher should pick it up. Do not treat its absence of a PRD
+>   as a defect to repair, and do not write one unattended: deciding what a
+>   benchmark family should *be* is exactly the user decision Stop-list 2 of
+>   `benchmark-suite.md` reserves.
+> - **The day-run target is therefore `#2` the parametric benchmark suite**
 >   ([`docs/prd/benchmark-suite.md`](prd/benchmark-suite.md)), and **the next
->   phase is Phase 2.** Phase 1 landed 2026-08-10 (PR #12; gates closed, theory
->   review ruled N/A for that phase). Everything above this line is prose, not an
->   item — every `###` item that used to sit ahead of `#2` is now in *Done*, for
->   the reason the presentation-materials entry records: an item left here after
->   it lands **shadows the next one**.
-> - **Phase 3 is fair game the same day** if the budget outlasts Phase 2 — but
->   only *after* Phase 2's workbook lands, since the 2026-08-12 presentation
->   depends on Phase 2's sweep and not at all on Phase 3's regression baseline.
+>   phase is Phase 3** — Phase 2 landed 2026-08-11 (the runner, the workbook and
+>   the `ltlfsynt` race; Phase 1 landed 2026-08-10, PR #12). Everything above
+>   this line is prose, not an item — every `###` item that used to sit ahead of
+>   `#2` is now in *Done* or is `#1`, for the reason the presentation-materials
+>   entry records: an item left here after it lands **shadows the next one**.
+> - **Phase 3 (the committed structural baseline) is now the whole of `#2`.**
+>   Note it will bake in whatever families exist when it runs — so if `#1` has
+>   already re-grilled them, run Phase 3 *after*, not before, or the baseline
+>   pins a family set that is about to change.
 > - **Do not fall through past this PRD.** `#3` has no PRD, and Method 3.2 /
 >   Method 3.1 Phase 2 both fail the launch gate (see their entries). When
 >   `benchmark-suite.md` is exhausted, the correct end of day is `DONE`, not a
@@ -36,6 +43,47 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 >   a **2.14.4.dev** install and would silently race the wrong version (PRD,
 >   *`ltlfsynt` invocation*) — and Stop-list item 5 carries a
 >   **record-and-continue exception for the 08-11 run only**.
+
+### Repo state as of 2026-08-11 — read this before merging anything
+
+The tree is **not** in the shape the backlog above implies. Three branches hold
+work, `master` holds the least of it, and one branch that is **not** slated to
+merge is currently the only home of code that should survive. Facts, measured
+2026-08-11:
+
+| ref | at | what it has that `master` does not |
+| --- | --- | --- |
+| `master` = `origin/master` | `4b54fd0` | — (Phase 1 only, via PR #12) |
+| `worktree-bench-phase2` | `0720cf9` | **benchmark-suite Phase 2**: `bench_suite.hpp`/`.cpp`, the `ltlf-ek-bench` binary, `scripts/bench_xlsx_export.py`, the `ltlfsynt` race. **No PR. Never merged.** |
+| `worktree-presentation-2026-08-12` | `c62e8cd` | 9 commits: `0720cf9` merged in, the 2026-08-12 deck, the Release workbook, **and the two new `t2` families** |
+
+**The thing to notice:** the presentation branch is **not going to be merged
+into `master`** (it is a deck, plus a working copy of Phase 2). But three things
+that *should* outlive it were committed onto it and exist nowhere else:
+
+1. **`9929078`** — the `knowledge-chain` / `knowledge-chain-inert` families,
+   their discrimination tests, and the tier-declaration test update. This is
+   real `src/` + `tests/` work sitting on a throwaway branch.
+2. **`docs/runs/2026-08-11-benchmarks-release.{json,xlsx}`** — the only Release
+   sweep that exists. The workbook on `master`'s side of the tree is Debug and
+   its numbers are superseded (see `docs/presentation/benchmark-numbers.md`).
+3. **`docs/presentation/benchmark-numbers.md`** and the `startup-floor.py`
+   measurement behind the `ltlfsynt` floor finding.
+
+So the honest summary: **Phase 2 is done but unlanded, and the follow-up work to
+Phase 2 is stranded one level deeper**, on a branch whose stated fate is to be
+dropped. Nothing is lost yet — every commit is local and reachable — but a
+`git worktree remove` or a branch delete in the wrong order would lose it.
+
+**The decision this needs (user's, not a day-run's):** whether to
+(a) merge `worktree-bench-phase2` into `master` first and then cherry-pick
+`9929078` + the `docs/` additions on top, (b) open a PR from the presentation
+branch that excludes `docs/presentation/slides/`, or (c) something else. Until
+that is made, **do not run benchmark-suite Phase 3** — it would build a
+cell-exact structural baseline from `master`, which has no families at all, and
+a day-run reading `benchmark-suite.md` from `master` would conclude Phase 2 is
+un-started and redo it. That is precisely the case `scripts/day-run.sh`'s pause
+switch was written for, and the 2026-08-12 run is paused for it.
 
 _**Ranked 2026-08-08, in a grill.** The ranking criterion **changed**, and that is
 the thing to carry forward. Since the full-time job started (2026-08-01) the
@@ -114,6 +162,56 @@ as `OtfMtdfaProduct` in `0ce5fab`, closed every gate, and benchmarked
 **POSITIVE** — up to 5488x over `MtdfaProduct` where $\cons$ prunes, the first
 method to beat the standing champion). Its Phase 2 (`otf_solve_fused`) is spun
 out below._
+
+### Re-grill the benchmark families — they were not thought out well enough — **#1**
+
+- **Why this is now first.** The families shipped as a by-product of building
+  the *runner*; nobody ever grilled **what they should measure**. The
+  2026-08-11 presentation session found the hole by accident, from an outsider
+  question ("how come the product never has more states than the goal?"), and
+  the answer was embarrassing: **every family pinned $\Tin$ to one state**, so
+  `product_states <= goal_dfa_states` held *by construction*. The suite could
+  not have detected a product blow-up if one existed. That is not a bug in any
+  family — each does what it says — it is a **coverage question that was never
+  asked**, and the kind only a grill catches.
+- **STATE 2026-08-11:** two `t2` families (`knowledge-chain`,
+  `knowledge-chain-inert`) were added *in the presentation branch* as a
+  half-hour patch to make the presentation honest, **not** as the considered
+  answer. They work (`knowledge-chain-inert` gives `product = n * goal`
+  exactly, asserted cell-exact) and they immediately produced a new result —
+  `OtfMtdfaProduct` is at its **worst** there, 0.55x — which is itself the
+  argument for this item: the first serious look at a new axis moved a
+  headline number. Treat them as evidence the axis matters, not as the family
+  set.
+- **What the grill has to settle.** The axes, before any code:
+  - **Knowledge size** — now partly covered, but only by two hand-made
+    families. Should $\lvert\Tin\rvert$ be a sweep parameter *independent* of
+    $n$, so knowledge and formula can grow separately? Right now they are
+    welded together.
+  - **$\Tout$ is completely untested.** Every family uses
+    `trivial_transducer` for $\Tout$. The output side has never been measured
+    at all.
+  - **Tier coverage.** Four `t1`, two `t2`, one `t3` — is that the mix we
+    want, given `t2`/`t3` cost the `ltlfsynt` race? The `t2` pair skipped the
+    race for convenience under time pressure; a deliberate choice might supply
+    $\psi_{in}$ and keep the cross-validation.
+  - **Realizable/unrealizable polarity.** The `summary` sheet is
+    `realizable = true` only. Is the unrealizable half interesting, or noise?
+  - **What a family is *for*.** `mirror-degenerate` is deliberately a trap
+    (see its entry) and `parity-t3` has a **wrong** `expected_realizable`. A
+    grill should decide which families are load-bearing, which are documentation
+    of a dead end, and whether the second kind belongs in the same registry.
+  - **Measurement hygiene, separately.** `cons-prunes`' headline ratio measured
+    **4.37** and **3.60** on two Release sweeps of the same binary — ~20%
+    jitter at `repeat=3`. Decide the repeat count from the spread rather than
+    by eye, or stop quoting more than one significant figure.
+- **Seeds.** Does a family need a *declared hypothesis* field ("this family
+  exists to show X"), so a family that stops discriminating is detectable
+  rather than merely committed? Stop-list 2 already says a degenerated family
+  is a **user decision**, which suggests the registry should carry the claim it
+  is meant to support.
+- **No PRD, deliberately** — this is the grill that would produce one. It is
+  evening work; a day-run must not pick it up (see the day-run note at the top).
 
 ### Parametric benchmark suite, committed and reproducible — **#2**
 
