@@ -109,6 +109,17 @@ def wall_totals(d):
     return out
 
 
+def ltlfsynt_times(d):
+    """(family, n) -> ltlfsynt wall ns, comparable rows only.
+
+    Only `status == "ok"` rows exist for the t1 families; t3 is recorded as
+    "n/a -- by expressibility" and never contacted, so it simply has no key.
+    """
+    return {(r["family"], r["n"]): r["ltlfsynt_ns"]
+            for r in d["ltlfsynt"]
+            if r["status"] == "ok" and r["realizable"] is POLARITY}
+
+
 def structural(d):
     """(family, n, subject, metric) -> value, at the summary sheet's polarity."""
     out = {}
@@ -225,51 +236,54 @@ def fig_structural(d):
 
 
 # ---------------------------------------------------------------------------
-# Figure 3 -- absolute cost at the largest n, all five methods.
-# Job: magnitude across a small set, spanning three orders => a dot plot, not
-# bars.  A bar encodes magnitude as length from zero, which a log axis does not
-# have; dots carry position only, so the log scale stays honest.  Colour still
-# follows the method, so the baseline takes a neutral ink rather than a
-# categorical slot.
+# Figure 3 -- absolute cost against n, all five methods plus the ltlfsynt
+# baseline.  Plotted against n rather than as a bar chart at the largest n on
+# purpose: ltlfsynt's measured time is flat in n (~5 ms everywhere) while the
+# goal DFA grows exponentially, which says the number is dominated by process
+# startup rather than by synthesis.  A single-n snapshot would hide that and
+# read as a speedup claim; the flat line is the caveat, drawn.
 # ---------------------------------------------------------------------------
 def fig_cost(d):
     wt = wall_totals(d)
-    n = max(r["n"] for r in d["timings"])
+    lt = ltlfsynt_times(d)
+    ns = sorted({r["n"] for r in d["timings"]})
 
     # The baseline takes a neutral dark ink rather than a categorical slot --
     # dark enough to read as data, hueless enough not to claim series identity.
     order = [("mtdfa-product", "MtdfaProduct", INK_2, "v")] + [
         (k, lbl, c, m) for k, lbl, c, m in METHODS]
 
-    fig, ax = plt.subplots(figsize=(9.6, 3.0))
-    recede(ax)
-    ax.grid(True, which="major", axis="y", zorder=0)
-    step = 0.13
-    for i, fam in enumerate(FAMILIES):
-        vals = [wt[(fam, n, k)] / 1e6 for k, _, _, _ in order
-                if (fam, n, k) in wt]
-        if vals:
-            # A faint guide spanning the group, so the eye reads each family as
-            # one comparison rather than five loose points.
-            ax.plot([i, i], [min(vals), max(vals)], color=GRID, lw=1.0,
-                    zorder=1, solid_capstyle="round")
-    for j, (key, label, colour, marker) in enumerate(order):
-        xs, ys = [], []
-        for i, fam in enumerate(FAMILIES):
-            v = wt.get((fam, n, key))
-            if v:
-                xs.append(i + (j - 2) * step)
-                ys.append(v / 1e6)
-        ax.plot(xs, ys, linestyle="none", marker=marker, ms=7.5, mew=1.2,
-                mfc=colour, mec=SURFACE, color=colour, zorder=3, label=label,
-                clip_on=False)
-    ax.set_yscale("log")
-    ax.set_xticks(range(len(FAMILIES)))
-    ax.set_xticklabels(FAMILIES)
-    ax.set_xlim(-0.5, len(FAMILIES) - 0.5)
-    ax.set_ylabel(f"wall total at $n={n}$ (ms, log)")
-    ax.legend(ncol=5, loc="upper center", bbox_to_anchor=(0.5, 1.20),
-              handletextpad=0.3, columnspacing=1.6)
+    fig, axes = plt.subplots(1, 4, figsize=(9.6, 3.0), sharey=True)
+    for i, (ax, fam) in enumerate(zip(axes, FAMILIES)):
+        recede(ax)
+        for key, label, colour, marker in order:
+            xs, ys = [], []
+            for n in ns:
+                v = wt.get((fam, n, key))
+                if v:
+                    xs.append(n)
+                    ys.append(v / 1e6)  # ns -> ms
+            ax.plot(xs, ys, color=colour, lw=1.8, marker=marker, ms=3.4,
+                    mew=0, zorder=3, label=label, clip_on=False)
+
+        # ltlfsynt is not a subject of the sweep -- it is an external process
+        # measured end to end -- so it is drawn as a dashed rule in neutral
+        # ink, never as a sixth categorical series.
+        xs = [n for n in ns if (fam, n) in lt]
+        ys = [lt[(fam, n)] / 1e6 for n in xs]
+        ax.plot(xs, ys, color=INK, lw=1.6, ls=(0, (4, 2.5)), zorder=4,
+                label="ltlfsynt (whole process)", clip_on=False)
+
+        ax.set_yscale("log")
+        ax.set_title(fam)
+        ax.set_xlabel("$n$")
+        ax.set_xticks(ns[::2])
+        ax.yaxis.set_minor_formatter(NullFormatter())
+
+    axes[0].set_ylabel("wall total (ms, log)")
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=6,
+               bbox_to_anchor=(0.5, -0.10), columnspacing=1.6)
     fig.savefig(FIGDIR / "cost.pdf")
     plt.close(fig)
 
@@ -290,6 +304,24 @@ def report(d):
     print(f"-- ltlfsynt race: {len(ok)} t1 rows, "
           f"{sum(1 for r in ok if r['verdict_mismatch'])} mismatches, "
           f"{len(d['ltlfsynt']) - len(ok)} t3 rows skipped by expressibility")
+
+    # The flatness is the caveat on the cost figure, so it gets stated as a
+    # number rather than left to the eye.
+    lt = ltlfsynt_times(d)
+    lo = min(lt.values()) / 1e6
+    hi = max(lt.values()) / 1e6
+    n_lo, n_hi = min(r["n"] for r in d["timings"]), n
+    growth = []
+    for fam in FAMILIES:
+        a, b = lt.get((fam, n_lo)), lt.get((fam, n_hi))
+        if a and b:
+            growth.append(b / a)
+    mt_lo = wt[(FAMILIES[0], n_lo, BASELINE)]
+    mt_hi = wt[(FAMILIES[0], n_hi, BASELINE)]
+    print(f"-- ltlfsynt wall: {lo:.2f}..{hi:.2f} ms over every family and "
+          f"n={n_lo}..{n_hi}; grows {min(growth):.2f}-{max(growth):.2f}x "
+          f"across that range, vs {mt_hi / mt_lo:.1f}x for MtdfaProduct "
+          f"=> startup-dominated, not a synthesis-cost comparison")
     p = d["provenance"]
     print(f"-- provenance: {p['cmake_build_type']} build, spot {p['spot_version']}, "
           f"repeat {p['repeat']}, n {p['n_min']}..{p['n_max']}")

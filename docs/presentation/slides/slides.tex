@@ -42,8 +42,7 @@
   {fontsize=\tiny, xleftmargin=2mm}
 
 \title{LTLf synthesis under external knowledge}
-\subtitle{The prototype, and early results}
-\date{12 August 2026}
+\subtitle{Prototype, early results}
 \author{Nadav Alon}
 
 \begin{document}
@@ -51,31 +50,23 @@
 \maketitle
 
 % ===========================================================================
-\begin{frame}{Where this is}
+\begin{frame}{What is this}
 
-  A \alert{prototype} that runs end to end, and a first sweep of measurements.
+  A \alert{prototype} that runs five synthesis methods under one interface, and a prototype benchmark suite.
 
   \begin{itemize}
-    \item Five synthesis methods behind one interface, all producing
-          controllers, not just verdicts.
-    \item Two command-line tools; controllers are machine-checkable.
-    \item A parametric benchmark suite, raced against \texttt{ltlfsynt}
-          where the comparison is legitimate.
+    \item Five methods that produce controllers from a goal formula, a variable partition, and a knowledge transducer.
+    \item A parametric benchmark suite, raced against \texttt{ltlfsynt} where the comparison is legitimate.
   \end{itemize}
 
-  \vfill
-  Today: what ships, what it looks like to use, and what the first numbers say.
-  \alert{Early} numbers --- four synthetic families, $n \le 8$.
 \end{frame}
 
 % =========================== ACT 1 -- THE TOOLS ============================
 \section{The tools}
 
-\begin{frame}{Five methods, one interface}
+\begin{frame}{The Methods}
 
-  Every method takes the same input --- goal formula $\varphi$, a variable
-  partition $(\Ifree, \Iknown, \Ofree, \Oknown)$, and a knowledge transducer
-  $\Tin$ / $\Tout$ per known set --- and is interchangeable at the flag level.
+  Every method takes a goal formula $\varphi$, a variable partition $(\Ifree, \Iknown, \Ofree, \Oknown)$, and two knowledge transducers $\Tin$, $\Tout$.
 
   \begin{center}\small
   \begin{tabular}{lll}
@@ -91,19 +82,11 @@
   \end{tabular}
   \end{center}
 
-  \vfill
-  Eight method$\times$Representation flags exist; these five are wired, three
-  report \emph{not yet implemented}.
-
-  \vfill
-  {\small That interchangeability is what makes act 3 possible at all: the
-  methods are subjects of one benchmark, not five separate programs.}
 \end{frame}
 
 \begin{frame}[fragile]{Two binaries}
 
-  \textbf{\texttt{ltlf-ek-synth}} --- consumes knowledge, emits a verdict or a
-  controller.
+  \textbf{\texttt{ltlf-ek-synth}} - the synthesizer
   \begin{shelltiny}
 --dfa-product | --nfa-product | --mtdfa-product | --mtnfa-product | --otf-mtdfa-product
 --formula=STRING          the goal formula
@@ -112,12 +95,9 @@
 --realizable              verdict only        --model-check   verify a controller
 --benchmark PATH          per-stage timing report as JSON
   \end{shelltiny}
-  {\scriptsize Exit codes carry the verdict: \texttt{0} realizable,
-  \texttt{20} unrealizable, \texttt{2} usage.}
 
   \vspace{2mm}
-  \textbf{\texttt{ltlf-ek-deps}} --- \emph{produces} knowledge instead of
-  consuming it.
+  \textbf{\texttt{ltlf-ek-deps}} - finds dependent variables. Very tentative.
   \begin{shelltiny}
 --formula=STRING          --direction in|out
 --transducer PATH         write the resulting T_in / T_out
@@ -322,14 +302,37 @@ dependent outputs: none
   two curves coincide, it has nothing to exploit.}
 \end{frame}
 
-\begin{frame}{Absolute cost at $n=8$}
+\begin{frame}{Absolute cost, and what \texttt{ltlfsynt} costs}
   \begin{center}
     \includegraphics[width=\textwidth]{figures/cost.pdf}
   \end{center}
   \vspace{-1mm}
-  {\small The \textsc{mona}-backed methods sit one to two orders of magnitude
-  higher throughout. Read that as the cost of shelling out to an external
-  tool, \emph{not} as a result about the NFA representation.}
+  {\small Two things that are \alert{not} algorithmic results. The
+  \textsc{mona}-backed methods sit 1--2 orders higher throughout --- that is
+  the shell-out. And \texttt{ltlfsynt}'s line is \alert{flat}: it grows
+  $1.06$--$1.09\times$ from $n=2$ to $n=8$ while \texttt{MtdfaProduct} grows
+  $5.7\times$ and the goal DFA grows $5 \to 257$ states.}
+\end{frame}
+
+\begin{frame}{Why the \texttt{ltlfsynt} line is flat}
+
+  Its whole-process time never leaves \textbf{4.98--5.74\,ms} --- across every
+  family, every $n$, both polarities.
+
+  \begin{itemize}
+    \item That is a \alert{floor set by process startup}: \texttt{fork},
+          \texttt{exec}, dynamic linking. Our methods are measured
+          \emph{in-process}.
+    \item So at these sizes the comparison \textbf{cannot discriminate} on
+          time. ``$14\times$ faster at $n=8$'' would be a statement about
+          subprocess spawn, not about synthesis.
+    \item What the race \emph{does} establish is the verdicts --- next slide.
+  \end{itemize}
+
+  \vfill
+  {\small The honest reading: to compare synthesis cost against
+  \texttt{ltlfsynt} we need instances big enough to clear the $\sim$5\,ms
+  floor. None of these four families get there by $n=8$.}
 \end{frame}
 
 \begin{frame}{Agreement with \texttt{ltlfsynt}}

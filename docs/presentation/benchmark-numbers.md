@@ -99,6 +99,27 @@ for that tier. This is a cross-check on verdicts only; it does **not** settle
 the monolithic reduction, which remains a conjecture with a known divergence
 witness on partial transducers (O5).
 
+### `ltlfsynt_ns` is startup-dominated — do not quote it as a speedup
+
+The `ltlfsynt` sheet carries a wall time per case, and it is **flat**:
+
+| | value |
+| --- | --- |
+| range over *every* family, every n, both polarities | **4.98 – 5.74 ms** |
+| growth from n=2 to n=8 | **1.06 – 1.09x** |
+| `MtdfaProduct` growth over the same range | **5.7x** |
+| goal DFA growth over the same range | **5 → 257 states** |
+
+The problem grows exponentially and the measured `ltlfsynt` time does not move,
+so the number is a floor set by **process startup** (`fork`/`exec`/dynamic
+linking) — our methods are timed in-process, `ltlfsynt` end-to-end. The naive
+ratio (10–77x "faster", falling with n) is therefore a statement about
+subprocess spawn, not about synthesis, and must not be presented as a speedup.
+
+To compare synthesis cost against `ltlfsynt` at all, the suite needs instances
+large enough to clear the ~5 ms floor. **None of the four citable families get
+there by n=8** — a gap for a future phase, not a result.
+
 ## What changed under `-O2`
 
 The Debug sweep materially understated `OtfMtdfaProduct` — the methods do not
