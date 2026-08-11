@@ -111,14 +111,35 @@ The `ltlfsynt` sheet carries a wall time per case, and it is **flat**:
 | goal DFA growth over the same range | **5 → 257 states** |
 
 The problem grows exponentially and the measured `ltlfsynt` time does not move,
-so the number is a floor set by **process startup** (`fork`/`exec`/dynamic
-linking) — our methods are timed in-process, `ltlfsynt` end-to-end. The naive
-ratio (10–77x "faster", falling with n) is therefore a statement about
-subprocess spawn, not about synthesis, and must not be presented as a speedup.
+so most of that number is a fixed floor. Measured directly
+(`docs/presentation/slides/startup-floor.py`, minimum over 15 spawns):
 
-To compare synthesis cost against `ltlfsynt` at all, the suite needs instances
-large enough to clear the ~5 ms floor. **None of the four citable families get
-there by n=8** — a gap for a future phase, not a result.
+| | min ms |
+| --- | --- |
+| `/bin/true` — bare `fork`+`exec` | 0.37 |
+| `ltlfsynt --version` — no synthesis at all | 1.02 |
+| `ltlfsynt`, trivial instance | 3.97 |
+| **`ltlf-ek-synth`, trivial instance (ours)** | **4.07** |
+
+**It is not spawn cost, and it is not specific to `ltlfsynt`.** Spawning is
+0.4 ms and dynamic linking gets to 1 ms; the remaining ~3 ms is one-time
+initialisation of the synthesis stack (Spot/BDD), and **our own CLI pays the
+identical floor**. The asymmetry is purely *where the stopwatch starts*:
+`ltlf-ek-bench` pays the init once at its own startup and then times
+`method.synthesize(...)` in-process (`src/bench_suite.cpp`), while `ltlfsynt`
+is timed around a whole `RunSubprocessCaptured` (`src/ltlf_ek_bench.cpp:846`).
+
+So the naive ratio (10–77x "faster", *falling* with n — itself the tell) must
+not be presented as a speedup. Subtracting the floor, `ltlfsynt` does roughly
+`5.4 - 4.0 = 1.4 ms` of actual work at n=8 against `MtdfaProduct`'s 0.39 ms —
+about **3.5x**, not 14x, and even that is an estimate by subtraction on a
+different (monolithic) encoding.
+
+To compare synthesis cost properly the suite needs instances large enough that
+the work dominates the ~4 ms floor. **None of the four citable families get
+there by n=8** — a gap for a future phase, not a result. (The cheap fix for a
+like-for-like number would be to time `ltlf-ek-synth` as a subprocess too, so
+both sides pay the same init.)
 
 ## What changed under `-O2`
 
