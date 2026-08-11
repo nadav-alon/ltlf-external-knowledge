@@ -135,6 +135,74 @@ OutputLabeledTransducer one_state_const_transducer(
   return parse_transducer(in, vars, role, dict);
 }
 
+// An n-state chain: delta advances one state per letter and absorbs in the
+// last, lambda pins k false until the chain lands and true forever after ---
+// "k turns on at step n-1". The point is the STATE COUNT: every other family
+// carries one-state knowledge, so |product| <= |goal| by construction and the
+// knowledge-size axis is never exercised. Here |T_in| = n.
+//
+// Deterministic, complete, and aperiodic (count-to-a-threshold then absorb),
+// so a psi_in does exist --- which is why the family declares t2 and not t3.
+// It is not supplied, so the ltlfsynt race skips the family rather than
+// racing an encoding (docs/GLOSSARY.md "Comparability tier", T2).
+OutputLabeledTransducer chain_transducer(const VariablePartition& vars,
+                                         const spot::bdd_dict_ptr& dict,
+                                         std::int64_t n) {
+  std::ostringstream text;
+  text << "HOA: v1\n"
+          "States: " << n << "\n"
+          "Start: 0\n"
+          "AP: 0\n"
+          "acc-name: all\n"
+          "Acceptance: 0 t\n"
+          "--BODY--\n";
+  for (std::int64_t i = 0; i < n; ++i) {
+    const std::int64_t next = (i + 1 < n) ? i + 1 : i;  // last state absorbs
+    text << "State: " << i << "\n  [t] " << next << "\n";
+  }
+  text << "--END--\n%%LAMBDA\n";
+  for (std::int64_t i = 0; i < n; ++i)
+    text << "state " << i << ": " << (i + 1 < n ? "!k" : "k") << "\n";
+  std::istringstream in(text.str());
+  return parse_transducer(in, vars, Role::t_in, dict);
+}
+
+// An n-state saturating run-length counter over the free input `a`: state i
+// advances on `a` and resets to 0 on `!a`, saturating at n-1; lambda pins k
+// true exactly in the saturated state. Language: "k holds iff the last n-1
+// letters were all a".
+//
+// Unlike chain_transducer this is NOT synchronised with the trace position ---
+// the state depends on the input history, so the product genuinely multiplies
+// rather than sharing the goal's own step counter.
+//
+// Still aperiodic (a counter that resets and saturates is star-free, unlike a
+// mod-n counter, which is the parity witness generalised), so t2 remains the
+// honest tier and Stop-list 1 is not being guessed at.
+OutputLabeledTransducer run_length_transducer(const VariablePartition& vars,
+                                              const spot::bdd_dict_ptr& dict,
+                                              std::int64_t n) {
+  std::ostringstream text;
+  text << "HOA: v1\n"
+          "States: " << n << "\n"
+          "Start: 0\n"
+          "AP: 1 \"a\"\n"
+          "acc-name: all\n"
+          "Acceptance: 0 t\n"
+          "--BODY--\n";
+  for (std::int64_t i = 0; i < n; ++i) {
+    const std::int64_t on_a = (i + 1 < n) ? i + 1 : i;  // saturate at n-1
+    text << "State: " << i << "\n"
+         << "  [0] " << on_a << "\n"
+         << "  [!0] 0\n";
+  }
+  text << "--END--\n%%LAMBDA\n";
+  for (std::int64_t i = 0; i < n; ++i)
+    text << "state " << i << ": " << (i + 1 < n ? "!k" : "k") << "\n";
+  std::istringstream in(text.str());
+  return parse_transducer(in, vars, Role::t_in, dict);
+}
+
 // The T3 witness, fixed and hand-built (PRD B4 "The T3 witness, fixed and
 // hand-built"): 2 states; delta toggles on input `a`, self-loops otherwise;
 // lambda pins k true in the even state (0) and false in the odd state (1)
@@ -291,6 +359,99 @@ class MirrorSmallFamily final : public BenchFamily {
                      std::move(t_out),
                      ComparabilityTier::t1,
                      std::optional<std::string>("1"),
+                     realizable};
+  }
+};
+
+// The knowledge-size axis: `cons-prunes`'s phi_n exactly, with the one-state
+// T_in swapped for the n-state chain. Same goal automaton, same partition,
+// only |T_in| varies --- the matched-pair pattern of B4, applied to the one
+// dimension the other four families hold fixed at 1.
+class KnowledgeChainFamily final : public BenchFamily {
+ public:
+  std::string name() const override { return "knowledge-chain"; }
+
+  std::vector<BenchParams> sweep(std::int64_t n_min,
+                                 std::int64_t n_max) const override {
+    return default_sweep(n_min, n_max);
+  }
+
+  BenchCase instantiate(const BenchParams& params) const override {
+    const std::int64_t n = require_param(params, "n");
+    const bool realizable = require_param(params, "realizable") != 0;
+    check_floor(name(), n);
+
+    VariablePartition vars;
+    vars.input_known = {"k"};
+    std::string phi_text = "F(k & " + x_bang_wrap(n, "k") + ")";
+    if (!realizable) phi_text = add_unrealizable_conjunct(phi_text, vars);
+
+    const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+    register_turn_order_aps(vars, dict);
+
+    const spot::formula phi = parse_or_throw(phi_text);
+    OutputLabeledTransducer t_in = chain_transducer(vars, dict, n);
+    OutputLabeledTransducer t_out = trivial_transducer(vars, Role::t_out, dict);
+
+    // t2, not t1: the chain is aperiodic so a psi_in exists, but this family
+    // deliberately does not supply one, so it must not enter the ltlfsynt
+    // table. Not t3 either --- that would assert non-aperiodicity, which is
+    // false here (Stop-list 1 forbids guessing at that claim in either
+    // direction).
+    return BenchCase{name(),
+                     params,
+                     phi,
+                     vars,
+                     std::move(t_in),
+                     std::move(t_out),
+                     ComparabilityTier::t2,
+                     std::nullopt,
+                     realizable};
+  }
+};
+
+// The other half of the knowledge-size pair: n-state knowledge that cons
+// cannot prune, because phi never mentions the known variable it constrains.
+// This is the family that shows |product| = |T_in| * |goal| --- the growth
+// regime every other family hides by holding |T_in| at 1.
+class KnowledgeChainInertFamily final : public BenchFamily {
+ public:
+  std::string name() const override { return "knowledge-chain-inert"; }
+
+  std::vector<BenchParams> sweep(std::int64_t n_min,
+                                 std::int64_t n_max) const override {
+    return default_sweep(n_min, n_max);
+  }
+
+  BenchCase instantiate(const BenchParams& params) const override {
+    const std::int64_t n = require_param(params, "n");
+    const bool realizable = require_param(params, "realizable") != 0;
+    check_floor(name(), n);
+
+    // phi is over the free output v only; k is known and constrained by the
+    // chain, but no conjunct of phi refers to it, so cons has nothing to cut.
+    VariablePartition vars;
+    vars.input_free = {"a"};
+    vars.output_free = {"v"};
+    vars.input_known = {"k"};
+    std::string phi_text = "F(v & " + x_bang_wrap(n, "v") + ")";
+    if (!realizable) phi_text = add_unrealizable_conjunct(phi_text, vars);
+
+    const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+    register_turn_order_aps(vars, dict);
+
+    const spot::formula phi = parse_or_throw(phi_text);
+    OutputLabeledTransducer t_in = run_length_transducer(vars, dict, n);
+    OutputLabeledTransducer t_out = trivial_transducer(vars, Role::t_out, dict);
+
+    return BenchCase{name(),
+                     params,
+                     phi,
+                     vars,
+                     std::move(t_in),
+                     std::move(t_out),
+                     ComparabilityTier::t2,
+                     std::nullopt,
                      realizable};
   }
 };
@@ -473,6 +634,8 @@ const std::vector<std::unique_ptr<BenchFamily>>& bench_families() {
     v.push_back(std::make_unique<ConsInertFamily>());
     v.push_back(std::make_unique<MirrorSmallFamily>());
     v.push_back(std::make_unique<MirrorDegenerateFamily>());
+    v.push_back(std::make_unique<KnowledgeChainFamily>());
+    v.push_back(std::make_unique<KnowledgeChainInertFamily>());
     v.push_back(std::make_unique<ParityT3Family>());
     return v;
   }();

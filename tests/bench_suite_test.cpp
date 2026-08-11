@@ -357,6 +357,46 @@ TEST(BenchSuiteDiscrimination, ConsInertProductStatesAtLeastGoalDfaStatesAtEvery
   }
 }
 
+// The knowledge-size axis. Every other family holds |T_in| at 1, so
+// product_states <= goal_dfa_states by construction and nothing here ever
+// measures what large knowledge costs. These two vary |T_in| = n instead.
+TEST(BenchSuiteDiscrimination, KnowledgeChainInertProductIsExactlyNTimesTheGoal) {
+  const std::vector<std::int64_t> ns = {2, 3, 4, 5, 6};
+  std::vector<std::uint64_t> goal, product;
+  ASSERT_NO_FATAL_FAILURE(CollectMetricSeries(
+      "knowledge-chain-inert", "dfa-product", SizeMetric::goal_dfa_states, ns,
+      true, &goal));
+  ASSERT_NO_FATAL_FAILURE(CollectMetricSeries(
+      "knowledge-chain-inert", "dfa-product", SizeMetric::product_states, ns,
+      true, &product));
+
+  for (std::size_t i = 0; i < ns.size(); ++i) {
+    SCOPED_TRACE("n=" + std::to_string(ns[i]));
+    // phi never mentions the known variable the chain constrains, so cons has
+    // nothing to cut and the product is the plain |T_in| x |goal|.
+    EXPECT_EQ(product[i], goal[i] * static_cast<std::uint64_t>(ns[i]))
+        << "knowledge-chain-inert must multiply: product_states should be "
+           "exactly n * goal_dfa_states with n-state, non-pruning knowledge";
+  }
+}
+
+TEST(BenchSuiteDiscrimination, KnowledgeChainProductStaysLinearBecauseConsPrunes) {
+  const std::vector<std::int64_t> ns = {2, 3, 4, 5, 6};
+  std::vector<std::uint64_t> goal, product;
+  ASSERT_NO_FATAL_FAILURE(CollectMetricSeries(
+      "knowledge-chain", "dfa-product", SizeMetric::goal_dfa_states, ns, true,
+      &goal));
+  ASSERT_NO_FATAL_FAILURE(CollectMetricSeries(
+      "knowledge-chain", "dfa-product", SizeMetric::product_states, ns, true,
+      &product));
+
+  // Matched with knowledge-chain-inert: same n-state knowledge, but here phi
+  // is about the known variable, so cons collapses the goal's 2^n instead.
+  ExpectFirstDifferencesConstant(product, "knowledge-chain product_states");
+  EXPECT_GT(RangeRatio(goal), RangeRatio(product) * 2.0)
+      << "knowledge-chain: cons must still dominate |T_in| growth";
+}
+
 TEST(BenchSuiteDiscrimination, MirrorSmallGoalNfaStatesIsLinearWhileMtdfaRootsAreExponential) {
 #ifndef MONA_FOUND
   GTEST_SKIP() << "mona not found (CMake find_program(mona)); mirror-small's "
@@ -544,6 +584,10 @@ TEST(BenchSuiteTierDeclaration, ExactlyTheFourTrivialKnowledgeFamiliesAreT1AndPa
                                              "mirror-degenerate"};
   EXPECT_EQ(t1_names, expected_t1);
   EXPECT_EQ(t3_names, std::set<std::string>({"parity-t3"}));
-  EXPECT_TRUE(other_names.empty())
-      << "PRD B4's five families are all declared t1 or t3; none is t2";
+  // The two knowledge-size families are t2: their T_in is aperiodic (a
+  // saturating counter, not a mod-n one), so a psi_in exists and t3 would be
+  // a false claim -- but none is supplied, so they must not enter the T1
+  // ltlfsynt table either. That is exactly what t2 denotes.
+  EXPECT_EQ(other_names, std::set<std::string>({"knowledge-chain",
+                                                "knowledge-chain-inert"}));
 }

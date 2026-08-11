@@ -30,6 +30,12 @@ FIGDIR = HERE / "figures"
 # The four citable families, in the order the deck talks about them.
 FAMILIES = ["cons-prunes", "cons-inert", "mirror-small", "mirror-degenerate"]
 
+# The knowledge-size pair (tier t2: aperiodic T_in, no psi_in supplied, so no
+# ltlfsynt race).  Held separate from FAMILIES because they answer a different
+# question -- what large knowledge costs -- and because the four above all pin
+# |T_in| = 1, which is why their product can never exceed their goal.
+KNOWLEDGE_FAMILIES = ["knowledge-chain", "knowledge-chain-inert"]
+
 # Categorical slots 1, 2, 3, 7 of the validated reference palette.  Slot 4
 # (yellow) is deliberately skipped -- it fails the all-pairs floors beside
 # slot 2 (orange).  Validated all-pairs, light mode: worst CVD dE 9.2,
@@ -288,6 +294,50 @@ def fig_cost(d):
     plt.close(fig)
 
 
+# ---------------------------------------------------------------------------
+# Figure 4 -- the knowledge-size axis.  Answers the question the structural
+# figure provokes: why does the product never exceed the goal?  Because those
+# four families all carry ONE-state knowledge.  Here |T_in| = n instead.
+# ---------------------------------------------------------------------------
+def fig_knowledge(d):
+    st = structural(d)
+    ns = sorted({r["n"] for r in d["structural"]})
+
+    goal_c, prod_c = "#2a78d6", "#eb6834"
+    titles = {
+        "knowledge-chain": "knowledge-chain  (cons prunes)",
+        "knowledge-chain-inert": "knowledge-chain-inert  (nothing to prune)",
+    }
+    fig, axes = plt.subplots(1, 2, figsize=(9.0, 3.0), sharey=True)
+    for ax, fam in zip(axes, KNOWLEDGE_FAMILIES):
+        recede(ax)
+        for label, metric, colour, marker, lw, ls, ms in [
+            ("goal DFA", "goal_dfa_states", goal_c, "o", 4.0, "solid", 0.0),
+            ("product", "product_states", prod_c, "s", 1.5, (0, (3, 2.4)), 3.6),
+        ]:
+            xs, ys = [], []
+            for n in ns:
+                v = st.get((fam, n, "dfa-product", metric))
+                if v:
+                    xs.append(n)
+                    ys.append(v)
+            ax.plot(xs, ys, color=colour, lw=lw, ls=ls, marker=marker, ms=ms,
+                    mew=0, zorder=3, label=label, clip_on=False,
+                    alpha=0.9 if lw > 2 else 1.0, solid_capstyle="round")
+        ax.set_yscale("log")
+        ax.set_title(titles.get(fam, fam))
+        ax.set_xlabel("$n$   (= number of states in $T_{in}$)")
+        ax.set_xticks(ns)
+        ax.yaxis.set_minor_formatter(NullFormatter())
+
+    axes[0].set_ylabel("states, DfaProduct")
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=2,
+               bbox_to_anchor=(0.5, -0.10), columnspacing=2.2)
+    fig.savefig(FIGDIR / "knowledge.pdf")
+    plt.close(fig)
+
+
 def report(d):
     """Numbers the slide text quotes, printed so the prose can never drift."""
     wt = wall_totals(d)
@@ -303,7 +353,8 @@ def report(d):
     ok = [r for r in d["ltlfsynt"] if r["status"] == "ok"]
     print(f"-- ltlfsynt race: {len(ok)} t1 rows, "
           f"{sum(1 for r in ok if r['verdict_mismatch'])} mismatches, "
-          f"{len(d['ltlfsynt']) - len(ok)} t3 rows skipped by expressibility")
+          f"{len(d['ltlfsynt']) - len(ok)} non-t1 rows skipped by "
+          f"expressibility (t2 + t3)")
 
     # The flatness is the caveat on the cost figure, so it gets stated as a
     # number rather than left to the eye.
@@ -336,6 +387,7 @@ def main():
     fig_speedup(d)
     fig_structural(d)
     fig_cost(d)
+    fig_knowledge(d)
     report(d)
     print(f"wrote {len(list(FIGDIR.glob('*.pdf')))} figures to {FIGDIR}")
 

@@ -65,12 +65,23 @@ sweep above is Release.
 `speedup_vs_mtdfa_product` is relative to `MtdfaProduct` (= 1); above 1 is
 faster. At n=8, Release:
 
-| family | dfa | nfa | mtdfa | mtnfa | otf-mtdfa |
-| --- | --- | --- | --- | --- | --- |
-| cons-prunes | 0.69 | 0.058 | 1 | 0.048 | **4.37** |
-| cons-inert | 0.53 | 0.043 | 1 | 0.0087 | 0.91 |
-| mirror-small | 0.36 | 0.141 | 1 | 0.149 | 0.92 |
-| mirror-degenerate | 0.55 | 0.043 | 1 | 0.0090 | 0.95 |
+| family | tier | dfa | nfa | mtdfa | mtnfa | otf-mtdfa |
+| --- | --- | --- | --- | --- | --- | --- |
+| cons-prunes | t1 | 0.70 | 0.061 | 1 | 0.049 | **3.60** |
+| cons-inert | t1 | 0.53 | 0.044 | 1 | 0.0094 | 0.94 |
+| mirror-small | t1 | 0.36 | 0.135 | 1 | 0.155 | 1.01 |
+| mirror-degenerate | t1 | 0.54 | 0.045 | 1 | 0.0082 | 0.88 |
+| knowledge-chain | t2 | 0.75 | 0.073 | 1 | 0.059 | **3.03** |
+| knowledge-chain-inert | t2 | 0.42 | 0.012 | 1 | 0.0062 | **0.55** |
+
+> ### Run-to-run jitter: quote one significant figure
+>
+> `cons-prunes`' otf ratio measured **4.37** on the first Release sweep and
+> **3.60** on the second — same binary, same build, same machine, `repeat=3`
+> min-of-3. That is ~20% spread on the headline number, so **do not quote it to
+> two decimals**. "3–4x" is the defensible claim; the *sign* and rough magnitude
+> are stable, the precision is not. Raising `--repeat` is the fix if a tighter
+> number is ever needed.
 
 The one clean qualitative story: **`OtfMtdfaProduct` wins where `cons` actually
 prunes (`cons-prunes`, 4.4x) and costs essentially nothing where the pruning is
@@ -89,6 +100,40 @@ other three the product never gets smaller than the goal.
 
 The MONA-backed methods (`nfa-product`, `mtnfa-product`) are 1–2 orders of
 magnitude slower throughout; that is the shell-out, not the algorithm.
+
+## The knowledge-size axis (added 2026-08-11)
+
+The four original families all carry **one-state** knowledge — `trivial_transducer`
+(1 state) or `one_state_const_transducer` (1 state) — so `|product| ≤ |goal|` holds
+*by construction* and nothing measured what large knowledge costs. That was the
+degenerate axis. Two `t2` families fix it, both with `|Ŧin| = n`:
+
+| family | Ŧin | φ mentions the known var? | product at n=8 |
+| --- | --- | --- | --- |
+| `knowledge-chain` | n-state positional chain | yes | `2n+1` — `cons` collapses the goal's 2ⁿ |
+| `knowledge-chain-inert` | n-state saturating run-length counter over free input `a` | no | **n × goal** exactly |
+
+`knowledge-chain-inert` is the demonstration: `product_states / goal_dfa_states`
+is exactly **2, 3, 4, 5, 6, 7, 8** at n=2..8 — the plain `|Ŧin| × |goal|`, asserted
+cell-exact by `BenchSuiteDiscrimination.KnowledgeChainInertProductIsExactlyNTimesTheGoal`.
+
+The run-length counter (not the positional chain) is what makes it multiply: a
+chain that advances every step is synchronised with the goal's own step counter,
+so it shares structure instead of multiplying — it measured only ~1.5x. Knowledge
+whose state depends on the *input history* multiplies properly.
+
+**Both are tier `t2`, deliberately.** The transducers are aperiodic (a saturating
+counter, unlike a mod-n one — that is the parity witness generalised), so a ψ_in
+exists and declaring `t3` would be a false claim that Stop-list 1 forbids guessing
+at. No ψ_in is supplied, so they skip the `ltlfsynt` race rather than racing an
+encoding — exactly what `t2` denotes. They remain fully legitimate for
+**cross-method** comparison, which involves no expressibility claim.
+
+**New result:** `OtfMtdfaProduct` is at its *worst* here — **0.55x** on
+`knowledge-chain-inert`, well below the 0.88–1.01x of the small-knowledge inert
+families. Large non-pruning knowledge is the regime where building the product
+on the fly costs the most, which is worth knowing given that is exactly the case
+the method is pitched at.
 
 ## The `ltlfsynt` race
 
