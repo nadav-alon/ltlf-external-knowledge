@@ -1,0 +1,431 @@
+% LTLf synthesis under external knowledge -- progress deck, 2026-08-12.
+%
+% Build:  make          (figures + pdf)
+%         make watch    (latexmk -pvc, rebuilds on save)
+%
+% Every transcript on these slides is copied verbatim from
+% docs/presentation/transcripts/; every number in act 3 is produced by
+% charts.py from docs/runs/2026-08-11-benchmarks-release.json.  Nothing here
+% is retyped by hand -- see the benchmark-suite PRD's Stop-list 1.
+
+\documentclass[aspectratio=169, 11pt]{beamer}
+
+\usetheme[progressbar=frametitle, block=fill]{metropolis}
+\usepackage{booktabs}
+\usepackage{fancyvrb}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{xcolor}
+
+% Palette shared with charts.py -- categorical slots 1, 2, 3, 7 of the
+% validated reference palette, plus the ink steps.
+\definecolor{slotone}{HTML}{2A78D6}
+\definecolor{slottwo}{HTML}{EB6834}
+\definecolor{inkmuted}{HTML}{8A8984}
+\setbeamercolor{alerted text}{fg=slottwo}
+
+% latex/ is an uninitialised submodule in this worktree, so the deck carries
+% its own notation rather than \input-ing main.tex's macros.
+\newcommand{\Tin}{\mathcal{T}_{\mathit{in}}}
+\newcommand{\Tout}{\mathcal{T}_{\mathit{out}}}
+\newcommand{\Ifree}{I_{f}}
+\newcommand{\Iknown}{I_{k}}
+\newcommand{\Ofree}{O_{f}}
+\newcommand{\Oknown}{O_{k}}
+\newcommand{\Xdep}{X_{\mathit{dep}}}
+\newcommand{\Ydep}{Y_{\mathit{dep}}}
+\newcommand{\cons}{\mathit{cons}}
+
+\DefineVerbatimEnvironment{shell}{Verbatim}%
+  {fontsize=\scriptsize, xleftmargin=2mm, commandchars=\\\{\}}
+\DefineVerbatimEnvironment{shelltiny}{Verbatim}%
+  {fontsize=\tiny, xleftmargin=2mm}
+
+\title{LTLf synthesis under external knowledge}
+\subtitle{The prototype, and early results}
+\date{12 August 2026}
+\author{Nadav Alon}
+
+\begin{document}
+
+\maketitle
+
+% ===========================================================================
+\begin{frame}{Where this is}
+
+  A \alert{prototype} that runs end to end, and a first sweep of measurements.
+
+  \begin{itemize}
+    \item Five synthesis methods behind one interface, all producing
+          controllers, not just verdicts.
+    \item Two command-line tools; controllers are machine-checkable.
+    \item A parametric benchmark suite, raced against \texttt{ltlfsynt}
+          where the comparison is legitimate.
+  \end{itemize}
+
+  \vfill
+  Today: what ships, what it looks like to use, and what the first numbers say.
+  \alert{Early} numbers --- four synthetic families, $n \le 8$.
+\end{frame}
+
+% =========================== ACT 1 -- THE TOOLS ============================
+\section{The tools}
+
+\begin{frame}{Five methods, one interface}
+
+  Every method takes the same input --- goal formula $\varphi$, a variable
+  partition $(\Ifree, \Iknown, \Ofree, \Oknown)$, and a knowledge transducer
+  $\Tin$ / $\Tout$ per known set --- and is interchangeable at the flag level.
+
+  \begin{center}\small
+  \begin{tabular}{lll}
+    \toprule
+    Method & Representation & Built on \\
+    \midrule
+    \texttt{DfaProduct}       & explicit DFA      & Spot \\
+    \texttt{NfaProduct}       & explicit NFA      & \textsc{mona} \\
+    \texttt{MtdfaProduct}     & symbolic (MTDFA)  & Spot \\
+    \texttt{MtnfaProduct}     & symbolic (MTNFA)  & \textsc{mona} \\
+    \texttt{OtfMtdfaProduct}  & symbolic, on-the-fly & Spot \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+
+  \vfill
+  Eight method$\times$Representation flags exist; these five are wired, three
+  report \emph{not yet implemented}.
+
+  \vfill
+  {\small That interchangeability is what makes act 3 possible at all: the
+  methods are subjects of one benchmark, not five separate programs.}
+\end{frame}
+
+\begin{frame}[fragile]{Two binaries}
+
+  \textbf{\texttt{ltlf-ek-synth}} --- consumes knowledge, emits a verdict or a
+  controller.
+  \begin{shelltiny}
+--dfa-product | --nfa-product | --mtdfa-product | --mtnfa-product | --otf-mtdfa-product
+--formula=STRING          the goal formula
+--part-file PATH          the variable partition   (or --inputs/--outputs shorthand)
+--known-input-transducer  T_in     --known-output-transducer  T_out
+--realizable              verdict only        --model-check   verify a controller
+--benchmark PATH          per-stage timing report as JSON
+  \end{shelltiny}
+  {\scriptsize Exit codes carry the verdict: \texttt{0} realizable,
+  \texttt{20} unrealizable, \texttt{2} usage.}
+
+  \vspace{2mm}
+  \textbf{\texttt{ltlf-ek-deps}} --- \emph{produces} knowledge instead of
+  consuming it.
+  \begin{shelltiny}
+--formula=STRING          --direction in|out
+--transducer PATH         write the resulting T_in / T_out
+--emit-part PATH          write the updated part file
+  \end{shelltiny}
+  {\scriptsize Finds a dependent input set $X_{dep}$ or dependent output set
+  $Y_{dep}$, and can emit it as a ready-to-use transducer.}
+\end{frame}
+
+% =========================== ACT 2 -- USAGE ================================
+\section{Using it}
+
+\begin{frame}[fragile]{One instance, in full}
+
+  \begin{columns}[T]
+    \begin{column}{0.46\textwidth}
+      \textbf{The partition} --- a part file:
+      \begin{shelltiny}
+input_free:   a
+input_known:  k
+output_free:  o
+output_known:
+      \end{shelltiny}
+
+      \vspace{1mm}
+      \textbf{The goal:} $\varphi = \texttt{X[!] k}$ \\
+      {\scriptsize ``at the next step, $k$ holds'' --- a property about a
+      \emph{known} variable, whose value the controller does not choose.}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \textbf{The knowledge} --- $\Tin$ as HOA plus a labelling:
+      \begin{shelltiny}
+States: 2   AP: 2 "a" "k"
+--BODY--
+State: 0
+  [t] 1
+State: 1
+  [t] 1
+--END--
+%%LAMBDA
+state 0: !k
+state 1: k
+      \end{shelltiny}
+      {\scriptsize $k$ is false initially, true from step 1 onward ---
+      regardless of what the environment plays.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{The knowledge is load-bearing}
+
+  Same $\varphi$, same partition, same method. \alert{Only $\Tin$ changes.}
+
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      {\scriptsize $\Tin$ = \texttt{tin-eventual-k}: $k$ turns on at step 1
+      and stays on.}
+      \begin{shelltiny}
+$ ltlf-ek-synth --dfa-product \
+    --formula="X[!] k" \
+    --part-file part-a-k-o.txt \
+    --known-input-transducer tin-eventual-k.hoa
+
+HOA: v1
+States: 2
+...
+exit code 0                (a controller)
+      \end{shelltiny}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      {\scriptsize $\Tin$ = \texttt{tin-delay-k}: $k$ tracks the environment's
+      $a$, one step behind.}
+      \begin{shelltiny}
+$ ltlf-ek-synth --dfa-product \
+    --formula="X[!] k" \
+    --part-file part-a-k-o.txt \
+    --known-input-transducer tin-delay-k.hoa
+
+UNREALIZABLE
+exit code 20
+      \end{shelltiny}
+    \end{column}
+  \end{columns}
+
+  \vfill
+  {\small The verdict is a property of the \emph{knowledge}, not of the
+  formula. Nothing the controller can play changes either outcome --- $k$ is
+  not its variable.}
+\end{frame}
+
+\begin{frame}[fragile]{The output is a checkable artifact}
+
+  Realizable does not just print \texttt{REALIZABLE} --- it prints the
+  controller, as a Spot automaton:
+
+  \begin{shelltiny}
+HOA: v1
+States: 2
+Start: 0
+AP: 2 "a" "o"
+acc-name: all
+properties: trans-labels explicit-labels state-acc complete deterministic
+spot-state-player: 0 1
+controllable-AP: 1
+--BODY--
+State: 0    [t] 1
+State: 1    [t] 0
+--END--
+  \end{shelltiny}
+
+  \vspace{1mm}
+  \dots{} and the same binary will check one for you:
+
+  \begin{shelltiny}
+$ ltlf-ek-synth --dfa-product --formula="X[!] k" --part-file part-a-k-o.txt \
+    --known-input-transducer tin-eventual-k.hoa --model-check
+SAFE
+  \end{shelltiny}
+\end{frame}
+
+\begin{frame}[fragile]{Producing knowledge, not just consuming it}
+
+  \texttt{ltlf-ek-deps} asks which variables are \emph{forced} by the history
+  --- and can emit the answer as a transducer the methods then consume.
+
+  \begin{shelltiny}
+$ ltlf-ek-deps --formula="F(a ^ b)" --inputs a,b --outputs o --direction in
+dependent inputs: a   (of a, b)
+
+$ ltlf-ek-deps --formula="F(a ^ b)" --inputs a,b --outputs o --direction out
+dependent outputs: none
+  \end{shelltiny}
+
+  \vspace{1mm}
+  \begin{itemize}
+    \item \textbf{$\Xdep$ non-empty:} the environment's $a$ is forced --- the
+          symmetric question, run against $\neg\varphi$.
+    \item \textbf{$\Ydep$ correctly empty:} the system can always violate an
+          output conjunct unconditionally, so nothing on the output side is
+          ever forced here. Structural, not a gap in the tool.
+  \end{itemize}
+\end{frame}
+
+% =========================== ACT 3 -- MEASUREMENTS =========================
+\section{Early results}
+
+\begin{frame}{What was measured}
+
+  \begin{columns}[T]
+    \begin{column}{0.52\textwidth}
+      \textbf{Four parametric families}, each scaling in $n$:
+      \begin{itemize}\small
+        \item \texttt{cons-prunes} --- the consistency filter $\cons$
+              genuinely cuts the product
+        \item \texttt{cons-inert} --- $\cons$ cuts nothing
+        \item \texttt{mirror-small}, \texttt{mirror-degenerate}
+      \end{itemize}
+      \vspace{1mm}
+      {\scriptsize A fifth family, \texttt{parity-t3}, is excluded: it sits in
+      an expressibility tier the comparison bars, and its declared
+      realizability is wrong.}
+    \end{column}
+    \begin{column}{0.44\textwidth}
+      \textbf{Provenance}
+      \begin{center}\scriptsize
+      \begin{tabular}{ll}
+        \toprule
+        build      & \alert{Release} \\
+        Spot       & 2.15.1 \\
+        $n$        & 2 \dots 8, all pairs reached 8 \\
+        repeats    & 3, 20\,s per-case timeout \\
+        sweep      & no case stopped early \\
+        \bottomrule
+      \end{tabular}
+      \end{center}
+      \vspace{1mm}
+      {\scriptsize All five methods run every case; ratios are taken against
+      \texttt{MtdfaProduct}.}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}{Speedup relative to \texttt{MtdfaProduct}}
+  \begin{center}
+    \includegraphics[width=\textwidth]{figures/speedup.pdf}
+  \end{center}
+  \vspace{-1mm}
+  {\small \textbf{One clean signal:} \texttt{OtfMtdfaProduct} pulls away
+  (\alert{4.4$\times$} at $n=8$) exactly on \texttt{cons-prunes} --- and costs
+  essentially nothing (0.91--0.95$\times$) on the three families where it does
+  not help.}
+\end{frame}
+
+\begin{frame}{Why: the goal blows up, the product does not}
+  \begin{center}
+    \includegraphics[width=\textwidth]{figures/structural.pdf}
+  \end{center}
+  \vspace{-1mm}
+  {\small Sizes, not times --- so this panel is build-independent. On
+  \texttt{cons-prunes} the goal DFA grows exponentially while the product stays
+  linear: that gap is the thing the on-the-fly method is exploiting. Where the
+  two curves coincide, it has nothing to exploit.}
+\end{frame}
+
+\begin{frame}{Absolute cost at $n=8$}
+  \begin{center}
+    \includegraphics[width=\textwidth]{figures/cost.pdf}
+  \end{center}
+  \vspace{-1mm}
+  {\small The \textsc{mona}-backed methods sit one to two orders of magnitude
+  higher throughout. Read that as the cost of shelling out to an external
+  tool, \emph{not} as a result about the NFA representation.}
+\end{frame}
+
+\begin{frame}{Agreement with \texttt{ltlfsynt}}
+
+  \begin{center}
+    {\Huge \textbf{\textcolor{slotone}{0}} verdict mismatches} \\[1mm]
+    {\large over \textbf{56} comparable cases}
+  \end{center}
+
+  \vfill
+  \begin{itemize}
+    \item Every case in the four families is re-encoded and raced against
+          \texttt{ltlfsynt}; both verdicts are recorded per case.
+    \item 14 further cases are \emph{skipped by construction}, not silently
+          passed --- their tier makes the monolithic encoding illegitimate.
+  \end{itemize}
+
+  \vfill
+  {\small A cross-check on the verdicts, not on the timings --- and it does
+  not settle the reduction itself (appendix).}
+\end{frame}
+
+% =========================== CLOSE =========================================
+\begin{frame}{Where this leaves us}
+
+  \textbf{The prototype:} five interchangeable methods, two tools, controllers
+  that can be emitted and checked, and a benchmark suite that reruns itself.
+
+  \vspace{2mm}
+  \textbf{The early results:}
+  \begin{itemize}
+    \item On-the-fly product is \alert{roughly free when the consistency
+          filter is inert} and \alert{4.4$\times$ when it prunes} --- and the
+          structural data says why.
+    \item No verdict disagreement with \texttt{ltlfsynt} anywhere the
+          comparison is legitimate.
+  \end{itemize}
+
+  \vspace{2mm}
+  \textbf{What these numbers are not:} four synthetic families, $n \le 8$, one
+  machine. A signal about where to look, not a cost model.
+
+  \vspace{2mm}
+  \textbf{Open:} the monolithic reduction (appendix), and the expressibility
+  tier that currently bars a family from comparison.
+\end{frame}
+
+% =========================== APPENDIX ======================================
+\appendix
+
+\begin{frame}[fragile]{Appendix --- the O5 boundary}
+
+  On a \emph{partial} transducer our verdict and \texttt{ltlfsynt}'s verdict on
+  the monolithic encoding \alert{diverge}. Partiality deletes letters for both
+  players, and the two encodings do not delete the same ones.
+
+  \vspace{2mm}
+  \begin{itemize}
+    \item This is an \textbf{open theory question}, not a bug in either tool.
+    \item It is why the benchmark race is restricted to the tier where the
+          monolithic encoding is known legitimate.
+    \item The reduction is a \textbf{conjecture}; nothing here proves it.
+  \end{itemize}
+
+  \vspace{2mm}
+  {\scriptsize Witness and full discussion:
+  \texttt{docs/runs/2026-08-09-acceptance-mark-edgeless.md}, and
+  \texttt{tools-and-capabilities.md} §4f.}
+\end{frame}
+
+\begin{frame}{Appendix --- why the build type mattered}
+
+  The same sweep, Debug vs Release, speedup of \texttt{OtfMtdfaProduct} at
+  $n=8$:
+
+  \begin{center}\small
+  \begin{tabular}{lrr}
+    \toprule
+    family & Debug & \alert{Release} \\
+    \midrule
+    \texttt{cons-prunes}        & 3.09 & \textbf{4.37} \\
+    \texttt{cons-inert}         & 0.39 & \textbf{0.91} \\
+    \texttt{mirror-small}       & 0.42 & \textbf{0.92} \\
+    \texttt{mirror-degenerate}  & 0.40 & \textbf{0.95} \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+
+  \vspace{2mm}
+  Debug materially understated the method: it read as ``wins 3$\times$ here,
+  costs you 2.5$\times$ everywhere else''. The methods do not pay equally for
+  assertions, so cross-method ratios are not build-portable.
+
+  \vspace{1mm}
+  {\scriptsize Every figure in this deck is from the Release sweep,
+  \texttt{docs/runs/2026-08-11-benchmarks-release.xlsx}.}
+\end{frame}
+
+\end{document}

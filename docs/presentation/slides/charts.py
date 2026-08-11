@@ -1,0 +1,312 @@
+#!/usr/bin/env python3
+"""Charts for the 2026-08-12 presentation, from a ltlf-ek-bench report.
+
+Reads the JSON report (not the workbook -- same numbers, no openpyxl in the
+loop) and writes one vector PDF per figure into figures/.  Run via `make figs`.
+
+Only the four `t1` families are plotted: `parity-t3` is barred from the
+comparison tables by the benchmark-suite PRD's Stop-list 1, and its declared
+`expected_realizable` is known wrong (see docs/presentation/benchmark-numbers.md).
+"""
+
+import json
+import os
+import pathlib
+import sys
+
+os.environ.setdefault("MPLCONFIGDIR",
+                      str(pathlib.Path(__file__).parent / ".mplcache"))
+
+import matplotlib
+matplotlib.use("pdf")
+import matplotlib.pyplot as plt
+from matplotlib.ticker import LogLocator, NullFormatter
+
+HERE = pathlib.Path(__file__).parent
+REPO = HERE.parent.parent.parent
+REPORT = REPO / "docs/runs/2026-08-11-benchmarks-release.json"
+FIGDIR = HERE / "figures"
+
+# The four citable families, in the order the deck talks about them.
+FAMILIES = ["cons-prunes", "cons-inert", "mirror-small", "mirror-degenerate"]
+
+# Categorical slots 1, 2, 3, 7 of the validated reference palette.  Slot 4
+# (yellow) is deliberately skipped -- it fails the all-pairs floors beside
+# slot 2 (orange).  Validated all-pairs, light mode: worst CVD dE 9.2,
+# worst normal-vision dE 16.3.  Order is fixed and never cycled; the colour
+# follows the method, not its rank in any given panel.
+METHODS = [
+    ("otf-mtdfa-product", "OtfMtdfaProduct", "#2a78d6", "o"),
+    ("dfa-product",       "DfaProduct",      "#eb6834", "s"),
+    ("nfa-product",       "NfaProduct",      "#1baf7a", "^"),
+    ("mtnfa-product",     "MtnfaProduct",    "#4a3aa7", "D"),
+]
+# MtdfaProduct is the baseline every ratio is taken against, so it is drawn as
+# a reference rule rather than spending a categorical slot on it.
+BASELINE = "mtdfa-product"
+
+INK = "#0b0b0b"
+INK_2 = "#52514e"
+INK_MUTED = "#8a8984"
+SURFACE = "#fcfcfb"
+GRID = "#e3e2de"
+
+# The polarity the workbook's `summary` sheet uses, so a number read off a
+# chart here matches a number read out of the workbook.
+POLARITY = True
+
+
+def load():
+    with open(REPORT) as fh:
+        return json.load(fh)
+
+
+def style():
+    plt.rcParams.update({
+        "figure.facecolor": SURFACE,
+        "axes.facecolor": SURFACE,
+        "savefig.facecolor": SURFACE,
+        "font.size": 8,
+        "font.family": "sans-serif",
+        "text.color": INK,
+        "axes.labelcolor": INK_2,
+        "axes.edgecolor": GRID,
+        "axes.linewidth": 0.8,
+        "axes.titlesize": 8.5,
+        "axes.titleweight": "bold",
+        "axes.titlecolor": INK,
+        "xtick.color": INK_2,
+        "ytick.color": INK_2,
+        "xtick.labelsize": 7,
+        "ytick.labelsize": 7,
+        "legend.fontsize": 7.5,
+        "legend.frameon": False,
+        "grid.color": GRID,
+        "grid.linewidth": 0.6,
+        "savefig.bbox": "tight",
+        "savefig.pad_inches": 0.02,
+        "pdf.fonttype": 42,
+    })
+
+
+def recede(ax):
+    """Grid and axes stay behind the data and out of the way."""
+    ax.grid(True, which="major", axis="y", zorder=0)
+    ax.set_axisbelow(True)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+
+
+def wall_totals(d):
+    """(family, n, subject) -> wall_total ns, at the summary sheet's polarity."""
+    out = {}
+    for r in d["timings"]:
+        if r["stage"] != "wall_total" or r["realizable"] is not POLARITY:
+            continue
+        if r["timed_out"]:
+            continue
+        out[(r["family"], r["n"], r["subject"])] = r["ns"]
+    return out
+
+
+def structural(d):
+    """(family, n, subject, metric) -> value, at the summary sheet's polarity."""
+    out = {}
+    for r in d["structural"]:
+        if r["realizable"] is not POLARITY:
+            continue
+        out[(r["family"], r["n"], r["subject"], r["metric"])] = r["value"]
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Figure 1 -- speedup vs n, one panel per family.
+# Job: identity (which method) over change-over-time (n) => multi-series line,
+# small multiples so four families do not become a twenty-line spaghetti plot.
+# ---------------------------------------------------------------------------
+def fig_speedup(d):
+    wt = wall_totals(d)
+    ns = sorted({r["n"] for r in d["timings"]})
+
+    fig, axes = plt.subplots(1, 4, figsize=(9.6, 3.0), sharey=True)
+    for i, (ax, fam) in enumerate(zip(axes, FAMILIES)):
+        recede(ax)
+        ax.axhline(1.0, color=INK_MUTED, lw=1.0, ls=(0, (4, 3)), zorder=1)
+        for key, label, colour, marker in METHODS:
+            xs, ys = [], []
+            for n in ns:
+                base = wt.get((fam, n, BASELINE))
+                mine = wt.get((fam, n, key))
+                if base and mine:
+                    xs.append(n)
+                    ys.append(base / mine)
+            ax.plot(xs, ys, color=colour, lw=1.8, marker=marker, ms=3.4,
+                    mew=0, zorder=3, label=label, clip_on=False)
+        ax.set_yscale("log")
+        ax.set_title(fam)
+        ax.set_xlabel("$n$")
+        ax.set_xticks(ns[::2])
+        ax.yaxis.set_minor_formatter(NullFormatter())
+        # The baseline is a rule rather than a series, so it is named on the
+        # plot instead of spending a categorical slot in the legend -- and only
+        # on the one panel with clear space at y=1, since the surface-coloured
+        # relief box would otherwise erase data on the other three.
+        if i == 0:
+            ax.annotate("MtdfaProduct = 1", xy=(0.5, 1.0),
+                        xycoords=("axes fraction", "data"),
+                        ha="center", va="center", color=INK_MUTED, fontsize=6,
+                        zorder=4,
+                        bbox=dict(boxstyle="round,pad=0.18", fc=SURFACE,
+                                  ec="none"))
+
+    axes[0].set_ylabel("speedup vs MtdfaProduct")
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=4,
+               bbox_to_anchor=(0.5, -0.10), columnspacing=2.2)
+    fig.savefig(FIGDIR / "speedup.pdf")
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Figure 2 -- why: the goal DFA blows up, the product does not (or does).
+# Two series only, so no legend-colour ambiguity; direct-labelled.
+# ---------------------------------------------------------------------------
+def fig_structural(d):
+    st = structural(d)
+    ns = sorted({r["n"] for r in d["structural"]})
+
+    goal_c, prod_c = "#2a78d6", "#eb6834"
+    fig, axes = plt.subplots(1, 4, figsize=(9.6, 3.0), sharey=True)
+    for i, (ax, fam) in enumerate(zip(axes, FAMILIES)):
+        recede(ax)
+        # On three of the four families these two series are equal at every n,
+        # which is the point of the panel -- so the goal curve is drawn as a
+        # wide halo and the product as a dashed line on top.  Coincidence then
+        # reads as "dashes inside a band" rather than as a missing series.
+        series = [
+            ("goal DFA", "goal_dfa_states", goal_c, "o", 4.0, "solid", 0.0),
+            ("product", "product_states", prod_c, "s", 1.5, (0, (3, 2.4)), 3.6),
+        ]
+        for label, metric, colour, marker, lw, ls, ms in series:
+            xs, ys = [], []
+            for n in ns:
+                v = st.get((fam, n, "dfa-product", metric))
+                if v:
+                    xs.append(n)
+                    ys.append(v)
+            ax.plot(xs, ys, color=colour, lw=lw, ls=ls, marker=marker, ms=ms,
+                    mew=0, zorder=3, label=label, clip_on=False,
+                    alpha=0.9 if lw > 2 else 1.0,
+                    solid_capstyle="round")
+        ax.set_yscale("log")
+        ax.set_title(fam)
+        ax.set_xlabel("$n$")
+        ax.set_xticks(ns[::2])
+        ax.yaxis.set_minor_formatter(NullFormatter())
+
+    # Only the family where the two curves separate gets direct labels; on the
+    # other three they would sit on top of each other.
+    a0 = axes[0]
+    a0.annotate("goal DFA", xy=(ns[-1], st[(FAMILIES[0], ns[-1], "dfa-product",
+                                            "goal_dfa_states")]),
+                xytext=(-2, 7), textcoords="offset points", ha="right",
+                color=goal_c, fontsize=7, fontweight="bold")
+    a0.annotate("product", xy=(ns[-1], st[(FAMILIES[0], ns[-1], "dfa-product",
+                                           "product_states")]),
+                xytext=(-2, -12), textcoords="offset points", ha="right",
+                color=prod_c, fontsize=7, fontweight="bold")
+
+    axes[0].set_ylabel("states, DfaProduct")
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=2,
+               bbox_to_anchor=(0.5, -0.10), columnspacing=2.2)
+    fig.savefig(FIGDIR / "structural.pdf")
+    plt.close(fig)
+
+
+# ---------------------------------------------------------------------------
+# Figure 3 -- absolute cost at the largest n, all five methods.
+# Job: magnitude across a small set, spanning three orders => a dot plot, not
+# bars.  A bar encodes magnitude as length from zero, which a log axis does not
+# have; dots carry position only, so the log scale stays honest.  Colour still
+# follows the method, so the baseline takes a neutral ink rather than a
+# categorical slot.
+# ---------------------------------------------------------------------------
+def fig_cost(d):
+    wt = wall_totals(d)
+    n = max(r["n"] for r in d["timings"])
+
+    # The baseline takes a neutral dark ink rather than a categorical slot --
+    # dark enough to read as data, hueless enough not to claim series identity.
+    order = [("mtdfa-product", "MtdfaProduct", INK_2, "v")] + [
+        (k, lbl, c, m) for k, lbl, c, m in METHODS]
+
+    fig, ax = plt.subplots(figsize=(9.6, 3.0))
+    recede(ax)
+    ax.grid(True, which="major", axis="y", zorder=0)
+    step = 0.13
+    for i, fam in enumerate(FAMILIES):
+        vals = [wt[(fam, n, k)] / 1e6 for k, _, _, _ in order
+                if (fam, n, k) in wt]
+        if vals:
+            # A faint guide spanning the group, so the eye reads each family as
+            # one comparison rather than five loose points.
+            ax.plot([i, i], [min(vals), max(vals)], color=GRID, lw=1.0,
+                    zorder=1, solid_capstyle="round")
+    for j, (key, label, colour, marker) in enumerate(order):
+        xs, ys = [], []
+        for i, fam in enumerate(FAMILIES):
+            v = wt.get((fam, n, key))
+            if v:
+                xs.append(i + (j - 2) * step)
+                ys.append(v / 1e6)
+        ax.plot(xs, ys, linestyle="none", marker=marker, ms=7.5, mew=1.2,
+                mfc=colour, mec=SURFACE, color=colour, zorder=3, label=label,
+                clip_on=False)
+    ax.set_yscale("log")
+    ax.set_xticks(range(len(FAMILIES)))
+    ax.set_xticklabels(FAMILIES)
+    ax.set_xlim(-0.5, len(FAMILIES) - 0.5)
+    ax.set_ylabel(f"wall total at $n={n}$ (ms, log)")
+    ax.legend(ncol=5, loc="upper center", bbox_to_anchor=(0.5, 1.20),
+              handletextpad=0.3, columnspacing=1.6)
+    fig.savefig(FIGDIR / "cost.pdf")
+    plt.close(fig)
+
+
+def report(d):
+    """Numbers the slide text quotes, printed so the prose can never drift."""
+    wt = wall_totals(d)
+    n = max(r["n"] for r in d["timings"])
+    print(f"-- speedup vs {BASELINE} at n={n} (realizable={POLARITY})")
+    for fam in FAMILIES:
+        base = wt.get((fam, n, BASELINE))
+        cells = []
+        for key, label, _, _ in METHODS:
+            v = wt.get((fam, n, key))
+            cells.append(f"{label}={base / v:.2f}" if (base and v) else f"{label}=--")
+        print(f"   {fam:20} " + "  ".join(cells))
+    ok = [r for r in d["ltlfsynt"] if r["status"] == "ok"]
+    print(f"-- ltlfsynt race: {len(ok)} t1 rows, "
+          f"{sum(1 for r in ok if r['verdict_mismatch'])} mismatches, "
+          f"{len(d['ltlfsynt']) - len(ok)} t3 rows skipped by expressibility")
+    p = d["provenance"]
+    print(f"-- provenance: {p['cmake_build_type']} build, spot {p['spot_version']}, "
+          f"repeat {p['repeat']}, n {p['n_min']}..{p['n_max']}")
+
+
+def main():
+    if not REPORT.exists():
+        sys.exit(f"missing benchmark report: {REPORT}")
+    FIGDIR.mkdir(exist_ok=True)
+    style()
+    d = load()
+    fig_speedup(d)
+    fig_structural(d)
+    fig_cost(d)
+    report(d)
+    print(f"wrote {len(list(FIGDIR.glob('*.pdf')))} figures to {FIGDIR}")
+
+
+if __name__ == "__main__":
+    main()
