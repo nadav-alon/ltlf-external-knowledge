@@ -240,11 +240,12 @@ dependent outputs: none
 \end{frame}
 
 \begin{frame}{Speedup relative to \texttt{MtdfaProduct}}
+  \vspace{-2mm}
   \begin{center}
-    \includegraphics[width=\textwidth]{figures/speedup.pdf}
+    \includegraphics[width=0.82\textwidth]{figures/speedup.pdf}
   \end{center}
-  \vspace{-1mm}
-  {\small Mtdfa is baseline. The only one that beats it is the on-the-fly method, which benefits {3--4$\times$} on the family that prunes, and is roughly free on the family that does not. (Repeated sweeps give 3.6--4.4$\times$, so one significant figure is all this measures.)}
+  \vspace{-2mm}
+  {\small Mtdfa is baseline. Only the on-the-fly method beats it: {3--4$\times$} where $\cons$ prunes (twice, independently), roughly free where it does not, \alert{below $1$} once the knowledge is large.}
 \end{frame}
 
 \begin{frame}{How big is the knowledge?}

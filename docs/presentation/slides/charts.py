@@ -145,8 +145,14 @@ def fig_speedup(d):
     wt = wall_totals(d)
     ns = sorted({r["n"] for r in d["timings"]})
 
-    fig, axes = plt.subplots(1, 4, figsize=(9.6, 3.0), sharey=True)
-    for i, (ax, fam) in enumerate(zip(axes, FAMILIES)):
+    # All six comparable families, 2x3.  The t2 pair belongs here: tier
+    # governs the *external* ltlfsynt claim, and a cross-method ratio makes no
+    # expressibility claim at all.  parity-t3 stays out -- its declared
+    # realizability is known wrong, which is a different objection.
+    fams = FAMILIES + KNOWLEDGE_FAMILIES
+    fig, axgrid = plt.subplots(2, 3, figsize=(9.6, 4.6), sharey=True)
+    axes = axgrid.flatten()
+    for i, (ax, fam) in enumerate(zip(axes, fams)):
         recede(ax)
         ax.axhline(1.0, color=INK_MUTED, lw=1.0, ls=(0, (4, 3)), zorder=1)
         for key, label, colour, marker in METHODS:
@@ -176,10 +182,12 @@ def fig_speedup(d):
                         bbox=dict(boxstyle="round,pad=0.18", fc=SURFACE,
                                   ec="none"))
 
-    axes[0].set_ylabel("speedup vs MtdfaProduct")
+    for ax in (axes[0], axes[3]):          # left column of each row only
+        ax.set_ylabel("speedup vs MtdfaProduct")
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=4,
-               bbox_to_anchor=(0.5, -0.10), columnspacing=2.2)
+               bbox_to_anchor=(0.5, -0.05), columnspacing=2.2)
+    fig.subplots_adjust(hspace=0.55)
     fig.savefig(FIGDIR / "speedup.pdf")
     plt.close(fig)
 
