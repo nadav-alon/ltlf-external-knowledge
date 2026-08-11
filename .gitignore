@@ -2,6 +2,14 @@
 /build/
 /cmake-build-*/
 
+# ltlf-ek-bench's default JSON/xlsx output dir is /build/benchout/, already
+# covered by /build/ above; this entry is only for a --out invoked with a
+# different tree-relative scratch directory (docs/prd/benchmark-suite.md B1
+# "Layer 2 -- timings... written to a gitignored output directory"). The
+# committed snapshot goes under docs/runs/ instead, which is NOT ignored.
+__pycache__/
+*.pyc
+
 # LaTeX aux
 *.aux
 *.log
