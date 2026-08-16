@@ -101,6 +101,28 @@ fi
 export TMPDIR="$REPO/build/testtmp"      # sandbox makes /tmp read-only
 mkdir -p "$TMPDIR"
 
+# --- week-plan auto-selection ------------------------------------------------
+# The logon trigger runs this script with NO arguments, so a week plan has to be
+# found rather than passed.  A plan marks each day that owns an unattended run
+# with a literal `<!-- day-run: <Weekday> <YYYY-MM-DD> -->`; today's marker is
+# what selects it.  Dating the marker makes the mechanism self-expiring: last
+# week's plan cannot fire this week, and a day the plan deliberately leaves to
+# the user (an aggregation Friday) simply carries no marker, so the run falls
+# back to the normal backlog/PRD selection.  An explicit $1 or PLAN_FILE still
+# wins.
+if [ -z "$PRD" ] && [ -z "${PLAN_FILE:-}" ]; then
+	marker="<!-- day-run: $(date +'%A %Y-%m-%d') -->"
+	for plan in "$REPO"/docs/plans/*.md; do
+		[ -e "$plan" ] || continue
+		if grep -qF "$marker" "$plan"; then
+			PLAN_FILE="docs/plans/$(basename "$plan")"
+			PLAN_DAY="$(date +%A)"
+			echo "day-run: week plan $PLAN_FILE -> $PLAN_DAY day-run"
+			break
+		fi
+	done
+fi
+
 START=$(date +%s)
 # A status left over from yesterday must not decide today's waves.
 rm -f "$STATUS"
