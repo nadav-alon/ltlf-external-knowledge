@@ -234,7 +234,7 @@ dependent outputs: none
         \item \texttt{cons-inert} - instances that do not benefit from the consistency filter
         \item \texttt{mirror-small} - instances that (supposably) benefit from the nfa method
         \item \texttt{mirror-degenerate} - instances that (supposably) are hard for nfa and dfa both
-        \item \texttt{knowledge-chain}, \texttt{knowledge-chain-inert} - instances where the \emph{knowledge} grows with $n$, not just the formula
+        \item \texttt{knowledge-chain}, \texttt{knowledge-chain-inert} - instances where the knowledge grows with $n$, not just the formula
       \end{itemize}
       \vspace{1mm}
 \end{frame}
@@ -245,21 +245,8 @@ dependent outputs: none
     \includegraphics[width=0.82\textwidth]{figures/speedup.pdf}
   \end{center}
   \vspace{-2mm}
-  {\small Mtdfa is baseline. Only the on-the-fly method beats it: {3--4$\times$} where $\cons$ prunes (twice, independently), roughly free where it does not, \alert{below $1$} once the knowledge is large.}
+  {\small Mtdfa is baseline. Only the on-the-fly method beats it: {3--4$\times$} where $\cons$ prunes}
 \end{frame}
-
-\begin{frame}{How big is the knowledge?}
-
-  {\small All four families above pin $\Tin$ at \textbf{one state}, so the product can never be bigger than the goal --- an artifact of how they were written, not a property of the product. Here $\lvert\Tin\rvert = n$.}
-
-  \vspace{-1mm}
-  \begin{center}
-    \includegraphics[width=0.78\textwidth]{figures/knowledge.pdf}
-  \end{center}
-  \vspace{-2mm}
-  {\small Where $\cons$ can prune, the product still collapses; where it cannot, it is exactly $n \times$ the goal --- and that is where the on-the-fly method is \alert{worst} ($0.55\times$).}
-\end{frame}
-
 
 
 \end{document}
