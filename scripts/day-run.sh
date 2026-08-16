@@ -26,6 +26,8 @@
 # Usage:
 #   scripts/day-run.sh                    # next phase of the top backlog PRD
 #   scripts/day-run.sh output-dependencies    # a named PRD (docs/prd/<name>.md)
+#   PLAN_FILE=docs/plans/2026-08-17-week.md PLAN_DAY=Monday scripts/day-run.sh
+#                                         # a week plan's day-run, not a PRD phase
 #   WAVES=1 MAX_PHASES=1 scripts/day-run.sh   # single wave, a single phase
 #   WAVE_HOURS=3 WAVES=3 scripts/day-run.sh   # three shorter windows
 #   DRY_RUN=1 scripts/day-run.sh           # print the plan, run nothing
@@ -108,6 +110,23 @@ human_time() { date -d "@$1" '+%H:%M' 2>/dev/null || echo "epoch $1"; }
 build_prompt() {   # $1 = wave number, $2 = phase slot, $3 = 1 if resuming
 	local wave=$1 slot=$2 resume=$3 p="/launcher"
 	[ -n "$PRD" ] && p="/launcher docs/prd/${PRD%.md}.md"
+	# PLAN_FILE overrides the PRD path entirely: a week plan can schedule a day
+	# of work that is NOT a PRD phase (a measurement sweep, a feasibility probe),
+	# which the launcher's Step-0 backlog rule cannot select because it looks for
+	# a PRD on master.  Everything else -- waves, deadline, status contract,
+	# resume, logging -- is unchanged, which is the whole reason to route through
+	# this script rather than a bare `claude -p`.
+	if [ -n "${PLAN_FILE:-}" ]; then
+		p="Read $PLAN_FILE and carry out the ${PLAN_DAY:-current} day-run
+described there: its numbered steps, its deliverable, and its stop-list, in that
+document's own terms.
+
+Do NOT pick a PRD phase by the launcher's own backlog rule -- the plan's day-run
+IS the task. The one exception is when that day's entry explicitly says to run
+/launcher on a named PRD; then do exactly that. If the day-run is already
+complete (its deliverable exists and is committed), write DONE rather than
+inventing follow-on work."
+	fi
 	p="$p
 
 Unattended day-run, wave $wave of $WAVES, phase slot $slot. Nobody is at the
