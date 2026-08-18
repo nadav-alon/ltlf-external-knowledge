@@ -27,19 +27,21 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 >   decision about branches and `#2` is a decision about what a benchmark family
 >   should *be* — exactly the user decision Stop-list 2 of `benchmark-suite.md`
 >   reserves.
-> - **The day-run target is therefore `#3` the parametric benchmark suite**
->   ([`docs/prd/benchmark-suite.md`](prd/benchmark-suite.md)) — but **it is
->   blocked on `#1` and must not be launched until `#1` closes.** Phase 2's code
->   is written and works, yet it is **not on `master`** (see `#1`), so a run
->   reading the PRD from `master` would conclude Phase 2 is un-started and redo
->   it. Phase 1 landed 2026-08-10 (PR #12); Phase 2 landed only on a branch
->   2026-08-11.
+> - **UPDATED 2026-08-18: `#3`'s Phase 2 is no longer blocked.** The half of
+>   `#1` that blocked it is done — `worktree-bench-phase2` is merged into
+>   `master` (`f83177f`) and the `knowledge-chain` families are cherry-picked
+>   (`c542802`). A run reading `docs/prd/benchmark-suite.md` from `master` now
+>   sees Phase 2 as landed and will not redo it. Phase 1 landed 2026-08-10
+>   (PR #12); Phase 2 landed on `master` 2026-08-18.
 > - **Phase 3 (the committed structural baseline) is what remains of `#3`,** and
->   it is blocked twice over: on `#1` because `master` carries no families at
->   all, and on `#2` because it bakes whatever family set exists into a
->   cell-exact baseline — pinning a set that is about to be redesigned.
-> - **So the honest state is: there is currently no launchable phase.** With
->   `#1` and `#2` PRD-less and `#3` blocked on both, the correct end of day is
+>   it is now blocked **once**, not twice: `master` carries the families as of
+>   2026-08-18, but `#2` still stands — Phase 3 bakes whatever family set exists
+>   into a cell-exact baseline, pinning a set that is about to be redesigned.
+>   **Second reason to hold:** `parity-t3`'s declared `expected_realizable` is
+>   known-wrong and currently fails oracle 5 (621/622); baselining that cell
+>   would freeze the bug.
+> - **So the honest state was: there is currently no launchable phase.** With
+>   `#1` and `#2` PRD-less and `#3` blocked on both, the correct end of day was
 >   `DONE`; `#4` has no PRD either, and Method 3.2 / Method 3.1 Phase 2 both
 >   fail the launch gate (see their entries). The 2026-08-12 run is **paused**
 >   (`build/runs/PAUSED`) rather than left to discover this.
@@ -51,6 +53,23 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 >   **record-and-continue exception for the 08-11 run only**.
 
 ### Untangle the branch spaghetti — land what is stranded — **#1**
+
+> **PARTIALLY CLOSED 2026-08-18 — option (a) below, code half only.**
+> Done: `worktree-bench-phase2` merged into `master` as `f83177f`; `9929078`
+> cherry-picked as `c542802`, **`src/` + `tests/` only**. Phase 2 and both
+> `knowledge-chain` families are now on `master`, build clean, suite 621/622
+> (the one failure is `parity-t3`'s pre-existing known-wrong declared verdict —
+> see the PRD's *Known-open*). **This unblocks a `/launcher` run on `#3`.**
+>
+> **Still open, deferred to Friday's aggregation (step 1):** items 2 and 3 of
+> the stranded list below — rescuing the 2026-08-11 Release workbook
+> (`docs/runs/2026-08-11-benchmarks-release.json` and its `.xlsx`; they were
+> added by `3abeedd`, which is not in
+> `worktree-bench-phase2`'s history, so `9929078`'s edit to them has no base on
+> `master`), `docs/presentation/benchmark-numbers.md`, and the `startup-floor.py`
+> measurement. **`worktree-presentation-2026-08-12` must not be deleted until
+> those land** — it is still their only home. The deck question at the bottom of
+> this entry is also still the user's, and still unanswered.
 
 **Read this before merging anything.** It is `#1` because everything else in
 this section is worth less until it is done: `#2` would re-grill families whose
