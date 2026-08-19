@@ -1330,6 +1330,47 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   for the formula parameter, not `psi_in` (it is `psi` — `role` decides which
   $\psi$ it is).
 
+### Produced-trace equivalence
+- **`main.tex`:** — (no symbol; library API, `docs/prd/engineered-domain-families.md`).
+  Decides equality of the *Produced-trace language* $L(\tau)$ and a declared
+  $\psi$; it is a **language** statement, and in particular **not** the
+  equirealizability of `\cref{lem:indep-transducer}` — see *Open theory questions*.
+- **Definition:** the **complete** decision that a *Knowledge transducer*'s
+  *produced-trace language* and a declared $\psi$ denote the same language over
+  **non-empty** words, by walking a synchronous product of `emits_dfa(tau)` and
+  `ltlf_to_dfa(psi)` built on one shared `bdd_dict`, with a missing edge on
+  either side read as an implicit rejecting **sink**. It is the complete
+  counterpart of the *Faithfulness guard*, which samples single-bit $\Sigma_1$
+  mutations and is therefore sound but **not** complete: the guard can miss a
+  disagreement no single-bit mutation reaches, this cannot. Both are
+  **`Role`-generic** and neither defaults `role`, for the same reason (a
+  defaulted `Role` is how a $\Tout$ pair silently gets checked under $\Tin$
+  slices and passes vacuously).
+  **The empty word is excluded from the verdict and reported on its own field,
+  and this is load-bearing:** `emits_dfa`'s initial state is final by
+  construction (a run of length 0 vacuously agrees with $\lambda$) while the
+  repo's $\text{LTL}_f$ convention rejects the empty word, so the two sides
+  **always** disagree there. That is a mismatch between two encodings of
+  "language", not a fact about any transducer — folding it into the verdict would
+  make every call fail. The counterexample is the **shortest** disagreeing
+  non-empty word under BFS with letters in `bdd_dict` order, so it is
+  reproducible rather than "some" witness.
+  Its first use is to make a *Comparability tier* T1 declaration **checked**
+  rather than hand-asserted (`docs/prd/benchmark-suite.md` B3): a T1 family
+  carries its $\psiin$ as data, and this is what proves the datum honest.
+- **C++:** `produced_trace_equivalent(tau, psi, vars, role)` →
+  `EquivalenceResult { bool equivalent_on_nonempty; bool empty_word_agrees;
+  std::optional<std::vector<bdd>> counterexample; unsigned tau_dfa_states;
+  unsigned psi_dfa_states; unsigned product_states; }`
+  (`include/ltlf_ek/produced_trace_equivalence.hpp`).
+- **Do not call it:** certificate (bare — that word is already doing work for
+  *Controller verifier* in the run reports, and a certificate names the object
+  checked, not the checking); equivalence check/test (bare); language equality
+  (it is equality on **non-empty** words only, and the qualifier is the whole
+  point); faithfulness guard (that is the mutation-based, incomplete one); and
+  never speak of it as *sampling*, *approximating*, or *spot-checking* — it
+  decides.
+
 ### Controller verifier
 - **`main.tex`:** — (no symbol; decides the `\cref{def:probDefTransducer}`
   postcondition, §129–131; `docs/prd/controller-verifier.md`).
