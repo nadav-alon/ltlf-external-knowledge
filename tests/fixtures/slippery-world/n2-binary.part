@@ -1,0 +1,4 @@
+input_free: slip
+input_known: bx0 by0
+output_free: mvl mvr mvu mvd
+output_known:

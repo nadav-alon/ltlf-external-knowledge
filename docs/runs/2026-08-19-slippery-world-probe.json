@@ -1,0 +1,915 @@
+{
+ "generated": "2026-08-19T08:06:29+0300",
+ "spot": "/home/cowclaw/opt/spot-2.15.1/bin/ltlfsynt (spot) 2.15.1",
+ "git_head": "e3dffc083b6bee2cca68b3943ab1bb46029be833",
+ "instances": [
+  {
+   "n": 2,
+   "encoding": "binary",
+   "goal": "corner",
+   "position_aps": 2,
+   "tin_states": 4,
+   "len_A_chars": 1373,
+   "certificate": {
+    "states_emits_dfa_Tin": 4,
+    "states_dfa_A": 6,
+    "empty_word_Tin": "accepts",
+    "empty_word_A": "rejects",
+    "verdict": "EQUIVALENT_ON_NONEMPTY",
+    "product_states": 6,
+    "wall_s": 0.0063
+   },
+   "race": {
+    "ltlfsynt": {
+     "verdict": "REALIZABLE",
+     "t": 0.0047
+    },
+    "ours_nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0049
+    },
+    "ours_ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0043
+    },
+    "ours_nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0049
+    },
+    "ours_ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0043
+    }
+   },
+   "agree": true,
+   "in_process": {
+    "nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 1226.4,
+     "noncanonical_us": 2305.9,
+     "product_mtdfa_roots": 4,
+     "product_bdd_nodes": 19,
+     "controller_states": 3
+    },
+    "ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 619.8,
+     "noncanonical_us": 2267.9,
+     "product_mtdfa_roots": 4,
+     "product_bdd_nodes": 21,
+     "controller_states": 3
+    },
+    "nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 1249.5,
+     "noncanonical_us": 2283.8,
+     "goal_mtdfa_roots": 4,
+     "product_mtdfa_roots": 5,
+     "product_bdd_nodes": 19,
+     "controller_states": 3
+    },
+    "ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 610.5,
+     "noncanonical_us": 2208.1,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 8,
+     "product_bdd_nodes": 42,
+     "controller_states": 3
+    }
+   },
+   "control_gamma_without_Tin": "UNREALIZABLE"
+  },
+  {
+   "n": 2,
+   "encoding": "binary",
+   "goal": "centre",
+   "position_aps": 2,
+   "tin_states": 4,
+   "len_A_chars": 1373,
+   "certificate": {
+    "states_emits_dfa_Tin": 4,
+    "states_dfa_A": 6,
+    "empty_word_Tin": "accepts",
+    "empty_word_A": "rejects",
+    "verdict": "EQUIVALENT_ON_NONEMPTY",
+    "product_states": 6,
+    "wall_s": 0.0063
+   },
+   "race": {
+    "ltlfsynt": {
+     "verdict": "REALIZABLE",
+     "t": 0.0041
+    },
+    "ours_nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0047
+    },
+    "ours_ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0042
+    },
+    "ours_nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0047
+    },
+    "ours_ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0044
+    }
+   },
+   "agree": true,
+   "in_process": {
+    "nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 983.2,
+     "noncanonical_us": 2201.1,
+     "product_mtdfa_roots": 1,
+     "product_bdd_nodes": 0,
+     "controller_states": 1
+    },
+    "ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 577.7,
+     "noncanonical_us": 2304.7,
+     "product_mtdfa_roots": 1,
+     "product_bdd_nodes": 2,
+     "controller_states": 1
+    },
+    "nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 1016.6,
+     "noncanonical_us": 2167.8,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 2,
+     "product_bdd_nodes": 0,
+     "controller_states": 1
+    },
+    "ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 600.7,
+     "noncanonical_us": 2257.5,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 5,
+     "product_bdd_nodes": 23,
+     "controller_states": 1
+    }
+   },
+   "control_gamma_without_Tin": "UNREALIZABLE"
+  },
+  {
+   "n": 2,
+   "encoding": "onehot",
+   "goal": "corner",
+   "position_aps": 4,
+   "tin_states": 4,
+   "len_A_chars": 1749,
+   "certificate": {
+    "states_emits_dfa_Tin": 4,
+    "states_dfa_A": 6,
+    "empty_word_Tin": "accepts",
+    "empty_word_A": "rejects",
+    "verdict": "EQUIVALENT_ON_NONEMPTY",
+    "product_states": 6,
+    "wall_s": 0.0055
+   },
+   "race": {
+    "ltlfsynt": {
+     "verdict": "REALIZABLE",
+     "t": 0.0043
+    },
+    "ours_nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0049
+    },
+    "ours_ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0044
+    },
+    "ours_nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.005
+    },
+    "ours_ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0043
+    }
+   },
+   "agree": true,
+   "in_process": {
+    "nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 1458.0,
+     "noncanonical_us": 2276.0,
+     "product_mtdfa_roots": 4,
+     "product_bdd_nodes": 25,
+     "controller_states": 3
+    },
+    "ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 668.1,
+     "noncanonical_us": 2383.4,
+     "product_mtdfa_roots": 4,
+     "product_bdd_nodes": 29,
+     "controller_states": 3
+    },
+    "nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 1270.3,
+     "noncanonical_us": 2271.7,
+     "goal_mtdfa_roots": 4,
+     "product_mtdfa_roots": 5,
+     "product_bdd_nodes": 25,
+     "controller_states": 3
+    },
+    "ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 632.4,
+     "noncanonical_us": 2301.8,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 8,
+     "product_bdd_nodes": 56,
+     "controller_states": 3
+    }
+   },
+   "control_gamma_without_Tin": "UNREALIZABLE"
+  },
+  {
+   "n": 2,
+   "encoding": "onehot",
+   "goal": "centre",
+   "position_aps": 4,
+   "tin_states": 4,
+   "len_A_chars": 1749,
+   "certificate": {
+    "states_emits_dfa_Tin": 4,
+    "states_dfa_A": 6,
+    "empty_word_Tin": "accepts",
+    "empty_word_A": "rejects",
+    "verdict": "EQUIVALENT_ON_NONEMPTY",
+    "product_states": 6,
+    "wall_s": 0.0055
+   },
+   "race": {
+    "ltlfsynt": {
+     "verdict": "REALIZABLE",
+     "t": 0.0043
+    },
+    "ours_nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0048
+    },
+    "ours_ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0043
+    },
+    "ours_nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0048
+    },
+    "ours_ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0043
+    }
+   },
+   "agree": true,
+   "in_process": {
+    "nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 1079.3,
+     "noncanonical_us": 2251.5,
+     "product_mtdfa_roots": 1,
+     "product_bdd_nodes": 0,
+     "controller_states": 1
+    },
+    "ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 591.6,
+     "noncanonical_us": 2326.3,
+     "product_mtdfa_roots": 1,
+     "product_bdd_nodes": 4,
+     "controller_states": 1
+    },
+    "nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 1099.1,
+     "noncanonical_us": 2286.2,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 2,
+     "product_bdd_nodes": 0,
+     "controller_states": 1
+    },
+    "ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 654.0,
+     "noncanonical_us": 2347.8,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 5,
+     "product_bdd_nodes": 31,
+     "controller_states": 1
+    }
+   },
+   "control_gamma_without_Tin": "UNREALIZABLE"
+  },
+  {
+   "n": 3,
+   "encoding": "binary",
+   "goal": "corner",
+   "position_aps": 4,
+   "tin_states": 9,
+   "len_A_chars": 2641,
+   "certificate": {
+    "states_emits_dfa_Tin": 9,
+    "states_dfa_A": 11,
+    "empty_word_Tin": "accepts",
+    "empty_word_A": "rejects",
+    "verdict": "EQUIVALENT_ON_NONEMPTY",
+    "product_states": 11,
+    "wall_s": 0.0073
+   },
+   "race": {
+    "ltlfsynt": {
+     "verdict": "REALIZABLE",
+     "t": 0.0045
+    },
+    "ours_nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0062
+    },
+    "ours_ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0047
+    },
+    "ours_nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0061
+    },
+    "ours_ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0046
+    }
+   },
+   "agree": true,
+   "in_process": {
+    "nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 2469.4,
+     "noncanonical_us": 2402.3,
+     "product_mtdfa_roots": 9,
+     "product_bdd_nodes": 104,
+     "controller_states": 6
+    },
+    "ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 956.2,
+     "noncanonical_us": 2482.3,
+     "product_mtdfa_roots": 9,
+     "product_bdd_nodes": 136,
+     "controller_states": 6
+    },
+    "nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 2331.8,
+     "noncanonical_us": 2425.7,
+     "goal_mtdfa_roots": 9,
+     "product_mtdfa_roots": 10,
+     "product_bdd_nodes": 104,
+     "controller_states": 6
+    },
+    "ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 835.2,
+     "noncanonical_us": 2395.4,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 18,
+     "product_bdd_nodes": 278,
+     "controller_states": 6
+    }
+   },
+   "control_gamma_without_Tin": "UNREALIZABLE"
+  },
+  {
+   "n": 3,
+   "encoding": "binary",
+   "goal": "centre",
+   "position_aps": 4,
+   "tin_states": 9,
+   "len_A_chars": 2641,
+   "certificate": {
+    "states_emits_dfa_Tin": 9,
+    "states_dfa_A": 11,
+    "empty_word_Tin": "accepts",
+    "empty_word_A": "rejects",
+    "verdict": "EQUIVALENT_ON_NONEMPTY",
+    "product_states": 11,
+    "wall_s": 0.0073
+   },
+   "race": {
+    "ltlfsynt": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0046
+    },
+    "ours_nk_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0063
+    },
+    "ours_ek_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0047
+    },
+    "ours_nk_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0061
+    },
+    "ours_ek_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0046
+    }
+   },
+   "agree": true,
+   "in_process": {
+    "nk_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 2397.8,
+     "noncanonical_us": 2337.1,
+     "product_mtdfa_roots": 9,
+     "product_bdd_nodes": 105
+    },
+    "ek_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 818.5,
+     "noncanonical_us": 2408.1,
+     "product_mtdfa_roots": 9,
+     "product_bdd_nodes": 141
+    },
+    "nk_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 2372.8,
+     "noncanonical_us": 2365.3,
+     "goal_mtdfa_roots": 9,
+     "product_mtdfa_roots": 10,
+     "product_bdd_nodes": 105
+    },
+    "ek_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 765.5,
+     "noncanonical_us": 2381.9,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 18,
+     "product_bdd_nodes": 283
+    }
+   },
+   "control_gamma_without_Tin": "UNREALIZABLE"
+  },
+  {
+   "n": 3,
+   "encoding": "onehot",
+   "goal": "corner",
+   "position_aps": 6,
+   "tin_states": 9,
+   "len_A_chars": 3211,
+   "certificate": {
+    "states_emits_dfa_Tin": 9,
+    "states_dfa_A": 11,
+    "empty_word_Tin": "accepts",
+    "empty_word_A": "rejects",
+    "verdict": "EQUIVALENT_ON_NONEMPTY",
+    "product_states": 11,
+    "wall_s": 0.0071
+   },
+   "race": {
+    "ltlfsynt": {
+     "verdict": "REALIZABLE",
+     "t": 0.0048
+    },
+    "ours_nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0064
+    },
+    "ours_ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0048
+    },
+    "ours_nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0064
+    },
+    "ours_ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0047
+    }
+   },
+   "agree": true,
+   "in_process": {
+    "nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 2542.7,
+     "noncanonical_us": 2351.6,
+     "product_mtdfa_roots": 9,
+     "product_bdd_nodes": 120,
+     "controller_states": 6
+    },
+    "ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 989.4,
+     "noncanonical_us": 2485.8,
+     "product_mtdfa_roots": 9,
+     "product_bdd_nodes": 168,
+     "controller_states": 6
+    },
+    "nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 2503.5,
+     "noncanonical_us": 2362.0,
+     "goal_mtdfa_roots": 9,
+     "product_mtdfa_roots": 10,
+     "product_bdd_nodes": 120,
+     "controller_states": 6
+    },
+    "ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 864.6,
+     "noncanonical_us": 2440.3,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 18,
+     "product_bdd_nodes": 342,
+     "controller_states": 6
+    }
+   },
+   "control_gamma_without_Tin": "UNREALIZABLE"
+  },
+  {
+   "n": 3,
+   "encoding": "onehot",
+   "goal": "centre",
+   "position_aps": 6,
+   "tin_states": 9,
+   "len_A_chars": 3211,
+   "certificate": {
+    "states_emits_dfa_Tin": 9,
+    "states_dfa_A": 11,
+    "empty_word_Tin": "accepts",
+    "empty_word_A": "rejects",
+    "verdict": "EQUIVALENT_ON_NONEMPTY",
+    "product_states": 11,
+    "wall_s": 0.0071
+   },
+   "race": {
+    "ltlfsynt": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0047
+    },
+    "ours_nk_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0062
+    },
+    "ours_ek_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0048
+    },
+    "ours_nk_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0063
+    },
+    "ours_ek_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0047
+    }
+   },
+   "agree": true,
+   "in_process": {
+    "nk_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 2468.7,
+     "noncanonical_us": 2333.2,
+     "product_mtdfa_roots": 9,
+     "product_bdd_nodes": 121
+    },
+    "ek_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 937.1,
+     "noncanonical_us": 2475.8,
+     "product_mtdfa_roots": 9,
+     "product_bdd_nodes": 175
+    },
+    "nk_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 2447.2,
+     "noncanonical_us": 2319.8,
+     "goal_mtdfa_roots": 9,
+     "product_mtdfa_roots": 10,
+     "product_bdd_nodes": 121
+    },
+    "ek_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 825.4,
+     "noncanonical_us": 2477.7,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 18,
+     "product_bdd_nodes": 349
+    }
+   },
+   "control_gamma_without_Tin": "UNREALIZABLE"
+  },
+  {
+   "n": 4,
+   "encoding": "binary",
+   "goal": "corner",
+   "position_aps": 4,
+   "tin_states": 16,
+   "len_A_chars": 3471,
+   "certificate": {
+    "states_emits_dfa_Tin": 16,
+    "states_dfa_A": 18,
+    "empty_word_Tin": "accepts",
+    "empty_word_A": "rejects",
+    "verdict": "EQUIVALENT_ON_NONEMPTY",
+    "product_states": 18,
+    "wall_s": 0.0089
+   },
+   "race": {
+    "ltlfsynt": {
+     "verdict": "REALIZABLE",
+     "t": 0.0048
+    },
+    "ours_nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0077
+    },
+    "ours_ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0051
+    },
+    "ours_nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0078
+    },
+    "ours_ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0049
+    }
+   },
+   "agree": true,
+   "in_process": {
+    "nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 3894.6,
+     "noncanonical_us": 2336.5,
+     "product_mtdfa_roots": 16,
+     "product_bdd_nodes": 225,
+     "controller_states": 8
+    },
+    "ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 1243.7,
+     "noncanonical_us": 2493.0,
+     "product_mtdfa_roots": 16,
+     "product_bdd_nodes": 289,
+     "controller_states": 8
+    },
+    "nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 3696.0,
+     "noncanonical_us": 2459.7,
+     "goal_mtdfa_roots": 16,
+     "product_mtdfa_roots": 17,
+     "product_bdd_nodes": 225,
+     "controller_states": 8
+    },
+    "ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 973.5,
+     "noncanonical_us": 2503.9,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 32,
+     "product_bdd_nodes": 584,
+     "controller_states": 8
+    }
+   },
+   "control_gamma_without_Tin": "UNREALIZABLE"
+  },
+  {
+   "n": 4,
+   "encoding": "binary",
+   "goal": "centre",
+   "position_aps": 4,
+   "tin_states": 16,
+   "len_A_chars": 3471,
+   "certificate": {
+    "states_emits_dfa_Tin": 16,
+    "states_dfa_A": 18,
+    "empty_word_Tin": "accepts",
+    "empty_word_A": "rejects",
+    "verdict": "EQUIVALENT_ON_NONEMPTY",
+    "product_states": 18,
+    "wall_s": 0.0089
+   },
+   "race": {
+    "ltlfsynt": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0048
+    },
+    "ours_nk_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0077
+    },
+    "ours_ek_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.005
+    },
+    "ours_nk_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0075
+    },
+    "ours_ek_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0048
+    }
+   },
+   "agree": true,
+   "in_process": {
+    "nk_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 3812.1,
+     "noncanonical_us": 2389.0,
+     "product_mtdfa_roots": 16,
+     "product_bdd_nodes": 220
+    },
+    "ek_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 1140.9,
+     "noncanonical_us": 2517.0,
+     "product_mtdfa_roots": 16,
+     "product_bdd_nodes": 284
+    },
+    "nk_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 3688.9,
+     "noncanonical_us": 2422.7,
+     "goal_mtdfa_roots": 16,
+     "product_mtdfa_roots": 17,
+     "product_bdd_nodes": 220
+    },
+    "ek_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 932.3,
+     "noncanonical_us": 2444.0,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 32,
+     "product_bdd_nodes": 579
+    }
+   },
+   "control_gamma_without_Tin": "UNREALIZABLE"
+  },
+  {
+   "n": 4,
+   "encoding": "onehot",
+   "goal": "corner",
+   "position_aps": 8,
+   "tin_states": 16,
+   "len_A_chars": 5065,
+   "certificate": {
+    "states_emits_dfa_Tin": 16,
+    "states_dfa_A": 18,
+    "empty_word_Tin": "accepts",
+    "empty_word_A": "rejects",
+    "verdict": "EQUIVALENT_ON_NONEMPTY",
+    "product_states": 18,
+    "wall_s": 0.0102
+   },
+   "race": {
+    "ltlfsynt": {
+     "verdict": "REALIZABLE",
+     "t": 0.0052
+    },
+    "ours_nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0081
+    },
+    "ours_ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0058
+    },
+    "ours_nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0078
+    },
+    "ours_ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "t": 0.0053
+    }
+   },
+   "agree": true,
+   "in_process": {
+    "nk_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 3966.5,
+     "noncanonical_us": 2376.8,
+     "product_mtdfa_roots": 16,
+     "product_bdd_nodes": 285,
+     "controller_states": 8
+    },
+    "ek_otf-mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 1671.2,
+     "noncanonical_us": 2642.4,
+     "product_mtdfa_roots": 16,
+     "product_bdd_nodes": 413,
+     "controller_states": 8
+    },
+    "nk_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 3814.0,
+     "noncanonical_us": 2510.2,
+     "goal_mtdfa_roots": 16,
+     "product_mtdfa_roots": 17,
+     "product_bdd_nodes": 285,
+     "controller_states": 8
+    },
+    "ek_mtdfa-product": {
+     "verdict": "REALIZABLE",
+     "canonical_us": 1267.0,
+     "noncanonical_us": 2652.8,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 32,
+     "product_bdd_nodes": 832,
+     "controller_states": 8
+    }
+   },
+   "control_gamma_without_Tin": "UNREALIZABLE"
+  },
+  {
+   "n": 4,
+   "encoding": "onehot",
+   "goal": "centre",
+   "position_aps": 8,
+   "tin_states": 16,
+   "len_A_chars": 5065,
+   "certificate": {
+    "states_emits_dfa_Tin": 16,
+    "states_dfa_A": 18,
+    "empty_word_Tin": "accepts",
+    "empty_word_A": "rejects",
+    "verdict": "EQUIVALENT_ON_NONEMPTY",
+    "product_states": 18,
+    "wall_s": 0.0102
+   },
+   "race": {
+    "ltlfsynt": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0052
+    },
+    "ours_nk_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0079
+    },
+    "ours_ek_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0057
+    },
+    "ours_nk_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0078
+    },
+    "ours_ek_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "t": 0.0053
+    }
+   },
+   "agree": true,
+   "in_process": {
+    "nk_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 3962.4,
+     "noncanonical_us": 2416.9,
+     "product_mtdfa_roots": 16,
+     "product_bdd_nodes": 280
+    },
+    "ek_otf-mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 1524.1,
+     "noncanonical_us": 2690.6,
+     "product_mtdfa_roots": 16,
+     "product_bdd_nodes": 408
+    },
+    "nk_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 3945.5,
+     "noncanonical_us": 2479.9,
+     "goal_mtdfa_roots": 16,
+     "product_mtdfa_roots": 17,
+     "product_bdd_nodes": 280
+    },
+    "ek_mtdfa-product": {
+     "verdict": "UNREALIZABLE",
+     "canonical_us": 1261.0,
+     "noncanonical_us": 2842.8,
+     "goal_mtdfa_roots": 1,
+     "product_mtdfa_roots": 32,
+     "product_bdd_nodes": 827
+    }
+   },
+   "control_gamma_without_Tin": "UNREALIZABLE"
+  }
+ ]
+}
