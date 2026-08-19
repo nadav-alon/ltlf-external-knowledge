@@ -17,15 +17,22 @@ The **domain framing** — one $\Tin$ reused across several tasks $\gamma$ — i
 questions touched*.
 
 **Gates:**
-- [ ] glossary        — new terms in docs/GLOSSARY.md C++ column
+- [x] glossary        — *Produced-trace equivalence* (`produced_trace_equivalent`
+  / `EquivalenceResult`) added and ratified by `/glossary` 2026-08-19,
+  **pre-`/developer`**, under *Testing & oracles* (the *Controller verifier*
+  precedent: a library-API oracle belongs there). The ratification pass also
+  found the phrase *"language-equivalence oracle"* already taken by
+  `tests/emits_dfa_test.cpp:405` for a **bounded** check and put it on the
+  do-not-call-it line by name, and added the missing **domain-framing lemma**
+  item to *Open theory questions* (this PRD's Stop-list 6)
 - [ ] tests           — unit + oracle coverage
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex
 
-**Unattended-ready:** **yes**, conditional on one thing landing first — the
-*Produced-trace equivalence* glossary entry (drafted alongside this PRD in
-`docs/GLOSSARY.md`; ratify or re-interview with `/glossary`). Every other
-decision is closed below: the sweep axis, the three arms, the phase slicing and
+**Unattended-ready:** **yes — unconditionally, as of 2026-08-19.** The one
+condition (the *Produced-trace equivalence* glossary entry) was closed the same
+evening: `/glossary` ratified it, so `/developer` cannot stall on a missing term.
+Every other decision is closed below: the sweep axis, the three arms, the phase slicing and
 their checkpoints, the sweep parameters, and the structural assertions. The two
 verdict declarations Phase 1 asserts were **measured tonight**, not assumed
 (`REALIZABLE` / `UNREALIZABLE` at $N = 4$ and $N = 8$, `ltlfsynt`

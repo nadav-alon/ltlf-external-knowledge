@@ -1363,13 +1363,20 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   std::optional<std::vector<bdd>> counterexample; unsigned tau_dfa_states;
   unsigned psi_dfa_states; unsigned product_states; }`
   (`include/ltlf_ek/produced_trace_equivalence.hpp`).
-- **Do not call it:** certificate (bare — that word is already doing work for
-  *Controller verifier* in the run reports, and a certificate names the object
-  checked, not the checking); equivalence check/test (bare); language equality
-  (it is equality on **non-empty** words only, and the qualifier is the whole
-  point); faithfulness guard (that is the mutation-based, incomplete one); and
-  never speak of it as *sampling*, *approximating*, or *spot-checking* — it
-  decides.
+- **Do not call it:** **language-equivalence oracle** — that phrase is *already
+  taken*, by `EmitsDfa.LanguageMatchesTheRunOfTauClaim`
+  (`tests/emits_dfa_test.cpp:405`), which checks `emits_dfa`'s graph against a
+  hand-written reference walker of $\tau$ by **bounded enumeration** (all words
+  up to length 4). That one validates the *construction* and is bounded; this one
+  validates a *declared $\psi$* and is complete. They are not renames of each
+  other, and conflating them loses exactly the bounded-vs-complete distinction
+  this API exists to provide. Also not: certificate (bare — that word is already
+  doing work for *Controller verifier* in the run reports, and a certificate
+  names the object checked, not the checking); equivalence check/test (bare);
+  language equality (it is equality on **non-empty** words only, and the
+  qualifier is the whole point); faithfulness guard (that is the mutation-based,
+  incomplete one); and never speak of it as *sampling*, *approximating*, or
+  *spot-checking* — it decides.
 
 ### Controller verifier
 - **`main.tex`:** — (no symbol; decides the `\cref{def:probDefTransducer}`
@@ -1624,3 +1631,20 @@ is seeded with them:
   recorded there — "$k$ alternates T,F,T,F" **is** star-free
   (`k & G(k -> X !k) & G(!k -> X k)`) and is not a witness; the toggle must be
   input-triggered.
+
+- **The domain-framing lemma is missing** — a $\Tin$ built from the environment
+  assumption $A$ **alone** is claimed sound for **every** task $\gamma$, and
+  `main.tex` proves only the single-formula case.
+  `\cref{lem:indep-transducer}` gives equirealizability for the formula the
+  transducer was *extracted from*; the domain framing that
+  `docs/prd/engineered-domain-families.md` rests on reuses one $\Tin$ across
+  arbitrary $\gamma$ (there, one grid domain against both a corner goal and a
+  centre goal). That generalization is unwritten, and it is the load-bearing step
+  of the whole "external knowledge as a reusable domain" story — which is what
+  `main.tex`'s Introduction already asserts informally about PDDL domains
+  ("*when solving PDDL problems, the domain is external knowledge to the goal*").
+  **What does *not* rescue it:** *Produced-trace equivalence* decides
+  $L(\Tin) \equiv L(A)$, a **language** fact; equirealizability of the two
+  *synthesis problems* is a strictly stronger claim and is not implied by it.
+  On that PRD's Stop-list (item 6), off-limits to an unattended run; scheduled as
+  Thursday-night theory work in `docs/plans/2026-08-17-week.md`.
