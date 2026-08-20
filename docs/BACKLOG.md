@@ -52,6 +52,43 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 >   *`ltlfsynt` invocation*) — and Stop-list item 5 carries a
 >   **record-and-continue exception for the 08-11 run only**.
 
+### `ltlf-ek-bench` dies on any per-case timeout — **inserted 2026-08-20, unnumbered**
+
+> **Not a `/launcher` item.** This is a bug fix in an already-landed binary, not
+> a PRD phase, and it deliberately carries no number so that nothing below it
+> renumbers. Step-0 rule 2 must skip it: it owns no `docs/prd/` file of its own.
+
+`RunCaseWithTimeout` (`src/ltlf_ek_bench.cpp:283`) bounds a case by running it on
+a thread and **detaching** that thread when the deadline passes. The detached
+worker is still inside Spot/MONA when the process exits, so **any** timing-out
+case ends the whole run in a SIGSEGV — *before* `--out` is written. One slow cell
+therefore destroys the entire sweep report, not just its own row.
+
+Found by the 2026-08-20 Phase 1 day-run
+(`docs/runs/2026-08-20-edf-phase1.md`, finding F2) and reproduced
+deterministically: `ltlf-ek-bench --families=slippery-onehot
+--subjects=nfa-product --n-min=3 --n-max=3 --timeout=10` exits **139** after
+~11 s writing no JSON; the same command at `--timeout=3000` exits 0 with a
+complete report. Latent since Phase 2 — no landed family was ever slow enough to
+trip it.
+
+**Why it is urgent rather than tidy:** `engineered-domain-families.md` Stop-list
+8 *instructs* a timing-out row to be recorded and the other arms continued, and
+that PRD's Phase 4 sweeps $n = 2\ldots6$ at a 60 s budget fully expecting one-hot
+to time out. **Phase 4 cannot run until this is fixed.**
+
+**Seeds.**
+- A blocking Spot call cannot be cancelled in-thread, so the fix is structural:
+  fork a child process per case and `SIGKILL` it on the deadline. That is a
+  change to a settled part of the harness — a user decision, which is why the
+  day-run recorded it instead of doing it.
+- Cheaper stopgap worth pricing first: keep the detach, but end the process with
+  `_exit()` after the report is flushed, so a leaked worker cannot run during
+  static destruction. Buys correctness of the *report* without a process model.
+- Either way the row must come out as `TIMEOUT`, distinct from "skipped" and
+  from a zero — the same three-way distinction Monday's corpus pre-registration
+  insisted on.
+
 ### Untangle the branch spaghetti — land what is stranded — **#1**
 
 > **PARTIALLY CLOSED 2026-08-18 — option (a) below, code half only.**

@@ -1,6 +1,10 @@
 # PRD: Engineered domain families (slippery-world)
 
-**Status:** draft
+**Status:** **Phase 1 complete** (2026-08-20, branch `edf-phase1`) — the two
+enumerated families `slippery-binary` / `slippery-onehot` and the five
+`<method>-nk` subjects are registered in `src/bench_suite.cpp`, at the phase's
+green checkpoint; see `docs/runs/2026-08-20-edf-phase1.md`. Phases 2–4 not
+started. `BenchCase` untouched, as D4 promised.
 **Interface:** adds `BenchFamily` / `BenchSubject` registrations to the landed
 Phase 2 registry (`include/ltlf_ek/bench_suite.hpp`), plus **one** new library
 API — *Produced-trace equivalence* (`produced_trace_equivalent`). **Does not
@@ -25,9 +29,22 @@ questions touched*.
   `tests/emits_dfa_test.cpp:405` for a **bounded** check and put it on the
   do-not-call-it line by name, and added the missing **domain-framing lemma**
   item to *Open theory questions* (this PRD's Stop-list 6)
-- [ ] tests           — unit + oracle coverage
-- [ ] code-review     — domain (/code-reviewer) + generic (/code-review)
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex
+- [ ] tests           — unit + oracle coverage. **Phase 1 closed 2026-08-20**:
+  `tests/slippery_world_test.cpp` covers T2, T3, T4, T5, T7 plus the $n<2$ floor
+  and D7's two demotion/skip units (10 tests, all green). T1/T6 await Phase 2's
+  API, T8/T9 await Phase 3's compact arm — so the box stays open PRD-wide.
+- [ ] code-review     — domain (/code-reviewer) + generic (/code-review).
+  **Domain half clean on the Phase 1 diff, 2026-08-20** (no must-fix; four
+  `consider` notes recorded in *Developer comments* below). The **generic half
+  is owed**: `/code-review` is not agent-invocable and the day-run does not
+  push, so no PR exists to run it against. Gate stays open until it does.
+- [ ] theory-review   — code ↔ math faithfulness vs main.tex. **Not run on
+  Phase 1, deliberately**: the diff is registry/benchmark-*data* (family
+  generators + subjects), not semantic algorithm code — it touches no method,
+  no `cons`, no progression, no product construction, and neither the
+  `Synthesis` nor the `Transducer` contract. The one theory question these
+  families do raise is the **domain-framing lemma**, which Stop-list 6 forbids a
+  run from touching.
 
 **Unattended-ready:** **yes — unconditionally, as of 2026-08-19.** The one
 condition (the *Produced-trace equivalence* glossary entry) was closed the same
@@ -609,3 +626,83 @@ protocol so its numbers stay comparable), per-case timeout **60 s**,
 - A committed sweep report under `docs/runs/` that states, in one sentence,
   whether the compact arm separated — including if it did not (Stop-list 2).
 - The four gates ticked by the skills that perform them.
+
+## Developer comments / PRD disagreements
+
+### Phase 1, 2026-08-20 — three deviations, all in tests
+
+Full write-up in `docs/runs/2026-08-20-edf-phase1.md`; the short form:
+
+1. **D3/D8's "$14N+1$ top-level conjuncts" needs a flatten-aware reading.** The
+   generator emits exactly 1 initial-cell conjunct + $14N$ rules as D3
+   specifies, but `spot::op::And` is n-ary and flattens, so the initial-cell
+   conjunct's own $2n$ (binary) / $2N$ (one-hot) literals become children of the
+   same top-level `And` and `formula::size()` reads $14N + 2n$ resp. $14N + 2N$.
+   T5 now asserts the count as constructed — exactly $14N$ `G`-rooted rules plus
+   a literals-only remainder — which is also the form that stays comparable to
+   Phase 3's 14 `G`-rules. **The PRD text is not wrong, only the naive way to
+   check it is**; D3's table is left as written.
+
+2. **One measured-infeasible cell.** `NfaProduct` on `slippery-onehot` at
+   $n = 3$ takes ~7 min per goal (407 s / 433 s, of which ~200 s is
+   determinization) against < 1 s for the other nineteen (method, arm, $n$)
+   cells. It terminates; it is not stuck. Excluded by construction from the two
+   cross-method tests under Stop-list 8, with the measurement written at the
+   exclusion site. **Stop-list 8 arrives at $n = 3$, not $n = 6$** — worth
+   knowing before Phase 4 sets its budget.
+
+3. **The pre-existing tier test enumerates the T1 set exactly**, so it grew by
+   the two new arms and was renamed
+   `ExactlyTheFourTrivialKnowledgeFamilies…` → `ExactlyTheDeclaredT1Families…`.
+   Free finding from the same change: the `-nk` subjects now also run against
+   the four landed T1 families and **agree with `expected_realizable`
+   everywhere** — D7's demotion path validated on families it was not written
+   for.
+
+### Phase 4 is blocked by a runner bug this phase exposed
+
+`RunCaseWithTimeout` (`src/ltlf_ek_bench.cpp:283`) bounds a case by **detaching**
+its worker thread on a deadline miss. The detached worker is still inside
+Spot/MONA at process exit, so **any** timing-out case ends the run in a SIGSEGV
+*before* `--out` is written — reproduced deterministically at `--timeout=10` on
+the cell above (exit 139, no JSON at all; the same run at `--timeout=3000` exits
+0 with a complete report).
+
+That directly contradicts Stop-list 8, which requires a timing-out row to be
+recorded and the other arms continued. Phase 4 sweeps $n = 2\ldots6$ at a 60 s
+budget and *expects* one-hot to time out, so it cannot run until this is fixed.
+**Not fixed here:** the runner belongs to `docs/prd/benchmark-suite.md`, and the
+only real fix (a forked child per case, since a blocking Spot call cannot be
+cancelled in-thread) is a change to a settled part of the harness — a user's
+call, not a day-run's.
+
+### `/code-reviewer` (domain), Phase 1 diff, 2026-08-20 — clean
+
+No must-fix. Checked and clean: the fresh-`bdd_dict` + `register_turn_order_aps`
+idiom matches the landed families exactly; `build_nk_case` correctly builds a
+*new* dict rather than reusing the domain one (the demoted partition's turn
+order differs and `register_ap` is idempotent, so reuse could not repair an
+already-fixed level); $\lambda$ commits only position literals and never reads
+`slip`, so D1's Moore condition holds by construction; every new identifier is
+inside the file's anonymous namespace, so no glossary row is owed. Four
+`consider` notes, none acted on:
+
+- The comment at the `slippery_step` block litigates the spec ("that prose is
+  wrong" about `scripts/slippery_world.py`'s docstring). That argument belongs
+  here in the PRD (D1 already makes it); the source should just cite it.
+- `slippery_step` takes `const std::string& cls` but every caller passes a
+  `const char*`, so each call builds a temporary; an enum would be both cheaper
+  and non-stringly-typed.
+- The five `-nk` subjects guard in two different orders — the MONA pair tests
+  `c.psi_in` before `build_nk_case`, the other three after. Harmless, uneven.
+- The Stop-list 8 exclusion is duplicated across `tests/slippery_world_test.cpp`
+  and `tests/bench_suite_test.cpp` (this file's one-suite-per-file norm, but it
+  is now a fact stated twice).
+
+**One observation for Phase 2, not a defect.** For the *enumerated* arms both
+sides of the certificate — $\Tin$ and $A_N$ — are generated from the same
+`slippery_step`, so $L(\Tin) \equiv L(A_N)$ there can only catch encoding and
+quantifier bugs, never a wrong step function. That is not a weakness of the
+certificate, it is why Phase 3 is the phase that needs it: the compact $A_N$'s
+ripple-carry is written independently, and the certificate is its correctness
+test. T6's negative control remains the thing that proves the check has teeth.

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include <spot/tl/parse.hh>
+#include <spot/tl/print.hh>
 #include <spot/twa/bdddict.hh>
 
 #include "ltlf_ek/bench.hpp"
@@ -543,6 +544,284 @@ class ParityT3Family final : public BenchFamily {
 };
 
 // ---------------------------------------------------------------------------
+// The slippery-world domain families (docs/prd/engineered-domain-families.md
+// D1-D4, D6): an N x N grid, N = 2^n.  Both arms below share this section's
+// machinery and differ only in how position is encoded (D3's arms 1 vs 2).
+// This is Phase 1 only --- the compact arm (D5) is Phase 3.
+// ---------------------------------------------------------------------------
+
+// The five priority classes of a `mv` letter and their literal guards, fixed
+// priority L > R > U > D, no direction = stay (D1). Exactly one holds for any
+// of the 16 mv valuations, so together with `slip` (2 more) they partition
+// the joint space into 10 mutually exclusive, jointly exhaustive predicates
+// --- delta is total by construction, no separate totality argument needed.
+struct SlipperyClass {
+  const char* name;
+  std::vector<std::string> guard;  // literal tokens, e.g. {"!mvl", "mvr"}
+};
+const std::vector<SlipperyClass>& slippery_classes() {
+  static const std::vector<SlipperyClass> classes = {
+      {"L", {"mvl"}},
+      {"R", {"!mvl", "mvr"}},
+      {"U", {"!mvl", "!mvr", "mvu"}},
+      {"D", {"!mvl", "!mvr", "!mvu", "mvd"}},
+      {"S", {"!mvl", "!mvr", "!mvu", "!mvd"}},
+  };
+  return classes;
+}
+
+// One cell's transition under a priority class and a slip bit: walls
+// SATURATE (clamp), they do not block (D1, scripts/slippery_world.py:47 is
+// normative over its own "no-ops" docstring, which is wrong). Step is 1 cell,
+// or 2 when slip holds.
+std::pair<std::int64_t, std::int64_t> slippery_step(std::int64_t x,
+                                                     std::int64_t y,
+                                                     const std::string& cls,
+                                                     bool slip,
+                                                     std::int64_t N) {
+  const std::int64_t d = slip ? 2 : 1;
+  if (cls == "L") return {std::max<std::int64_t>(x - d, 0), y};
+  if (cls == "R") return {std::min<std::int64_t>(x + d, N - 1), y};
+  if (cls == "U") return {x, std::max<std::int64_t>(y - d, 0)};
+  if (cls == "D") return {x, std::min<std::int64_t>(y + d, N - 1)};
+  return {x, y};  // S: no direction = stay
+}
+
+// Position encoding (D2/D3's arms 1 vs 2), mirroring
+// scripts/slippery_world.py's Enc class exactly, specialised to N = 2^n so
+// `bits` (binary) is exactly n --- no unrepresentable code, per D2.
+struct SlipperyEncoding {
+  bool one_hot;
+  std::int64_t bits;  // == n, meaningful only when !one_hot
+  std::int64_t N;
+
+  std::vector<std::string> aps() const {
+    std::vector<std::string> out;
+    if (!one_hot) {
+      for (std::int64_t i = 0; i < bits; ++i) out.push_back("bx" + std::to_string(i));
+      for (std::int64_t i = 0; i < bits; ++i) out.push_back("by" + std::to_string(i));
+    } else {
+      for (std::int64_t j = 0; j < N; ++j) out.push_back("hx" + std::to_string(j));
+      for (std::int64_t j = 0; j < N; ++j) out.push_back("hy" + std::to_string(j));
+    }
+    return out;
+  }
+
+  // "coordinate `axis` == k" as a list of literal tokens (a conjunction).
+  std::vector<std::string> lits(char axis, std::int64_t k) const {
+    std::vector<std::string> out;
+    if (!one_hot) {
+      for (std::int64_t i = 0; i < bits; ++i) {
+        const bool bit = (k >> i) & 1;
+        out.push_back((bit ? "" : "!") + std::string("b") + axis + std::to_string(i));
+      }
+    } else {
+      for (std::int64_t j = 0; j < N; ++j)
+        out.push_back((j == k ? "" : "!") + std::string("h") + axis + std::to_string(j));
+    }
+    return out;
+  }
+
+  std::string at(char axis, std::int64_t k) const {
+    const auto ls = lits(axis, k);
+    std::string s;
+    for (std::size_t i = 0; i < ls.size(); ++i) {
+      if (i) s += " & ";
+      s += ls[i];
+    }
+    return s;
+  }
+
+  std::string cell(std::int64_t x, std::int64_t y) const {
+    return "(" + at('x', x) + ") & (" + at('y', y) + ")";
+  }
+};
+
+// The enumerated N^2-state Output-labeled transducer (D1, D8: |T_in| = N^2 =
+// 4^n): state x*N+y, delta ten-way split per state (five classes x two slip
+// values --- guards are pairwise disjoint by construction, so no merging of
+// same-destination edges is needed for determinism), lambda commits the
+// state's position literals and never reads `slip` (the Moore condition
+// D1 requires by construction, not by argument).
+std::string slippery_transducer_hoa(const SlipperyEncoding& enc, std::int64_t N) {
+  std::vector<std::string> aps = enc.aps();
+  aps.push_back("slip");
+  for (const char* m : {"mvl", "mvr", "mvu", "mvd"}) aps.push_back(m);
+  std::map<std::string, std::size_t> idx;
+  for (std::size_t i = 0; i < aps.size(); ++i) idx[aps[i]] = i;
+
+  auto guard_str = [&](const std::vector<std::string>& lits) {
+    std::string s;
+    for (std::size_t i = 0; i < lits.size(); ++i) {
+      if (i) s += "&";
+      const std::string& lit = lits[i];
+      const bool neg = !lit.empty() && lit[0] == '!';
+      const std::string bare = neg ? lit.substr(1) : lit;
+      s += (neg ? "!" : "") + std::to_string(idx.at(bare));
+    }
+    return s;
+  };
+
+  std::ostringstream out;
+  out << "HOA: v1\n"
+      << "States: " << (N * N) << "\n"
+      << "Start: 0\n"
+      << "AP: " << aps.size();
+  for (const auto& a : aps) out << " \"" << a << "\"";
+  out << "\n"
+      << "acc-name: all\nAcceptance: 0 t\n--BODY--\n";
+
+  for (std::int64_t x = 0; x < N; ++x) {
+    for (std::int64_t y = 0; y < N; ++y) {
+      out << "State: " << (x * N + y) << "\n";
+      for (const SlipperyClass& c : slippery_classes()) {
+        for (int s = 0; s < 2; ++s) {
+          const auto dst = slippery_step(x, y, c.name, s != 0, N);
+          std::vector<std::string> lits = c.guard;
+          lits.push_back(s ? "slip" : "!slip");
+          out << "  [" << guard_str(lits) << "] " << (dst.first * N + dst.second)
+              << "\n";
+        }
+      }
+    }
+  }
+  out << "--END--\n%%LAMBDA\n";
+  for (std::int64_t x = 0; x < N; ++x)
+    for (std::int64_t y = 0; y < N; ++y)
+      out << "state " << (x * N + y) << ": " << enc.cell(x, y) << "\n";
+  return out.str();
+}
+
+// A_N, the enumerated environment assumption (D3 arms 1/2): the same
+// transition table restated per-coordinate as an LTLf formula, weak X only
+// (D6 --- X[!] would collapse A_N to false silently, see Stop-list 7).
+// Exactly 14N+1 top-level conjuncts (D8, T5): 1 init + 2 axes x N cells x 7
+// per-cell rules (2 movers x 2 slip values + 3 non-movers x 1).
+std::string slippery_assumption(const SlipperyEncoding& enc, std::int64_t N) {
+  std::vector<std::string> conj;
+  conj.push_back("(" + enc.cell(0, 0) + ")");
+
+  struct Axis {
+    char axis;
+    const char* mover_a;
+    const char* mover_b;
+  };
+  const Axis axes[] = {{'x', "L", "R"}, {'y', "U", "D"}};
+
+  for (const Axis& ax : axes) {
+    for (std::int64_t k = 0; k < N; ++k) {
+      const std::string here = ax.axis == 'x' ? enc.at('x', k) : enc.at('y', k);
+      for (const SlipperyClass& c : slippery_classes()) {
+        const bool is_mover = c.name == std::string(ax.mover_a) ||
+                              c.name == std::string(ax.mover_b);
+        const std::vector<int> slips = is_mover ? std::vector<int>{0, 1}
+                                                : std::vector<int>{0};
+        for (int s : slips) {
+          const std::int64_t px = ax.axis == 'x' ? k : 0;
+          const std::int64_t py = ax.axis == 'x' ? 0 : k;
+          const auto dst = slippery_step(px, py, c.name, s != 0, N);
+          const std::int64_t dst_k = ax.axis == 'x' ? dst.first : dst.second;
+
+          std::string guard;
+          for (std::size_t i = 0; i < c.guard.size(); ++i) {
+            if (i) guard += " & ";
+            guard += c.guard[i];
+          }
+          if (is_mover) guard += std::string(" & ") + (s ? "slip" : "!slip");
+
+          conj.push_back("G(((" + here + ") & (" + guard + ")) -> X(" +
+                         enc.at(ax.axis, dst_k) + "))");
+        }
+      }
+    }
+  }
+
+  std::string out;
+  for (std::size_t i = 0; i < conj.size(); ++i) {
+    if (i) out += " & ";
+    out += conj[i];
+  }
+  return out;
+}
+
+// Shared instantiate() for both enumerated arms (D3: "one BenchFamily
+// sweeping n with the landed realizable flag selecting the goal"). n < 2 is
+// rejected by check_floor, same rule and same floor as every other family
+// (D2's floor coincides with kNFloor).
+BenchCase instantiate_slippery(const std::string& family_name, bool one_hot,
+                               const BenchParams& params) {
+  const std::int64_t n = require_param(params, "n");
+  const bool realizable = require_param(params, "realizable") != 0;
+  check_floor(family_name, n);
+
+  const std::int64_t N = std::int64_t(1) << n;
+  const SlipperyEncoding enc{one_hot, n, N};
+
+  VariablePartition vars;
+  vars.input_free = {"slip"};
+  {
+    const auto position_aps = enc.aps();
+    vars.input_known = std::set<std::string>(position_aps.begin(), position_aps.end());
+  }
+  vars.output_free = {"mvl", "mvr", "mvu", "mvd"};
+  // output_known left empty: A_rest = top (D1), no family here exercises T_out.
+
+  const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  register_turn_order_aps(vars, dict);
+
+  const std::int64_t c = (N - 1) / 2;  // = 2^(n-1) - 1 under N = 2^n (D3)
+  const std::string phi_text = realizable ? "F(" + enc.cell(N - 1, N - 1) + ")"
+                                          : "F(" + enc.cell(c, c) + ")";
+  const spot::formula phi = parse_or_throw(phi_text);
+
+  std::istringstream tin_text(slippery_transducer_hoa(enc, N));
+  OutputLabeledTransducer t_in = parse_transducer(tin_text, vars, Role::t_in, dict);
+  OutputLabeledTransducer t_out = trivial_transducer(vars, Role::t_out, dict);
+
+  return BenchCase{family_name,
+                   params,
+                   phi,
+                   vars,
+                   std::move(t_in),
+                   std::move(t_out),
+                   ComparabilityTier::t1,
+                   std::optional<std::string>(slippery_assumption(enc, N)),
+                   realizable};
+}
+
+// Arm 1 (D3): binary position encoding, 2n APs.
+class SlipperyBinaryFamily final : public BenchFamily {
+ public:
+  std::string name() const override { return "slippery-binary"; }
+
+  std::vector<BenchParams> sweep(std::int64_t n_min,
+                                 std::int64_t n_max) const override {
+    return default_sweep(n_min, n_max);
+  }
+
+  BenchCase instantiate(const BenchParams& params) const override {
+    return instantiate_slippery(name(), /*one_hot=*/false, params);
+  }
+};
+
+// Arm 2 (D3): one-hot position encoding, 2N APs --- the negative control
+// already measured null against arm 1 (Wednesday's probe); ships as a
+// confirmed contrast, not an untested assumption.
+class SlipperyOnehotFamily final : public BenchFamily {
+ public:
+  std::string name() const override { return "slippery-onehot"; }
+
+  std::vector<BenchParams> sweep(std::int64_t n_min,
+                                 std::int64_t n_max) const override {
+    return default_sweep(n_min, n_max);
+  }
+
+  BenchCase instantiate(const BenchParams& params) const override {
+    return instantiate_slippery(name(), /*one_hot=*/true, params);
+  }
+};
+
+// ---------------------------------------------------------------------------
 // The five-method BenchSubjects (PRD "Phase 2 -- the registry"): one per
 // Synthesis implementation, dispatched exactly like cli.cpp's
 // make_synthesis_method (same names, so a future runner can reuse either
@@ -610,6 +889,114 @@ class OtfMtdfaProductSubject final : public BenchSubject {
   }
 };
 
+// ---------------------------------------------------------------------------
+// The no-knowledge column (PRD "engineered-domain-families.md" D7): five
+// `<method>-nk` subjects that run the same five methods on the SAME case but
+// with the domain knowledge collapsed into the formula (psi_in -> phi) and
+// Iknown/Oknown demoted to free, so the pairing with the EK row is exactly
+// (family, params) with no new pairing convention.
+// ---------------------------------------------------------------------------
+
+// One no-knowledge instance built from a BenchCase's declared psi_in. nullopt
+// iff `c.psi_in` is absent --- a case without it is skipped cleanly,
+// recording nothing (D7, "Edge cases": the five landed non-T1 families are
+// unaffected).
+struct NkCase {
+  spot::formula reduced;   // psi_in -> phi
+  VariablePartition vars;  // Iknown -> Ifree, Oknown -> Ofree
+  OutputLabeledTransducer t_in;
+  OutputLabeledTransducer t_out;
+};
+
+std::optional<NkCase> build_nk_case(const BenchCase& c) {
+  if (!c.psi_in.has_value()) return std::nullopt;
+
+  // Demote FIRST (D7): trivial_transducer only accepts a role whose produced
+  // slice is empty, and it is the demotion below that empties Iknown/Oknown
+  // --- building against the domain partition would throw.
+  VariablePartition nk_vars = c.vars;
+  nk_vars.input_free.insert(nk_vars.input_known.begin(), nk_vars.input_known.end());
+  nk_vars.input_known.clear();
+  nk_vars.output_free.insert(nk_vars.output_known.begin(), nk_vars.output_known.end());
+  nk_vars.output_known.clear();
+
+  // A fresh dict: the demoted partition's turn-order requirement (every
+  // Ifree var, now including what was Iknown, strictly above every
+  // controllable var) generally differs from the domain dict's already-fixed
+  // levels, and register_ap is idempotent --- reusing c.t_in's dict could not
+  // repair a level a prior registration already set.
+  const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  register_turn_order_aps(nk_vars, dict);
+
+  const std::string phi_str = spot::str_psl(c.phi);
+  const spot::formula reduced =
+      parse_or_throw("(" + *c.psi_in + ") -> (" + phi_str + ")");
+
+  OutputLabeledTransducer t_in = trivial_transducer(nk_vars, Role::t_in, dict);
+  OutputLabeledTransducer t_out = trivial_transducer(nk_vars, Role::t_out, dict);
+
+  return NkCase{reduced, nk_vars, std::move(t_in), std::move(t_out)};
+}
+
+class DfaProductNkSubject final : public BenchSubject {
+ public:
+  std::string name() const override { return "dfa-product-nk"; }
+  void run(const BenchCase& c) const override {
+    const auto nk = build_nk_case(c);
+    if (!nk) return;
+    DfaProduct method;
+    method.synthesize(nk->reduced, nk->vars, nk->t_in, nk->t_out);
+  }
+};
+
+class NfaProductNkSubject final : public BenchSubject {
+ public:
+  std::string name() const override { return "nfa-product-nk"; }
+  void run(const BenchCase& c) const override {
+    if (!c.psi_in.has_value()) return;
+    if (!mona_available()) return;  // same MONA gate as NfaProductSubject.
+    const auto nk = build_nk_case(c);
+    if (!nk) return;
+    NfaProduct method;
+    method.synthesize(nk->reduced, nk->vars, nk->t_in, nk->t_out);
+  }
+};
+
+class MtdfaProductNkSubject final : public BenchSubject {
+ public:
+  std::string name() const override { return "mtdfa-product-nk"; }
+  void run(const BenchCase& c) const override {
+    const auto nk = build_nk_case(c);
+    if (!nk) return;
+    MtdfaProduct method;
+    method.synthesize(nk->reduced, nk->vars, nk->t_in, nk->t_out);
+  }
+};
+
+class MtnfaProductNkSubject final : public BenchSubject {
+ public:
+  std::string name() const override { return "mtnfa-product-nk"; }
+  void run(const BenchCase& c) const override {
+    if (!c.psi_in.has_value()) return;
+    if (!mona_available()) return;  // same MONA gate as MtnfaProductSubject.
+    const auto nk = build_nk_case(c);
+    if (!nk) return;
+    MtnfaProduct method;
+    method.synthesize(nk->reduced, nk->vars, nk->t_in, nk->t_out);
+  }
+};
+
+class OtfMtdfaProductNkSubject final : public BenchSubject {
+ public:
+  std::string name() const override { return "otf-mtdfa-product-nk"; }
+  void run(const BenchCase& c) const override {
+    const auto nk = build_nk_case(c);
+    if (!nk) return;
+    OtfMtdfaProduct method;
+    method.synthesize(nk->reduced, nk->vars, nk->t_in, nk->t_out);
+  }
+};
+
 // Depth-first flatten of a BenchReport's span tree into rows: one row per
 // BenchSpan encountered, root or nested (PRD "the row key is generic", B6
 // "per-*stage* nanoseconds"). A span's own `label` is already either a
@@ -637,6 +1024,8 @@ const std::vector<std::unique_ptr<BenchFamily>>& bench_families() {
     v.push_back(std::make_unique<KnowledgeChainFamily>());
     v.push_back(std::make_unique<KnowledgeChainInertFamily>());
     v.push_back(std::make_unique<ParityT3Family>());
+    v.push_back(std::make_unique<SlipperyBinaryFamily>());
+    v.push_back(std::make_unique<SlipperyOnehotFamily>());
     return v;
   }();
   return families;
@@ -650,6 +1039,11 @@ const std::vector<std::unique_ptr<BenchSubject>>& bench_subjects() {
     v.push_back(std::make_unique<MtdfaProductSubject>());
     v.push_back(std::make_unique<MtnfaProductSubject>());
     v.push_back(std::make_unique<OtfMtdfaProductSubject>());
+    v.push_back(std::make_unique<DfaProductNkSubject>());
+    v.push_back(std::make_unique<NfaProductNkSubject>());
+    v.push_back(std::make_unique<MtdfaProductNkSubject>());
+    v.push_back(std::make_unique<MtnfaProductNkSubject>());
+    v.push_back(std::make_unique<OtfMtdfaProductNkSubject>());
     return v;
   }();
   return subjects;

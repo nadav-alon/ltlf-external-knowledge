@@ -87,6 +87,30 @@ const std::vector<std::string> kFiveMethods = {
     "dfa-product", "nfa-product", "mtdfa-product", "mtnfa-product",
     "otf-mtdfa-product"};
 
+// One measured-infeasible cell, excluded by construction rather than by a
+// wall-clock race (a race would be flaky, and `run_bench_case` has no
+// cancellation hook -- src/ltlf_ek_bench.cpp bounds it by DETACHING the
+// worker thread, which is exactly the thing a test binary must not do).
+//
+// `NfaProduct` does not finish on `slippery-onehot` at n = 3 -- measured
+// 2026-08-20 on both goals, EK and `-nk` columns alike: > 90 s against
+// < 1 s for all 19 other (method, arm, n) cells at n = 2, 3, and still
+// unfinished at 5.6 min. One-hot at n = 3 carries 2*2^3 = 16 position APs
+// and MONA is the only method whose cost tracks the alphabet that way;
+// `MtnfaProduct` uses MONA too and is instant here, so this is a property of
+// NfaProduct's construction, not of MONA's presence.
+//
+// This is PRD Stop-list 8 arriving early ("One-hot dying at large n is a
+// reportable data point, not a bug to tune around ... record the row and
+// continue the other arms"). The remaining four methods still cross-check
+// each other on the cell, so T2 keeps its teeth; the exclusion is reported
+// in docs/runs/2026-08-20-edf-phase1.md, never silently absorbed.
+bool MethodInfeasibleHere(const std::string& method,
+                          const std::string& family_name, std::int64_t n) {
+  return (method == "nfa-product" || method == "nfa-product-nk") &&
+         family_name == "slippery-onehot" && n >= 3;
+}
+
 // ---------------------------------------------------------------------------
 // Shared lookup / measurement helpers (duplicated from tests/bench_suite_test.cpp
 // rather than shared across translation units -- this project's one-file-per-
@@ -220,6 +244,7 @@ TEST(SlipperyWorldNkSubjects, DemotesKnownVariablesBeforeBuildingTheTrivialTrans
               "(D1: the position APs) for this to be a meaningful demotion "
               "check";
         for (const std::string& subject_name : kNkSubjects) {
+          if (MethodInfeasibleHere(subject_name, family_name, n)) continue;
           SCOPED_TRACE("subject=" + subject_name);
           EXPECT_NO_THROW({
             const std::vector<BenchRow> rows =
@@ -257,6 +282,7 @@ TEST(SlipperyWorldCrossMethodAgreement, FiveMethodsAgreeWithEachOtherAndTheDecla
         std::optional<bool> reference;
         int subjects_ran = 0;
         for (const std::string& method : kFiveMethods) {
+          if (MethodInfeasibleHere(method, family_name, n)) continue;
           const std::vector<BenchRow> rows =
               run_bench_case(c, SubjectNamed(method));
           const std::optional<bool> verdict = RealizabilityVerdict(rows);
@@ -346,13 +372,43 @@ TEST(SlipperyWorldStructural, ANHasExactlyFourteenNPlusOneTopLevelConjuncts) {
       const spot::formula an = ltlf_ek::test_support::Phi(*c.psi_in);
       const std::uint64_t nn = static_cast<std::uint64_t>(n);
       const std::uint64_t big_n = IntPow(2, nn);
-      const std::uint64_t expected = 14 * big_n + 1;
       ASSERT_EQ(an.kind(), spot::op::And)
           << "D5: A_N is 1 init conjunct + 2x7 implications, a top-level "
             "And; got a different top-level operator instead";
-      EXPECT_EQ(an.size(), expected)
-          << "D5/T5: |A_N| top-level conjuncts must be exactly 14N+1 "
+
+      // D3/D8's "14N+1 top-level conjuncts" counts the initial-cell
+      // constraint as ONE conjunct.  Spot's And is n-ary and flattens, so
+      // that conjunct's own literals ("pos = (0,0)", a conjunction of 2n
+      // binary / 2N one-hot literals) become top-level children of the same
+      // And and an.size() reads 14N + 2n (resp. 14N + 2N) instead.  The
+      // structural claim is therefore asserted the way it is CONSTRUCTED:
+      // exactly 14N G-rooted rules -- 2 axes x N cells x 7 rules -- and an
+      // initial-cell remainder that is literals only, nothing else hiding
+      // in it.  This is also the form that stays comparable to Phase 3's
+      // compact arm, whose count is 14 G-rules against this arm's 14N.
+      std::uint64_t g_rules = 0;
+      std::uint64_t init_literals = 0;
+      for (unsigned i = 0; i < an.size(); ++i) {
+        const spot::formula child = an[i];
+        if (child.kind() == spot::op::G) {
+          ++g_rules;
+        } else {
+          ++init_literals;
+          EXPECT_TRUE(child.is_literal())
+              << "a non-G top-level conjunct of A_N must be an initial-cell "
+                "literal (D3: the only non-G conjunct is 'pos = (0,0)'); got "
+              << child;
+        }
+      }
+      EXPECT_EQ(g_rules, 14 * big_n)
+          << "D5/T5: A_N must carry exactly 14N G-rooted rules -- 2 axes x N "
+            "cells x 7 rules (2 movers x 2 slip values + 3 non-movers) -- "
             "(N=" << big_n << ")";
+      const std::uint64_t expected_init =
+          family_name == "slippery-onehot" ? 2 * big_n : 2 * nn;
+      EXPECT_EQ(init_literals, expected_init)
+          << "D5/T5: the flattened initial-cell conjunct must contribute "
+            "exactly one literal per position AP (N=" << big_n << ")";
     }
   }
 }
