@@ -68,6 +68,7 @@ add_library(ltlf_ek
   src/otf_mtdfa_product.cpp
   src/synthesis.cpp
   src/verify_controller.cpp
+  src/produced_trace_equivalence.cpp
   src/cli.cpp
   src/bench.cpp
   src/bench_suite.cpp
@@ -165,6 +166,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/acceptance_test.cpp
     tests/acceptance_partiality_matrix_test.cpp
     tests/verify_controller_test.cpp
+    tests/produced_trace_equivalence_test.cpp
     tests/cli_test.cpp
     tests/ltlf_ek_synth_test.cpp
     tests/ltlfsynt_oracle_test.cpp

@@ -1,10 +1,19 @@
 # PRD: Engineered domain families (slippery-world)
 
-**Status:** **Phase 1 complete** (2026-08-20, branch `edf-phase1`) — the two
-enumerated families `slippery-binary` / `slippery-onehot` and the five
-`<method>-nk` subjects are registered in `src/bench_suite.cpp`, at the phase's
-green checkpoint; see `docs/runs/2026-08-20-edf-phase1.md`. Phases 2–4 not
-started. `BenchCase` untouched, as D4 promised.
+**Status:** **Phase 2 API landed** (2026-08-21, branch `edf-phase2`) —
+*Produced-trace equivalence* (`produced_trace_equivalent` / `EquivalenceResult`)
+implemented in `include/ltlf_ek/produced_trace_equivalence.hpp` +
+`src/produced_trace_equivalence.cpp`, with its own unit tests
+(`tests/produced_trace_equivalence_test.cpp`, 7 green). **The retrofit onto the
+five landed T1 families (T1) and the two-mutant negative control (T6) are
+deliberately not in this diff** — this session's scope was the API and tests
+for the API alone; that retrofit is a `/test-writer` pass, per the PRD's own
+"the full oracle set … is a separate pass" framing. Phase 1 complete
+(2026-08-20, branch `edf-phase1`) — the two enumerated families
+`slippery-binary` / `slippery-onehot` and the five `<method>-nk` subjects are
+registered in `src/bench_suite.cpp`, at the phase's green checkpoint; see
+`docs/runs/2026-08-20-edf-phase1.md`. Phases 3–4 not started. `BenchCase`
+untouched, as D4 promised.
 **Interface:** adds `BenchFamily` / `BenchSubject` registrations to the landed
 Phase 2 registry (`include/ltlf_ek/bench_suite.hpp`), plus **one** new library
 API — *Produced-trace equivalence* (`produced_trace_equivalent`). **Does not
@@ -31,8 +40,16 @@ questions touched*.
   item to *Open theory questions* (this PRD's Stop-list 6)
 - [ ] tests           — unit + oracle coverage. **Phase 1 closed 2026-08-20**:
   `tests/slippery_world_test.cpp` covers T2, T3, T4, T5, T7 plus the $n<2$ floor
-  and D7's two demotion/skip units (10 tests, all green). T1/T6 await Phase 2's
-  API, T8/T9 await Phase 3's compact arm — so the box stays open PRD-wide.
+  and D7's two demotion/skip units (10 tests, all green). **Phase 2, 2026-08-21**:
+  `produced_trace_equivalent`'s own unit tests landed
+  (`tests/produced_trace_equivalence_test.cpp`, 7 green — degenerate
+  $\psi=$`true`/`false`, a nowhere-defined $\tau$, the empty-word field, one
+  hand-built matching case, one hand-built mismatching case with its witness
+  checked for shortest-ness and determinism against independent reference
+  walkers). **T1 (the certificate over every landed T1 family) and T6 (the
+  two-mutant negative control) are still owed to a `/test-writer` pass** — the
+  API can express both, neither is written here. T8/T9 await Phase 3's compact
+  arm — so the box stays open PRD-wide.
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review).
   **Domain half clean on the Phase 1 diff, 2026-08-20** (no must-fix; four
   `consider` notes recorded in *Developer comments* below). The **generic half
@@ -628,6 +645,26 @@ protocol so its numbers stay comparable), per-case timeout **60 s**,
 - The four gates ticked by the skills that perform them.
 
 ## Developer comments / PRD disagreements
+
+### Phase 2, 2026-08-21 — one underspecified point, resolved (not a frozen-signature deviation)
+
+The frozen `EquivalenceResult` fields, their order, and the 7 pinned-behaviour
+items are all implemented literally. One internal-algorithm detail the PRD
+states but does not fully pin down is pinned behaviour #5's "Slices come from
+`sigma_slices`" — it says role-derived slices are the source, but not what they
+feed. Resolved as: `sigma_slices(vars, role)` orders the BFS's letter alphabet
+(Sigma0 first, then Sigma1, then the rest of `vars.universe()` plus any AP
+either `emits_dfa(tau)` or `ltlf_to_dfa(psi)` actually registered) — so the
+witness's bit order is role-informed and deterministic, but the walk still
+covers the FULL alphabet regardless of role. That last part is load-bearing,
+not a simplification: a declared $\psi$ (e.g. this PRD's own $A_N$, D5) is free
+to reference variables outside $\Sigma_0\cup\Sigma_1$ — $A_N$'s guards read
+$\Ofree$ `mv` literals even when checked under `Role::t_in`, whose
+$\Sigma_0\cup\Sigma_1 = \Ifree\cup\Iknown$ excludes $\mathcal{O}$ entirely.
+Restricting the walk to $\Sigma_0\cup\Sigma_1$ would silently blind the
+certificate to exactly the class of mutant T6 needs it to catch (a wrong rule
+on a `mv` guard). If a future reading of the PRD intends something narrower,
+that is a signature-level PRD-change event, not a code fix.
 
 ### Phase 1, 2026-08-20 — three deviations, all in tests
 
