@@ -167,6 +167,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/acceptance_partiality_matrix_test.cpp
     tests/verify_controller_test.cpp
     tests/produced_trace_equivalence_test.cpp
+    tests/produced_trace_equivalence_oracles_test.cpp
     tests/cli_test.cpp
     tests/ltlf_ek_synth_test.cpp
     tests/ltlfsynt_oracle_test.cpp
