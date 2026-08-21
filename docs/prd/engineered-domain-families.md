@@ -1,19 +1,28 @@
 # PRD: Engineered domain families (slippery-world)
 
-**Status:** **Phase 2 API landed** (2026-08-21, branch `edf-phase2`) —
-*Produced-trace equivalence* (`produced_trace_equivalent` / `EquivalenceResult`)
-implemented in `include/ltlf_ek/produced_trace_equivalence.hpp` +
+**Status:** **Phase 2 complete, green checkpoint reached** (2026-08-21, branch
+`edf-phase2`, commit `a1078a6`) — *Produced-trace equivalence*
+(`produced_trace_equivalent` / `EquivalenceResult`) implemented in
+`include/ltlf_ek/produced_trace_equivalence.hpp` +
 `src/produced_trace_equivalence.cpp`, with its own unit tests
-(`tests/produced_trace_equivalence_test.cpp`, 7 green). **The retrofit onto the
-five landed T1 families (T1) and the two-mutant negative control (T6) are
-deliberately not in this diff** — this session's scope was the API and tests
-for the API alone; that retrofit is a `/test-writer` pass, per the PRD's own
-"the full oracle set … is a separate pass" framing. Phase 1 complete
-(2026-08-20, branch `edf-phase1`) — the two enumerated families
-`slippery-binary` / `slippery-onehot` and the five `<method>-nk` subjects are
-registered in `src/bench_suite.cpp`, at the phase's green checkpoint; see
-`docs/runs/2026-08-20-edf-phase1.md`. Phases 3–4 not started. `BenchCase`
-untouched, as D4 promised.
+(`tests/produced_trace_equivalence_test.cpp`, 7 green), plus the two oracles
+this pass added in `tests/produced_trace_equivalence_oracles_test.cpp`: **T1**
+(the certificate, enumerated over `bench_families()` rather than hard-coded —
+GREEN on every landed T1 family's declared `psi_in`, no finding, closing
+benchmark-suite.md B3's hole; `slippery-binary` / `slippery-onehot` at
+n = 2, 3 both goals, plus n = 4 for `slippery-binary` only — `slippery-onehot`
+n = 4 throws `std::bad_alloc` building its 32-AP `A_N`, measured and dropped
+per Stop-list 8's "one-hot at large n" edge case, not a bug) and **T6** (the
+negative control, two satisfiable mutants on a hand-checkable one-axis
+"slippery-line" toy, both caught with a witness). `knowledge-chain` /
+`knowledge-chain-inert` (t2) and `parity-t3` (t3) skip cleanly, as declared.
+Full suite: 679/680 green, the one failure the pre-existing known-open
+`parity-t3` cross-method mismatch (unrelated, not in this pass's scope).
+Phase 1 complete (2026-08-20, branch `edf-phase1`) — the two enumerated
+families `slippery-binary` / `slippery-onehot` and the five `<method>-nk`
+subjects are registered in `src/bench_suite.cpp`, at the phase's green
+checkpoint; see `docs/runs/2026-08-20-edf-phase1.md`. Phases 3–4 not started.
+`BenchCase` untouched, as D4 promised.
 **Interface:** adds `BenchFamily` / `BenchSubject` registrations to the landed
 Phase 2 registry (`include/ltlf_ek/bench_suite.hpp`), plus **one** new library
 API — *Produced-trace equivalence* (`produced_trace_equivalent`). **Does not
