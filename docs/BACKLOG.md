@@ -15,27 +15,165 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 > argument, so it selects by the launcher's Step-0 rule 2 — *the first item under
 > this heading that has a `docs/prd/` file on `master`*).
 >
-> - **The target is the first item below, `#2` the parametric benchmark suite**
->   ([`docs/prd/benchmark-suite.md`](prd/benchmark-suite.md)), and **the next
->   phase is Phase 2.** Phase 1 landed 2026-08-10 (PR #12; gates closed, theory
->   review ruled N/A for that phase). Everything above this line is prose, not an
->   item — every `###` item that used to sit ahead of `#2` is now in *Done*, for
->   the reason the presentation-materials entry records: an item left here after
->   it lands **shadows the next one**.
-> - **Phase 3 is fair game the same day** if the budget outlasts Phase 2 — but
->   only *after* Phase 2's workbook lands, since the 2026-08-12 presentation
->   depends on Phase 2's sweep and not at all on Phase 3's regression baseline.
-> - **Do not fall through past this PRD.** `#3` has no PRD, and Method 3.2 /
->   Method 3.1 Phase 2 both fail the launch gate (see their entries). When
->   `benchmark-suite.md` is exhausted, the correct end of day is `DONE`, not a
->   fourth candidate — rule 3 finds nothing either (no unmerged branch adds a
->   PRD; checked 2026-08-10).
+> **Renumbered 2026-08-11.** Two items were inserted at the top, so `#1`–`#4`
+> below mean something different from `#1`–`#3` in the week-plan table and the
+> 08-08 ranking prose further down — those are a historical record and were
+> deliberately left as they were written.
+>
+> - **`#1` and `#2` both have no PRD, so rule 2 skips both** — they are the
+>   user's evening, not a day-run's, and they sit first because they are ranked
+>   first, not because a launcher should pick them up. Do not treat the missing
+>   PRD as a defect to repair, and do not write one unattended: `#1` is a
+>   decision about branches and `#2` is a decision about what a benchmark family
+>   should *be* — exactly the user decision Stop-list 2 of `benchmark-suite.md`
+>   reserves.
+> - **UPDATED 2026-08-18: `#3`'s Phase 2 is no longer blocked.** The half of
+>   `#1` that blocked it is done — `worktree-bench-phase2` is merged into
+>   `master` (`f83177f`) and the `knowledge-chain` families are cherry-picked
+>   (`c542802`). A run reading `docs/prd/benchmark-suite.md` from `master` now
+>   sees Phase 2 as landed and will not redo it. Phase 1 landed 2026-08-10
+>   (PR #12); Phase 2 landed on `master` 2026-08-18.
+> - **Phase 3 (the committed structural baseline) is what remains of `#3`,** and
+>   it is now blocked **once**, not twice: `master` carries the families as of
+>   2026-08-18, but `#2` still stands — Phase 3 bakes whatever family set exists
+>   into a cell-exact baseline, pinning a set that is about to be redesigned.
+>   **Second reason to hold:** `parity-t3`'s declared `expected_realizable` is
+>   known-wrong and currently fails oracle 5 (621/622); baselining that cell
+>   would freeze the bug.
+> - **So the honest state was: there is currently no launchable phase.** With
+>   `#1` and `#2` PRD-less and `#3` blocked on both, the correct end of day was
+>   `DONE`; `#4` has no PRD either, and Method 3.2 / Method 3.1 Phase 2 both
+>   fail the launch gate (see their entries). The 2026-08-12 run is **paused**
+>   (`build/runs/PAUSED`) rather than left to discover this.
 > - **Two run-time facts live in the PRD, deliberately not duplicated here:**
 >   `ltlfsynt` must be handed an **absolute path**
 >   (`~/opt/spot-2.15.1/bin/ltlfsynt`) — the bare name resolves through `PATH` to
 >   a **2.14.4.dev** install and would silently race the wrong version (PRD,
 >   *`ltlfsynt` invocation*) — and Stop-list item 5 carries a
 >   **record-and-continue exception for the 08-11 run only**.
+
+### `ltlf-ek-bench` dies on any per-case timeout — **inserted 2026-08-20, unnumbered**
+
+> **Not a `/launcher` item.** This is a bug fix in an already-landed binary, not
+> a PRD phase, and it deliberately carries no number so that nothing below it
+> renumbers. Step-0 rule 2 must skip it: it owns no `docs/prd/` file of its own.
+
+`RunCaseWithTimeout` (`src/ltlf_ek_bench.cpp:283`) bounds a case by running it on
+a thread and **detaching** that thread when the deadline passes. The detached
+worker is still inside Spot/MONA when the process exits, so **any** timing-out
+case ends the whole run in a SIGSEGV — *before* `--out` is written. One slow cell
+therefore destroys the entire sweep report, not just its own row.
+
+Found by the 2026-08-20 Phase 1 day-run
+(`docs/runs/2026-08-20-edf-phase1.md`, finding F2) and reproduced
+deterministically: `ltlf-ek-bench --families=slippery-onehot
+--subjects=nfa-product --n-min=3 --n-max=3 --timeout=10` exits **139** after
+~11 s writing no JSON; the same command at `--timeout=3000` exits 0 with a
+complete report. Latent since Phase 2 — no landed family was ever slow enough to
+trip it.
+
+**Why it is urgent rather than tidy:** `engineered-domain-families.md` Stop-list
+8 *instructs* a timing-out row to be recorded and the other arms continued, and
+that PRD's Phase 4 sweeps $n = 2\ldots6$ at a 60 s budget fully expecting one-hot
+to time out. **Phase 4 cannot run until this is fixed.**
+
+**Seeds.**
+- A blocking Spot call cannot be cancelled in-thread, so the fix is structural:
+  fork a child process per case and `SIGKILL` it on the deadline. That is a
+  change to a settled part of the harness — a user decision, which is why the
+  day-run recorded it instead of doing it.
+- Cheaper stopgap worth pricing first: keep the detach, but end the process with
+  `_exit()` after the report is flushed, so a leaked worker cannot run during
+  static destruction. Buys correctness of the *report* without a process model.
+- Either way the row must come out as `TIMEOUT`, distinct from "skipped" and
+  from a zero — the same three-way distinction Monday's corpus pre-registration
+  insisted on.
+
+### Untangle the branch spaghetti — land what is stranded — **#1**
+
+> **PARTIALLY CLOSED 2026-08-18 — option (a) below, code half only.**
+> Done: `worktree-bench-phase2` merged into `master` as `f83177f`; `9929078`
+> cherry-picked as `c542802`, **`src/` + `tests/` only**. Phase 2 and both
+> `knowledge-chain` families are now on `master`, build clean, suite 621/622
+> (the one failure is `parity-t3`'s pre-existing known-wrong declared verdict —
+> see the PRD's *Known-open*). **This unblocks a `/launcher` run on `#3`.**
+>
+> **Still open, deferred to Friday's aggregation (step 1):** items 2 and 3 of
+> the stranded list below — rescuing the 2026-08-11 Release workbook
+> (`docs/runs/2026-08-11-benchmarks-release.json` and its `.xlsx`; they were
+> added by `3abeedd`, which is not in
+> `worktree-bench-phase2`'s history, so `9929078`'s edit to them has no base on
+> `master`), `docs/presentation/benchmark-numbers.md`, and the `startup-floor.py`
+> measurement. **`worktree-presentation-2026-08-12` must not be deleted until
+> those land** — it is still their only home. The deck question at the bottom of
+> this entry is also still the user's, and still unanswered.
+
+**Read this before merging anything.** It is `#1` because everything else in
+this section is worth less until it is done: `#2` would re-grill families whose
+current version lives on a branch slated for deletion, and `#3` Phase 3 would
+build a baseline from a `master` that has no families on it at all.
+
+The tree is **not** in the shape the backlog above implies. Three branches hold
+work, `master` holds the least of it, and one branch that is **not** slated to
+merge is currently the only home of code that should survive. Facts, measured
+2026-08-11:
+
+| ref | at | what it has that `master` does not |
+| --- | --- | --- |
+| `master` = `origin/master` | `4b54fd0` | — (Phase 1 only, via PR #12) |
+| `worktree-bench-phase2` | `0720cf9` | **benchmark-suite Phase 2**: `bench_suite.hpp`/`.cpp`, the `ltlf-ek-bench` binary, `scripts/bench_xlsx_export.py`, the `ltlfsynt` race. **No PR. Never merged.** |
+| `worktree-presentation-2026-08-12` | `c62e8cd` | 9 commits: `0720cf9` merged in, the 2026-08-12 deck, the Release workbook, **and the two new `t2` families** |
+
+**The thing to notice:** the presentation branch is **not going to be merged
+into `master`** (it is a deck, plus a working copy of Phase 2). But three things
+that *should* outlive it were committed onto it and exist nowhere else:
+
+1. **`9929078`** — the `knowledge-chain` / `knowledge-chain-inert` families,
+   their discrimination tests, and the tier-declaration test update. This is
+   real `src/` + `tests/` work sitting on a throwaway branch.
+2. **`docs/runs/2026-08-11-benchmarks-release.{json,xlsx}`** — the only Release
+   sweep that exists. The workbook on `master`'s side of the tree is Debug and
+   its numbers are superseded (see `docs/presentation/benchmark-numbers.md`).
+3. **`docs/presentation/benchmark-numbers.md`** and the `startup-floor.py`
+   measurement behind the `ltlfsynt` floor finding.
+
+So the honest summary: **Phase 2 is done but unlanded, and the follow-up work to
+Phase 2 is stranded one level deeper**, on a branch whose stated fate is to be
+dropped. Nothing is lost yet — every commit is local and reachable — but a
+`git worktree remove` or a branch delete in the wrong order would lose it.
+
+**The decision this needs (user's, not a day-run's)** — the ordering is the
+whole question, because whichever branch lands first decides what the other one
+has to rebase onto:
+
+- **(a) Phase 2 first, then the follow-up.** Merge `worktree-bench-phase2` into
+  `master` (it is one clean commit, `0720cf9`), then cherry-pick `9929078` and
+  the `docs/` additions on top. Keeps `master`'s history readable — Phase 2
+  lands as Phase 2, the family work lands as its own change — and leaves the
+  presentation branch genuinely disposable. Most steps, cleanest result.
+- **(b) One PR off the presentation branch**, excluding
+  `docs/presentation/slides/`. Fewest steps; but it merges a 9-commit branch
+  whose commit messages are about a deck, and the Phase 2 merge commit comes
+  along for the ride.
+- **(c) Cherry-pick only what is stranded** onto a fresh branch off `master`,
+  and leave Phase 2 unlanded. **Rejected unless deliberate** — `9929078` does
+  not compile without Phase 2's `bench_suite.hpp`.
+
+**Also part of this item, not separate:** the deck itself. It is a real
+deliverable that will exist only in a worktree; decide whether
+`docs/presentation/slides/` lands on `master` too (it has no code dependency
+either way) or whether the built PDF is archived elsewhere and the branch
+dropped.
+
+Until this is settled, **do not run benchmark-suite Phase 3** — it would build a
+cell-exact structural baseline from `master`, which has no families at all, and
+a day-run reading `benchmark-suite.md` from `master` would conclude Phase 2 is
+un-started and redo it. That is precisely the case `scripts/day-run.sh`'s pause
+switch was written for, and the 2026-08-12 run is paused for it.
+
+**Check before closing this item:** `git log --oneline master..worktree-bench-phase2`
+and `git log --oneline master..worktree-presentation-2026-08-12` are both empty,
+or their remainder is only the deck and is deliberate.
 
 _**Ranked 2026-08-08, in a grill.** The ranking criterion **changed**, and that is
 the thing to carry forward. Since the full-time job started (2026-08-01) the
@@ -45,9 +183,10 @@ unattended launch gate**, not by research value. Under the old criterion the two
 method items below were the only candidates; under the new one they both lose,
 because each needs several evenings before a launch gate is even conceivable._
 
-_**The order (as ranked on 08-08): #1 the acceptance-mark bug — now DONE and
-moved to *Done*, so `#2` heads this section — #2 the parametric benchmark suite,
-#3 the input-dependency example gallery.** All three were promoted from
+_**The order (as ranked on 08-08 — these numbers are the OLD scheme, superseded
+by the 08-11 renumbering at the top of this section): #1 the acceptance-mark bug
+— now DONE and moved to *Done* — #2 the parametric benchmark suite (now `#3`),
+#3 the input-dependency example gallery (now `#4`).** All three were promoted from
 elsewhere — #1 from *Later*, and #2/#3 did not exist at all, because this file
 tracks *things to build* and had no way to see *things to measure, verify
 intuition against, or compare*. That blind spot is the second thing to carry
@@ -115,7 +254,57 @@ as `OtfMtdfaProduct` in `0ce5fab`, closed every gate, and benchmarked
 method to beat the standing champion). Its Phase 2 (`otf_solve_fused`) is spun
 out below._
 
-### Parametric benchmark suite, committed and reproducible — **#2**
+### Re-grill the benchmark families — they were not thought out well enough — **#2**
+
+- **Why this is now first.** The families shipped as a by-product of building
+  the *runner*; nobody ever grilled **what they should measure**. The
+  2026-08-11 presentation session found the hole by accident, from an outsider
+  question ("how come the product never has more states than the goal?"), and
+  the answer was embarrassing: **every family pinned $\Tin$ to one state**, so
+  `product_states <= goal_dfa_states` held *by construction*. The suite could
+  not have detected a product blow-up if one existed. That is not a bug in any
+  family — each does what it says — it is a **coverage question that was never
+  asked**, and the kind only a grill catches.
+- **STATE 2026-08-11:** two `t2` families (`knowledge-chain`,
+  `knowledge-chain-inert`) were added *in the presentation branch* as a
+  half-hour patch to make the presentation honest, **not** as the considered
+  answer. They work (`knowledge-chain-inert` gives `product = n * goal`
+  exactly, asserted cell-exact) and they immediately produced a new result —
+  `OtfMtdfaProduct` is at its **worst** there, 0.55x — which is itself the
+  argument for this item: the first serious look at a new axis moved a
+  headline number. Treat them as evidence the axis matters, not as the family
+  set.
+- **What the grill has to settle.** The axes, before any code:
+  - **Knowledge size** — now partly covered, but only by two hand-made
+    families. Should $\lvert\Tin\rvert$ be a sweep parameter *independent* of
+    $n$, so knowledge and formula can grow separately? Right now they are
+    welded together.
+  - **$\Tout$ is completely untested.** Every family uses
+    `trivial_transducer` for $\Tout$. The output side has never been measured
+    at all.
+  - **Tier coverage.** Four `t1`, two `t2`, one `t3` — is that the mix we
+    want, given `t2`/`t3` cost the `ltlfsynt` race? The `t2` pair skipped the
+    race for convenience under time pressure; a deliberate choice might supply
+    $\psi_{in}$ and keep the cross-validation.
+  - **Realizable/unrealizable polarity.** The `summary` sheet is
+    `realizable = true` only. Is the unrealizable half interesting, or noise?
+  - **What a family is *for*.** `mirror-degenerate` is deliberately a trap
+    (see its entry) and `parity-t3` has a **wrong** `expected_realizable`. A
+    grill should decide which families are load-bearing, which are documentation
+    of a dead end, and whether the second kind belongs in the same registry.
+  - **Measurement hygiene, separately.** `cons-prunes`' headline ratio measured
+    **4.37** and **3.60** on two Release sweeps of the same binary — ~20%
+    jitter at `repeat=3`. Decide the repeat count from the spread rather than
+    by eye, or stop quoting more than one significant figure.
+- **Seeds.** Does a family need a *declared hypothesis* field ("this family
+  exists to show X"), so a family that stops discriminating is detectable
+  rather than merely committed? Stop-list 2 already says a degenerated family
+  is a **user decision**, which suggests the registry should carry the claim it
+  is meant to support.
+- **No PRD, deliberately** — this is the grill that would produce one. It is
+  evening work; a day-run must not pick it up (see the day-run note at the top).
+
+### Parametric benchmark suite, committed and reproducible — **#3**
 
 - **STATE 2026-08-10: Phase 1 landed** (PR #12 on `master`, `368f9e0`; `ctest`
   603/603). **Phase 2 is next** and is what the unattended run should pick up.
@@ -174,7 +363,7 @@ out below._
   knowledge as a transducer rather than as a formula. **Unverified — check it
   before it goes in the paper.**
 
-### Input-dependency worked-example gallery — **#3**
+### Input-dependency worked-example gallery — **#4**
 
 - **Intent:** a set of small, hand-checkable $(\varphi, \text{partition})$ examples
   where you can look at the emitted $\Xdep$ / $\Tin$ and *see* that it is right —
