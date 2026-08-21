@@ -1,6 +1,37 @@
 # PRD: Engineered domain families (slippery-world)
 
-**Status:** **Phase 2 complete, green checkpoint reached** (2026-08-21, branch
+**Status:** **Phase 3 registered but BLOCKED at its green checkpoint by
+Stop-list 1** (2026-08-21, branch `edf-phase3`) — `slippery-binary-compact`
+(D5's compact $A_N$) is implemented **literally** in `src/bench_suite.cpp`,
+reusing Phase 1's $\Tin$ code path verbatim (`instantiate_slippery`,
+parameterised over an `AssumptionBuilder`; arms 1 and 3 are now provably
+byte-identical $\Tin$, T8), and the tree **compiles**. But the Phase 2
+certificate is **RED**: `produced_trace_equivalent(t_in, psi_in, ...)`
+reports `equivalent_on_nonempty = false` for `slippery-binary-compact` at
+every sampled $(n, \text{realizable})$ — $n \in \{2,3\}$, both goals — with a
+**length-1 witness**, always the same letter: `{!slip, pos=(0,0), no mv}`
+(the "stay" class, no slip). Root cause (see *Developer comments* below, not
+repaired per Stop-list 1): D5's `Keep`/`Inc`/`Dec`/`Inc2`/`Dec2`/`SetMin` are
+written as **per-bit** `X b_i <-> ...` conjunctions; weak `X` is vacuously
+`true` at a trace's last position **only for the literal `X b_i` itself**,
+not for a biconditional built on top of it, so at the last letter `(X b_i)
+<-> b_i` collapses to `b_i`'s **current** value instead of staying vacuous —
+unlike the enumerated arms, whose single `X(whole-destination-conjunction)`
+*is* vacuously true at the boundary regardless of the conjunction's
+polarity. This also shows up independently in `BenchSuiteCrossMethodAgreement`
+(the `-nk` subjects, which route through `psi_in`, disagree with the raw
+$\Tin$-based methods on the centre goal at $n=2,3$) — two independent oracles
+agreeing the compact $A_N$ is not $\Tin$'s language. Per this pass's explicit
+instructions this is **recorded, not repaired**: `A_N` is left exactly as D5
+specifies, `ctest` is left red on the 5 affected cases (the T1 registry's 4
+`slippery-binary-compact` params plus `BenchSuiteCrossMethodAgreement`), and
+the decision (fix D5's formula, or accept a different compact encoding) is
+left to the user / a follow-up pass. `tests`/`code-review`/`theory-review`
+gates stay unticked; `glossary` needs no new entry (no new public identifier,
+per the PRD's own "Registry additions" framing).
+
+**Status (superseded by the above for Phase 3's own scope) — Phase 2
+complete, green checkpoint reached** (2026-08-21, branch
 `edf-phase2`, commit `a1078a6`) — *Produced-trace equivalence*
 (`produced_trace_equivalent` / `EquivalenceResult`) implemented in
 `include/ltlf_ek/produced_trace_equivalence.hpp` +
@@ -60,7 +91,21 @@ questions touched*.
   `a1078a6`): T1 enumerates `bench_families()` — 24 cases green, 12 clean skips
   — and T6's two satisfiable mutants are both caught with a witness. T8/T9 await
   Phase 3's compact arm — so the box stays open PRD-wide, with nothing owed for
-  Phases 1–2.
+  Phases 1–2. **Phase 3, 2026-08-21**: `slippery-binary-compact` registered
+  and picked up automatically by T1's registry enumeration and by
+  `BenchSuiteCrossMethodAgreement` — both now **RED** (Stop-list 1; see
+  *Status* above and *Developer comments* below for the witness). T8
+  (byte-identical $\Tin$ with arm 1) is true by construction (one shared
+  `instantiate_slippery` code path) but not yet asserted by a dedicated test;
+  T9 not attempted. `ctest`: 679/685 pass, 6 fail — the known-open
+  `parity-t3` sub-failure inside `BenchSuiteCrossMethodAgreement` (unrelated
+  to this pass), plus 5 new: that same test's compact-family sub-failures
+  (still 1 ctest entry), the 4 `ProducedTraceEquivalenceT1Registry` params
+  for `slippery-binary-compact`, and `BenchSuiteTierDeclaration.
+  ExactlyTheDeclaredT1FamiliesAreT1AndParityT3IsT3` (a hard-coded T1-name set
+  from Phase 1 that simply hasn't been told about the new family yet —
+  mechanical, `/test-writer`'s to update, not a finding). Not repaired, per
+  Stop-list 1.
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review).
   **Domain half clean on the Phase 1 diff, 2026-08-20** (no must-fix; four
   `consider` notes recorded in *Developer comments* below). **Domain half run
@@ -875,3 +920,60 @@ quantifier bugs, never a wrong step function. That is not a weakness of the
 certificate, it is why Phase 3 is the phase that needs it: the compact $A_N$'s
 ripple-carry is written independently, and the certificate is its correctness
 test. T6's negative control remains the thing that proves the check has teeth.
+
+### Phase 3, 2026-08-21 — Stop-list 1: the certificate is RED on the compact $A_N$, not repaired
+
+`slippery-binary-compact` is implemented literally against D5 (every
+predicate/update-relation/rule-table entry transcribed as written, weak `X`
+throughout per D6) and registered through the same `instantiate_slippery`
+code path arms 1/2 already use, parameterised over an `AssumptionBuilder` so
+$\Tin$ construction is untouched and shared verbatim (T8 holds by
+construction). The tree compiles. But `produced_trace_equivalent` is **RED**
+on every sampled case — $n \in \{2, 3\}$, both goals — confirmed by a
+throwaway diagnostic (not committed) that printed the witness:
+
+```
+n=2 realizable=0: equivalent_on_nonempty=false, witness length 1:
+  step 0: !slip !bx0 !bx1 !by0 !by1 !mvd !mvl !mvr !mvu
+n=2 realizable=1: same witness.
+```
+
+The single letter is "no `mv`, no `slip`, at the start cell" — the `S`
+(stay) class, whose rule on both axes is `Keep`. **Root cause.** D6 argues
+weak `X` makes $A_N$ agree with "$\delta$ undefined past the end" because
+`X`(anything) is vacuously `true` at a trace's last position. That is true
+for a **bare** `X` literal, and it is what the *enumerated* arms rely on:
+their rule concludes `X(whole-destination-conjunction)`, one `X` wrapping the
+entire conjunction, vacuously `true` at the boundary regardless of the
+conjunction's internal polarity. D5's compact predicates instead write
+**per-bit** `X b_i <-> rhs_i` — `X` applied to a single bit, then compared by
+`<->` to an **un-`X`'d** right-hand side. At the last position `X b_i` is
+still vacuously `true`, but `(X b_i) <-> rhs_i` is **not**: it collapses to
+`rhs_i`'s own current-position truth value. For `Keep` at the start cell
+(every `b_i = 0`), every conjunct becomes `true <-> false = false`, so `Keep`
+is **false** at the last letter whenever the position's bits are not all 1 —
+a constraint $\Tin$ never imposes (there is no "next" to disagree about).
+`SetMin` has the same defect from the other side (`¬X b_i` is `false` at the
+boundary, unconditionally). This is a property of weak `X` not distributing
+over negation/biconditional at a trace boundary
+($\lnot(X\,b)\big|_{\text{end}} = \text{false} \neq \text{true} =
+X(\lnot b)\big|_{\text{end}}$), not a typo in this transcription — D5's
+LaTeX, read literally, has this shape, so it is not self-contradictory and
+not something `/developer` may silently rewrap. Independently confirmed by
+`BenchSuiteCrossMethodAgreement`: the `-nk` subjects (which route through
+`psi_in`) disagree with the raw-$\Tin$ methods at $n=2,3$ realizable=false —
+two oracles, same finding.
+
+**Per Stop-list 1, not repaired.** `A_N` is left exactly as D5 specifies;
+`ctest` is left red on the 4 `ProducedTraceEquivalenceT1Registry` params for
+this family plus `BenchSuiteCrossMethodAgreement`. This is a decision the
+user owns (candidates, not chosen here: wrap each axis's whole update-relation
+body under one outer `X(...)` instead of per-bit `X`; or accept the compact
+encoding needs an explicit "last-letter" escape hatch) — recorded for
+`/theory-review` or a follow-up grill, not decided by this pass.
+
+**Also not yet done, deferred to the same follow-up:** T8 (byte-identical
+$\Tin$) and T9 (structural bound) have no dedicated test yet — the D8
+structural facts (`|T_in|=4^n`, `15` top-level conjuncts) were checked by
+hand during development but are not asserted in `ctest`, since `/test-writer`
+owns that pass and a red certificate is the more urgent thing to report.
