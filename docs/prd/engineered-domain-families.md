@@ -1,10 +1,28 @@
 # PRD: Engineered domain families (slippery-world)
 
-**Status:** **Phase 1 complete** (2026-08-20, branch `edf-phase1`) — the two
-enumerated families `slippery-binary` / `slippery-onehot` and the five
-`<method>-nk` subjects are registered in `src/bench_suite.cpp`, at the phase's
-green checkpoint; see `docs/runs/2026-08-20-edf-phase1.md`. Phases 2–4 not
-started. `BenchCase` untouched, as D4 promised.
+**Status:** **Phase 2 complete, green checkpoint reached** (2026-08-21, branch
+`edf-phase2`, commit `a1078a6`) — *Produced-trace equivalence*
+(`produced_trace_equivalent` / `EquivalenceResult`) implemented in
+`include/ltlf_ek/produced_trace_equivalence.hpp` +
+`src/produced_trace_equivalence.cpp`, with its own unit tests
+(`tests/produced_trace_equivalence_test.cpp`, 7 green), plus the two oracles
+this pass added in `tests/produced_trace_equivalence_oracles_test.cpp`: **T1**
+(the certificate, enumerated over `bench_families()` rather than hard-coded —
+GREEN on every landed T1 family's declared `psi_in`, no finding, closing
+benchmark-suite.md B3's hole; `slippery-binary` / `slippery-onehot` at
+n = 2, 3 both goals, plus n = 4 for `slippery-binary` only — `slippery-onehot`
+n = 4 throws `std::bad_alloc` building its 32-AP `A_N`, measured and dropped
+per Stop-list 8's "one-hot at large n" edge case, not a bug) and **T6** (the
+negative control, two satisfiable mutants on a hand-checkable one-axis
+"slippery-line" toy, both caught with a witness). `knowledge-chain` /
+`knowledge-chain-inert` (t2) and `parity-t3` (t3) skip cleanly, as declared.
+Full suite: 679/680 green, the one failure the pre-existing known-open
+`parity-t3` cross-method mismatch (unrelated, not in this pass's scope).
+Phase 1 complete (2026-08-20, branch `edf-phase1`) — the two enumerated
+families `slippery-binary` / `slippery-onehot` and the five `<method>-nk`
+subjects are registered in `src/bench_suite.cpp`, at the phase's green
+checkpoint; see `docs/runs/2026-08-20-edf-phase1.md`. Phases 3–4 not started.
+`BenchCase` untouched, as D4 promised.
 **Interface:** adds `BenchFamily` / `BenchSubject` registrations to the landed
 Phase 2 registry (`include/ltlf_ek/bench_suite.hpp`), plus **one** new library
 API — *Produced-trace equivalence* (`produced_trace_equivalent`). **Does not
@@ -31,20 +49,41 @@ questions touched*.
   item to *Open theory questions* (this PRD's Stop-list 6)
 - [ ] tests           — unit + oracle coverage. **Phase 1 closed 2026-08-20**:
   `tests/slippery_world_test.cpp` covers T2, T3, T4, T5, T7 plus the $n<2$ floor
-  and D7's two demotion/skip units (10 tests, all green). T1/T6 await Phase 2's
-  API, T8/T9 await Phase 3's compact arm — so the box stays open PRD-wide.
+  and D7's two demotion/skip units (10 tests, all green). **Phase 2, 2026-08-21**:
+  `produced_trace_equivalent`'s own unit tests landed
+  (`tests/produced_trace_equivalence_test.cpp`, 7 green — degenerate
+  $\psi=$`true`/`false`, a nowhere-defined $\tau$, the empty-word field, one
+  hand-built matching case, one hand-built mismatching case with its witness
+  checked for shortest-ness and determinism against independent reference
+  walkers). **T1 and T6 landed the same day** in
+  `tests/produced_trace_equivalence_oracles_test.cpp` (`/test-writer`,
+  `a1078a6`): T1 enumerates `bench_families()` — 24 cases green, 12 clean skips
+  — and T6's two satisfiable mutants are both caught with a witness. T8/T9 await
+  Phase 3's compact arm — so the box stays open PRD-wide, with nothing owed for
+  Phases 1–2.
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review).
   **Domain half clean on the Phase 1 diff, 2026-08-20** (no must-fix; four
-  `consider` notes recorded in *Developer comments* below). The **generic half
-  is owed**: `/code-review` is not agent-invocable and the day-run does not
-  push, so no PR exists to run it against. Gate stays open until it does.
+  `consider` notes recorded in *Developer comments* below). **Domain half run
+  again on the Phase 2 diff, 2026-08-21** — two `must-fix`, both documentation
+  (the T6 deviation argued in a source comment instead of this PRD; the
+  "either side" sink wording overstating the code), both applied in `31fb6e8`;
+  one `consider` recorded below, not acted on. The **generic half** is run
+  against the PR in the same day-run — see the *Developer comments* entry for
+  its verdict. Gate is ticked only once both halves have actually run.
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex. **Not run on
   Phase 1, deliberately**: the diff is registry/benchmark-*data* (family
   generators + subjects), not semantic algorithm code — it touches no method,
   no `cons`, no progression, no product construction, and neither the
   `Synthesis` nor the `Transducer` contract. The one theory question these
   families do raise is the **domain-framing lemma**, which Stop-list 6 forbids a
-  run from touching.
+  run from touching. **Ran on the Phase 2 diff, 2026-08-21** (spawned by
+  `/code-reviewer` on the product-construction code): **no `code-bug`** — the
+  DFA-equality product, the BFS and the sink convention are faithful to
+  `\cref{def:consistency}` / `\cref{def:probDefTransducer}`; one low-severity
+  `doc-bug` (the sink wording, fixed in `31fb6e8`), no `\cl` note written, and
+  the domain-framing lemma left untouched per Stop-list 6. Box stays open
+  PRD-wide: Phase 3's bespoke arithmetic $A_N$ is exactly the diff that will
+  need this pass again.
 
 **Unattended-ready:** **yes — unconditionally, as of 2026-08-19.** The one
 condition (the *Produced-trace equivalence* glossary entry) was closed the same
@@ -452,8 +491,11 @@ Pinned behaviour — every one of these is a decision, not an implementation
 detail:
 
 1. **Construction.** Build `emits_dfa(tau, ...)` and `ltlf_to_dfa(psi)` on **one
-   shared `bdd_dict`**, then walk a synchronous product. A missing edge on either
-   side is an **implicit rejecting sink**, not a skipped letter.
+   shared `bdd_dict`**, then walk a synchronous product. A missing edge on
+   **tau's side** is an **implicit rejecting sink**, not a skipped letter;
+   **psi's side is total by construction** (`ltlf_to_dfa` is always complete),
+   so a missing edge there is a precondition violation and throws
+   `std::logic_error`.
 2. **Verdict.** `equivalent_on_nonempty` is false iff some **reachable**
    state pair other than the initial pair has differing finality.
 3. **Witness.** `counterexample` is the **shortest** such word, found by BFS over
@@ -628,6 +670,62 @@ protocol so its numbers stay comparable), per-case timeout **60 s**,
 - The four gates ticked by the skills that perform them.
 
 ## Developer comments / PRD disagreements
+
+### Phase 2, 2026-08-21 — one underspecified point, resolved (not a frozen-signature deviation)
+
+The frozen `EquivalenceResult` fields, their order, and the 7 pinned-behaviour
+items are all implemented literally. One internal-algorithm detail the PRD
+states but does not fully pin down is pinned behaviour #5's "Slices come from
+`sigma_slices`" — it says role-derived slices are the source, but not what they
+feed. Resolved as: `sigma_slices(vars, role)` orders the BFS's letter alphabet
+(Sigma0 first, then Sigma1, then the rest of `vars.universe()` plus any AP
+either `emits_dfa(tau)` or `ltlf_to_dfa(psi)` actually registered) — so the
+witness's bit order is role-informed and deterministic, but the walk still
+covers the FULL alphabet regardless of role. That last part is load-bearing,
+not a simplification: a declared $\psi$ (e.g. this PRD's own $A_N$, D5) is free
+to reference variables outside $\Sigma_0\cup\Sigma_1$ — $A_N$'s guards read
+$\Ofree$ `mv` literals even when checked under `Role::t_in`, whose
+$\Sigma_0\cup\Sigma_1 = \Ifree\cup\Iknown$ excludes $\mathcal{O}$ entirely.
+Restricting the walk to $\Sigma_0\cup\Sigma_1$ would silently blind the
+certificate to exactly the class of mutant T6 needs it to catch (a wrong rule
+on a `mv` guard). If a future reading of the PRD intends something narrower,
+that is a signature-level PRD-change event, not a code fix.
+
+The same resolution silently reinterprets pinned behaviour #3's literal
+wording too: #3 says the BFS visits letters "in `bdd_dict` variable order",
+but the implementation (`ordered_letter_alphabet`,
+`src/produced_trace_equivalence.cpp:22-48`) orders them
+`sigma_slices`-then-lexicographic-AP-name instead, for the reason above (the
+walk needs a role-informed, not registration-order, alphabet to stay
+sensitive to `mv`-guard mutants). Both orderings are fully deterministic and
+test-verified; this is a documentation note, not a behaviour change.
+`docs/GLOSSARY.md`'s *Produced-trace equivalence* entry (~line 1353) states
+the same "`bdd_dict` variable order" wording and needs the identical
+correction at a future `/glossary` pass.
+
+**T6's mutant substitution (code-review, 2026-08-21).** T6
+(`tests/produced_trace_equivalence_oracles_test.cpp`) builds its two
+satisfiable mutants on a small, hand-checkable one-axis "slippery-line"
+reduction ($N=2$) of the landed slippery-world construction (D1/D3), not on
+D5's Keep/Inc vocabulary that the PRD's own description of these two mutants
+("drop the slip case", "Keep at a wall" -> "Inc") uses — because D5
+(Phase 3) is not landed yet on this branch. `/code-reviewer` judged the
+substitution **ACCEPTABLE**: T1 already exercises the real generator
+(`bench_families()`, every registered family) end to end, so T6's job is only
+to prove the equivalence machinery itself discriminates a wrong rule from a
+right one, which the reduced construction does just as well. Recorded here as
+a closed deviation, not an open defect.
+
+**Doc-bug (theory-review, 2026-08-21, low severity).** Pinned behaviour #1
+above and the header doc-comment
+(`include/ltlf_ek/produced_trace_equivalence.hpp`) previously said "a missing
+edge on **either** side is an implicit rejecting sink". The code only ever
+does that for tau's side (`src/produced_trace_equivalence.cpp:123-134`); a
+missing edge on psi's side throws `std::logic_error`, because `ltlf_to_dfa`
+is always total. Both texts are now corrected to match the code, which is the
+behaviour intended to be pinned. `docs/GLOSSARY.md`'s *Produced-trace
+equivalence* entry (~line 1345) carries the same imprecision and needs the
+identical correction at a future `/glossary` pass.
 
 ### Phase 1, 2026-08-20 — three deviations, all in tests
 
