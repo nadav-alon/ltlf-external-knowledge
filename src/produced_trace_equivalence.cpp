@@ -110,15 +110,38 @@ EquivalenceResult produced_trace_equivalent(const Transducer& tau,
   // in non-decreasing distance from `init` (a plain BFS invariant) AND
   // breaks ties deterministically, so the first divergent pair found is the
   // shortest witness, reproducibly (pinned behaviour #2/#3).
-  std::map<Key, std::pair<Key, bdd>> parent;
-  std::set<Key> visited{init};
+  //
+  // Only the EMPTY word (zero letters) is excluded from this walk --- that
+  // case is `result.empty_word_agrees` above, never folded in here. A
+  // NON-EMPTY word that returns to `init` is a perfectly ordinary product
+  // state and must be checked like any other: `visited` therefore does
+  // *not* pre-seed `init`, so its first non-empty-word rediscovery still
+  // gets the finality test below. (A pre-seeded `visited{init}` was the
+  // 2026-08-21 code-review bug: it silently pruned exactly that case,
+  // dropping counterexamples that only return through the initial pair ---
+  // see docs/prd/engineered-domain-families.md's dated correction.)
+  //
+  // Parent pointers use `std::optional<Key>` rather than `Key`, because
+  // `init` is not a distinguishable sentinel from an ordinary reachable
+  // pair --- a length-1 witness that lands back on `init` would otherwise
+  // make `parent[init]` point at itself. `std::nullopt` instead marks "no
+  // letter consumed yet" (the true, virtual pre-initial root), assigned only
+  // to states discovered while expanding `init` itself; every other state's
+  // predecessor is a real `Key`. Reconstruction below stops on `nullopt`,
+  // not on `cur == init`.
+  std::map<Key, std::pair<std::optional<Key>, bdd>> parent;
+  std::set<Key> visited;
   std::queue<Key> worklist;
   worklist.push(init);
 
   std::optional<Key> divergent;
+  bool expanding_root = true;
   while (!worklist.empty() && !divergent) {
     const Key cur = worklist.front();
     worklist.pop();
+    const std::optional<Key> cur_id =
+        expanding_root ? std::nullopt : std::optional<Key>(cur);
+    expanding_root = false;
     for (const bdd& letter : letters) {
       TauSide tau_succ = kSink;
       if (cur.first != kSink) {
@@ -135,11 +158,12 @@ EquivalenceResult produced_trace_equivalent(const Transducer& tau,
 
       const Key next{tau_succ, *psi_succ};
       if (!visited.insert(next).second) continue;  // already reached, no shorter.
-      parent.emplace(next, std::make_pair(cur, letter));
+      parent.emplace(next, std::make_pair(cur_id, letter));
       worklist.push(next);
 
-      // Pinned behaviour #2: some REACHABLE, non-initial pair --- `next` is
-      // never `init` here (BFS never re-discovers the start state).
+      // Pinned behaviour #2 (corrected 2026-08-21): some reachable pair,
+      // possibly `init` itself when reached by a non-empty word, differs in
+      // finality.
       if (tau_final(next.first) != psi_final(next.second)) {
         divergent = next;
         break;
@@ -147,7 +171,11 @@ EquivalenceResult produced_trace_equivalent(const Transducer& tau,
     }
   }
 
-  result.product_states = static_cast<unsigned>(visited.size());
+  // The literal root (`init`, zero letters) is always explored even when no
+  // word ever returns to it, so it is not double-counted nor silently
+  // dropped from "reachable pairs explored".
+  result.product_states =
+      static_cast<unsigned>(visited.size()) + (visited.count(init) ? 0u : 1u);
 
   if (!divergent) {
     result.equivalent_on_nonempty = true;
@@ -157,11 +185,11 @@ EquivalenceResult produced_trace_equivalent(const Transducer& tau,
 
   result.equivalent_on_nonempty = false;
   std::vector<bdd> witness;
-  Key cur = *divergent;
-  while (cur != init) {
-    const auto& [p, letter] = parent.at(cur);
+  std::optional<Key> cur = *divergent;
+  while (cur) {
+    const auto& [pred, letter] = parent.at(*cur);
     witness.push_back(letter);
-    cur = p;
+    cur = pred;
   }
   std::reverse(witness.begin(), witness.end());
   result.counterexample = std::move(witness);

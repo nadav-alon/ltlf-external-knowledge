@@ -34,6 +34,7 @@ using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::produced_trace_equivalent;
 using ltlf_ek::Role;
 using ltlf_ek::Transducer;
+using ltlf_ek::trivial_transducer;
 using ltlf_ek::VariablePartition;
 
 spot::formula Phi(const std::string& s) { return spot::parse_formula(s); }
@@ -79,6 +80,14 @@ bool PsiAcceptsWord(const spot::formula& psi, const spot::bdd_dict_ptr& dict,
 VariablePartition SingleKnownInputVars() {
   return VariablePartition::split(/*inputs=*/{"i"}, /*outputs=*/{},
                                   /*governed=*/{"i"});
+}
+
+// A single-AP {i} partition with i FREE (Iknown = empty, i not governed) ---
+// the smallest partition `trivial_transducer(vars, Role::t_in, ...)` accepts
+// (it throws unless the role's known set is empty).
+VariablePartition SingleFreeInputVars() {
+  return VariablePartition::split(/*inputs=*/{"i"}, /*outputs=*/{},
+                                  /*governed=*/{});
 }
 
 // tau: state0 commits i=true, unconditionally moves to state1; state1
@@ -257,6 +266,40 @@ TEST(ProducedTraceEquivalence, MismatchingPsiWitnessIsShortestAndDeterministic) 
   ASSERT_EQ(r2.counterexample->size(), w.size());
   for (std::size_t idx = 0; idx < w.size(); ++idx)
     EXPECT_EQ((*r2.counterexample)[idx], w[idx]) << "at index " << idx;
+}
+
+// ---------------------------------------------------------------------------
+// Regression (code-review, 2026-08-21): a non-empty word that returns the
+// walk to the INITIAL product pair must still be checked, not pruned by a
+// pre-seeded `visited`. tau = trivial_transducer (L(tau) = Sigma+, a single
+// state that self-loops on every letter) against psi = F(i): the word "!i"
+// alone is in L(tau) but not in L(F(i)), and tau's/psi's product returns to
+// the initial pair after that one letter --- exactly the pair a pre-seeded
+// `visited` would have swallowed, silently reporting a false equivalence.
+// ---------------------------------------------------------------------------
+
+TEST(ProducedTraceEquivalence,
+    NonEmptyWordReturningToInitialPairIsCheckedNotPruned) {
+  auto dict = spot::make_bdd_dict();
+  auto vars = SingleFreeInputVars();
+  auto tau = trivial_transducer(vars, Role::t_in, dict);
+
+  const EquivalenceResult r =
+      produced_trace_equivalent(tau, Phi("F(i)"), vars, Role::t_in);
+
+  ASSERT_FALSE(r.equivalent_on_nonempty)
+      << "tau accepts every non-empty word (L(tau) = Sigma+), F(i) does not "
+        "accept a word where i never holds --- must diverge";
+  ASSERT_TRUE(r.counterexample.has_value());
+  const std::vector<bdd>& w = *r.counterexample;
+
+  // Independent check: the witness genuinely disagrees between tau and psi.
+  EXPECT_NE(TauAcceptsWord(tau, w), PsiAcceptsWord(Phi("F(i)"), dict, w));
+
+  // Shortest possible: a single letter already returns the walk to the
+  // initial pair with differing finality --- no strictly shorter non-empty
+  // word exists to disagree on.
+  EXPECT_EQ(w.size(), 1u);
 }
 
 }  // namespace
