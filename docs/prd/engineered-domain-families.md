@@ -921,6 +921,34 @@ certificate, it is why Phase 3 is the phase that needs it: the compact $A_N$'s
 ripple-carry is written independently, and the certificate is its correctness
 test. T6's negative control remains the thing that proves the check has teeth.
 
+### Phase 3, 2026-08-21 (integration) — D8's "15 top-level conjuncts" is **not** what Spot counts
+
+Found by the launcher after merging the `/developer` and `/test-writer` branches,
+so it is not in the `/developer` entry below. T5 measures the compact $A_N$'s
+top-level conjunct count as **$14 + 2n$**, not $15$:
+
+| $n$ | 2 | 3 | 4 | 5 | 6 |
+|---|---|---|---|---|---|
+| `an.size()` | 18 | 20 | 22 | 24 | 26 |
+
+The cause is arithmetic, not a construction bug: D5's init conjunct
+$\mathrm{Min}(b^x) \wedge \mathrm{Min}(b^y)$ is **$2n$ literals**, which Spot
+flattens into the top-level `AND` instead of keeping as "1 init conjunct". So
+$14$ rules $+\ 2n$ init literals.
+
+**The separation argument survives; the stated number does not.** $14 + 2n$ is
+still $O(\log N)$ against the enumerated arms' $14N + 1$, so D8's and Stop-list
+2's "constant vs linear in $N$" contrast holds in substance. But D8 asserts $15$
+as *"exact and derived from the construction"*, and it is not — so the assertion
+as written is wrong. **Decision owed:** count the init block as one grouped
+conjunct, or correct the claim to $14 + 2n$. Not decided unattended.
+
+**This gates the PRD's headline measurement.** T9 re-asserts the same $15$ as its
+own sanity precondition and therefore **never evaluates**
+$\lvert\mathrm{DFA}(A_N)\rvert \ge 4^n$. The separation is currently
+**unmeasured, not disproven** — and measuring it now would describe a formula
+that the fix below is about to change.
+
 ### Phase 3, 2026-08-21 — Stop-list 1: the certificate is RED on the compact $A_N$, not repaired
 
 `slippery-binary-compact` is implemented literally against D5 (every
