@@ -67,9 +67,16 @@ questions touched*.
   again on the Phase 2 diff, 2026-08-21** — two `must-fix`, both documentation
   (the T6 deviation argued in a source comment instead of this PRD; the
   "either side" sink wording overstating the code), both applied in `31fb6e8`;
-  one `consider` recorded below, not acted on. The **generic half** is run
-  against the PR in the same day-run — see the *Developer comments* entry for
-  its verdict. Gate is ticked only once both halves have actually run.
+  one `consider` recorded below, not acted on. **Generic half RAN, 2026-08-21,
+  as `/code-review 13` against draft PR #13** — so the standing note that
+  `/code-review` is not agent-invocable is **wrong**, and the generic half is no
+  longer owed. It found the phase's only real bug (the initial-pair false green,
+  fixed in `6cd8d9b`) plus **two findings left open at the review-round cap**:
+  the eager $2^{\lvert AP\rvert}$ letter enumeration
+  (`src/produced_trace_equivalence.cpp:57`, with unguarded UB for $k \ge 64$)
+  and the dead `tau_dfa->ap()` harvesting loop (`:37`). **Box deliberately left
+  unticked**: both halves ran, but ticking over two open findings would
+  misreport them. See `docs/runs/2026-08-21-edf-phase2.md` §4a.
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex. **Not run on
   Phase 1, deliberately**: the diff is registry/benchmark-*data* (family
   generators + subjects), not semantic algorithm code — it touches no method,
@@ -497,7 +504,11 @@ detail:
    so a missing edge there is a precondition violation and throws
    `std::logic_error`.
 2. **Verdict.** `equivalent_on_nonempty` is false iff some **reachable**
-   state pair other than the initial pair has differing finality.
+   state pair reached by a **non-empty word** has differing finality —
+   including the initial pair itself, when a non-empty word returns to it.
+   Only the **empty word** (zero letters) is excluded; see the 2026-08-21
+   correction below (Developer comments) for why the earlier "other than the
+   initial pair" wording was itself the bug.
 3. **Witness.** `counterexample` is the **shortest** such word, found by BFS over
    product states with letters visited in `bdd_dict` variable order — so it is
    **deterministic and reproducible**, not "some" witness. `std::nullopt` iff
@@ -670,6 +681,66 @@ protocol so its numbers stay comparable), per-case timeout **60 s**,
 - The four gates ticked by the skills that perform them.
 
 ## Developer comments / PRD disagreements
+
+### Phase 2, 2026-08-21 (round 2) — soundness bug: the initial pair was excluded from the walk, not just the empty word
+
+`/code-review` on PR #13 found that `produced_trace_equivalent`
+(`src/produced_trace_equivalence.cpp`) pre-seeded its BFS `visited` set with
+the initial product pair (`std::set<Key> visited{init};`, the line since
+fixed). That pruned every **non-empty** word whose walk happened to return to
+the initial pair, *before* the finality test ran — silently swallowing a
+genuine counterexample whenever one existed only at that pair.
+
+**Repro (reviewer's, confirmed).** `tau = trivial_transducer(...)` (single
+state, self-loops on every letter, so $L(\tau) = \Sigma^+$) against
+`psi = F(i)`. The word `[!i]` is in $L(\tau)$ but not in $L(\psi)$ (i never
+holds), and after that one letter the product walk is back on the initial
+pair — exactly the pair `visited` had pre-excluded. The buggy code returned
+`equivalent_on_nonempty = true`; it should have returned `false` with witness
+`[!i]`.
+
+This was pinned behaviour #2's own wording causing the bug: "some reachable
+state pair **other than the initial pair**" reads as "exclude the initial
+pair", when what was actually meant (and is now the corrected wording above)
+is "exclude the *empty word*" — the initial pair is a completely ordinary
+product state for every *non-empty* word that happens to land back on it.
+
+**Fix.** `visited` no longer pre-seeds `init`; a non-empty return to it is
+discovered and finality-checked exactly like any other pair. Witness
+reconstruction can no longer key off `cur != init` (a length-1 witness that
+returns to `init` would otherwise make the parent chain point at itself), so
+parent pointers now carry `std::optional<Key>`, with `std::nullopt` marking
+the true, virtual pre-initial root — reconstruction stops on `nullopt`, not
+on the pair's value. Regression test:
+`ProducedTraceEquivalence.NonEmptyWordReturningToInitialPairIsCheckedNotPruned`
+(`tests/produced_trace_equivalence_test.cpp`), the reviewer's exact case.
+
+**Recorded, not fixed this pass** (two more `/code-review` findings, out of
+scope for a soundness-only round):
+
+1. **`src/produced_trace_equivalence.cpp:57`** (`ordered_letter_alphabet`) —
+   the letter alphabet is enumerated **eagerly** as a `std::vector<bdd>` of
+   $2^{|\mathrm{AP}|}$ cubes. For `slippery-onehot` at $n = 4$ (37 APs) that
+   is $\approx 1.4\times10^{11}$ entries — the *real* cause of that cell's
+   `std::bad_alloc` (previously attributed only to "one-hot at large $n$",
+   Stop-list 8), not the automaton construction itself:
+   `ltlf_to_dfa(psi_in)` builds the same case in 0.64 s at 258 states. This
+   eager enumeration is also why the new T1 cells cost $\approx 220$ s
+   (`slippery-onehot` $n=3$, 21 APs $\Rightarrow 2^{21}$ cubes built, then
+   linearly rescanned per product state). `std::size_t{1} << k` is
+   additionally UB for $k \geq 64$, unguarded — not reachable at today's
+   $n$, but latent.
+2. **`src/produced_trace_equivalence.cpp:37`** — the `tau_dfa->ap()`
+   harvesting loop in `ordered_letter_alphabet` is dead code: `emits_dfa`
+   never calls `register_ap`, so this "cover a `psi` that strays outside
+   `vars`" safety net only ever fires for the `psi_dfa->ap()` half. A
+   `Transducer` guard mentioning an AP outside `vars.universe()` yields a
+   non-full cube on the tau side, and `goal_delta`'s first-intersecting-edge
+   match then silently takes the wrong edge for it.
+
+Neither is a soundness bug in the sense above (both are performance/coverage
+gaps with a known trigger, not a wrong verdict on a currently-landed case);
+either is a fair `/developer` scope for a future pass.
 
 ### Phase 2, 2026-08-21 — one underspecified point, resolved (not a frozen-signature deviation)
 
