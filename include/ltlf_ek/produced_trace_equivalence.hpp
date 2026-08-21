@@ -30,8 +30,11 @@ struct EquivalenceResult {
 
 // Decide L(tau) == L(psi) on non-empty words, by walking a synchronous
 // product of emits_dfa(tau) and ltlf_to_dfa(psi) built on ONE shared
-// spot::bdd_dict (tau.dict()).  A missing edge on EITHER side is an implicit
-// rejecting sink, never a skipped letter.  `equivalent_on_nonempty` is false
+// spot::bdd_dict (tau.dict()).  A missing edge on tau's side is an implicit
+// rejecting sink, never a skipped letter; psi's side is total by
+// construction (ltlf_to_dfa is always complete), so a missing edge there is
+// a precondition violation and throws std::logic_error instead.
+// `equivalent_on_nonempty` is false
 // iff some REACHABLE, non-initial product state pair differs in finality;
 // `counterexample`, when set, is the SHORTEST such word, found by a
 // breadth-first walk that visits letters in a fixed, deterministic order ---

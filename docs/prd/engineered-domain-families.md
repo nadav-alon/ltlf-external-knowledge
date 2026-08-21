@@ -478,8 +478,11 @@ Pinned behaviour — every one of these is a decision, not an implementation
 detail:
 
 1. **Construction.** Build `emits_dfa(tau, ...)` and `ltlf_to_dfa(psi)` on **one
-   shared `bdd_dict`**, then walk a synchronous product. A missing edge on either
-   side is an **implicit rejecting sink**, not a skipped letter.
+   shared `bdd_dict`**, then walk a synchronous product. A missing edge on
+   **tau's side** is an **implicit rejecting sink**, not a skipped letter;
+   **psi's side is total by construction** (`ltlf_to_dfa` is always complete),
+   so a missing edge there is a precondition violation and throws
+   `std::logic_error`.
 2. **Verdict.** `equivalent_on_nonempty` is false iff some **reachable**
    state pair other than the initial pair has differing finality.
 3. **Witness.** `counterexample` is the **shortest** such word, found by BFS over
@@ -674,6 +677,42 @@ Restricting the walk to $\Sigma_0\cup\Sigma_1$ would silently blind the
 certificate to exactly the class of mutant T6 needs it to catch (a wrong rule
 on a `mv` guard). If a future reading of the PRD intends something narrower,
 that is a signature-level PRD-change event, not a code fix.
+
+The same resolution silently reinterprets pinned behaviour #3's literal
+wording too: #3 says the BFS visits letters "in `bdd_dict` variable order",
+but the implementation (`ordered_letter_alphabet`,
+`src/produced_trace_equivalence.cpp:22-48`) orders them
+`sigma_slices`-then-lexicographic-AP-name instead, for the reason above (the
+walk needs a role-informed, not registration-order, alphabet to stay
+sensitive to `mv`-guard mutants). Both orderings are fully deterministic and
+test-verified; this is a documentation note, not a behaviour change.
+`docs/GLOSSARY.md`'s *Produced-trace equivalence* entry (~line 1353) states
+the same "`bdd_dict` variable order" wording and needs the identical
+correction at a future `/glossary` pass.
+
+**T6's mutant substitution (code-review, 2026-08-21).** T6
+(`tests/produced_trace_equivalence_oracles_test.cpp`) builds its two
+satisfiable mutants on a small, hand-checkable one-axis "slippery-line"
+reduction ($N=2$) of the landed slippery-world construction (D1/D3), not on
+D5's Keep/Inc vocabulary that the PRD's own description of these two mutants
+("drop the slip case", "Keep at a wall" -> "Inc") uses — because D5
+(Phase 3) is not landed yet on this branch. `/code-reviewer` judged the
+substitution **ACCEPTABLE**: T1 already exercises the real generator
+(`bench_families()`, every registered family) end to end, so T6's job is only
+to prove the equivalence machinery itself discriminates a wrong rule from a
+right one, which the reduced construction does just as well. Recorded here as
+a closed deviation, not an open defect.
+
+**Doc-bug (theory-review, 2026-08-21, low severity).** Pinned behaviour #1
+above and the header doc-comment
+(`include/ltlf_ek/produced_trace_equivalence.hpp`) previously said "a missing
+edge on **either** side is an implicit rejecting sink". The code only ever
+does that for tau's side (`src/produced_trace_equivalence.cpp:123-134`); a
+missing edge on psi's side throws `std::logic_error`, because `ltlf_to_dfa`
+is always total. Both texts are now corrected to match the code, which is the
+behaviour intended to be pinned. `docs/GLOSSARY.md`'s *Produced-trace
+equivalence* entry (~line 1345) carries the same imprecision and needs the
+identical correction at a future `/glossary` pass.
 
 ### Phase 1, 2026-08-20 — three deviations, all in tests
 

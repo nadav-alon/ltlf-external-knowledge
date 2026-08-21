@@ -39,9 +39,9 @@
 // T6 -- negative control: two satisfiable mutants of a slippery-world-style
 // A_N must be CAUGHT, with a witness. Built on a small, hand-checkable
 // one-axis "slippery-line" reduction (N = 2) of the landed slippery-world
-// construction (D1/D3), since the PRD's own vocabulary for these two mutants
-// ("drop the slip case", "Keep at a wall" -> "Inc") is D5's compact-arm
-// language, and D5 (Phase 3) is not landed yet on this branch.
+// construction (D1/D3), not on D5's Keep/Inc vocabulary -- rationale and
+// /code-reviewer sign-off recorded in docs/prd/engineered-domain-families.md
+// "Developer comments / PRD disagreements", 2026-08-21.
 namespace {
 
 using ltlf_ek::BenchCase;
