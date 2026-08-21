@@ -55,22 +55,35 @@ questions touched*.
   $\psi=$`true`/`false`, a nowhere-defined $\tau$, the empty-word field, one
   hand-built matching case, one hand-built mismatching case with its witness
   checked for shortest-ness and determinism against independent reference
-  walkers). **T1 (the certificate over every landed T1 family) and T6 (the
-  two-mutant negative control) are still owed to a `/test-writer` pass** — the
-  API can express both, neither is written here. T8/T9 await Phase 3's compact
-  arm — so the box stays open PRD-wide.
+  walkers). **T1 and T6 landed the same day** in
+  `tests/produced_trace_equivalence_oracles_test.cpp` (`/test-writer`,
+  `a1078a6`): T1 enumerates `bench_families()` — 24 cases green, 12 clean skips
+  — and T6's two satisfiable mutants are both caught with a witness. T8/T9 await
+  Phase 3's compact arm — so the box stays open PRD-wide, with nothing owed for
+  Phases 1–2.
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review).
   **Domain half clean on the Phase 1 diff, 2026-08-20** (no must-fix; four
-  `consider` notes recorded in *Developer comments* below). The **generic half
-  is owed**: `/code-review` is not agent-invocable and the day-run does not
-  push, so no PR exists to run it against. Gate stays open until it does.
+  `consider` notes recorded in *Developer comments* below). **Domain half run
+  again on the Phase 2 diff, 2026-08-21** — two `must-fix`, both documentation
+  (the T6 deviation argued in a source comment instead of this PRD; the
+  "either side" sink wording overstating the code), both applied in `31fb6e8`;
+  one `consider` recorded below, not acted on. The **generic half** is run
+  against the PR in the same day-run — see the *Developer comments* entry for
+  its verdict. Gate is ticked only once both halves have actually run.
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex. **Not run on
   Phase 1, deliberately**: the diff is registry/benchmark-*data* (family
   generators + subjects), not semantic algorithm code — it touches no method,
   no `cons`, no progression, no product construction, and neither the
   `Synthesis` nor the `Transducer` contract. The one theory question these
   families do raise is the **domain-framing lemma**, which Stop-list 6 forbids a
-  run from touching.
+  run from touching. **Ran on the Phase 2 diff, 2026-08-21** (spawned by
+  `/code-reviewer` on the product-construction code): **no `code-bug`** — the
+  DFA-equality product, the BFS and the sink convention are faithful to
+  `\cref{def:consistency}` / `\cref{def:probDefTransducer}`; one low-severity
+  `doc-bug` (the sink wording, fixed in `31fb6e8`), no `\cl` note written, and
+  the domain-framing lemma left untouched per Stop-list 6. Box stays open
+  PRD-wide: Phase 3's bespoke arithmetic $A_N$ is exactly the diff that will
+  need this pass again.
 
 **Unattended-ready:** **yes — unconditionally, as of 2026-08-19.** The one
 condition (the *Produced-trace equivalence* glossary entry) was closed the same
