@@ -67,9 +67,16 @@ questions touched*.
   again on the Phase 2 diff, 2026-08-21** — two `must-fix`, both documentation
   (the T6 deviation argued in a source comment instead of this PRD; the
   "either side" sink wording overstating the code), both applied in `31fb6e8`;
-  one `consider` recorded below, not acted on. The **generic half** is run
-  against the PR in the same day-run — see the *Developer comments* entry for
-  its verdict. Gate is ticked only once both halves have actually run.
+  one `consider` recorded below, not acted on. **Generic half RAN, 2026-08-21,
+  as `/code-review 13` against draft PR #13** — so the standing note that
+  `/code-review` is not agent-invocable is **wrong**, and the generic half is no
+  longer owed. It found the phase's only real bug (the initial-pair false green,
+  fixed in `6cd8d9b`) plus **two findings left open at the review-round cap**:
+  the eager $2^{\lvert AP\rvert}$ letter enumeration
+  (`src/produced_trace_equivalence.cpp:57`, with unguarded UB for $k \ge 64$)
+  and the dead `tau_dfa->ap()` harvesting loop (`:37`). **Box deliberately left
+  unticked**: both halves ran, but ticking over two open findings would
+  misreport them. See `docs/runs/2026-08-21-edf-phase2.md` §4a.
 - [ ] theory-review   — code ↔ math faithfulness vs main.tex. **Not run on
   Phase 1, deliberately**: the diff is registry/benchmark-*data* (family
   generators + subjects), not semantic algorithm code — it touches no method,
