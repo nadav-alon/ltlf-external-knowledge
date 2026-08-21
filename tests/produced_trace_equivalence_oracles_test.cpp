@@ -147,9 +147,14 @@ INSTANTIATE_TEST_SUITE_P(Registry, ProducedTraceEquivalenceT1Registry,
                          testing::ValuesIn(AllRegistryT1Params()),
                          T1ParamName);
 
-// slippery-binary at n = 4, kept separate from the n in {2, 3} registry
-// sweep above: this pass's scope makes n = 4 conditional on staying fast,
-// not a uniform registry rule. slippery-binary at n = 4 is ~1.6 s/case, kept.
+// slippery-binary / slippery-binary-compact at n = 4, kept separate from the
+// n in {2, 3} registry sweep above: this pass's scope makes n = 4
+// conditional on staying fast, not a uniform registry rule. Both binary
+// arms are ~1.6 s/case at n = 4 -- slippery-binary-compact reuses
+// slippery-binary's t_in verbatim (D5), so its cost here tracks the same
+// number, only its (15-conjunct) psi_in differs. Added by Phase 3
+// (docs/prd/engineered-domain-families.md T1: "both goals, n = 2, 3, 4")
+// to close the compact arm's own n = 4 cell.
 // slippery-onehot at n = 4 is NOT included here: measured (not guessed) --
 // it throws std::bad_alloc building ltlf_to_dfa's 2 * 2^4 = 32-AP A_N (D8's
 // own edge case note: "one-hot at large n ... n = 6 is 128 APs and may time
@@ -159,7 +164,9 @@ INSTANTIATE_TEST_SUITE_P(Registry, ProducedTraceEquivalenceT1Registry,
 // asserted above, in the n in {2, 3} registry sweep).
 std::vector<T1Param> SlipperyN4Params() {
   return {T1Param{"slippery-binary", 4, false},
-          T1Param{"slippery-binary", 4, true}};
+          T1Param{"slippery-binary", 4, true},
+          T1Param{"slippery-binary-compact", 4, false},
+          T1Param{"slippery-binary-compact", 4, true}};
 }
 
 class ProducedTraceEquivalenceT1SlipperyN4
