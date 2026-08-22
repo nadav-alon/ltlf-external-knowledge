@@ -590,15 +590,20 @@ TEST(BenchSuiteTierDeclaration, ExactlyTheDeclaredT1FamiliesAreT1AndParityT3IsT3
       other_names.insert(family->name());
     }
   }
-  // The four trivial-knowledge families, plus the two enumerated
-  // slippery-world arms of docs/prd/engineered-domain-families.md (Phase 1,
-  // D4: psi_in IS A_N, so they are T1 by construction and their declaration
-  // is the thing Phase 2's Produced-trace equivalence will certify).
+  // The four trivial-knowledge families, plus the three slippery-world arms
+  // of docs/prd/engineered-domain-families.md -- the two enumerated ones from
+  // Phase 1 and the compact one from Phase 3 (D4: psi_in IS A_N, so they are
+  // T1 by construction). Unlike the enumerated arms, whose psi_in is
+  // generated from the same slippery_step as their T_in, the compact arm's
+  // ripple-carry A_N is written independently, so its T1 declaration rests on
+  // the Produced-trace-equivalence certificate rather than on construction --
+  // and that certificate is green at n = 2, 3, 4 on both goals.
   const std::set<std::string> expected_t1 = {"cons-prunes", "cons-inert",
                                              "mirror-small",
                                              "mirror-degenerate",
                                              "slippery-binary",
-                                             "slippery-onehot"};
+                                             "slippery-onehot",
+                                             "slippery-binary-compact"};
   EXPECT_EQ(t1_names, expected_t1);
   EXPECT_EQ(t3_names, std::set<std::string>({"parity-t3"}));
   // The two knowledge-size families are t2: their T_in is aperiodic (a

@@ -104,10 +104,11 @@ bool HasReachableAccepting(const spot::twa_graph_ptr& dfa) {
 }  // namespace
 
 // ---------------------------------------------------------------------------
-// T5 -- structural, exact: |T_in| = 4^n; A_N has exactly 15 top-level
-// conjuncts for EVERY n (D3/D5's headline claim -- independent of N, unlike
-// the enumerated arms' 14N+1); EK goal_mtdfa_roots = 1. All three are
-// derived from the construction, so asserted, not measured (D8).
+// T5 -- structural, exact: |T_in| = 4^n; A_N has exactly 14 G-rooted rules
+// for EVERY n plus a 2n-literal initial-cell remainder, i.e. 14 + 2n
+// top-level conjuncts (D3/D5's headline claim, against the enumerated arms'
+// 14N + 2n); EK goal_mtdfa_roots = 1. All three are derived from the
+// construction, so asserted, not measured (D8).
 // ---------------------------------------------------------------------------
 
 TEST(SlipperyBinaryCompactStructural, TinStateCountIsFourToTheN) {
@@ -125,13 +126,24 @@ TEST(SlipperyBinaryCompactStructural, TinStateCountIsFourToTheN) {
   }
 }
 
+// The G-rule count is the part of D5's claim that is genuinely independent of
+// N: 14 rules at every n, against the enumerated arms' 14N. The whole
+// top-level conjunct count is NOT constant, and D8's "15" was wrong --- Spot's
+// And is n-ary and flattens, so D5's single init conjunct
+// Min(bx) & Min(by) contributes its own 2n literals as top-level children and
+// an.size() reads 14 + 2n. Asserted the way it is CONSTRUCTED, exactly as
+// tests/slippery_world_test.cpp's ANHasExactlyFourteenNPlusOneTopLevelConjuncts
+// already does for arms 1/2 (Phase 1's finding F3): count G-rooted children,
+// and require every other child to be a literal so nothing can hide in the
+// remainder. Corrected per the user's decision on the PRD's "Decision owed",
+// 2026-08-22 -- see docs/prd/engineered-domain-families.md D8/T5.
 TEST(SlipperyBinaryCompactStructural,
-    ANHasExactlyFifteenTopLevelConjunctsIndependentOfN) {
+    ANHasExactlyFourteenGRulesIndependentOfNPlusA2nLiteralInit) {
   // n swept past the T1 certificate's own range (2..4) on purpose -- D5's
-  // claim is that the conjunct count is a CONSTANT, and a constant checked
-  // at only one n is indistinguishable from one that happens to equal 15
-  // there. This is pure formula parsing (no automaton built), so it stays
-  // cheap even at n = 6.
+  // claim is that the RULE count is a CONSTANT, and a constant checked at
+  // only one n is indistinguishable from one that happens to equal 14 there.
+  // This is pure formula parsing (no automaton built), so it stays cheap even
+  // at n = 6.
   for (std::int64_t n : {2, 3, 4, 5, 6}) {
     SCOPED_TRACE("n=" + std::to_string(n));
     const BenchCase c =
@@ -141,10 +153,28 @@ TEST(SlipperyBinaryCompactStructural,
     ASSERT_EQ(an.kind(), spot::op::And)
         << "D5: A_N is 1 init conjunct + 2x7 implications, a top-level And; "
           "got a different top-level operator instead";
-    EXPECT_EQ(an.size(), 15u)
-        << "D5/T5: the compact A_N must carry exactly 15 top-level "
-          "conjuncts -- 1 init literal-conjunct + 2 axes x 7 rules -- for "
-          "EVERY n, unlike the enumerated arms' 14N+1 (n=" << n << ")";
+
+    std::uint64_t g_rules = 0;
+    std::uint64_t init_literals = 0;
+    for (unsigned i = 0; i < an.size(); ++i) {
+      const spot::formula child = an[i];
+      if (child.kind() == spot::op::G) {
+        ++g_rules;
+      } else {
+        ++init_literals;
+        EXPECT_TRUE(child.is_literal())
+            << "a non-G top-level conjunct of A_N must be an initial-cell "
+              "literal (D5: the only non-G conjunct is 'pos = (0,0)'); got "
+            << child;
+      }
+    }
+    EXPECT_EQ(g_rules, 14u)
+        << "D5/T5: the compact A_N must carry exactly 14 G-rooted rules -- 2 "
+          "axes x 7 rules (2 movers x 2 slip values + 3 non-movers) -- for "
+          "EVERY n, against the enumerated arms' 14N (n=" << n << ")";
+    EXPECT_EQ(init_literals, 2u * static_cast<std::uint64_t>(n))
+        << "D5/T5: the flattened initial-cell conjunct must contribute "
+          "exactly one literal per position AP, 2n of them (n=" << n << ")";
   }
 }
 
@@ -228,15 +258,15 @@ TEST(SlipperyBinaryCompactSharedTin, ProducesTheIdenticalTransducerToTheEnumerat
 
 // ---------------------------------------------------------------------------
 // T9 -- structural, bounded (D8). |DFA(A_N)| >= 4^n for the compact arm,
-// against its CONSTANT (15) conjunct count -- the superpolynomial-in-formula-
-// size half of the separation claim. A `>=` bound, not an equality: the
-// exact minimized size is Spot's to decide, and a minimization change of a
-// few states must never turn this suite red (D8's own "bounded, not exact"
+// against its 14 + 2n conjunct count -- the superpolynomial-in-formula-size
+// half of the separation claim. A `>=` bound, not an equality: the exact
+// minimized size is Spot's to decide, and a minimization change of a few
+// states must never turn this suite red (D8's own "bounded, not exact"
 // distinction).
 // ---------------------------------------------------------------------------
 
 TEST(SlipperyBinaryCompactStructural,
-    DfaOfANIsAtLeastFourToTheNAgainstAConstantConjunctCount) {
+    DfaOfANIsAtLeastFourToTheNAgainstALogarithmicConjunctCount) {
   for (std::int64_t n : {2, 3, 4}) {
     SCOPED_TRACE("n=" + std::to_string(n));
     const BenchCase c =
@@ -244,21 +274,28 @@ TEST(SlipperyBinaryCompactStructural,
     ASSERT_TRUE(c.psi_in.has_value());
     const spot::formula an = ltlf_ek::test_support::Phi(*c.psi_in);
 
-    // Re-assert the constant conjunct count right beside the bound it is
-    // contrasted with, so this test is self-contained even if
-    // ANHasExactlyFifteenTopLevelConjunctsIndependentOfN above is ever run
-    // in isolation.
+    // Re-assert the conjunct count right beside the bound it is contrasted
+    // with, so this test is self-contained even if
+    // ANHasExactlyFourteenGRulesIndependentOfNPlusA2nLiteralInit above is ever
+    // run in isolation. 14 + 2n, not the 15 D8 originally claimed (see that
+    // test) -- the contrast that matters is 4^n states against a formula
+    // whose size is logarithmic in N = 2^n.
     ASSERT_EQ(an.kind(), spot::op::And);
-    ASSERT_EQ(an.size(), 15u)
+    ASSERT_EQ(an.size(), 14u + 2u * static_cast<unsigned>(n))
         << "sanity: the conjunct count this bound is contrasted against "
-          "must stay constant (D8)";
+          "must stay 14 + 2n (D8)";
 
+    // Measured 2026-08-22, the first run in which this bound was ever
+    // reached (the stale 15-conjunct sanity assert above used to abort the
+    // test before it): |DFA(A_N)| = 18, 66, 258 at n = 2, 3, 4 -- exactly
+    // 4^n + 2, so the >= 4^n bound is tight to within the two trap/initial
+    // states and the separation is real, not marginal.
     const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
     const spot::twa_graph_ptr dfa = ltlf_to_dfa(an, dict);
     EXPECT_GE(dfa->num_states(), IntPow(4, n))
         << "D8/T9: |DFA(A_N)| must be >= 4^n for the compact arm (it must "
-          "track position) -- against a constant 15-conjunct formula, this "
-          "is the superpolynomial half of the separation claim (n=" << n
-        << ")";
+          "track position) -- against a 14 + 2n conjunct formula, i.e. one "
+          "of size O(log N), this is the superpolynomial half of the "
+          "separation claim (n=" << n << ")";
   }
 }

@@ -1065,10 +1065,14 @@ std::string compact_axis_rules(char axis, std::int64_t n,
 }
 
 // D5's compact A_N: 1 init conjunct ("Min(bx) & Min(by)", same start-cell
-// literal set as the enumerated arms' cell(0,0)) + 2 axes x 7 rules = 15
-// top-level conjuncts for every n (D8, T5), against the enumerated arms'
-// 14N+1. Matches AssumptionBuilder's signature so instantiate_slippery's ONE
-// code path (T_in construction included) serves this arm too.
+// literal set as the enumerated arms' cell(0,0)) + 2 axes x 7 rules = 14
+// G-rooted rules for every n (D8, T5), against the enumerated arms' 14N.
+// Spot's And is n-ary and flattens, so the init conjunct contributes its own
+// 2n literals as top-level children and the whole formula parses to 14 + 2n
+// conjuncts -- NOT the constant 15 D8 first claimed; see T5 and the PRD's
+// 2026-08-22 entry. Matches AssumptionBuilder's signature so
+// instantiate_slippery's ONE code path (T_in construction included) serves
+// this arm too.
 std::string slippery_compact_assumption(const SlipperyEncoding& enc,
                                         std::int64_t /*N*/) {
   const std::int64_t n = enc.bits;

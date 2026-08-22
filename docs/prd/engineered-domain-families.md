@@ -1,7 +1,25 @@
 # PRD: Engineered domain families (slippery-world)
 
-**Status:** **Phase 3 registered but BLOCKED at its green checkpoint by
-Stop-list 1** (2026-08-21, branch `edf-phase3`) — `slippery-binary-compact`
+**Status:** **Phase 3 green checkpoint reached — Stop-list 1 cleared**
+(2026-08-22, branch `edf-phase3`). The compact $A_N$'s trace-boundary bug is
+fixed by conjoining `X[!]1` ("a next position exists") into the guard of each
+of D5's 14 `G`-rooted rules, so every rule goes vacuous at the last position
+instead of collapsing `(X b_i <-> rhs_i)` onto the current cell; `SetMin`'s
+outer negation, which had the same defect in a worse form, is now written
+`X(¬b_i)`. **The T1 certificate is GREEN at $n = 2, 3, 4$ on both goals**, and
+`BenchSuiteCrossMethodAgreement`'s `slippery-binary-compact` cells go green
+with it. D8's "$15$ top-level conjuncts" is corrected to $\mathbf{14 + 2n}$
+(the count no $n$ ever produced), which unblocked T9's headline measurement:
+$\lvert\mathrm{DFA}(A_N)\rvert = 18, 66, 258 = 4^n + 2$ at $n = 2, 3, 4$
+against an $O(\log N)$ formula — the separation claim, measured. Full details
+in the two Phase 3 / 2026-08-22 entries under *Developer comments / PRD
+disagreements*. `tests` gate ticked; `code-review` and `theory-review` still
+owed; `glossary` needs no new entry (no new public identifier). One
+**pre-existing, unrelated** red remains in `ctest`:
+`BenchSuiteCrossMethodAgreement` on `parity-t3`.
+
+**Status (superseded by the above) — Phase 3 registered but BLOCKED at its
+green checkpoint by Stop-list 1** (2026-08-21, branch `edf-phase3`) — `slippery-binary-compact`
 (D5's compact $A_N$) is implemented **literally** in `src/bench_suite.cpp`,
 reusing Phase 1's $\Tin$ code path verbatim (`instantiate_slippery`,
 parameterised over an `AssumptionBuilder`; arms 1 and 3 are now provably
@@ -78,7 +96,7 @@ questions touched*.
   `tests/emits_dfa_test.cpp:405` for a **bounded** check and put it on the
   do-not-call-it line by name, and added the missing **domain-framing lemma**
   item to *Open theory questions* (this PRD's Stop-list 6)
-- [ ] tests           — unit + oracle coverage. **Phase 1 closed 2026-08-20**:
+- [x] tests           — unit + oracle coverage. **Phase 1 closed 2026-08-20**:
   `tests/slippery_world_test.cpp` covers T2, T3, T4, T5, T7 plus the $n<2$ floor
   and D7's two demotion/skip units (10 tests, all green). **Phase 2, 2026-08-21**:
   `produced_trace_equivalent`'s own unit tests landed
@@ -105,7 +123,16 @@ questions touched*.
   ExactlyTheDeclaredT1FamiliesAreT1AndParityT3IsT3` (a hard-coded T1-name set
   from Phase 1 that simply hasn't been told about the new family yet —
   mechanical, `/test-writer`'s to update, not a finding). Not repaired, per
-  Stop-list 1.
+  Stop-list 1. **Phase 3 closed 2026-08-22**: the boundary fix turned the T1
+  certificate green (6/6 at $n = 2, 3, 4 \times$ both goals) and took
+  `BenchSuiteCrossMethodAgreement`'s compact cells with it; T5's conjunct count
+  is corrected to $14$ `G`-rules $+\ 2n$ init literals and asserted
+  as-constructed, matching arms 1/2; **T8 and T9 now have dedicated tests** in
+  `tests/slippery_binary_compact_test.cpp`, and T9's $\ge 4^n$ bound evaluates
+  for the first time and holds ($4^n + 2$ exactly). The stale T1-name set is
+  updated. `ctest`: **692/693 pass**, the one failure the pre-existing,
+  unrelated `parity-t3` sub-failure inside `BenchSuiteCrossMethodAgreement`.
+  Nothing owed on this box for Phases 1–3.
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review).
   **Domain half clean on the Phase 1 diff, 2026-08-20** (no must-fix; four
   `consider` notes recorded in *Developer comments* below). **Domain half run
@@ -449,7 +476,15 @@ layer 1). **ours-no-knowledge is the structural baseline**; `ltlfsynt` stays
 **Exact** — constructed by the generator, so a deviation is our bug:
 
 - $\lvert\Tin\rvert = N^2 = 4^n$, all three arms.
-- $\lvert A_N \rvert$ top-level conjuncts: $14N+1$ (arms 1, 2), $15$ (arm 3).
+- $\lvert A_N \rvert$ `G`-rooted rules: $14N$ (arms 1, 2), $14$ (arm 3) — the
+  quantity that is genuinely independent of $N$ for the compact arm. Each arm
+  additionally carries a literals-only initial-cell remainder of $2n$ (binary)
+  resp. $2N$ (one-hot) top-level conjuncts, because `spot::op::And` is n-ary and
+  flattens D5's single init conjunct into its children. Whole-formula counts are
+  therefore $14N + 2n$ / $14N + 2N$ (arms 1, 2) and $\mathbf{14 + 2n}$ (arm 3).
+  *Corrected 2026-08-22*: this line previously claimed a constant $15$ for arm
+  3, which no $n$ produces — see the Phase 3 entry under "Developer comments /
+  PRD disagreements".
 - EK `goal_mtdfa_roots` $= 1$ — the EK side translates $\gamma_N$ alone.
 
 **Bounded** — decided by Spot's translation and minimization, so a Spot upgrade
@@ -458,8 +493,11 @@ that shifts a minimized count by a few states must not turn the suite red:
 - $\lvert\mathrm{DFA}(A_N)\rvert \ge N^2$ for every arm (it must track position).
 - Arms 1, 2: $\lvert\mathrm{DFA}(A_N)\rvert \le (14N+1)^2$ — **polynomial in the
   formula size**.
-- Arm 3: $\lvert\mathrm{DFA}(A_N)\rvert \ge 4^n$ against a **constant** conjunct
-  count — **superpolynomial in the formula size**.
+- Arm 3: $\lvert\mathrm{DFA}(A_N)\rvert \ge 4^n$ against a conjunct count of
+  $14 + 2n$, i.e. one **logarithmic in $N$** — **superpolynomial in the formula
+  size**. Measured 2026-08-22 (T9's first evaluating run): $18$, $66$, $258$
+  states at $n = 2, 3, 4$, exactly $4^n + 2$, so the bound is tight and the
+  separation is not marginal.
 - no-knowledge `goal_mtdfa_roots` $\ge N^2$ for arms 1 and 2 (the probe measured
   exactly $N^2$).
 
@@ -674,8 +712,10 @@ protocol so its numbers stay comparable), per-case timeout **60 s**,
   `verdict_mismatch_count: 0`.
 - **T4 — metamorphic round-trip.** `verify_controller` accepts the controller
   synthesized for every realizable (corner) case.
-- **T5 — structural, exact.** $\lvert\Tin\rvert = 4^n$; conjunct counts $14N+1$ /
-  $15$; EK `goal_mtdfa_roots` $= 1$.
+- **T5 — structural, exact.** $\lvert\Tin\rvert = 4^n$; `G`-rule counts $14N$
+  (arms 1, 2) / $14$ (arm 3) plus a literals-only init remainder, asserted the
+  way the formula is *constructed* rather than as a whole-formula
+  `formula::size()`; EK `goal_mtdfa_roots` $= 1$.
 - **T6 — negative control for the certificate.** A deliberately-wrong $A_N$ must
   be reported **not** equivalent, with a witness. Use two mutants, both
   *satisfiable* (this is the weakness the *Faithfulness guard*'s $\Tout$ side has
@@ -949,6 +989,34 @@ $\lvert\mathrm{DFA}(A_N)\rvert \ge 4^n$. The separation is currently
 **unmeasured, not disproven** — and measuring it now would describe a formula
 that the fix below is about to change.
 
+**Resolved 2026-08-22 — the claim is corrected to $14 + 2n$.** The alternative
+was available and was rejected on the merits: since arm 3's init cell is
+all-bits-clear, respelling $\mathrm{Min}(b^x) \wedge \mathrm{Min}(b^y)$ as
+$\neg(b^x_0 \vee \cdots \vee b^y_{n-1})$ makes it a single `Not` node — Spot does
+not push the negation inward at parse time, verified — and `formula::size()`
+would then read exactly $15$ for every $n$, vindicating D8 as written. That was
+declined because it would make the number true while the formula still carries
+$2n$ literals: the top-level conjunct count is only a *proxy* for $\lvert A_N
+\rvert$, and a respelling that fixes the proxy without changing the thing it
+proxies for stops the metric tracking what D8 cares about. D8, T5 and T9 above
+now state $14 + 2n$, and T5 asserts it the way the formula is constructed —
+$14$ `G`-rooted rules plus a literals-only remainder — which is the same shape
+Phase 1's finding F3 already settled on for arms 1 and 2.
+
+**The headline measurement is no longer gated, and it lands.** With the sanity
+precondition corrected, T9 evaluated $\lvert\mathrm{DFA}(A_N)\rvert \ge 4^n$ for
+the first time and it holds with room to spare:
+
+| $n$ | 2 | 3 | 4 |
+|---|---|---|---|
+| $\lvert\mathrm{DFA}(A_N)\rvert$ | 18 | 66 | 258 |
+| $4^n$ | 16 | 64 | 256 |
+| conjuncts | 18 | 20 | 22 |
+
+Exactly $4^n + 2$ throughout. So the compact $A_N$ forces a DFA that tracks
+every one of the $N^2$ cells out of a formula of size $O(\log N)$ — the
+superpolynomial half of the separation, now measured rather than asserted.
+
 ### Phase 3, 2026-08-21 — Stop-list 1: the certificate is RED on the compact $A_N$, not repaired
 
 `slippery-binary-compact` is implemented literally against D5 (every
@@ -1005,3 +1073,45 @@ $\Tin$) and T9 (structural bound) have no dedicated test yet — the D8
 structural facts (`|T_in|=4^n`, `15` top-level conjuncts) were checked by
 hand during development but are not asserted in `ctest`, since `/test-writer`
 owns that pass and a red certificate is the more urgent thing to report.
+
+### Phase 3, 2026-08-22 — Stop-list 1 cleared: the certificate is GREEN
+
+Repaired on the user's instruction, by a route the entry above did not list
+among its two candidates and which costs nothing in either of their currencies:
+**conjoin "a next position exists", `X[!]1`, into the guard of each of the 14
+`G`-rooted rules**, leaving every rule *body* exactly as D5 writes it. The
+implication then goes **vacuous** at the last position rather than collapsing
+onto the current cell, which is the same boundary behaviour the enumerated arms
+get for free from their single wrapping weak `X`. D5's per-bit
+`X b_i <-> rhs_i` spelling is preserved verbatim, so the diagnosis above stands
+unamended; what was missing was never the update relation but the *scope* over
+which D5 intended it to apply — "at every position that has a successor",
+which the enumerated arms say implicitly and the compact arm has to say out
+loud.
+
+Putting `X[!]` in the **body** instead remains wrong and remains Stop-list 7's
+trap: it does not go vacuous, it flips `X[!] b_i` to `false` at the last
+position and collapses the rule to `¬rhs_i` there. Guard, not body.
+
+`SetMin`'s outer negation, flagged above as "the same defect from the other
+side", was confirmed and is in fact the worse of the two: `¬X b_i` is `false`
+at the boundary, an *unsatisfiable* consequent under a satisfiable guard, so it
+forbade the last position outright instead of merely over-constraining it. It
+is now written `X(\lnot b_i)` — equivalent everywhere the new guard admits, and
+boundary-neutral on its own, so no rule body depends on the guard for its
+safety.
+
+**Result.** The T1 certificate is green at $n = 2, 3, 4$ on **both** goals
+(6/6; all six were red). `BenchSuiteCrossMethodAgreement`'s
+`slippery-binary-compact` centre cells at $n = 2, 3$ go green with it — the
+second of the two independent oracles that had flagged this, which is the
+evidence that the repair fixed the language rather than the test. The
+certificate was neither weakened nor narrowed and the witness was not excluded.
+T8 and T9 do now have dedicated tests (`tests/slippery_binary_compact_test.cpp`),
+so that half of the deferral is closed too.
+
+**Still red, all pre-existing and none of them Phase 3's:**
+`BenchSuiteCrossMethodAgreement` on `parity-t3` at $n = 2, 3$ realizable — all
+five methods agree on `UNREALIZABLE` against a declared `realizable`, so either
+the declaration or every method is wrong. Unrelated to the slippery families
+and untouched here; it wants its own pass.
