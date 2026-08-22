@@ -8,6 +8,7 @@
 #include <gtest/gtest.h>
 
 #include <spot/tl/formula.hh>
+#include <spot/tl/parse.hh>
 #include <spot/twa/bdddict.hh>
 #include <spot/twa/twagraph.hh>
 
@@ -132,7 +133,7 @@ TEST(SlipperyBinaryCompactStructural, TinStateCountIsFourToTheN) {
 // And is n-ary and flattens, so D5's single init conjunct
 // Min(bx) & Min(by) contributes its own 2n literals as top-level children and
 // an.size() reads 14 + 2n. Asserted the way it is CONSTRUCTED, exactly as
-// tests/slippery_world_test.cpp's ANHasExactlyFourteenNPlusOneTopLevelConjuncts
+// tests/slippery_world_test.cpp's ANHasExactlyFourteenNGRulesPlusALiteralOnlyInit
 // already does for arms 1/2 (Phase 1's finding F3): count G-rooted children,
 // and require every other child to be a literal so nothing can hide in the
 // remainder. Corrected per the user's decision on the PRD's "Decision owed",
@@ -199,12 +200,75 @@ TEST(SlipperyBinaryCompactStructural, EkGoalMtdfaRootsIsExactlyOne) {
 }
 
 // ---------------------------------------------------------------------------
-// T7 -- A_N satisfiable. Guards D6's silent X[!] collapse: with X[!] instead
-// of weak X, EVERY guard in the seven-rule case-split fires at the last
-// position (the guards are total), so A_N would collapse to `false`, and
+// T7 -- two tests, because the 2026-08-22 boundary fix took the teeth out of
+// the first one.
+//
+// T7a (satisfiability) is D6's original guard: with X[!] in place of weak X
+// and NO guard conjunct, every rule in the seven-rule case-split fires at the
+// last position (the Boolean guards are total), A_N collapses to `false`, and
 // `false -> gamma` is vacuously valid -- every verdict would come back
-// REALIZABLE looking fine. This test fails loudly on that regression.
+// REALIZABLE looking fine. It is kept, but it is now a smoke test and NOT a
+// Stop-list 7 guard: since kNextExists puts X[!]1 in every antecedent, the
+// length-1 all-bits-clear trace satisfies the init conjunct and leaves all 14
+// implications vacuous, so A_N is satisfiable BY CONSTRUCTION for any rule
+// bodies whatsoever. Rewriting compact_keep's `X(b) <-> b` as
+// `X[!](b) <-> b` -- exactly the regression this test used to advertise --
+// leaves it green.
+//
+// T7b (structural) is what actually guards Stop-list 7 now, and it pins the
+// fix rather than its symptom: every one of the 14 G-rooted rules must carry
+// X[!]1 in its ANTECEDENT. Delete the guard and this test goes red
+// immediately and cheaply, instead of leaving the ~1.5 s/case T1 certificate
+// as the only thing standing between the repo and the red-certificate state
+// of 2026-08-21. Found by /code-review, 2026-08-22.
 // ---------------------------------------------------------------------------
+
+TEST(SlipperyBinaryCompactSatisfiability, EveryGRuleGuardCarriesNextExists) {
+  // Parsed, not spelled, so this compares the same node kind the builder
+  // emits. If Spot ever simplified X[!]1 away at parse time the expected
+  // formula would become `tt`, Spot's And would drop it, and this test would
+  // fail loudly -- which is the correct outcome, since the guard would then
+  // be inert in the builder too.
+  const spot::formula next_exists = spot::parse_formula("X[!]1");
+  ASSERT_FALSE(next_exists.is_tt())
+      << "Spot simplified X[!]1 to true at parse time; the whole boundary "
+        "guard would be inert (see src/bench_suite.cpp kNextExists)";
+
+  for (std::int64_t n : {2, 3, 4, 5, 6}) {
+    SCOPED_TRACE("n=" + std::to_string(n));
+    const BenchCase c =
+        FamilyNamed(kCompactFamily).instantiate(Params(n, /*realizable=*/true));
+    ASSERT_TRUE(c.psi_in.has_value());
+    const spot::formula an = ltlf_ek::test_support::Phi(*c.psi_in);
+    ASSERT_EQ(an.kind(), spot::op::And);
+
+    std::uint64_t guarded = 0;
+    for (unsigned i = 0; i < an.size(); ++i) {
+      const spot::formula rule = an[i];
+      if (rule.kind() != spot::op::G) continue;
+      const spot::formula imp = rule[0];
+      ASSERT_EQ(imp.kind(), spot::op::Implies)
+          << "D5: each G-rooted rule is one implication `guard -> body`; got "
+          << rule;
+      const spot::formula ant = imp[0];
+      bool found = false;
+      if (ant == next_exists) {
+        found = true;
+      } else if (ant.kind() == spot::op::And) {
+        for (unsigned j = 0; j < ant.size(); ++j)
+          if (ant[j] == next_exists) found = true;
+      }
+      EXPECT_TRUE(found)
+          << "Stop-list 7 / D6: every G-rooted rule's ANTECEDENT must carry "
+            "X[!]1, so the rule goes vacuous at the last position instead of "
+            "collapsing onto the current cell. This antecedent does not: "
+          << ant;
+      ++guarded;
+    }
+    EXPECT_EQ(guarded, 14u)
+        << "T5/T7: all 14 G-rooted rules must be checked (n=" << n << ")";
+  }
+}
 
 TEST(SlipperyBinaryCompactSatisfiability, ANIsSatisfiableGuardingTheWeakXCollapse) {
   for (std::int64_t n : {2, 3, 4}) {
@@ -218,10 +282,11 @@ TEST(SlipperyBinaryCompactSatisfiability, ANIsSatisfiableGuardingTheWeakXCollaps
       const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
       const spot::twa_graph_ptr dfa = ltlf_to_dfa(an, dict);
       EXPECT_TRUE(HasReachableAccepting(dfa))
-          << "the compact A_N must be satisfiable (D6/T7); an unsatisfiable "
-            "A_N here means weak X silently collapsed to X[!] (or an "
-            "equivalent totality bug), and 'false -> gamma' would make "
-            "every verdict come back REALIZABLE unnoticed";
+          << "the compact A_N must be satisfiable (D6/T7a); 'false -> gamma' "
+            "would make every verdict come back REALIZABLE unnoticed. NOTE: "
+            "since the boundary fix this holds by construction, so a failure "
+            "here means something more basic broke than the X[!] collapse -- "
+            "EveryGRuleGuardCarriesNextExists above is the Stop-list 7 guard";
     }
   }
 }

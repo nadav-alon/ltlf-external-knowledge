@@ -340,8 +340,11 @@ TEST(SlipperyWorldMetamorphicRoundTrip, VerifyControllerAcceptsTheCornerCaseCont
 }
 
 // ---------------------------------------------------------------------------
-// T5 -- structural, exact. |T_in| = 4^n (all arms); |A_N| top-level
-// conjuncts = 14N+1 (arms 1, 2); EK goal_mtdfa_roots = 1.
+// T5 -- structural, exact. |T_in| = 4^n (all arms); A_N has exactly 14N
+// G-rooted rules plus a literals-only initial-cell remainder, i.e. 14N + 2n
+// (binary) / 14N + 2N (one-hot) top-level conjuncts, NOT the 14N+1 D3/D8
+// first claimed (arms 1, 2 -- see the test body below and the compact arm's
+// 14 + 2n counterpart); EK goal_mtdfa_roots = 1.
 // ---------------------------------------------------------------------------
 
 TEST(SlipperyWorldStructural, TinStateCountIsFourToTheN) {
@@ -361,7 +364,7 @@ TEST(SlipperyWorldStructural, TinStateCountIsFourToTheN) {
   }
 }
 
-TEST(SlipperyWorldStructural, ANHasExactlyFourteenNPlusOneTopLevelConjuncts) {
+TEST(SlipperyWorldStructural, ANHasExactlyFourteenNGRulesPlusALiteralOnlyInit) {
   for (const std::string& family_name : kPhase1Families) {
     for (std::int64_t n : {2, 3}) {
       SCOPED_TRACE("family=" + family_name + " n=" + std::to_string(n));

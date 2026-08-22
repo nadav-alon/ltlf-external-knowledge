@@ -13,10 +13,28 @@ with it. D8's "$15$ top-level conjuncts" is corrected to $\mathbf{14 + 2n}$
 $\lvert\mathrm{DFA}(A_N)\rvert = 18, 66, 258 = 4^n + 2$ at $n = 2, 3, 4$
 against an $O(\log N)$ formula — the separation claim, measured. Full details
 in the two Phase 3 / 2026-08-22 entries under *Developer comments / PRD
-disagreements*. `tests` gate ticked; `code-review` and `theory-review` still
-owed; `glossary` needs no new entry (no new public identifier). One
-**pre-existing, unrelated** red remains in `ctest`:
-`BenchSuiteCrossMethodAgreement` on `parity-t3`.
+disagreements*.
+
+**Review passes, 2026-08-22.** `/theory-review`, `/code-reviewer` and
+`/code-review high` all ran on the Phase 3 diff. **No `code-bug` and no
+must-fix against Phase 3** — the $\mathsf{X[!]}\mathtt{tt}$ guard is confirmed
+as `main.tex`'s own idiom for the trace boundary, and a second party
+independently re-measured $14+2n$ and $4^n+2$. Seven doc/test findings were
+raised and **all applied**, the substantive two being that **D5/D6 were still
+normatively specifying the pre-fix formula** (the D6 sentence that armed the
+bug), and that **T7 had silently lost its teeth** — the guard makes $A_N$
+satisfiable by construction, so the old satisfiability test could no longer
+catch the Stop-list 7 regression it advertised; a structural test **T7b** now
+pins the guard directly.
+
+**Gates: `glossary` [x], `tests` [x], `theory-review` [x] — `code-review` is
+the one thing still owed**, and *not* because of Phase 3. It is held open by
+**six findings on Phase 1/2 and harness code** (two carried from Phase 2, four
+new from a wider `master...HEAD` pass), listed under *Developer comments* →
+"the `code-review` gate's open list". Three of them are redesigns of settled
+Phase 2 machinery — a user call, not a day-run's. One **pre-existing,
+unrelated** red remains in `ctest`: `BenchSuiteCrossMethodAgreement` on
+`parity-t3`.
 
 **Status (superseded by the above) — Phase 3 registered but BLOCKED at its
 green checkpoint by Stop-list 1** (2026-08-21, branch `edf-phase3`) — `slippery-binary-compact`
@@ -149,7 +167,54 @@ questions touched*.
   and the dead `tau_dfa->ap()` harvesting loop (`:37`). **Box deliberately left
   unticked**: both halves ran, but ticking over two open findings would
   misreport them. See `docs/runs/2026-08-21-edf-phase2.md` §4a.
-- [ ] theory-review   — code ↔ math faithfulness vs main.tex. **Not run on
+  **Both halves ran again on Phase 3, 2026-08-22** — `/code-reviewer` (domain)
+  and `/code-review high` (generic), the latter twice, at range
+  `e7bbfb1..HEAD` and again at `master...HEAD`. **Nothing owed against the
+  Phase 3 diff itself**: its three findings are all applied (T7's lost teeth —
+  the substantive one — plus two stale comments; see *Developer comments*).
+  **Box still deliberately unticked**, and the reason has grown rather than
+  shrunk: the wider `master...HEAD` pass surfaced **four further open
+  findings** on Phase 1/2 code, on top of the two Phase 2 ones above. All six
+  are listed under *Developer comments* → "Open `/code-review` findings". None
+  is Phase 3's, none blocks the Phase 3 result, and none was fixed here —
+  three of them (the $2^k$ alphabet, the `registrar` AP lifetime, the
+  `emits_dfa` AP registration) are changes to settled Phase 2 machinery whose
+  right fix is a design decision, and the other three are test-harness
+  robustness. **This is the one thing this PRD still owes, and it is a user
+  call, not a day-run's.**
+- [x] theory-review   — code ↔ math faithfulness vs main.tex. **Ticked
+  2026-08-22 on the Phase 3 diff** (`e7bbfb1..HEAD`, the compact $A_N$'s
+  boundary fix): **no `code-bug`**. The load-bearing question — whether
+  guarding a `G`-rooted update rule with $\mathsf{X[!]}\mathtt{tt}$ is the right
+  way to express "this rule constrains the successor, and imposes nothing at
+  the final position" — comes back **yes, and it is literally the paper's own
+  spelling**: `main.tex` writes $\lnot\mathsf{X[!]}\mathtt{tt}$ for "the trace
+  ends here" at `main.tex:153` and `main.tex:545`, and `:153` is the paper's
+  *only* worked $\psiin$ example ($\psiin = (k \leftrightarrow a) \wedge
+  \lnot\mathsf{X[!]}\mathtt{tt}$, "exactly the produced-trace language of
+  $\Tin$") — the same job $A_N$ does here, in the same vocabulary. No competing
+  idiom (no `\lastpos` proposition, no weak-until spelling) exists in
+  `main.tex`. The equivalence of $\mathsf{G}((\text{guard} \wedge
+  \mathsf{X[!]}\mathtt{tt}) \to \text{body})$ with the enumerated arms'
+  $\mathsf{G}(\text{guard} \to \mathsf{X}(\text{consequent}))$ was checked
+  position-by-position and holds, including the length-1 trace; the
+  ripple-carry Inc/Dec/Inc₂/Dec₂ encodings and the wall-**clamp** semantics
+  were checked term-for-term against `slippery_step` on all eight corners and
+  are faithful. Four `doc-bug`s, **all applied 2026-08-22** (see *Developer
+  comments*): the false "every rule body is boundary-neutral" claim in both
+  `src/bench_suite.cpp` and this PRD; a wrong Inc-collapse in a source comment;
+  a backwards antecedent/consequent premise; and — the substantive one — D5/D6
+  still normatively specifying the **pre-fix** formula. One `underspecified`,
+  **already tracked and not novel**: `main.tex` has no $\text{LTL}_f$
+  preliminaries, so the weak-$\mathsf{X}$/strong-$\mathsf{X[!]}$ convention
+  lives only in the `\cl` note at `main.tex:372`. Phase 3 is its second
+  independent consumer and the first to use the *positive* direction; a
+  candidate one-sentence `\cl` addition is **drafted, not applied**, in
+  `docs/BACKLOG.md` under *Later* (this worktree's `latex/` is an
+  uninitialized submodule, so `main.tex` was read-only here and nothing under
+  `latex/` was touched). The reviewer's own read, which this PRD adopts: that
+  note is optional polish, not owed — the real doc debt was D5/D6, now paid.
+  *Earlier passes, for the record.* **Not run on
   Phase 1, deliberately**: the diff is registry/benchmark-*data* (family
   generators + subjects), not semantic algorithm code — it touches no method,
   no `cons`, no progression, no product construction, and neither the
@@ -160,9 +225,9 @@ questions touched*.
   DFA-equality product, the BFS and the sink convention are faithful to
   `\cref{def:consistency}` / `\cref{def:probDefTransducer}`; one low-severity
   `doc-bug` (the sink wording, fixed in `31fb6e8`), no `\cl` note written, and
-  the domain-framing lemma left untouched per Stop-list 6. Box stays open
-  PRD-wide: Phase 3's bespoke arithmetic $A_N$ is exactly the diff that will
-  need this pass again.
+  the domain-framing lemma left untouched per Stop-list 6. That entry noted
+  "Phase 3's bespoke arithmetic $A_N$ is exactly the diff that will need this
+  pass again" — it did, it got it, and the box is now closed.
 
 **Unattended-ready:** **yes — unconditionally, as of 2026-08-19.** The one
 condition (the *Produced-trace equivalence* glossary entry) was closed the same
@@ -326,9 +391,14 @@ which is what keeps the compact $A_N$ at $O(n^2)$.
 
 | arm | family name | position encoding | $A_N$ style | $\lvert A_N\rvert$ (top-level conjuncts) |
 |---|---|---|---|---|
-| 1 | `slippery-binary` | binary, $2n$ APs | enumerated | $14N + 1$ |
-| 2 | `slippery-onehot` | one-hot, $2N$ APs | enumerated | $14N + 1$ |
-| 3 | `slippery-binary-compact` | binary, $2n$ APs | compact (D5) | **15**, independent of $N$ |
+| 1 | `slippery-binary` | binary, $2n$ APs | enumerated | $14N + 2n$ |
+| 2 | `slippery-onehot` | one-hot, $2N$ APs | enumerated | $14N + 2N$ |
+| 3 | `slippery-binary-compact` | binary, $2n$ APs | compact (D5) | $\mathbf{14 + 2n}$ — **14 rules independent of $N$** |
+
+*Counts corrected 2026-08-22* (they read $14N + 1$ / $14N + 1$ / $15$ before).
+The init cell is $2n$ (resp. $2N$) literals, which Spot's n-ary `And` flattens
+into the top level rather than keeping as one conjunct. What is independent of
+$N$ for arm 3 is the **rule** count, $14$; see D8 and *Developer comments*.
 
 Arms 1 vs 2 isolate **encoding** with the formula style held fixed — and the
 probe already measured this contrast as **null**, so it ships as a *confirmed
@@ -398,7 +468,12 @@ $= \sum_i b_i 2^i \in [0, N-1]$.
   (\mathsf{X} b_1 \leftrightarrow \lnot b_1) \wedge
   \bigwedge_{2 \le i<n} \bigl(\mathsf{X} b_i \leftrightarrow (b_i \oplus \bigwedge_{1 \le j<i} \lnot b_j)\bigr)$
 - $\mathrm{SetMax}(b) \equiv \bigwedge_{i<n} \mathsf{X} b_i$
-- $\mathrm{SetMin}(b) \equiv \bigwedge_{i<n} \lnot \mathsf{X} b_i$
+- $\mathrm{SetMin}(b) \equiv \bigwedge_{i<n} \mathsf{X} \lnot b_i$ —
+  $\mathsf{X}\lnot b_i$, **not** $\lnot\mathsf{X} b_i$. *Corrected 2026-08-22*:
+  this line previously wrote the outer negation, which under weak $\mathsf{X}$
+  is `false` at a trace's last position rather than vacuously `true` — an
+  unsatisfiable consequent under a satisfiable guard. See the 2026-08-22 entry
+  under *Developer comments*.
 
 $\mathrm{Inc}_2$ is "add 1 starting at bit 1", which is add-2; its guard
 guarantees value $\le N-3$ so the carry never leaves bit $n-1$. $\mathrm{Dec}_2$
@@ -425,22 +500,67 @@ playing $R$'s (increment), and $L, R, S$ keeping.
 
 $$A_N \;\equiv\; \mathrm{Min}(b^x) \wedge \mathrm{Min}(b^y) \;\wedge\;
 \bigwedge_{\text{axis}} \; \bigwedge_{(\text{class},\,\text{slip})}
-\mathsf{G}\bigl( (G_{\text{class}} \wedge \text{slipLit}) \to \text{rule} \bigr)$$
+\mathsf{G}\bigl( (G_{\text{class}} \wedge \text{slipLit} \wedge
+\mathsf{X[!]}\mathtt{tt}) \to \text{rule} \bigr)$$
 
-That is $1$ init conjunct $+ 2 \times 7 = 14$ implications $= \mathbf{15}$
-top-level conjuncts for every $n$, each of size $O(n^2)$ — against the
-enumerated arm's $14N + 1$. Both counts are **exact and derived from the
-construction**, so both are asserted (T5), not measured.
+The $\mathsf{X[!]}\mathtt{tt}$ conjunct in the **guard** is mandatory and is the
+subject of D6; *added 2026-08-22*, this section previously omitted it and that
+omission is what made the certificate red. Every rule *body* is exactly as
+written above — the guard is the only change.
 
-### D6. Weak `X` is mandatory
+That is $\mathbf{14}$ `G`-rooted rules for every $n$, each of size $O(n^2)$,
+against the enumerated arm's $14N$. The init conjunct $\mathrm{Min}(b^x) \wedge
+\mathrm{Min}(b^y)$ is $2n$ literals which Spot's n-ary `And` flattens into the
+top level, so the parsed formula carries $\mathbf{14 + 2n}$ top-level conjuncts
+— *not* the constant $15$ this line claimed before 2026-08-22; see D8 and the
+*Developer comments* entry. Both counts are **exact and derived from the
+construction**, so both are asserted (T5), not measured: T5 counts the
+`G`-rooted children and requires every other child to be a literal.
 
-$A_N$ uses **weak `X`** ($\mathsf{X}$, not $\mathsf{X[!]}$). With $\mathsf{X[!]}$
-the rule is violated at the last position of every trace — the guards are total,
-so some class always fires — and $A_N$ collapses to `false`. This is not
-stylistic: weak `X` is what makes $A_N$ agree with "$\delta$ is undefined past
-the end" on the transducer side. A satisfiability test guards it (T7), because
-the collapse is silent: `false` $\to \gamma$ is valid, so every verdict would
-come back `REALIZABLE` and look fine.
+### D6. Weak `X` in the body, `X[!]` in the guard — both mandatory
+
+$A_N$'s rule **bodies** use **weak `X`** ($\mathsf{X}$, not $\mathsf{X[!]}$).
+Historically — before the guard below existed — $\mathsf{X[!]}$ in a body made
+the consequent unsatisfiable at the last position of every trace while the
+antecedents were total, so some class always fired, and $A_N$ collapsed to
+`false`. The collapse is silent: `false` $\to \gamma$ is valid, so every verdict
+would come back `REALIZABLE` and look fine.
+
+**What guards this, precisely** (*corrected 2026-08-22, `/code-review`*). The
+satisfiability test **T7a** was the original guard and no longer has teeth: with
+$\mathsf{X[!]}\mathtt{tt}$ in every antecedent, the length-1 all-bits-clear
+trace satisfies the init conjunct and leaves all 14 implications vacuous, so
+$A_N$ is satisfiable **by construction, for any rule bodies whatsoever**. T7a is
+kept as a smoke test. The live guard is **T7b**
+(`EveryGRuleGuardCarriesNextExists`), a structural assertion that each of the 14
+`G`-rooted rules carries $\mathsf{X[!]}\mathtt{tt}$ in its antecedent — it pins
+the fix rather than its symptom, and it is what now goes red if the guard is
+deleted. Note also that with the guard in place $\mathsf{X[!]}$ *in a body* is
+merely **redundant**, not fatal: it agrees with weak $\mathsf{X}$ everywhere the
+guard admits. The live Stop-list 7 regression is losing the **guard**, not the
+body spelling.
+
+Weak `X` in the body is **necessary but not sufficient** for $A_N$ to agree with
+"$\delta$ is undefined past the end" on the transducer side. *Corrected
+2026-08-22*: this section previously asserted sufficiency, and that is the
+sentence that armed the bug. Weak `X` alone suffices only when the rule's
+**entire** consequent sits under the $\mathsf{X}$ — which is how the
+*enumerated* arms (D4) are written, so they get boundary-vacuity for free. D5's
+compact bodies instead relate an $\mathsf{X}$-term to an un-$\mathsf{X}$'d term
+inside one biconditional, $\mathsf{X} b_i \leftrightarrow \mathrm{rhs}_i$; at the
+last position the left side is vacuously `true` and the biconditional collapses
+to the bare $\mathrm{rhs}_i$, a constraint on the **current** cell that $\Tin$
+never imposes. So the compact arm must state the scope out loud, by conjoining
+$\mathsf{X[!]}\mathtt{tt}$ ("a next position exists") into each rule's
+**guard** — which makes the whole implication vacuous at the boundary, the same
+behaviour the enumerated arms get implicitly.
+
+$\mathsf{X[!]}\mathtt{tt}$ is `main.tex`'s own idiom for the trace boundary: the
+paper writes $\lnot\mathsf{X[!]}\mathtt{tt}$ for "the trace ends here"
+(`main.tex:153`, `main.tex:545`), and `main.tex:153` is its only worked $\psiin$
+example — $\psiin = (k \leftrightarrow a) \wedge \lnot\mathsf{X[!]}\mathtt{tt}$,
+"exactly the produced-trace language of $\Tin$", which is the same job $A_N$
+does here. Guard, not body: $\mathsf{X[!]}$ *in* a body is Stop-list 7's trap.
 
 ### D7. The no-knowledge column
 
@@ -1098,8 +1218,16 @@ side", was confirmed and is in fact the worse of the two: `¬X b_i` is `false`
 at the boundary, an *unsatisfiable* consequent under a satisfiable guard, so it
 forbade the last position outright instead of merely over-constraining it. It
 is now written `X(\lnot b_i)` — equivalent everywhere the new guard admits, and
-boundary-neutral on its own, so no rule body depends on the guard for its
-safety.
+boundary-neutral on its own. *Amended 2026-08-22 (theory-review F1):* the
+original wording continued "so no rule body depends on the guard for its
+safety", which is **false and inverted**. Only $\mathrm{SetMax}$ and
+$\mathrm{SetMin}$ are boundary-neutral; at the last position $\mathrm{Keep}$
+collapses to $\mathrm{Max}$, $\mathrm{Inc}$ to $\mathrm{Max}_1$, $\mathrm{Dec}$
+to $\mathrm{Min}$, and $\mathrm{Inc}_2 / \mathrm{Dec}_2$ to their own fixed
+patterns. Five of the seven bodies depend on the guard entirely. What the
+respelling actually buys is narrower and worth stating exactly: it removes the
+only body that went **unsatisfiable** at the boundary, leaving the rest merely
+over-constraining there — which is the failure mode the guard neutralises.
 
 **Result.** The T1 certificate is green at $n = 2, 3, 4$ on **both** goals
 (6/6; all six were red). `BenchSuiteCrossMethodAgreement`'s
@@ -1115,3 +1243,124 @@ so that half of the deferral is closed too.
 five methods agree on `UNREALIZABLE` against a declared `realizable`, so either
 the declaration or every method is wrong. Unrelated to the slippery families
 and untouched here; it wants its own pass.
+
+### `/theory-review` (faithfulness), Phase 3 diff, 2026-08-22 — no `code-bug`
+
+Verdict and the `main.tex` evidence are recorded on the `theory-review` gate
+line above; only the applied fixes are listed here.
+
+- **F1, `doc-bug`, applied.** `src/bench_suite.cpp` claimed the `SetMin`
+  respelling "keeps every rule body boundary-neutral on its own", and this PRD
+  said the same in its 2026-08-22 entry. **False, and inverted.** Only
+  $\mathrm{SetMax}$ and $\mathrm{SetMin}$ are boundary-neutral; at the last
+  position $\mathrm{Keep}$ collapses to $\mathrm{Max}$, $\mathrm{Inc}$ to
+  $\mathrm{Max}_1$, $\mathrm{Dec}$ to $\mathrm{Min}$, and $\mathrm{Inc}_2 /
+  \mathrm{Dec}_2$ to their own fixed patterns — five of the seven bodies depend
+  on the guard entirely. What the respelling actually buys is narrower: it
+  removes the only body that went *unsatisfiable* at the boundary. Both the
+  source comment and the PRD sentence now say that.
+- **F2, `doc-bug`, applied.** The `kNextExists` comment said Inc's boundary
+  collapse "reads every bit is clear". Wrong: bit 0's term forces $\lnot b_0$,
+  which falsifies every lower-bit carry conjunction and so forces every $b_i$,
+  $i \ge 1$, **true** — Inc collapses to $\mathrm{Max}_1$. "Every bit clear" is
+  **Dec**'s collapse. Also corrected in the same block: the length-1 witness
+  "meets" Keep's all-bits-set was backwards — the all-clear init cell
+  **contradicts** it, which is why nothing survived.
+- **F3, `doc-bug`, applied.** `compact_keep`'s comment had the implication
+  backwards: an unsatisfiable *antecedent* makes a rule vacuous, not false. It
+  was the *consequent* that went unsatisfiable while the antecedents were
+  total. (Superseded almost immediately by the `/code-review` finding below,
+  which points out the antecedents are no longer total at all.)
+- **F4, `doc-bug`, applied — the substantive one.** D5 and D6 were still
+  normatively specifying the **pre-fix** formula: D5's $\mathrm{SetMin}$ used
+  the defective $\bigwedge \lnot\mathsf{X} b_i$, D5's "whole formula" carried no
+  $\mathsf{X[!]}\mathtt{tt}$ in the guard, and D6 asserted that weak $\mathsf{X}$
+  is *sufficient* for $A_N$ to agree with "$\delta$ undefined past the end" —
+  **the sentence that armed the bug**. It is sufficient only when the entire
+  consequent sits under the $\mathsf{X}$, which is the enumerated arms' shape,
+  not D5's. The 2026-08-22 entries narrated the fix correctly, but D5/D6 are the
+  sections a future reader consults, and leaving them stale re-arms the exact
+  trap. Both rewritten, plus the arms table's stale $14N+1$ / $15$ counts.
+- **F5, `underspecified`, already tracked, nothing to fix.** See the gate line.
+
+### `/code-review` (generic + domain), Phase 3, 2026-08-22
+
+Ranges `e7bbfb1..HEAD` and `master...HEAD`. The generic pass rebuilt and re-ran
+the suite rather than trusting this PRD, and independently re-measured the
+headline numbers: **692/693**, conjuncts 18/20/22 and
+$\lvert\mathrm{DFA}(A_N)\rvert$ 18/66/258 at $n = 2,3,4$ — so the $14 + 2n$ and
+$4^n + 2$ claims are confirmed by a second party. It also verified against Spot
+2.15.1 that `X[!]1` survives `ltlf_to_mtdfa` un-simplified and that the
+generated formula parses with the intended precedence.
+
+**Applied, three findings, all Phase 3's own:**
+
+- **T7 had silently lost its teeth — `medium`, the one that mattered.** With
+  $\mathsf{X[!]}\mathtt{tt}$ in every antecedent, $A_N$ is satisfiable *by
+  construction for any rule bodies whatsoever* (the length-1 all-clear trace
+  makes all 14 implications vacuous), so
+  `ANIsSatisfiableGuardingTheWeakXCollapse` would stay **green** through exactly
+  the Stop-list 7 regression its docstring promised to catch — leaving the
+  ~1.5 s/case T1 certificate as the only thing standing between the repo and
+  2026-08-21's red state. Fixed by adding **T7b**,
+  `EveryGRuleGuardCarriesNextExists`: a cheap structural assertion that each of
+  the 14 `G`-rooted rules carries $\mathsf{X[!]}\mathtt{tt}$ in its antecedent,
+  swept $n = 2 \ldots 6$. It pins the fix rather than its symptom. T7a is kept
+  and re-labelled a smoke test; D6 above is corrected to match.
+  **Both halves of this were verified by mutation, not argued**: with `nx`
+  emptied in `compact_axis_rules`, T7b fails while T7a **still passes** — which
+  is simultaneously the proof that the finding was real and that the new test
+  has teeth. Mutant reverted; suite is 693/694.
+- **`src/bench_suite.cpp` `compact_keep` comment — `low`, applied.** The
+  theory-review fix above preserved a premise the guard had invalidated: the
+  antecedents are **no longer total** (each carries $\mathsf{X[!]}\mathtt{tt}$,
+  false at the last position), so $\mathsf{X[!]}$ *in a body* is now merely
+  **redundant**, not fatal. The live Stop-list 7 regression is losing the
+  **guard**, not the body spelling. Comment rewritten to say both.
+- **The enumerated arm's stale count — `low`, applied.** `slippery_assumption`'s
+  header was the last place still claiming $14N+1$; it now states $14N$
+  `G`-rules $+$ a flattened init, and explains why arms 1/2 need no explicit
+  guard (their whole consequent sits under one weak $\mathsf{X}$). The
+  contradictory test name `ANHasExactlyFourteenNPlusOneTopLevelConjuncts` is
+  renamed `ANHasExactlyFourteenNGRulesPlusALiteralOnlyInit`, matching the rename
+  the compact counterpart already got.
+
+**Recorded, not fixed — the `code-review` gate's open list.** None is Phase 3's;
+all are Phase 1/2 or harness. Listed here because the gate is PRD-wide.
+
+1. **`src/produced_trace_equivalence.cpp:57` — unguarded $2^k$ alphabet.**
+   `std::size_t{1} << k` is UB at $k \ge 64$ (reachable via the one-hot arm),
+   which truncates the alphabet to garbage and returns a **silently green T1
+   certificate**; OOM well before that. Carried over from Phase 2. The honest
+   fix is not a bounds check — $2^{25}$ letters is already infeasible — but
+   enumerating only the letters the automata branch on, which is a redesign of
+   settled Phase 2 machinery. *User's call.*
+2. **`src/produced_trace_equivalence.cpp:50` — BDD variable lifetime.** The
+   throwaway `registrar` `twa_graph` releases its AP variables on destruction
+   while `letters` and any returned counterexample still reference those
+   indices; a later `register_proposition` can recycle them. A real Spot/BDD
+   idiom hazard, latent today.
+3. **`src/produced_trace_equivalence.cpp:37` — `tau_dfa->ap()` is always
+   empty** (`emits_dfa` never calls `register_ap`), so a $\tau$ with an AP
+   outside `vars.universe()` yields partial cubes and `goal_delta`'s
+   first-*intersecting*-edge match can follow the wrong branch. Phase 2
+   recorded this as merely a dead loop; it is sharper than that.
+4. **`tests/slippery_world_test.cpp:609` — T3's race can pass vacuously.** It
+   asserts only `verdict_mismatch_count == 0`, which stays $0$ when every
+   `ltlfsynt` run times out or errors, so the test goes green having verified
+   nothing.
+5. **`tests/slippery_world_test.cpp:593` — flake.** The outer `timeout 180s` is
+   below the sweep's own worst case ($8 \times 30$ s subject $+\ 8 \times 30$ s
+   race $\approx 480$ s) → exit-124.
+6. **`src/bench_suite.cpp:1207` — `build_nk_case` silently discards $T_{out}$
+   knowledge** when it demotes $O_{known}$ and swaps in a trivial $T_{out}$.
+   Safe today only because no family populates `output_known`, with no assertion
+   pinning that.
+
+**One non-finding worth keeping, because the reason it is safe is not obvious.**
+Spot's *LTL* simplifier is unsound for this node: `ltlfilt -r3 -f 'X[!]1'`
+returns `1`. Nothing in the repo runs `tl_simplifier` on $\psiin$, and
+`ltlfsynt -f '!X[!]1'` returns `REALIZABLE` rather than simplifying to `false`,
+so the bench CLI's `ltlfsynt` race (`src/ltlf_ek_bench.cpp:837`) is safe. Any
+future pass that introduces an LTL-mode simplification step on $\psiin$ would
+silently delete the boundary guard — T7b would catch it.

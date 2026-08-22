@@ -697,8 +697,17 @@ std::string slippery_transducer_hoa(const SlipperyEncoding& enc, std::int64_t N)
 // A_N, the enumerated environment assumption (D3 arms 1/2): the same
 // transition table restated per-coordinate as an LTLf formula, weak X only
 // (D6 --- X[!] would collapse A_N to false silently, see Stop-list 7).
-// Exactly 14N+1 top-level conjuncts (D8, T5): 1 init + 2 axes x N cells x 7
-// per-cell rules (2 movers x 2 slip values + 3 non-movers x 1).
+// Exactly 14N G-rooted rules (D8, T5): 2 axes x N cells x 7 per-cell rules
+// (2 movers x 2 slip values + 3 non-movers x 1). The init conjunct is NOT a
+// 15th/(14N+1)-th child: Spot's And is n-ary and flattens, so cell(0,0)
+// contributes its own literals as top-level children and the parsed formula
+// reads 14N + 2n (binary) / 14N + 2N (one-hot) -- corrected 2026-08-22, see
+// D8 and tests/slippery_world_test.cpp.
+//
+// Unlike the compact arm (kNextExists below), these rules need no explicit
+// "a next position exists" guard: each concludes X(whole destination
+// conjunction), one weak X wrapping the ENTIRE consequent, which is
+// vacuously true at the last position for free.
 std::string slippery_assumption(const SlipperyEncoding& enc, std::int64_t N) {
   std::vector<std::string> conj;
   conj.push_back("(" + enc.cell(0, 0) + ")");
@@ -884,11 +893,19 @@ std::string compact_min1(char axis, std::int64_t n) {
   return compact_conj(terms);
 }
 
-// D5's Keep: every bit unchanged, weak X only (D6 --- X[!] here would make
-// the rule's guard-total antecedent unsatisfiable at the last position and
-// collapse A_N to false, silently, per Stop-list 7; T7 guards this). Weak X
-// alone is not enough at the boundary either; kNextExists below carries the
-// other half of the fix.
+// D5's Keep: every bit unchanged, weak X (D6). Two things to keep straight
+// about the operator here, because they changed on 2026-08-22:
+//   - Historically, X[!] in this body was FATAL: with no guard conjunct the
+//     antecedents were total, so some class fired at the last position, the
+//     consequent was unsatisfiable there, and A_N collapsed to false
+//     silently (Stop-list 7).
+//   - Now that kNextExists puts X[!]1 in every antecedent, the antecedents
+//     are no longer total -- they are all false at the last position -- so
+//     X[!] in this body would be merely REDUNDANT, not fatal: it agrees with
+//     weak X everywhere the guard admits. Weak X stays, because D5 says weak
+//     X and because the body should remain correct on its own terms.
+// The live Stop-list 7 regression is therefore losing the GUARD, not the body
+// spelling, and that is what T7b (EveryGRuleGuardCarriesNextExists) pins.
 std::string compact_keep(char axis, std::int64_t n) {
   std::vector<std::string> terms;
   for (std::int64_t i = 0; i < n; ++i) {
@@ -952,9 +969,13 @@ std::string compact_set_max(char axis, std::int64_t n) {
 // FALSE --- the same trace-boundary defect the update rules had, in its
 // worst form: an unsatisfiable consequent under a satisfiable guard, which
 // forbids the last position outright instead of merely over-constraining it.
-// kNextExists below already makes this unreachable; keeping the negation
-// inside X keeps every rule body boundary-neutral on its own (D6's "weak X
-// only" read as a property of the body, not just of the operator spelling).
+// kNextExists below already makes this unreachable; the respelling is
+// belt-and-braces, and it buys exactly one thing, no more: it removes the
+// only body that goes UNSATISFIABLE at the boundary. It does NOT make the
+// bodies boundary-neutral in general --- only SetMax and SetMin are that.
+// Keep collapses to Max, Inc to Max1, Dec to Min, Inc2/Dec2 to their own
+// fixed patterns; those five are merely over-constraining at the last
+// position and depend on the guard entirely (see kNextExists).
 std::string compact_set_min(char axis, std::int64_t n) {
   std::vector<std::string> terms;
   for (std::int64_t i = 0; i < n; ++i) terms.push_back("X(!" + compact_bit(axis, i) + ")");
@@ -969,11 +990,14 @@ std::string compact_set_min(char axis, std::int64_t n) {
 // free at the LAST position of a produced trace, so the biconditional
 // collapses to the bare "rhs_i" --- a constraint on the CURRENT cell that
 // T_in does not impose there (T_in simply stops; it commits no successor). For
-// Keep that reads "every bit of the last cell is set"; for Inc it reads "every
-// bit is clear"; either way A_N rejects produced traces that T_in accepts, and
-// the T1 certificate is red with a length-1 witness at (0,0) --- position 0 is
-// simultaneously the first and the last, so Min(bx) & Min(by) from the init
-// conjunct meets Keep's "all bits set" and nothing survives.
+// Keep that reads Max, "every bit of the last cell is set"; for Inc it reads
+// Max1 (bit 0 clear, every other bit set --- bit 0's term forces !b_0, which
+// falsifies every lower-bit carry conjunction and so forces every b_i, i >= 1,
+// true); for Dec it reads Min, "every bit clear". Either way A_N rejects
+// produced traces that T_in accepts, and the T1 certificate is red with a
+// length-1 witness at (0,0) --- position 0 is simultaneously the first and the
+// last, so Min(bx) & Min(by) from the init conjunct CONTRADICTS Keep's "all
+// bits set" and nothing survives.
 //
 // Why in the guard and not the body. Writing the body with X[!] instead
 // (X[!] b_i <-> rhs_i) is Stop-list 7's trap: it does not go vacuous, it flips
@@ -1003,7 +1027,7 @@ std::string compact_class_guard(const SlipperyClass& c) {
 // children when this axis's string is itself conjoined into the whole
 // formula (matches the enumerated arms' T5 test methodology: G-rooted
 // children counted directly, exactly as tests/slippery_world_test.cpp's
-// ANHasExactlyFourteenNPlusOneTopLevelConjuncts already does for arms 1/2).
+// ANHasExactlyFourteenNGRulesPlusALiteralOnlyInit already does for arms 1/2).
 // `inc_class`/`dec_class` name which of the five priority classes increments
 // / decrements this axis: x is R/L; y is D/U (D5: "the y axis is the same
 // table with U playing L's role ... and D playing R's").
