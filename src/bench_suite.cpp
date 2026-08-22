@@ -886,7 +886,9 @@ std::string compact_min1(char axis, std::int64_t n) {
 
 // D5's Keep: every bit unchanged, weak X only (D6 --- X[!] here would make
 // the rule's guard-total antecedent unsatisfiable at the last position and
-// collapse A_N to false, silently, per Stop-list 7; T7 guards this).
+// collapse A_N to false, silently, per Stop-list 7; T7 guards this). Weak X
+// alone is not enough at the boundary either; kNextExists below carries the
+// other half of the fix.
 std::string compact_keep(char axis, std::int64_t n) {
   std::vector<std::string> terms;
   for (std::int64_t i = 0; i < n; ++i) {
@@ -945,11 +947,44 @@ std::string compact_set_max(char axis, std::int64_t n) {
   for (std::int64_t i = 0; i < n; ++i) terms.push_back("X(" + compact_bit(axis, i) + ")");
   return compact_conj(terms);
 }
+// SetMin: "X(!b_i)", NOT "!X(b_i)". The two agree everywhere except at the
+// last position, where weak X makes "X(!b_i)" true for free but "!X(b_i)"
+// FALSE --- the same trace-boundary defect the update rules had, in its
+// worst form: an unsatisfiable consequent under a satisfiable guard, which
+// forbids the last position outright instead of merely over-constraining it.
+// kNextExists below already makes this unreachable; keeping the negation
+// inside X keeps every rule body boundary-neutral on its own (D6's "weak X
+// only" read as a property of the body, not just of the operator spelling).
 std::string compact_set_min(char axis, std::int64_t n) {
   std::vector<std::string> terms;
-  for (std::int64_t i = 0; i < n; ++i) terms.push_back("!X(" + compact_bit(axis, i) + ")");
+  for (std::int64_t i = 0; i < n; ++i) terms.push_back("X(!" + compact_bit(axis, i) + ")");
   return compact_conj(terms);
 }
+
+// "a next position exists" (main.tex's X[!], SPOT_USES_STRONG_X), conjoined
+// into the GUARD of every D5 rule below.
+//
+// Why it is needed. Each update rule relates an X-term to a non-X-term inside
+// one biconditional, "X b_i <-> rhs_i". Under weak X the left side is true for
+// free at the LAST position of a produced trace, so the biconditional
+// collapses to the bare "rhs_i" --- a constraint on the CURRENT cell that
+// T_in does not impose there (T_in simply stops; it commits no successor). For
+// Keep that reads "every bit of the last cell is set"; for Inc it reads "every
+// bit is clear"; either way A_N rejects produced traces that T_in accepts, and
+// the T1 certificate is red with a length-1 witness at (0,0) --- position 0 is
+// simultaneously the first and the last, so Min(bx) & Min(by) from the init
+// conjunct meets Keep's "all bits set" and nothing survives.
+//
+// Why in the guard and not the body. Writing the body with X[!] instead
+// (X[!] b_i <-> rhs_i) is Stop-list 7's trap: it does not go vacuous, it flips
+// the left side to FALSE at the last position and collapses A_N to "!rhs_i"
+// there. Guarding the implication is what makes the whole rule vacuously true
+// at the boundary --- which is exactly the shape the enumerated arms already
+// have for free (slippery_assumption puts its ENTIRE consequent under one weak
+// X, so the rule is satisfied at the last position without a guard). The
+// compact arm cannot do that, because its consequent mentions the current cell
+// too, so it must say "a next position exists" explicitly.
+const char kNextExists[] = "X[!]1";
 
 // A slippery_classes() literal guard, rendered as one conjunction string ---
 // the same rendering slippery_assumption already uses per-class.
@@ -995,23 +1030,30 @@ std::string compact_axis_rules(char axis, std::int64_t n,
   const std::string g_inc = compact_class_guard(*inc_c);
   const std::string g_dec = compact_class_guard(*dec_c);
 
+  // Every rule's guard carries kNextExists, so all 14 go vacuous at the last
+  // position instead of collapsing onto the current cell (see kNextExists).
+  const std::string nx = std::string(" & ") + kNextExists;
+
   std::vector<std::string> rules;
   // The two mover classes, each split on slip -- 4 of the 7 rows (D5's
   // table).
-  rules.push_back("G((" + g_inc + " & !slip) -> ((" + max_p + ") -> (" +
-                  keep_r + ")) & (!(" + max_p + ") -> (" + inc_r + ")))");
-  rules.push_back("G((" + g_inc + " & slip) -> ((" + max_p + " | " + max1_p +
-                  ") -> (" + set_max_r + ")) & (!(" + max_p + " | " + max1_p +
-                  ") -> (" + inc2_r + ")))");
-  rules.push_back("G((" + g_dec + " & !slip) -> ((" + min_p + ") -> (" +
-                  keep_r + ")) & (!(" + min_p + ") -> (" + dec_r + ")))");
-  rules.push_back("G((" + g_dec + " & slip) -> ((" + min_p + " | " + min1_p +
-                  ") -> (" + set_min_r + ")) & (!(" + min_p + " | " + min1_p +
-                  ") -> (" + dec2_r + ")))");
+  rules.push_back("G((" + g_inc + " & !slip" + nx + ") -> ((" + max_p +
+                  ") -> (" + keep_r + ")) & (!(" + max_p + ") -> (" + inc_r +
+                  ")))");
+  rules.push_back("G((" + g_inc + " & slip" + nx + ") -> ((" + max_p + " | " +
+                  max1_p + ") -> (" + set_max_r + ")) & (!(" + max_p + " | " +
+                  max1_p + ") -> (" + inc2_r + ")))");
+  rules.push_back("G((" + g_dec + " & !slip" + nx + ") -> ((" + min_p +
+                  ") -> (" + keep_r + ")) & (!(" + min_p + ") -> (" + dec_r +
+                  ")))");
+  rules.push_back("G((" + g_dec + " & slip" + nx + ") -> ((" + min_p + " | " +
+                  min1_p + ") -> (" + set_min_r + ")) & (!(" + min_p + " | " +
+                  min1_p + ") -> (" + dec2_r + ")))");
   // The three non-mover classes: Keep, no slip split (D5's "-- | Keep" rows).
   for (const SlipperyClass& c : slippery_classes()) {
     if (&c == inc_c || &c == dec_c) continue;
-    rules.push_back("G((" + compact_class_guard(c) + ") -> (" + keep_r + "))");
+    rules.push_back("G((" + compact_class_guard(c) + nx + ") -> (" + keep_r +
+                    "))");
   }
 
   std::string out;
