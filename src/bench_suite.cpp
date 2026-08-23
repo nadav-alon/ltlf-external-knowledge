@@ -1134,8 +1134,12 @@ class SlipperyBinaryCompactFamily final : public BenchFamily {
 // True iff `mona` resolves on PATH (the MONA_FOUND ctest gate's runtime
 // analogue: this file lives in the ltlf_ek library, not the unit_tests
 // target, so the compile-time MONA_FOUND define is not available here).
-// Computed once and cached --- a subprocess probe on every case would be
-// wasteful and mona's presence cannot change mid-run.
+// Computed once per process and cached for that process's lifetime -- with
+// per-case process isolation (Phase 2 cont. II, ltlf_ek_bench.cpp) each case
+// now runs in its own forked child, so this function-local static is
+// re-computed once per case rather than once for the whole sweep; the
+// resulting redundant subprocess probes are the accepted cost of that
+// isolation, not something this comment should still claim is avoided.
 bool mona_available() {
   static const bool available =
       (std::system("command -v mona >/dev/null 2>&1") == 0);

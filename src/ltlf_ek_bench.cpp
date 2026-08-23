@@ -16,12 +16,12 @@
 
 #include <algorithm>
 #include <array>
-#include <atomic>
+#include <cerrno>
 #include <chrono>
-#include <condition_variable>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <ctime>
 #include <deque>
 #include <filesystem>
@@ -29,15 +29,17 @@
 #include <iostream>
 #include <map>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <set>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <thread>
 #include <vector>
 
+#include <climits>
+#include <fcntl.h>
+#include <poll.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
@@ -280,63 +282,300 @@ std::vector<const BenchSubject*> SelectSubjects(const std::string& csv) {
 }
 
 // ---------------------------------------------------------------------------
-// Per-case timeout enforcement (PRD "Edge cases" "Timeout (Phase 2)": a case
-// exceeding --timeout records a timeout marker and must not abort the
-// remaining sweep).  run_bench_case (bench_suite.hpp) is a single blocking
-// call with no cancellation hook, so the only way to bound its wall time is
-// to run it on its own thread and, on a deadline miss, detach rather than
-// join -- the detached thread keeps running in the background (rare in
-// practice; every method here terminates given enough time, it is not an
-// infinite loop) and is abandoned when the process exits.  `case_ptr` /
-// `subject_ptr` must outlive any detached worker: callers keep every
-// instantiated BenchCase in a std::deque for the process's whole lifetime
-// (deque never invalidates references on push_back) and BenchSubject
-// pointers come from bench_subjects()'s process-lifetime static vector.
+// Per-case timeout enforcement (PRD "Edge cases" "Timeout (Phase 2)" and
+// "Phase 2 (cont. II) -- per-case process isolation": a case exceeding
+// --timeout records a timeout marker and must not abort the remaining
+// sweep).  run_bench_case (bench_suite.hpp) is a single blocking call with no
+// cancellation hook, and a blocking Spot/MONA call cannot be cancelled
+// in-thread, so the deadline has to be enforced on something the OS can
+// kill: a **forked child per case**.  The child runs run_bench_case and
+// reports its (key, value) rows back over a pipe; the parent reconstructs
+// full BenchRows using case_ptr/subject_ptr (already in hand -- only the
+// measurement needs to cross the fork).  The parent poll()s the read end
+// for the remaining deadline, reads until EOF, and always reaps: a clean
+// exit is waited on directly, a deadline miss gets SIGKILL then a blocking
+// waitpid.  Never leaves a zombie, and the parent never touches Spot/BDD
+// state on the child's behalf -- that separation is automatic given
+// fork()+_exit() (no shared address space, no atexit/static-destructor
+// bleed).  `case_ptr`/`subject_ptr` only need to outlive this call (the
+// child reads through them before writing its reply, and the parent is done
+// with them once it returns) -- no longer the process-lifetime requirement
+// the detach-based strategy imposed; callers still keep every instantiated
+// BenchCase in a std::deque, but that is no longer load-bearing for this
+// function.  Test-only: the child's crash/nonzero-exit path can be forced
+// via LTLF_EK_BENCH_FAULT_INJECT (see MaybeInjectFault, below) without any
+// production code path being able to trigger it.
 // ---------------------------------------------------------------------------
 
+enum class RunOutcome { kSuccess, kTimedOut, kFailed };
+
 struct TimedRunResult {
-  bool timed_out = false;
+  RunOutcome outcome = RunOutcome::kSuccess;
   std::vector<BenchRow> rows;
+  std::string failure_detail;  // meaningful only when outcome == kFailed
 };
+
+// Wire format for the child->parent pipe: just the (key, value) pairs
+// (PRD: "RunCaseRepeated only consumes row.key and row.value; family/
+// params/subject are already known to the parent"). uint32 count, then per
+// row a uint32 key length + key bytes + uint64 value -- fixed-width, no
+// endianness concern since parent and child share an architecture (fork).
+std::string SerializeRows(const std::vector<BenchRow>& rows) {
+  std::string buf;
+  auto append_u32 = [&](std::uint32_t v) {
+    buf.append(reinterpret_cast<const char*>(&v), sizeof v);
+  };
+  auto append_u64 = [&](std::uint64_t v) {
+    buf.append(reinterpret_cast<const char*>(&v), sizeof v);
+  };
+  append_u32(static_cast<std::uint32_t>(rows.size()));
+  for (const BenchRow& row : rows) {
+    append_u32(static_cast<std::uint32_t>(row.key.size()));
+    buf.append(row.key);
+    append_u64(row.value);
+  }
+  return buf;
+}
+
+std::optional<std::vector<std::pair<std::string, std::uint64_t>>>
+DeserializeRows(const std::vector<char>& buf) {
+  std::size_t pos = 0;
+  auto read_u32 = [&](std::uint32_t& out) {
+    if (pos + sizeof(std::uint32_t) > buf.size()) return false;
+    std::memcpy(&out, buf.data() + pos, sizeof(std::uint32_t));
+    pos += sizeof(std::uint32_t);
+    return true;
+  };
+  auto read_u64 = [&](std::uint64_t& out) {
+    if (pos + sizeof(std::uint64_t) > buf.size()) return false;
+    std::memcpy(&out, buf.data() + pos, sizeof(std::uint64_t));
+    pos += sizeof(std::uint64_t);
+    return true;
+  };
+  std::uint32_t count = 0;
+  if (!read_u32(count)) return std::nullopt;
+  std::vector<std::pair<std::string, std::uint64_t>> out;
+  out.reserve(count);
+  for (std::uint32_t i = 0; i < count; ++i) {
+    std::uint32_t klen = 0;
+    if (!read_u32(klen)) return std::nullopt;
+    if (pos + klen > buf.size()) return std::nullopt;
+    std::string key(buf.data() + pos, klen);
+    pos += klen;
+    std::uint64_t value = 0;
+    if (!read_u64(value)) return std::nullopt;
+    out.emplace_back(std::move(key), value);
+  }
+  if (pos != buf.size()) return std::nullopt;  // trailing bytes: corrupt/truncated
+  return out;
+}
+
+// write() can return short; loop until the whole buffer is out or a real
+// error occurs. The payload here is a handful of rows, far under the pipe
+// buffer, so this never blocks in practice -- it exists for correctness,
+// not because large writes are expected.
+bool WriteAll(int fd, const char* data, std::size_t len) {
+  std::size_t off = 0;
+  while (off < len) {
+    const ssize_t n = write(fd, data + off, len - off);
+    if (n > 0) {
+      off += static_cast<std::size_t>(n);
+      continue;
+    }
+    if (n < 0 && errno == EINTR) continue;
+    return false;
+  }
+  return true;
+}
+
+// Test-only fault-injection hook for RunCaseWithTimeout's fork strategy
+// (never triggered by default, and only read in the forked child): set
+// LTLF_EK_BENCH_FAULT_INJECT="segv" or "exit1" to force that failure in the
+// child before it runs the case, optionally suffixed ":<k>" (1-based) to
+// scope the fault to just the k-th call to RunCaseWithTimeout in this
+// process, e.g. LTLF_EK_BENCH_FAULT_INJECT="exit1:2" only faults the second
+// case run and lets every other case run normally. Absent or empty: no-op.
+void MaybeInjectFault(std::uint64_t case_index) {
+  const char* spec = std::getenv("LTLF_EK_BENCH_FAULT_INJECT");
+  if (!spec || !*spec) return;
+  std::string mode(spec);
+  const auto colon = mode.find(':');
+  if (colon != std::string::npos) {
+    const auto target = std::strtoull(mode.c_str() + colon + 1, nullptr, 10);
+    if (target != case_index) return;
+    mode.resize(colon);
+  }
+  if (mode == "segv") {
+    volatile int* trigger = nullptr;
+    *trigger = 0;  // SIGSEGV
+  } else if (mode == "exit1") {
+    _exit(1);
+  }
+}
 
 TimedRunResult RunCaseWithTimeout(const BenchCase* case_ptr,
                                   const BenchSubject* subject_ptr,
                                   std::chrono::seconds timeout) {
-  auto rows = std::make_shared<std::vector<BenchRow>>();
-  auto done = std::make_shared<std::atomic<bool>>(false);
-  auto mtx = std::make_shared<std::mutex>();
-  auto cv = std::make_shared<std::condition_variable>();
+  // Flush the parent's buffered stdio before fork() -- otherwise the child
+  // inherits the same unflushed buffers and the sweep's progress output
+  // could be duplicated when the child's copy is later flushed/discarded.
+  std::cout.flush();
+  std::fflush(nullptr);
 
-  std::thread worker([=]() {
-    std::vector<BenchRow> local;
-    try {
-      local = run_bench_case(*case_ptr, *subject_ptr);
-    } catch (const std::exception&) {
-      // Swallow: a thrown exception must not std::terminate() the whole
-      // sweep (an uncaught exception crossing a std::thread's top-level
-      // function calls std::terminate).  Treated as "zero rows produced",
-      // same as a cleanly-skipped subject (PRD "Edge cases" "MONA absent").
-    }
-    {
-      std::lock_guard<std::mutex> lock(*mtx);
-      *rows = std::move(local);
-    }
-    done->store(true);
-    cv->notify_all();
-  });
+  // O_CLOEXEC: a MONA-backed subject execs a grandchild (sh -c ... mona
+  // ...); without CLOEXEC that grandchild inherits the write end, so a
+  // grandchild that outlives the direct child holds the pipe open, the
+  // parent's read() never sees EOF, and a case that actually succeeded gets
+  // reported as a TIMEOUT with its rows discarded. CLOEXEC only closes the
+  // fd across exec (not across the exec-less fork below), so the child can
+  // still write through it right up until it execs (it never does) or
+  // _exit()s.
+  int pipefd[2];
+  if (pipe2(pipefd, O_CLOEXEC) != 0)
+    return TimedRunResult{RunOutcome::kFailed, {}, "pipe() failed"};
 
-  {
-    std::unique_lock<std::mutex> lock(*mtx);
-    cv->wait_for(lock, timeout, [&] { return done->load(); });
+  // 1-based count of calls to RunCaseWithTimeout in this process, computed
+  // before fork() so parent and child agree on it without any IPC (the
+  // child is a copy of the parent's address space at fork time); used only
+  // by MaybeInjectFault's optional ":<k>" scoping, above.
+  static std::uint64_t call_counter = 0;
+  const std::uint64_t case_index = ++call_counter;
+
+  const pid_t pid = fork();
+  if (pid < 0) {
+    close(pipefd[0]);
+    close(pipefd[1]);
+    return TimedRunResult{RunOutcome::kFailed, {}, "fork() failed"};
   }
 
+  if (pid == 0) {
+    // --- child: run the case, report rows over the pipe, never return to
+    // the caller's stack.  No atexit handlers, no static destructors, no
+    // Spot/BDD teardown -- _exit() only, per the PRD.
+    //
+    // Own process group, before anything else: a MONA-backed subject
+    // (nfa-product/mtnfa-product) shells out via std::system (mona_dfa.cpp),
+    // so this child has its own grandchild (sh -c ... mona ...). A deadline
+    // miss must kill that whole tree, not just this direct child, or the
+    // grandchild survives, gets reparented to init, and keeps running for as
+    // long as the case would have taken. setpgid(0, 0) here races the
+    // parent's mirroring setpgid(pid, pid) below; whichever runs first wins,
+    // and both target the same group id (this child's own pid), so the
+    // group exists regardless of which side wins the race.
+    setpgid(0, 0);
+    close(pipefd[0]);
+    MaybeInjectFault(case_index);  // test-only, see the hook's own comment
+    std::vector<BenchRow> local;
+    bool ok = true;
+    try {
+      local = run_bench_case(*case_ptr, *subject_ptr);
+    } catch (...) {
+      ok = false;  // an uncaught exception is a genuine failure, distinct
+                   // from run_bench_case's own clean-skip contract (which
+                   // returns an empty vector, not a throw).
+    }
+    if (!ok) _exit(1);
+    const std::string payload = SerializeRows(local);
+    if (!WriteAll(pipefd[1], payload.data(), payload.size())) _exit(1);
+    close(pipefd[1]);
+    _exit(0);
+  }
+
+  // --- parent ---
+  // Mirror the child's setpgid (see the child's comment above for the race
+  // this resolves); EACCES (child already changed its own group) and ESRCH
+  // (child already exited) both mean the group is already set up correctly,
+  // so both are ignored rather than treated as this call's own failure.
+  setpgid(pid, pid);
+  close(pipefd[1]);  // so EOF shows up once the child exits or closes its end
+
+  const auto deadline = std::chrono::steady_clock::now() + timeout;
+  std::vector<char> buf;
+  bool timed_out = false;
+  bool poll_error = false;
+  for (;;) {
+    const auto remaining = deadline - std::chrono::steady_clock::now();
+    auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(remaining).count();
+    if (ms < 0) ms = 0;
+
+    // Clamp to INT_MAX: `ms` is a long long and `timeout_seconds` (hence
+    // `timeout`) is unsigned, so a large --timeout can produce a millisecond
+    // count that narrows to a negative int -- poll() would then read that
+    // negative value as "block forever", silently reopening the unbounded
+    // hang this whole fork/pipe rewrite exists to close.
+    const int poll_ms = ms > static_cast<decltype(ms)>(INT_MAX)
+                            ? INT_MAX
+                            : static_cast<int>(ms);
+    struct pollfd pfd{};
+    pfd.fd = pipefd[0];
+    pfd.events = POLLIN;
+    const int rc = poll(&pfd, 1, poll_ms);
+    if (rc == 0) {
+      timed_out = true;
+      break;
+    }
+    if (rc < 0) {
+      if (errno == EINTR) continue;
+      poll_error = true;
+      break;
+    }
+    char chunk[4096];
+    const ssize_t n = read(pipefd[0], chunk, sizeof(chunk));
+    if (n > 0) {
+      buf.insert(buf.end(), chunk, chunk + n);
+      continue;
+    }
+    if (n == 0) break;  // EOF: child closed its write end
+    if (errno == EINTR) continue;
+    poll_error = true;
+    break;
+  }
+  close(pipefd[0]);
+
+  if (timed_out || poll_error) {
+    // Kill the whole group (covers the direct child and any MONA
+    // grandchild it shelled out to, see the child's setpgid comment above),
+    // then always reap -- a poll()/read() error must not fall into an
+    // unbounded blocking waitpid on a case that is still running: that
+    // would hang the whole sweep for the case's full duration with no
+    // deadline and no signal sent, reopening exactly the failure class this
+    // phase exists to close. Both setpgid(0,0) (child) and setpgid(pid,pid)
+    // (parent, above) are unchecked, so if both somehow failed the group
+    // never formed and kill(-pid, ...) would return ESRCH and signal
+    // nothing -- send SIGKILL to the direct child too, unconditionally, so
+    // the blocking waitpid below is never left waiting on a process nothing
+    // signalled.
+    kill(-pid, SIGKILL);
+    kill(pid, SIGKILL);
+    int status = 0;
+    waitpid(pid, &status, 0);  // blocking reap -- never leave a zombie
+    if (timed_out) return TimedRunResult{RunOutcome::kTimedOut, {}, ""};
+    return TimedRunResult{RunOutcome::kFailed, {}, "pipe read error"};
+  }
+
+  int status = 0;
+  waitpid(pid, &status, 0);
+
+  if (WIFSIGNALED(status)) {
+    return TimedRunResult{RunOutcome::kFailed, {},
+                          "signal_" + std::to_string(WTERMSIG(status))};
+  }
+  if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+    const int code = WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+    return TimedRunResult{RunOutcome::kFailed, {},
+                          "exit_" + std::to_string(code)};
+  }
+
+  const auto parsed = DeserializeRows(buf);
+  if (!parsed)
+    return TimedRunResult{RunOutcome::kFailed, {}, "truncated payload"};
+
   TimedRunResult result;
-  if (done->load()) {
-    worker.join();
-    result.rows = *rows;
-  } else {
-    worker.detach();
-    result.timed_out = true;
+  result.outcome = RunOutcome::kSuccess;
+  result.rows.reserve(parsed->size());
+  for (const auto& [key, value] : *parsed) {
+    result.rows.push_back(BenchRow{case_ptr->family, case_ptr->params,
+                                   subject_ptr->name(), key, value});
   }
   return result;
 }
@@ -381,6 +620,9 @@ struct RepeatedResult {
   std::map<std::string, std::uint64_t> min_values;  // key -> min over successes
   int successes = 0;
   int timeouts = 0;
+  int failures = 0;               // died by signal, nonzero exit, or truncated
+                                  // payload (fork-isolation crash/OOM path)
+  std::string last_failure_detail;  // e.g. "signal_11", "exit_1"
 };
 
 RepeatedResult RunCaseRepeated(const BenchCase* case_ptr,
@@ -389,8 +631,13 @@ RepeatedResult RunCaseRepeated(const BenchCase* case_ptr,
   RepeatedResult result;
   for (int i = 0; i < repeat; ++i) {
     const TimedRunResult tr = RunCaseWithTimeout(case_ptr, subject_ptr, timeout);
-    if (tr.timed_out) {
+    if (tr.outcome == RunOutcome::kTimedOut) {
       ++result.timeouts;
+      continue;
+    }
+    if (tr.outcome == RunOutcome::kFailed) {
+      ++result.failures;
+      result.last_failure_detail = tr.failure_detail;
       continue;
     }
     ++result.successes;
@@ -733,18 +980,31 @@ int main(int argc, char** argv) {
                 c, subject, args.repeat, std::chrono::seconds(args.timeout_seconds));
 
             if (rr.successes == 0) {
-              // Every repeat timed out: a timeout marker (PRD "Edge cases"
-              // "Timeout (Phase 2)"), never a silent absence and never an
-              // error that aborts the sweep.
+              // Every repeat timed out and/or crashed: a marker row (PRD
+              // "Edge cases" "Timeout (Phase 2)" and "Phase 2 (cont. II)"),
+              // never a silent absence and never an error that aborts the
+              // sweep. Both can fire together (some repeats timed out,
+              // others died) -- two marker rows, not a forced choice.
               if (rr.timeouts > 0) {
                 timing_rows.push_back(TimingRow{
                     family->name(), n, realizable, subject->name(), "TIMEOUT",
                     static_cast<std::uint64_t>(args.timeout_seconds) * 1'000'000'000ull,
                     true});
               }
-              // rr.successes == 0 and rr.timeouts == 0 means the subject
-              // cleanly skipped every repeat (MONA absent, PRD "Edge
-              // cases") -- absence, not a row (B2 rule 1).
+              if (rr.failures > 0) {
+                // Fork-isolation crash/OOM path: the child died by signal,
+                // exited nonzero, or wrote a truncated payload. B2 rule 1 --
+                // a failed cell yields a marker row, never a zero-valued
+                // metric -- so this follows the "TIMEOUT" row's shape
+                // exactly, just with a distinct key and the failure detail
+                // folded into it.
+                timing_rows.push_back(TimingRow{
+                    family->name(), n, realizable, subject->name(),
+                    "FAILED_" + rr.last_failure_detail, 0, true});
+              }
+              // rr.successes == 0, rr.timeouts == 0, rr.failures == 0 means
+              // the subject cleanly skipped every repeat (MONA absent, PRD
+              // "Edge cases") -- absence, not a row (B2 rule 1).
               continue;
             }
 
@@ -768,7 +1028,7 @@ int main(int argc, char** argv) {
                                               subject->name(), "wall_total",
                                               wall_total, false});
             }
-            if (rr.timeouts > 0 && rr.successes > 0) {
+            if (rr.timeouts > 0) {
               // Partial timeout: some repeats succeeded (used above for the
               // min), some did not -- flagged, not hidden, without
               // discarding the successful measurements (PRD "Edge cases":
@@ -777,6 +1037,15 @@ int main(int argc, char** argv) {
               timing_rows.push_back(TimingRow{
                   family->name(), n, realizable, subject->name(),
                   "PARTIAL_TIMEOUT_" + std::to_string(rr.timeouts) + "_of_" +
+                      std::to_string(args.repeat),
+                  0, true});
+            }
+            if (rr.failures > 0) {
+              // Partial failure: same shape as partial timeout, distinct
+              // key, carrying the same rows-still-valid guarantee.
+              timing_rows.push_back(TimingRow{
+                  family->name(), n, realizable, subject->name(),
+                  "PARTIAL_FAILED_" + std::to_string(rr.failures) + "_of_" +
                       std::to_string(args.repeat),
                   0, true});
             }
