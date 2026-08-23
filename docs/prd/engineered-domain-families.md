@@ -32,7 +32,8 @@ the one thing still owed**, and *not* because of Phase 3. It is held open by
 **six findings on Phase 1/2 and harness code** (two carried from Phase 2, four
 new from a wider `master...HEAD` pass), listed under *Developer comments* →
 "the `code-review` gate's open list". Three of them are redesigns of settled
-Phase 2 machinery — a user call, not a day-run's. One **pre-existing,
+Phase 2 machinery, which is why they were reserved — **all six were authorized
+by the user on 2026-08-23** and are now a run's to fix. One **pre-existing,
 unrelated** red remains in `ctest`: `BenchSuiteCrossMethodAgreement` on
 `parity-t3`.
 
@@ -180,8 +181,11 @@ questions touched*.
   three of them (the $2^k$ alphabet, the `registrar` AP lifetime, the
   `emits_dfa` AP registration) are changes to settled Phase 2 machinery whose
   right fix is a design decision, and the other three are test-harness
-  robustness. **This is the one thing this PRD still owes, and it is a user
-  call, not a day-run's.**
+  robustness. **All six were authorized by the user on 2026-08-23** — including
+  the three redesigns, which are no longer reserved. A run may now fix them and
+  tick this box once all six are closed and `ctest` is green. The authorization
+  and its reasoning are recorded at the head of the open list under *Developer
+  comments*; the Stop-list still governs everything else.
 - [x] theory-review   — code ↔ math faithfulness vs main.tex. **Ticked
   2026-08-22 on the Phase 3 diff** (`e7bbfb1..HEAD`, the compact $A_N$'s
   boundary fix): **no `code-bug`**. The load-bearing question — whether
@@ -791,11 +795,36 @@ both goals, EK and no-knowledge columns, the `ltlfsynt` timing column, the
 extractor column, and the structural table — plus an explicit statement of
 whether the separation appeared (Stop-list 2).
 
-**Sweep parameters** (all overridable by the shipped `ltlf-ek-bench` flags):
-$n = 2 \ldots 6$ (so $N = 4, 8, 16, 32, 64$ and $\lvert\mathrm{DFA}\rvert = 4^n =
-16 \ldots 4096$), `--repeat=5` reported as the **median** (matching the probe's
-protocol so its numbers stay comparable), per-case timeout **60 s**,
-`--budget=7200` (the runner's shipped default).
+**Sweep parameters** (all overridable by the shipped `ltlf-ek-bench` flags).
+*Narrowed by the user 2026-08-23, before Phase 4 ran; the original declaration is
+kept at the end of this block so the change stays auditable.*
+
+- **Both binary arms** (`slippery-binary`, `slippery-binary-compact`):
+  $n = 2 \ldots 5$ (so $N = 4, 8, 16, 32$ and $\lvert\mathrm{DFA}\rvert = 4^n =
+  16 \ldots 1024$).
+- **`slippery-onehot`: $n = 2, 3$ only.** Capped at the value where the cost was
+  *measured*, not guessed: `NfaProduct` on `slippery-onehot` at $n = 3$ takes
+  407 s / 433 s per goal (~200 s of it determinization) against < 1 s for the
+  other nineteen cells, and $n = 4$ is 37 APs. This is Stop-list 8's "one-hot at
+  large $n$" edge case **declared in advance** rather than discovered as a
+  column of timeouts.
+- `--repeat=5` reported as the **median** (matching the probe's protocol so its
+  numbers stay comparable), per-case timeout **60 s**, `--budget=7200` (the
+  runner's shipped default).
+
+The cap costs one binary data point at $n = 6$ and two one-hot points. **No claim
+in the report rests on them**: the headline is Stop-list 2's separation, and T9
+already pins the compact arm's $\lvert\mathrm{DFA}(A_N)\rvert$ at exactly
+$4^n + 2$ *by construction, verified in Phase 3* — so the sweep's job is the
+five-method **cost** comparison, for which $n = 2 \ldots 5$ gives a full order of
+magnitude of dynamic range. The report **must state the cap and this reasoning
+explicitly**; shipping a narrower sweep than the PRD declares without saying so
+is exactly what Stop-list 5 exists to prevent.
+
+*Superseded declaration, for the record:* $n = 2 \ldots 6$ across all three arms
+($N$ up to 64, $\lvert\mathrm{DFA}\rvert$ up to 4096). Written 2026-08-19 —
+before Phase 1 measured the $n = 3$ one-hot cost, i.e. before it was known that
+Stop-list 8 arrives at $n = 3$ rather than at $n = 6$.
 
 ## Edge cases
 
@@ -1049,6 +1078,16 @@ budget and *expects* one-hot to time out, so it cannot run until this is fixed.
 only real fix (a forked child per case, since a blocking Spot call cannot be
 cancelled in-thread) is a change to a settled part of the harness — a user's
 call, not a day-run's.
+
+**Resolved 2026-08-23.** The user authorized the fix, and it is specified as
+**`benchmark-suite.md` Phase 2 (cont. II) — per-case process isolation**, with
+its own green checkpoint. **Phase 4 of this PRD must not start until that phase
+is green**, and a run that finds it unlanded must stop and say so rather than
+sweep with the detaching runner: the failure mode is not a degraded report but
+*no output at all* (SIGSEGV before `--out` is written). Narrowing the sweep does
+not substitute for the fix — `slippery-onehot` at $n = 3$ is retained in the
+narrowed parameters above and is itself a 407 s cell against a 60 s timeout, so
+the very first sweep still trips the bug.
 
 ### `/code-reviewer` (domain), Phase 1 diff, 2026-08-20 — clean
 
@@ -1327,6 +1366,25 @@ generated formula parses with the intended precedence.
 
 **Recorded, not fixed — the `code-review` gate's open list.** None is Phase 3's;
 all are Phase 1/2 or harness. Listed here because the gate is PRD-wide.
+
+> **AUTHORIZED 2026-08-23 — all six are now a run's to fix.** The user lifted the
+> "settled machinery, user's call" reservation on items 1–3 as well as 4–6. The
+> reasoning, so a future reader does not re-open the question: **item 1 is not a
+> performance note, it is a soundness hole.** At $k \ge 64$ the alphabet
+> truncates and `produced_trace_equivalent` returns a **silently green**
+> certificate — it can fake the exact guarantee Phase 2's headline rests on
+> (closing `benchmark-suite.md`'s B3 hole). A certificate that can be green for
+> the wrong reason is worth strictly less than no certificate, because it is
+> trusted. Items 2 and 3 are latent today but sit in the same function and are
+> cheapest to fix while it is open; 4–6 are mechanical.
+>
+> **What is authorized is the fix, not a redesign of the guarantee.** Item 1's
+> fix is the one the reviewer named — enumerate only the letters the automata
+> actually branch on — and the T1/T6 oracles must stay green **unchanged**
+> throughout. If closing any item would require weakening, skipping or
+> re-scoping an oracle, that is Stop-list 1 territory: stop and record. Ticking
+> the gate requires all six closed **and** the suite green apart from the
+> known-open `parity-t3` cell.
 
 1. **`src/produced_trace_equivalence.cpp:57` — unguarded $2^k$ alphabet.**
    `std::size_t{1} << k` is UB at $k \ge 64$ (reachable via the one-hot arm),
