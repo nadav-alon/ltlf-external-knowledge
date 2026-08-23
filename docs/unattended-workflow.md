@@ -67,6 +67,19 @@ WAVES=1 MAX_PHASES=1 scripts/day-run.sh     # one wave, exactly one phase
 DRY_RUN=1 scripts/day-run.sh                # show the wave plan, run nothing
 ```
 
+**A week plan can take over the day, without a PRD.** The launcher's Step-0 rule
+can only select a backlog item that *has a PRD on `master`*, so a day of work
+that is deliberately not a PRD phase — a measurement sweep, a corpus recon, a
+feasibility probe — is unselectable by construction. To schedule one, put a
+literal `<!-- day-run: <Weekday> <YYYY-MM-DD> -->` in a `docs/plans/*.md` file
+next to that day's entry. The no-argument `day-run.sh` matches today against
+those markers and, on a hit, runs that day's entry instead of picking a PRD
+phase; everything else — waves, deadline, the `DONE`/`MORE_WORK`/`BLOCKED`
+contract, resume, logging, the pause switch — is unchanged. Dating the marker
+makes it self-expiring, and a day left unmarked falls back to normal PRD
+selection, which is how a plan reserves a day for the user. `PLAN_FILE` /
+`PLAN_DAY` force it by hand; an explicit PRD argument still wins over both.
+
 **Skip a day with `touch build/runs/PAUSED`.** The trigger fires on logon and you
 cannot un-log-on, so the off switch lives in the script: while that file exists,
 `day-run.sh` prints the reason and exits before starting a single session. Write
