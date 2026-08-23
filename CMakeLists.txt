@@ -68,6 +68,7 @@ add_library(ltlf_ek
   src/otf_mtdfa_product.cpp
   src/synthesis.cpp
   src/verify_controller.cpp
+  src/produced_trace_equivalence.cpp
   src/cli.cpp
   src/bench.cpp
   src/bench_suite.cpp
@@ -165,6 +166,8 @@ if(LTLF_EK_BUILD_TESTS)
     tests/acceptance_test.cpp
     tests/acceptance_partiality_matrix_test.cpp
     tests/verify_controller_test.cpp
+    tests/produced_trace_equivalence_test.cpp
+    tests/produced_trace_equivalence_oracles_test.cpp
     tests/cli_test.cpp
     tests/ltlf_ek_synth_test.cpp
     tests/ltlfsynt_oracle_test.cpp
@@ -173,6 +176,8 @@ if(LTLF_EK_BUILD_TESTS)
     tests/bench_test.cpp
     tests/bench_size_metric_test.cpp
     tests/bench_suite_test.cpp
+    tests/slippery_world_test.cpp
+    tests/slippery_binary_compact_test.cpp
   )
   target_link_libraries(unit_tests PRIVATE ltlf_ek GTest::gtest_main)
   # tests/ltlf_ek_synth_test.cpp drives the built ltlf-ek-synth binary as a
@@ -204,6 +209,16 @@ if(LTLF_EK_BUILD_TESTS)
   # configure time, so it works regardless of ctest's working directory.
   target_compile_definitions(unit_tests PRIVATE
     "LTLF_EK_TEST_FIXTURES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures\"")
+  # tests/slippery_world_test.cpp drives the built ltlf-ek-bench binary as a
+  # subprocess for the ltlfsynt T1 race oracle (docs/prd/
+  # engineered-domain-families.md "Test oracles" T3), same pattern as
+  # LTLF_EK_SYNTH_BINARY / LTLF_EK_DEPS_BINARY above; LTLF_EK_REPO_ROOT lets
+  # it build a --out path that resolves inside the repo (ltlf-ek-bench
+  # refuses --out under /tmp or $TMPDIR, PRD "Interfaces & types").
+  add_dependencies(unit_tests ltlf-ek-bench)
+  target_compile_definitions(unit_tests PRIVATE
+    "LTLF_EK_BENCH_BINARY=\"$<TARGET_FILE:ltlf-ek-bench>\""
+    "LTLF_EK_REPO_ROOT=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
 
   include(GoogleTest)
   gtest_discover_tests(unit_tests)

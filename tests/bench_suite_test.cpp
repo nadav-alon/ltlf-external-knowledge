@@ -483,6 +483,17 @@ TEST(BenchSuiteCrossMethodAgreement, AllFiveMethodsAgreeWithEachOtherAndTheDecla
         ++total_cases;
         std::optional<bool> reference;
         for (const auto& subject : bench_subjects()) {
+          // One measured-infeasible cell, excluded by construction (the same
+          // exclusion tests/slippery_world_test.cpp documents at length):
+          // NfaProduct on `slippery-onehot` at n = 3 needs ~13 min per goal
+          // against < 1 s for every other (subject, family, n) cell here.
+          // PRD engineered-domain-families.md Stop-list 8 -- a reportable
+          // data point about the one-hot arm, not a bug to tune around.
+          if ((subject->name() == "nfa-product" ||
+               subject->name() == "nfa-product-nk") &&
+              family->name() == "slippery-onehot" && n >= 3) {
+            continue;
+          }
           const std::vector<BenchRow> rows = run_bench_case(c, *subject);
           const std::optional<bool> verdict = RealizabilityVerdict(rows);
           if (!verdict.has_value()) continue;  // subject skipped (mona absent).
@@ -567,7 +578,7 @@ TEST(BenchSuiteTierDeclaration, EveryT1FamilyDeclaresNonEmptyPsiInAndNoOtherTier
   }
 }
 
-TEST(BenchSuiteTierDeclaration, ExactlyTheFourTrivialKnowledgeFamiliesAreT1AndParityT3IsT3) {
+TEST(BenchSuiteTierDeclaration, ExactlyTheDeclaredT1FamiliesAreT1AndParityT3IsT3) {
   std::set<std::string> t1_names, t3_names, other_names;
   for (const auto& family : bench_families()) {
     const BenchCase c = family->instantiate(Params(2, true));
@@ -579,9 +590,20 @@ TEST(BenchSuiteTierDeclaration, ExactlyTheFourTrivialKnowledgeFamiliesAreT1AndPa
       other_names.insert(family->name());
     }
   }
+  // The four trivial-knowledge families, plus the three slippery-world arms
+  // of docs/prd/engineered-domain-families.md -- the two enumerated ones from
+  // Phase 1 and the compact one from Phase 3 (D4: psi_in IS A_N, so they are
+  // T1 by construction). Unlike the enumerated arms, whose psi_in is
+  // generated from the same slippery_step as their T_in, the compact arm's
+  // ripple-carry A_N is written independently, so its T1 declaration rests on
+  // the Produced-trace-equivalence certificate rather than on construction --
+  // and that certificate is green at n = 2, 3, 4 on both goals.
   const std::set<std::string> expected_t1 = {"cons-prunes", "cons-inert",
                                              "mirror-small",
-                                             "mirror-degenerate"};
+                                             "mirror-degenerate",
+                                             "slippery-binary",
+                                             "slippery-onehot",
+                                             "slippery-binary-compact"};
   EXPECT_EQ(t1_names, expected_t1);
   EXPECT_EQ(t3_names, std::set<std::string>({"parity-t3"}));
   // The two knowledge-size families are t2: their T_in is aperiodic (a

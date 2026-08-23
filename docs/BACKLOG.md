@@ -52,6 +52,43 @@ and optional **seeds** — half-formed questions/ideas to feed the eventual gril
 >   *`ltlfsynt` invocation*) — and Stop-list item 5 carries a
 >   **record-and-continue exception for the 08-11 run only**.
 
+### `ltlf-ek-bench` dies on any per-case timeout — **inserted 2026-08-20, unnumbered**
+
+> **Not a `/launcher` item.** This is a bug fix in an already-landed binary, not
+> a PRD phase, and it deliberately carries no number so that nothing below it
+> renumbers. Step-0 rule 2 must skip it: it owns no `docs/prd/` file of its own.
+
+`RunCaseWithTimeout` (`src/ltlf_ek_bench.cpp:283`) bounds a case by running it on
+a thread and **detaching** that thread when the deadline passes. The detached
+worker is still inside Spot/MONA when the process exits, so **any** timing-out
+case ends the whole run in a SIGSEGV — *before* `--out` is written. One slow cell
+therefore destroys the entire sweep report, not just its own row.
+
+Found by the 2026-08-20 Phase 1 day-run
+(`docs/runs/2026-08-20-edf-phase1.md`, finding F2) and reproduced
+deterministically: `ltlf-ek-bench --families=slippery-onehot
+--subjects=nfa-product --n-min=3 --n-max=3 --timeout=10` exits **139** after
+~11 s writing no JSON; the same command at `--timeout=3000` exits 0 with a
+complete report. Latent since Phase 2 — no landed family was ever slow enough to
+trip it.
+
+**Why it is urgent rather than tidy:** `engineered-domain-families.md` Stop-list
+8 *instructs* a timing-out row to be recorded and the other arms continued, and
+that PRD's Phase 4 sweeps $n = 2\ldots6$ at a 60 s budget fully expecting one-hot
+to time out. **Phase 4 cannot run until this is fixed.**
+
+**Seeds.**
+- A blocking Spot call cannot be cancelled in-thread, so the fix is structural:
+  fork a child process per case and `SIGKILL` it on the deadline. That is a
+  change to a settled part of the harness — a user decision, which is why the
+  day-run recorded it instead of doing it.
+- Cheaper stopgap worth pricing first: keep the detach, but end the process with
+  `_exit()` after the report is flushed, so a leaked worker cannot run during
+  static destruction. Buys correctness of the *report* without a process model.
+- Either way the row must come out as `TIMEOUT`, distinct from "skipped" and
+  from a zero — the same three-way distinction Monday's corpus pre-registration
+  insisted on.
+
 ### Untangle the branch spaghetti — land what is stranded — **#1**
 
 > **PARTIALLY CLOSED 2026-08-18 — option (a) below, code half only.**
@@ -441,6 +478,41 @@ exactly when it was realizable without it.}
    *Violation automaton* entry.
 
 ## Later
+
+### DRAFT `\cl` note — record `X[!]\mathtt{tt}` as the paper's "a next position exists" idiom (from `/theory-review`, 2026-08-22)
+
+**Not applied.** Drafted from the `edf-phase3` worktree, where `latex/` is an
+uninitialized submodule, so it could not be written into `main.tex` directly.
+Apply (or discard) from the shared checkout.
+
+- **Why.** `main.tex` already carries a `\cl` note at `main.tex:372` recording
+  the weak-`X` / strong-`X[!]` reading of $\algname{FP}$, and that note itself
+  says the paper "has no $\text{LTL}_f$ preliminaries". Phase 3's compact $A_N$
+  (`docs/prd/engineered-domain-families.md` D5/D6) is now a **second,
+  independent consumer** of the same unwritten convention — and it consumes the
+  *positive* direction, "a next position exists", which the paper spells
+  $X[!]\mathtt{tt}$ at `main.tex:153` (the $\psiin = (k \leftrightarrow a)
+  \wedge \lnot X[!]\mathtt{tt}$ produced-trace language) and again at
+  `main.tex:545` (the irreflexive-$\liveset{s}$ witness). The code agrees with
+  that spelling (`X[!]1`, Spot's `1` for $\mathtt{tt}$; cf.
+  `src/detail/dependency_core.cpp:40`'s `!X[!]1`), so there is nothing to fix —
+  only something to *state once*, so the next author does not re-invent it.
+- **Verdict:** `underspecified`, and a strict subset of the already-tracked
+  "`FP` is unspecified" open question in `docs/GLOSSARY.md`. Not a new finding;
+  the value is that it now has two call sites, which is the argument for a real
+  preliminaries subsection rather than a per-site note.
+- **Drafted text**, to append as one further sentence inside the existing
+  `\cl[inline]{...}` at `main.tex:372` (one sentence per source line, per
+  `latex-style`):
+
+  ```
+  The positive form $X[!]\mathtt{tt}$ (``a next position exists'') and its negation $\lnot X[!]\mathtt{tt}$ (``the trace ends here'') are already used as such in the worked $\psiin$ of \cref{ANCHOR-main.tex:153} and in the $\liveset{s}$ discussion of \cref{ANCHOR-main.tex:545}, and are the idiom any $\text{LTL}_f$ preliminaries subsection should fix explicitly.
+  ```
+
+  `ANCHOR-main.tex:NNN` are placeholders: resolve each to the real `\cref`
+  label from the shared checkout before applying (per CLAUDE.md, prefer
+  `\cref` labels over line numbers in new citations — line numbers drift
+  per-region on every submodule bump).
 
 ### Two open generic `/code-review` halves — **low**, expected Thu 2026-08-13
 
