@@ -1,0 +1,4 @@
+input_free: slip
+input_known: hx0 hx1 hx2 hy0 hy1 hy2
+output_free: mvl mvr mvu mvd
+output_known:

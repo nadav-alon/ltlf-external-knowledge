@@ -68,8 +68,10 @@ add_library(ltlf_ek
   src/otf_mtdfa_product.cpp
   src/synthesis.cpp
   src/verify_controller.cpp
+  src/produced_trace_equivalence.cpp
   src/cli.cpp
   src/bench.cpp
+  src/bench_suite.cpp
   src/detail/acceptance.cpp
   src/detail/dependency_core.cpp
   src/dependent_outputs.cpp
@@ -88,6 +90,15 @@ target_link_libraries(ltlf-ek-synth PRIVATE ltlf_ek)
 add_executable(ltlf-ek-deps src/ltlf_ek_deps.cpp)
 target_link_libraries(ltlf-ek-deps PRIVATE ltlf_ek)
 
+# --- ltlf-ek-bench: Phase 2 timing runner (docs/prd/benchmark-suite.md
+# "Phase 2 (cont.) -- the timing runner") ---
+add_executable(ltlf-ek-bench src/ltlf_ek_bench.cpp)
+target_link_libraries(ltlf-ek-bench PRIVATE ltlf_ek)
+target_compile_definitions(ltlf-ek-bench PRIVATE
+  "LTLF_EK_REPO_ROOT=\"${CMAKE_CURRENT_SOURCE_DIR}\""
+  "LTLF_EK_BENCH_XLSX_SCRIPT=\"${CMAKE_CURRENT_SOURCE_DIR}/scripts/bench_xlsx_export.py\""
+  "LTLF_EK_BUILD_TYPE=\"${CMAKE_BUILD_TYPE}\"")
+
 # --- ltlfsynt (Spot's own CLI synthesizer) ---
 # Located for tests/ltlfsynt_oracle_test.cpp's external realizability oracle
 # (docs/prd/ltlfsynt-oracle.md).  Optional: a clean box without Spot's CLI
@@ -96,6 +107,14 @@ target_link_libraries(ltlf-ek-deps PRIVATE ltlf_ek)
 # library, or it silently compares against a different version's semantics.
 find_program(LTLFSYNT_EXECUTABLE ltlfsynt
   HINTS ${SPOT_ROOT}/bin)
+# ltlf-ek-bench's T1 race (docs/prd/benchmark-suite.md "The ltlfsynt T1
+# race") wants the same resolved path as a compile-time default, so
+# --ltlfsynt=PATH can be omitted on this box; the runtime --ltlfsynt flag
+# still takes precedence (src/ltlf_ek_bench.cpp ResolveLtlfsyntBinary).
+if(LTLFSYNT_EXECUTABLE)
+  target_compile_definitions(ltlf-ek-bench PRIVATE
+    "LTLFSYNT_BINARY=\"${LTLFSYNT_EXECUTABLE}\"")
+endif()
 
 # --- mona (docs/prd/ltlf-to-nfa.md Method 1, PastLtlfToDfa) ---
 # Located for tests/mona_dfa_test.cpp's MONA-subprocess round-trip (P1).
@@ -147,6 +166,8 @@ if(LTLF_EK_BUILD_TESTS)
     tests/acceptance_test.cpp
     tests/acceptance_partiality_matrix_test.cpp
     tests/verify_controller_test.cpp
+    tests/produced_trace_equivalence_test.cpp
+    tests/produced_trace_equivalence_oracles_test.cpp
     tests/cli_test.cpp
     tests/ltlf_ek_synth_test.cpp
     tests/ltlfsynt_oracle_test.cpp
@@ -154,6 +175,10 @@ if(LTLF_EK_BUILD_TESTS)
     tests/ltlf_ek_deps_input_test.cpp
     tests/bench_test.cpp
     tests/bench_size_metric_test.cpp
+    tests/bench_suite_test.cpp
+    tests/slippery_world_test.cpp
+    tests/slippery_binary_compact_test.cpp
+    tests/bench_runner_isolation_test.cpp
   )
   target_link_libraries(unit_tests PRIVATE ltlf_ek GTest::gtest_main)
   # tests/ltlf_ek_synth_test.cpp drives the built ltlf-ek-synth binary as a
@@ -185,6 +210,16 @@ if(LTLF_EK_BUILD_TESTS)
   # configure time, so it works regardless of ctest's working directory.
   target_compile_definitions(unit_tests PRIVATE
     "LTLF_EK_TEST_FIXTURES_DIR=\"${CMAKE_CURRENT_SOURCE_DIR}/tests/fixtures\"")
+  # tests/slippery_world_test.cpp drives the built ltlf-ek-bench binary as a
+  # subprocess for the ltlfsynt T1 race oracle (docs/prd/
+  # engineered-domain-families.md "Test oracles" T3), same pattern as
+  # LTLF_EK_SYNTH_BINARY / LTLF_EK_DEPS_BINARY above; LTLF_EK_REPO_ROOT lets
+  # it build a --out path that resolves inside the repo (ltlf-ek-bench
+  # refuses --out under /tmp or $TMPDIR, PRD "Interfaces & types").
+  add_dependencies(unit_tests ltlf-ek-bench)
+  target_compile_definitions(unit_tests PRIVATE
+    "LTLF_EK_BENCH_BINARY=\"$<TARGET_FILE:ltlf-ek-bench>\""
+    "LTLF_EK_REPO_ROOT=\"${CMAKE_CURRENT_SOURCE_DIR}\"")
 
   include(GoogleTest)
   gtest_discover_tests(unit_tests)
