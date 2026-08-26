@@ -1,6 +1,25 @@
 # PRD: Engineered domain families (slippery-world)
 
-**Status:** **Phase 3 green checkpoint reached — Stop-list 1 cleared**
+**Status:** **Phase 4 green checkpoint reached — the sweep is measured and the
+report is committed** (measured 2026-08-24, landed 2026-08-26 on branch
+`edf-phase4`). The D9 extractor column (`dependent-inputs-extraction` subject)
+is in `bench_subjects()`, the sweep ran at the user's narrowed caps, and
+`docs/runs/2026-08-24-edf-phase4.md` carries the required Stop-list 2 sentence
+with its five raw `--out` reports beside it. **Stop-list 2 did not fire**:
+$\lvert\mathrm{DFA}(A_N\to\gamma)\rvert = N^2+1$ at $n = 2\ldots5$ against arm
+3's $14+2n$-conjunct $A_N$, so the compact arm does **not** track the
+enumerated one structurally. But the *wall-clock* separation inverted — the
+EK-over-no-knowledge speedup at $n=5$ is $212\times$ on the enumerated arm and
+only $2.1\times$ on the compact one, because Spot's translation cost tracks
+formula size rather than the size of the DFA it denotes. Whether that reframes
+the headline is an O5-class question left for the user (report §1, §7 Q1).
+**No verdict disagreement anywhere** (`verdict_mismatch_count: 0` on all four
+race reports), so Stop-list 3 and 4 did not fire either. `tests` and
+`glossary` are closed for Phase 4; `code-review` remains open, held **only** by
+the six 2026-08-23-authorized findings, none of which is Phase 4's. Earlier
+history:
+
+**Status (Phase 3):** **Phase 3 green checkpoint reached — Stop-list 1 cleared**
 (2026-08-22, branch `edf-phase3`). The compact $A_N$'s trace-boundary bug is
 fixed by conjoining `X[!]1` ("a next position exists") into the guard of each
 of D5's 14 `G`-rooted rules, so every rule goes vacuous at the last position
@@ -151,7 +170,18 @@ questions touched*.
   for the first time and holds ($4^n + 2$ exactly). The stale T1-name set is
   updated. `ctest`: **692/693 pass**, the one failure the pre-existing,
   unrelated `parity-t3` sub-failure inside `BenchSuiteCrossMethodAgreement`.
-  Nothing owed on this box for Phases 1–3.
+  Nothing owed on this box for Phases 1–3. **Phase 4 closed 2026-08-24/26**:
+  four `BenchSuiteExtractorColumn` tests in `tests/bench_suite_test.cpp` pin the
+  D9 column (registration; a `psi_in`-bearing case yields a `dependent_inputs`
+  row; a `psi_in`-less case yields an **empty** row vector, never a zero row;
+  and the measurement runs under the demoted partition — pinned by showing the
+  domain partition *throws* I9's `std::invalid_argument`), plus the
+  cross-method-oracle exclusion that the repair pass above added. `ctest`:
+  **703/704 pass**, re-verified on the landing tree 2026-08-26 from a clean
+  build, the one failure again the `parity-t3` sub-failure and nothing else
+  (checked in the failure body, not inferred from the count — the Phase 4
+  repair pass is precisely why that distinction matters). Nothing owed on this
+  box for Phases 1–4.
 - [ ] code-review     — domain (/code-reviewer) + generic (/code-review).
   **Domain half clean on the Phase 1 diff, 2026-08-20** (no must-fix; four
   `consider` notes recorded in *Developer comments* below). **Domain half run
@@ -1422,3 +1452,117 @@ returns `1`. Nothing in the repo runs `tl_simplifier` on $\psiin$, and
 so the bench CLI's `ltlfsynt` race (`src/ltlf_ek_bench.cpp:837`) is safe. Any
 future pass that introduces an LTL-mode simplification step on $\psiin$ would
 silently delete the boundary guard — T7b would catch it.
+
+### Phase 4 (first half), 2026-08-24 — D9 extractor column landed
+
+Adds `DependentInputsExtractionSubject` (`src/bench_suite.cpp`, registered name
+`dependent-inputs-extraction`) to `bench_subjects()`. `run()` reuses
+`build_nk_case` verbatim to get $\psiin \to \phi$ under the no-knowledge
+partition (D9's two pinned facts), then wraps `dependent_inputs(reduced, vars,
+dict)` in a free-form `BenchTimer("dependent_inputs")` so the harness times it
+as an ordinary root span. A case without `psi_in` skips cleanly (empty vector),
+matching the `-nk` subjects' own rule.
+
+**`NkCase` gained a `dict` field** (`spot::bdd_dict_ptr`), not `BenchCase` —
+`build_nk_case`'s dict was previously local and dropped, but `dependent_inputs`
+needs the exact dict the no-knowledge partition's APs were registered on. This
+is additive to a struct the Interfaces & types section never froze (`NkCase` is
+D7-internal plumbing, not the frozen `BenchCase`), so it is not a PRD-change
+event under that section's rule.
+
+**The outcome-class requirement (D9's last bullet) needed no new code.**
+`src/ltlf_ek_bench.cpp`'s per-case fork (`benchmark-suite.md` Phase 2 cont. II,
+landed 2026-08-23) already forks a child per (case, subject) pair generically —
+`bench_subjects()` is iterated by pointer, nothing hardcodes the five method
+names — so the new subject inherits `TIMEOUT` / `FAILED_<detail>` /
+`PARTIAL_TIMEOUT_<k>_of_<K>` / `PARTIAL_FAILED_<k>_of_<K>` row-status handling
+for free, already reported in a `status` field separate from the timing value.
+No second outcome mechanism was added.
+
+Build green; `ctest` reported 699/700 with the one red on
+`BenchSuiteCrossMethodAgreement`, which read as the known-open `parity-t3`
+case alone — **that reading was wrong.** `DependentInputsExtractionSubject`
+is a cost-measuring subject (it times `dependent_inputs` and never
+synthesizes), so it emits rows with no `controller_states`, which
+`RealizabilityVerdict` maps to `false`. Because `bench_subjects()` is walked
+unfiltered in `AllFiveMethodsAgreeWithEachOtherAndTheDeclaredVerdict`
+(`tests/bench_suite_test.cpp`), that false verdict silently dissented against
+every realizable T1 case — 14 cells (7 T1 families x n in {2, 3} at
+`realizable=1`). It did not change the ctest pass/total (still one failing
+*test*, `BenchSuiteCrossMethodAgreement` itself), which is exactly why it
+went unnoticed at the time: the per-`SCOPED_TRACE` failures inside that one
+test were never inspected.
+
+**Fixed same day (Phase 4 repair pass):** the loop now excludes
+`dependent-inputs-extraction`, following the exclusion pattern already used
+a few lines above it for `nfa-product` / `nfa-product-nk` on
+`slippery-onehot`. Rationale recorded in the code comment there: a subject
+that measures extraction cost has no realizability verdict at all, so
+feeding it to a cross-method *verdict*-agreement oracle is a category error,
+not a disagreement. After the fix, `ctest -R Bench` is again 56/57, with the
+single failure's `SCOPED_TRACE` output naming `parity-t3` (n = 2 and n = 3,
+`realizable=1`) and nothing else — the known-open case, unaffected. The
+sweep and the committed run report (Phase 4's second half) remain out of
+scope for this repair and were not run.
+
+**`/code-reviewer`, Phase 4 (D9 extractor column) diff, 2026-08-24 —
+`consider` findings, recorded, not acted on:**
+
+1. The extractor column's measurement frame is unstated. The dict handed to
+   `dependent_inputs` already has the whole universe registered by
+   `register_turn_order_aps` (Ifree pinned above every controllable var), so
+   the `ltlf_to_dfa` inside the core inherits a fixed BDD variable order that
+   the shipped `ltlf-ek-deps` binary never has. Variable order can move this
+   wall-clock by a large factor. D9 pins the entry point as "the same core
+   `ltlf-ek-deps` drives" and claims the column is "directly comparable to
+   Tuesday's corpus sweep" — under this dict that comparability is **not
+   established**. Two defensible readings: tool-parity (fresh dict, matching
+   `ltlf-ek-deps`) or race-parity (same turn-order dict as the `-nk` column it
+   sits beside). Today it is accidental rather than chosen. **This is a user
+   decision — recorded here, not picked.**
+2. `tests/bench_suite_test.cpp:503` — the exclusion is a hardcoded subject
+   name inside a loop that otherwise walks `bench_subjects()` generically:
+   the exact shape that let the 14-cell dissent land silently (see above). A
+   positive guard (assert the verdict-bearing subject set is the expected
+   10, rather than only `RecordProperty`-ing `total_subject_runs`) would make
+   the next non-synthesizing subject fail loudly.
+3. D9's *formula* pin (`psi_in -> phi`, not `phi` alone) is **unobservable**
+   to the four new tests — the subject discards `dependent_inputs`'s result
+   and emits only timing, so a later narrowing to `c.phi` would not be
+   caught.
+4. Nit: the repo's one other free-form span writes
+   `BenchTimer timer(std::string("minimize_mtdfa"))`
+   (`src/mtdfa_product.cpp:72`); match that spelling.
+5. A `FAILED_*` row in the extractor column can mean "degenerate formula"
+   (`dependent_inputs` throws `UnsatisfiableFormula` on a VALID formula, I11)
+   and not only "blew up" — worth a word wherever the column is read.
+
+### Phase 4 (second half), 2026-08-24 — the sweep, and two deviations from this PRD
+
+The sweep ran and its report is `docs/runs/2026-08-24-edf-phase4.md`, with the
+five raw `--out` files beside it. The result sentence Stop-list 2 owes is §1 of
+that report; it is summarised in *Status* above and not duplicated here. Two
+things belong in the PRD rather than only in a run report, because both are
+places where the sweep did **not** do what this document says.
+
+**1. `--budget` and the five invocations.** *Sweep parameters* pins
+`--budget=7200` and reads as one invocation; the run used `--budget=5400` to fit
+the unattended window, and `ltlf-ek-bench` takes a single global
+`--n-min`/`--n-max`, so the per-family caps cannot be expressed in one call. It
+therefore ran **five** invocations on one binary at one commit — the first
+truncated by its budget, three top-ups re-measuring exactly the cells it lost,
+one for the extractor column. The merged grid is complete and every $n=5$ row
+comes from a single process, but it was assembled over ~2.5 h rather than
+measured in one pass (report §3). If the sweep is meant to be re-runnable in one
+command, this block needs either a per-family budget or an explicit split.
+
+**2. Minimum vs median — a direct conflict with `benchmark-suite.md`.** This
+PRD's *Sweep parameters* says "`--repeat=5` reported as the **median**".
+`benchmark-suite.md`, which owns the harness, pins **"Reports the minimum of `K`
+repetitions"**, and that is what the runner does. **Nothing was changed** —
+altering the aggregation is a change to settled machinery owned by the other
+PRD, i.e. a user decision — so every number in the report is a **minimum**, and
+one of the two PRDs has to give way. Since 2026-08-23 each repeat is also a
+fresh `fork()`, so that minimum is a **cold-start** minimum: the timings are not
+comparable to any `docs/runs/` snapshot taken before that date, the 2026-08-19
+probe included. Structural rows are unaffected.

@@ -11,6 +11,7 @@
 
 #include "ltlf_ek/bench.hpp"
 #include "ltlf_ek/bench_suite.hpp"
+#include "ltlf_ek/dependent_inputs.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/variables.hpp"
 
@@ -35,8 +36,10 @@
 // instead, since that is the surface Phase 2 actually adds).
 //
 // No test asserts a timing ratio (PRD B1/"Green checkpoint": "No test
-// asserts a timing ratio") -- every assertion below reads BenchRow entries
-// keyed by a canonical SizeMetric name, never a Stage/span duration.
+// asserts a timing ratio") -- assertions below on a Stage/span row (e.g. the
+// free-form `dependent_inputs` span the BenchSuiteExtractorColumn tests read)
+// check only that the row is PRESENT, never its duration; every other
+// assertion reads BenchRow entries keyed by a canonical SizeMetric name.
 namespace {
 
 using ltlf_ek::BenchCase;
@@ -494,6 +497,14 @@ TEST(BenchSuiteCrossMethodAgreement, AllFiveMethodsAgreeWithEachOtherAndTheDecla
               family->name() == "slippery-onehot" && n >= 3) {
             continue;
           }
+          // dependent-inputs-extraction is a cost-measuring subject (it times
+          // dependent_inputs and never synthesizes), so it never emits a
+          // controller_states row and has no realizability verdict at all.
+          // Feeding it to this cross-method *verdict*-agreement oracle is a
+          // category error, not a disagreement -- exclude it here.
+          if (subject->name() == "dependent-inputs-extraction") {
+            continue;
+          }
           const std::vector<BenchRow> rows = run_bench_case(c, *subject);
           const std::optional<bool> verdict = RealizabilityVerdict(rows);
           if (!verdict.has_value()) continue;  // subject skipped (mona absent).
@@ -612,4 +623,72 @@ TEST(BenchSuiteTierDeclaration, ExactlyTheDeclaredT1FamiliesAreT1AndParityT3IsT3
   // ltlfsynt table either. That is exactly what t2 denotes.
   EXPECT_EQ(other_names, std::set<std::string>({"knowledge-chain",
                                                 "knowledge-chain-inert"}));
+}
+
+// ---------------------------------------------------------------------------
+// D9 -- the extractor column (docs/prd/engineered-domain-families.md Phase 4):
+// "dependent-inputs-extraction" times dependent_inputs on the SAME whole-
+// monolithic-task reduction the "-nk" subjects already build via
+// build_nk_case (psi_in -> phi under Iknown/Oknown demoted to free). Kept to
+// n=2, the sweep floor every family shares.
+// ---------------------------------------------------------------------------
+
+TEST(BenchSuiteExtractorColumn, SubjectIsRegisteredUnderItsExactName) {
+  EXPECT_NO_THROW(SubjectNamed("dependent-inputs-extraction"));
+}
+
+TEST(BenchSuiteExtractorColumn, OnAPsiInBearingCaseYieldsANonEmptyDependentInputsRow) {
+  const BenchCase c = FamilyNamed("slippery-binary").instantiate(Params(2, true));
+  ASSERT_TRUE(c.psi_in.has_value())
+      << "slippery-binary is T1 (PRD B3): a psi_in-bearing case is exactly "
+        "what build_nk_case needs to produce a reduction";
+  const std::vector<BenchRow> rows =
+      run_bench_case(c, SubjectNamed("dependent-inputs-extraction"));
+  EXPECT_FALSE(rows.empty());
+  EXPECT_TRUE(RowValue(rows, "dependent_inputs"))
+      << "D9: the extractor's own wall-clock must be charged under the "
+        "free-form 'dependent_inputs' BenchTimer span";
+}
+
+TEST(BenchSuiteExtractorColumn, OnACaseWithoutPsiInYieldsEmptyRowsNeverAZeroRow) {
+  // knowledge-chain is t2 (BenchSuiteTierDeclaration above): no psi_in, so
+  // build_nk_case has no reduction to build and the subject must skip
+  // cleanly -- B2 rule 1, "absent, never zero", extended to an absent case.
+  const BenchCase c = FamilyNamed("knowledge-chain").instantiate(Params(2, true));
+  ASSERT_FALSE(c.psi_in.has_value());
+  const std::vector<BenchRow> rows =
+      run_bench_case(c, SubjectNamed("dependent-inputs-extraction"));
+  EXPECT_TRUE(rows.empty())
+      << "no psi_in: build_nk_case returns nullopt, so the subject must "
+        "record nothing, not a zero row";
+}
+
+TEST(BenchSuiteExtractorColumn,
+    MeasuresUnderTheNoKnowledgeFrameWhereTheDomainPartitionWouldThrow) {
+  // D9's no-knowledge frame is mandatory, not stylistic: dependent_inputs
+  // throws std::invalid_argument on a partition with non-empty input_known
+  // (I9, src/detail/dependency_core.cpp). Pin both halves on the SAME case:
+  // the domain partition (which slippery-binary declares with non-empty
+  // input_known, the position APs) throws when handed to dependent_inputs
+  // directly, yet the subject succeeds on that exact case -- which is only
+  // possible because build_nk_case demotes Iknown -> Ifree first (D7) before
+  // the subject's own dependent_inputs call, i.e. the frame it actually
+  // measures under has EMPTY input_known.
+  const BenchCase c = FamilyNamed("slippery-binary").instantiate(Params(2, true));
+  ASSERT_FALSE(c.vars.input_known.empty())
+      << "sanity: the domain partition itself has known inputs, otherwise "
+        "this test would not distinguish the two frames";
+
+  EXPECT_THROW(dependent_inputs(c.phi, c.vars, c.t_in.dict()),
+              std::invalid_argument)
+      << "I9: dependent_inputs must refuse a partition whose input_known is "
+        "non-empty";
+
+  const std::vector<BenchRow> rows =
+      run_bench_case(c, SubjectNamed("dependent-inputs-extraction"));
+  EXPECT_FALSE(rows.empty())
+      << "the subject succeeds on the identical case, so it cannot be "
+        "calling dependent_inputs under the domain partition above -- it "
+        "measures under build_nk_case's demoted, no-knowledge partition";
+  EXPECT_TRUE(RowValue(rows, "dependent_inputs"));
 }
