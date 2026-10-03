@@ -7,6 +7,7 @@ Instructions for agents working in this repo. The files below are the convention
 Comments that outlive the review (`TODO[#n]`, never ticket narration). See `docs/agents/coding-standards.md`.
 
 Its "Brand your primitives" section is TypeScript-only and does not apply to this C++ repo. The C++ rules are the `/code-reviewer` skill (`.claude/skills/code-reviewer/`).
+
 ## Issue tracker
 
 Where this repo's issues live and how to drive them. See `docs/agents/issue-tracker.md`.
