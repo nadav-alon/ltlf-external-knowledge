@@ -98,3 +98,7 @@ domain identifier must appear there, spelled exactly.
 For unattended day-runs, see `docs/unattended-workflow.md` and the `/launcher`
 skill. The rule that matters there: **an unattended run never guesses at a
 decision the user owns.** It records the blocker and stops.
+
+## Agent harness
+
+@AGENTS.md

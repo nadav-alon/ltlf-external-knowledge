@@ -4,7 +4,9 @@ Instructions for agents working in this repo. The files below are the convention
 
 ## Coding standards
 
-Branded primitives over bare ones, and comments that outlive the review (`TODO[#n]`, never ticket narration). See `docs/agents/coding-standards.md`.
+Comments that outlive the review (`TODO[#n]`, never ticket narration). See `docs/agents/coding-standards.md`.
+
+Its "Brand your primitives" section is TypeScript-only and does not apply to this C++ repo. The C++ rules are the `/code-reviewer` skill (`.claude/skills/code-reviewer/`).
 
 ## Issue tracker
 
