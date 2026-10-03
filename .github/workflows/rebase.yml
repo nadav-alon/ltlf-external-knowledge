@@ -1,0 +1,79 @@
+# Turns a developer's `/rebase` comment into a rebase ticket: an issue asking
+# an agent to rebase a pull request, draft or ready, linked as a sub-issue of
+# the ticket the pull request closes (CONTEXT.md: Pull request ticket, Rebase
+# ticket). Also labels that pull request `needs-rebase`, so it reads as not
+# mergeable without touching its draft state.
+name: Rebase
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  rebase:
+    name: Open a rebase ticket for the pull request
+    # Narrowed to the repo owner and a comment mentioning the command here, at
+    # the job level, so an unrelated comment costs nothing beyond this one
+    # check. The exact trimmed-body check can't live here too — Actions
+    # expressions have no trim() — so it runs first inside the script below,
+    # and anything that fails it exits silently.
+    if: >-
+      github.event.comment.user.login == github.repository_owner
+      && contains(github.event.comment.body, '/rebase')
+    # The "already open" check and the create are a read then a write: two
+    # comments on one thread must not both pass the read. A run in progress
+    # is never cancelled; of several waiting, GitHub keeps the newest, which
+    # asks for the same thing.
+    concurrency:
+      group: rebase-${{ github.event.issue.number }}
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          sparse-checkout: .github/workflows/scripts
+
+      - name: Resolve the pull request and act on it
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          ISSUE_BODY: ${{ github.event.issue.body }}
+          IS_PULL_REQUEST: ${{ github.event.issue.pull_request != null }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: bash .github/workflows/scripts/rebase.sh
+
+      - name: Reply with the failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          command="$(cat "${RUNNER_TEMP}/rebase-command.txt" 2>/dev/null || echo "an unrecorded command")"
+          stderr="$(tail -n 20 "${RUNNER_TEMP}/rebase-stderr.txt" 2>/dev/null || true)"
+
+          if grep -qiE '403|Resource not accessible' <<<"$stderr"; then
+            # The permissions: entry the refused call is covered by.
+            case "$command" in
+              *"gh pr "*) entry="pull-requests: write" ;;
+              *) entry="issues: write" ;;
+            esac
+            body="Can't open a rebase ticket: the workflow's \`GITHUB_TOKEN\` was refused \`$entry\`. The workflow asks for it under \`permissions:\`, so the repository's or organization's Actions settings are withholding it (Settings → Actions → General → Workflow permissions)."
+          else
+            body="Can't open a rebase ticket: \`$command\` failed."
+          fi
+          if [[ -n "$stderr" ]]; then
+            body+=$'\n\n```\n'"$stderr"$'\n```'
+          fi
+          if [[ "$command" == *"gh issue create"* ]]; then
+            body+=$'\n\n'"Nothing was created: comment /rebase again to retry."
+          fi
+          # REST for the same reason as reply() in scripts/rebase.sh.
+          gh api "repos/$REPO/issues/$ISSUE_NUMBER/comments" -f body="$body" >/dev/null
