@@ -101,10 +101,4 @@ decision the user owns.** It records the blocker and stops.
 
 ## Agent harness
 
-The conventions of the external manager's harness, imported below. The files
-under `docs/agents/`, `.github/workflows/apply-review.yml`, `rebase.yml` and
-`scripts/rebase.sh` are the manager's uniform files, copied byte for byte —
-never edit them here. If one is wrong for this repo, say so in `AGENTS.md` and
-file a ticket in `nadav-alon/side-projects-manager`.
-
 @AGENTS.md
