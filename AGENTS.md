@@ -4,7 +4,9 @@ Instructions for agents working in this repo. The files below are the convention
 
 ## Coding standards
 
-Branded primitives over bare ones, and comments that outlive the review (`TODO[#n]`, never ticket narration). See `docs/agents/coding-standards.md`.
+Comments that outlive the review (`TODO[#n]`, never ticket narration). See `docs/agents/coding-standards.md`.
+
+Its "Brand your primitives" section is TypeScript-only and does not apply to this C++ repo. The C++ rules are the `/code-reviewer` skill (`.claude/skills/code-reviewer/`). Tracked upstream as nadav-alon/side-projects-manager#1212.
 
 ## Issue tracker
 
@@ -20,7 +22,7 @@ The five canonical triage roles, used verbatim as label strings. See `docs/agent
 
 ## Domain docs
 
-Single-context: `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Single-context. `CONTEXT.md` at the repo root is a pointer to `docs/GLOSSARY.md`, which holds the vocabulary; there is no `docs/adr/`. See `docs/agents/domain.md`.
 
 ## Apply review
 
