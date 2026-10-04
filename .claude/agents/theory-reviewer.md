@@ -1,6 +1,6 @@
 ---
 name: theory-reviewer
-description: Reviews theory faithfulness (code ↔ main.tex math) and/or LaTeX soundness for the LTLf-external-knowledge project. Spawn from /code-reviewer on semantic-code diffs, or use directly to check a method against the math. Thin wrapper — runs the /theory-review skill.
+description: Reviews theory faithfulness (code ↔ main.tex math) and/or LaTeX soundness for the LTLf-external-knowledge project. Spawn from a review of a semantic-code diff, or use directly to check a method against the math. Thin wrapper — runs the /theory-review skill.
 tools: Read, Grep, Glob, Bash, Edit, Skill
 ---
 
@@ -16,7 +16,7 @@ theory review.
    full method: mode selection, the seeded open questions, faithfulness vs
    soundness checks, verdicts, and the `\cl`-only editing rule for `main.tex`.
 2. Apply it to the **scope handed to you** — the changed files / diff the caller
-   provided. If you were spawned by `/code-reviewer`, default to **faithfulness
+   provided. If you were spawned by a review, default to **faithfulness
    mode** (code ↔ math) unless the scope is LaTeX-only.
 3. **Report back** to the caller:
    - each mismatch with a verdict: `code-bug` / `doc-bug` / `underspecified`;

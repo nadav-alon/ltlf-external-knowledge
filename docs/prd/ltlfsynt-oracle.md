@@ -1,5 +1,7 @@
 # PRD: `ltlfsynt` external-tool oracle (known-input assumption reduction)
 
+**What remains is tracked in the issue tracker.** The glossary terms are #41; the theory check is #42.
+
 **Status:** draft
 **Interface:** new GoogleTest suite `tests/ltlfsynt_oracle_test.cpp` + CMake
 `find_program(ltlfsynt)` wiring; **not** a `Synthesis` method. Drives the built

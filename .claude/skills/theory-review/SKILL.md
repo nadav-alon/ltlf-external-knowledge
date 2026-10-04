@@ -17,7 +17,7 @@ code behaviour). This skill is the single source of truth for theory review; the
   *seeded* — engage with them, do **not** re-flag them as novel discoveries or
   re-prove them from scratch. A conclusion the PRD or a prior review already
   reached is an input, not something to re-establish before you can use it.
-- **When spawning this skill** (main session or `/code-reviewer`): keep the
+- **When spawning this skill** (main session or a review): keep the
   prompt tight — name the diff/method and defer to this skill, which the agent
   reads. Do **not** restate these steps back at the agent; echoing "check X,
   verify Y" reopens settled questions and burns tokens on re-derivation. State
@@ -67,7 +67,7 @@ Check the math is internally sound, independent of code:
 
 Report each mismatch with one of:
 - **`code-bug`** — code diverges from correct math → describe the fix (do not
-  necessarily apply it here; that's `/developer`).
+  necessarily apply it here).
 - **`doc-bug`** — the math/LaTeX is wrong → draft a concrete `main.tex` edit.
 - **`underspecified`** — the doc is silent/ambiguous → draft a `\cl` note or a
   proposed definition.
@@ -93,8 +93,8 @@ being undone. Say plainly in your report what you wrote and where.
 **Writing is not landing.** `latex/` is the Overleaf submodule, so do **not**
 `git commit` or `git push` it — that is outward-facing and the user's call.
 Leave the edit in the working tree, tell the user the submodule is dirty, and
-flag that added lines shift the `main.tex:NNN` refs other docs cite (the
-`\cref`/§-number resync lesson in `docs/BACKLOG.md`).
+flag that added lines shift the `main.tex:NNN` refs other docs cite —
+`scripts/check-main-tex-refs.py --fix` resyncs them.
 
 Every such edit must stay clearly visible, per the **`latex-style`** skill: wrap
 new/changed **prose** directly inside `\cl[inline]{...}` (the note *is* the
@@ -110,7 +110,7 @@ line** (never appended to a prose sentence, a display `\]`, or an
 short one-line flag (multi-clause notes, adjacent math, `\cref`s) so it does not
 overflow the margin.
 
-When **spawned by `/code-reviewer`**: write the `\cl` notes as above, then
+When **spawned by a review**: write the `\cl` notes as above, then
 report the verdicts *and* what you wrote (file + placement) back to the caller
 so it can fold them into the review summary. Still no `git commit`/`git push`
 of the submodule mid-review.
@@ -135,8 +135,3 @@ context, apply it as follows:
 - Doc problems come with a drafted `\cl` note / edit; code problems with a
   described fix.
 - Known open questions are engaged with, not rediscovered.
-- In **faithfulness mode**, if a `docs/prd/` PRD backs the reviewed code, tick
-  its **`theory-review`** gate with the ref **only when no `code-bug` remains**
-  (leave unchecked while any is open). When **spawned by `/code-reviewer`**,
-  don't tick it yourself — report the clean/not-clean verdict and let the caller
-  tick. Gate vocabulary is defined in `/grill-prd`.

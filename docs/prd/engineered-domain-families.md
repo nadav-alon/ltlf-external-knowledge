@@ -1,5 +1,7 @@
 # PRD: Engineered domain families (slippery-world)
 
+**What remains is tracked in the issue tracker.** Phase 4 is #38, its work in pull request #15.
+
 **Status:** **Phase 3 green checkpoint reached — Stop-list 1 cleared**
 (2026-08-22, branch `edf-phase3`). The compact $A_N$'s trace-boundary bug is
 fixed by conjoining `X[!]1` ("a next position exists") into the guard of each

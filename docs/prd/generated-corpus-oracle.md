@@ -1,5 +1,7 @@
 # PRD: fixed-seed generated-corpus differential + metamorphic test harness
 
+**What remains is tracked in the issue tracker.** The generator's own tests are #39; the theory check is #40.
+
 **Status:** implemented — Phase 1 (corpus scaffold + `ltlf_to_dfa` structural
 free-rider), Phase 2 (random $\Tin$ + metamorphic round-trip), and Phase 3
 (differential + timeout plumbing) all landed. `tests/ltlfsynt_oracle_test.cpp`

@@ -9,7 +9,7 @@ The house style for this project's LaTeX. The paper is **`latex/main.tex`**, a
 git submodule mirroring Overleaf (there is **no** root-level `main.tex`; when any
 skill says `main.tex`, it means `latex/main.tex`). **Read and apply this before
 editing any `.tex` file** — these hold
-whether the edit comes from a general conversation, `/developer`, or
+whether the edit comes from a general conversation or
 `/theory-review`. Do **not** launch a repo-wide reformat: apply the rules to the
 prose you are **writing or touching**, and leave untouched blocks alone.
 

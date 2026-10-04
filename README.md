@@ -95,9 +95,10 @@ include/ltlf_ek/      public headers (domain types + Synthesis interface)
 src/                  implementations
 tests/                GoogleTest unit tests + domain oracles
 docs/GLOSSARY.md      ubiquitous language: math ↔ prose ↔ C++
-docs/prd/             per-feature specs (what /grill-prd emits, /developer consumes)
+docs/project-standards.md   this repo's coding standards
+docs/grilling-contract.md   what a grilling here produces
+docs/prd/             finished and unfinished PRDs, kept as history
 docs/walkthroughs/    as-built guides for finished methods
-docs/BACKLOG.md       personal "what to do next" intention log
 scripts/              notation-macro sync for the Markdown docs (see scripts/README.md)
 latex/                the theory (git submodule → Overleaf); main.tex is the
                       source of reference, not word of god — see
@@ -110,18 +111,16 @@ note (see `/theory-review`).
 
 ## Working in this repo (skills)
 
-Project-scoped Claude Code skills encode the workflow and the ubiquitous
-language. Trigger them with a slash:
+Work is ticketed: issues on GitHub, worked by the manager's loop
+(`nadav-alon/side-projects-manager`) under `AGENTS.md`. The project-scoped
+Claude Code skills are interactive tools. Trigger them with a slash:
 
-| Skill | Phase |
+| Skill | Use |
 |---|---|
-| `/grill-prd` | interview → PRD (in ubiquitous language) for a feature |
-| `/developer` | implement a method/feature against the PRD + glossary |
-| `/test-writer` | unit tests (+ metamorphic / verifier oracles) |
-| `/code-reviewer` | Spot/BDD + glossary + domain-invariant review (spawns theory review on semantic diffs) |
 | `/theory-review` | code↔math faithfulness &/or LaTeX soundness; may edit `main.tex` under `\cl` notes |
 | `/walkthrough` | code-first guided tour of a finished method → `docs/walkthroughs/` |
 | `/glossary` | maintain the 3-column glossary |
-| `/backlog` | capture personal "what to do next" items in `docs/BACKLOG.md` (no grilling) |
+| `/grill-debug` | reproduce → localize → root-cause a bug, interactively |
+| `/latex-style` | the house LaTeX conventions |
 
 See `.claude/skills/*/SKILL.md`.

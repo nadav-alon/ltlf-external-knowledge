@@ -4,9 +4,14 @@ Instructions for agents working in this repo. The files below are the convention
 
 ## Coding standards
 
-Comments that outlive the review (`TODO[#n]`, never ticket narration). See `docs/agents/coding-standards.md`.
+Two files, both binding on an implementation run and on the review's standards axis:
 
-Its "Brand your primitives" section is TypeScript-only and does not apply to this C++ repo. The C++ rules are the `/code-reviewer` skill (`.claude/skills/code-reviewer/`).
+- `docs/agents/coding-standards.md` — comments that outlive the review (`TODO[#n]`, never ticket narration).
+- `docs/project-standards.md` — this repo's own: thin wrappers over Spot, glossary names, theory fidelity against `latex/main.tex`, the four oracle layers, the checks before committing, the stop rule.
+
+## Grilling contract
+
+What a grilling here must produce — frozen interfaces, a green checkpoint per composing ticket, the Stop-list, the `main.tex` ref, the ticket shape, the launch gate. See `docs/grilling-contract.md`.
 
 ## Issue tracker
 

@@ -18,8 +18,8 @@ Invocation: `grill-debug <symptom or failing cases> [suspected locations]`.
 
 Owns **reproduce → localize → root-cause**. Then it **hands off**:
 
-- the **fix** → the user, or `/developer`;
-- **verification** → `ctest`, the oracles, `/code-reviewer`.
+- the **fix** → the user, or a ticket;
+- **verification** → `ctest`, the oracles, the review.
 
 Do **not** edit product code to *fix* the bug. The only source edits you make are
 *temporary instrumentation*, and they are always reverted (see Cleanup).
@@ -133,12 +133,12 @@ why     : <the mechanism, in glossary terms>
 fix     : <proposed change, in words — handed off>
 ```
 
-Ephemeral by default (no file). Then **offer routes**: `→ /developer` (implement
-the fix), `+ /backlog` (if it exposes a deeper/systemic issue), `+ memory` (if
+Ephemeral by default (no file). Then **offer routes**: `→ ticket` (a
+`ready-for-agent` issue for the fix), `+ issue` (if it exposes a deeper/systemic issue), `+ memory` (if
 it's a recurring gotcha, e.g. the `=`/`|=` accumulation idiom), or `none`.
 
 **Ordering hazard (hard rule):** any *durable* artifact — a memory file, a
-`/backlog` edit, a handoff doc — must be written **after teardown, on the real
+filed issue, a handoff doc — must be written **after teardown, on the real
 working tree**, never on the doomed debug branch (it would die with the branch).
 The card is just in-context text, so it crosses the branch boundary for free; if
 some file genuinely must be produced pre-teardown, stash it and pop after the

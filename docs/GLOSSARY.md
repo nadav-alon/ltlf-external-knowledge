@@ -13,7 +13,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **C++** — the canonical identifier (type, function, or member).
 - **Do not call it** — rejected synonyms that must never appear.
 
-> Maintained by `/glossary`. Enforced by `/developer` and `/code-reviewer`
+> Maintained by `/glossary`. Enforced by `docs/project-standards.md`
 > (a new public C++ identifier for a domain concept must appear here).
 
 ---
@@ -319,7 +319,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   exactly the nondeterminism, $\delta_N(s,v)\in 2^{S_N}$. Branching stays
   deterministic (one path per letter), so the diagram keeps BDD **canonicity** —
   unlike a general nondeterministic decision diagram (nBDD/nFBDD; the trade-off the
-  `docs/BACKLOG.md` "nondeterministic decision diagrams" investigation worried
+  "nondeterministic decision diagrams" investigation, issue #27, worried
   about). Acceptance is a per-state $F_N$ bit (the reversal's sole final state),
   **not** on the terminals. A non-covered letter keeps the $\emptyset$ terminal
   (partial $\delta_N$, **no** sink state — `alg:nfa_product` tolerates an empty

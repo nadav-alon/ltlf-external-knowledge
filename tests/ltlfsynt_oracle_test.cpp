@@ -1613,7 +1613,7 @@ TEST_F(LtlfsyntOracleTest, PartialTinDivergesFromLtlfsyntUnderXBangTtWitness) {
   if (ek_verdict == Verdict::kUnrealizable &&
       synt_verdict == Verdict::kRealizable)
     SUCCEED() << "First known divergence witness for the equirealizability "
-                 "conjecture (docs/BACKLOG.md \"Prove the monolithic "
+                 "conjecture (issue #36, \"Prove the monolithic "
                  "reduction\") -- see docs/prd/acceptance-mark-on-edgeless-"
                  "states.md O5.";
 }
