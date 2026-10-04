@@ -663,7 +663,8 @@ VariablePartition MtnfaProductCorpusVars() {
 // t_in commits k <-> i: single self-looping state (delta TOTAL), and the
 // relation covers both truth values of i (lambda TOTAL) -- the "random_tin
 // is deterministic and total by construction" shape the PRD's cross-method
-// oracle requires (docs/BACKLOG.md's materialize_product bug needs a
+// oracle requires (the materialize_product bug of
+// docs/prd/acceptance-mark-on-edgeless-states.md needs a
 // PARTIAL transducer to reproduce; this corpus deliberately never builds
 // one, see the dedicated "expected divergence" test below instead).
 OutputLabeledTransducer MtnfaProductCorpusTin(const spot::bdd_dict_ptr& dict) {
@@ -927,8 +928,8 @@ TEST(MtnfaProductApLifetime, DiscardingTheMtnfaTemporaryKeepsTheProductLanguageC
 // builder sites (detail::ensure_acceptance_readable, adopted by
 // materialize_product and emits_dfa), so all three methods below now agree.
 //
-// Reproduction (docs/BACKLOG.md "materialize_product drops F_P on an
-// edgeless accepting product state", now Done): phi=b, Ofree={b}, a
+// Reproduction (docs/prd/acceptance-mark-on-edgeless-states.md,
+// "materialize_product drops F_P on an edgeless accepting product state"): phi=b, Ofree={b}, a
 // delta-dead t_in state. vars: input_free={} (empty), input_known={"a"},
 // output_free={"b"}, output_known={}. t_in: state 0 --(bddtrue)--> state 1,
 // committing a=true unconditionally (Sigma0=Ifree=empty, so this is a
@@ -953,7 +954,7 @@ TEST(MtnfaProductApLifetime, DiscardingTheMtnfaTemporaryKeepsTheProductLanguageC
 //     edgeless accepting state gets a bddfalse-guarded self-loop carrying
 //     the mark, so Spot's state_is_accepting reads it back TRUE: REALIZABLE.
 //     Before the fix this read FALSE (the pre-existing, now-retired bug
-//     docs/BACKLOG.md recorded).
+//     that PRD recorded).
 //   - MtdfaProduct routes acceptance through emits_dfa -> twadfa_to_mtdfa,
 //     i.e. through state_is_accepting's read-off-the-first-out-edge, and
 //     emits_dfa now calls the same helper after its discovery loop for every

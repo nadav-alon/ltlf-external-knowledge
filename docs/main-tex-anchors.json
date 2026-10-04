@@ -26,9 +26,6 @@
     "105": [
       "\\na[inline]{Also, these signatures are commiting to a mealy turn order, and are not ready for adding a moore option. For that, the signatures would be dependent on the order of players. Note that the Image of the functions would stay the same, it would just be the same-step allowed variables values visible to each strategy}"
     ],
-    "116": [
-      "In the methods below we dont assume totality of the transducers."
-    ],
     "127": [
       "\\begin{align*}",
       "\\Tin &= (Q_{in}, 2^{\\mathcal{I} \\cup \\mathcal{O}}, \\delta_{in}, \\lambda_{in}, q_{in, 0}) \\\\"
@@ -59,6 +56,9 @@
     ],
     "145": [
       "To be proven: Definition 2 is equirealizable with the normal LTLf Synthesis of the formula $\\psiin \\to (\\varphi \\land \\psiout)$, $\\psiin, \\psiout$ being the LTLf languages of the traces produced by $\\Tin, \\Tout$. Will be used to verify correctness of the methods introduced here"
+    ],
+    "153": [
+      "Take $\\varphi = X[!]\\mathtt{tt}$, a $\\Tin$ with $\\delta_{in}(q_{in,0},v) = q_1$ for every $v$, $q_1$ $\\delta$-dead, and $\\lambda_{in}(q_{in,0})$ the copy relation $k \\leftrightarrow a$, together with a trivial $\\Tout$; then $\\psiin = (k \\leftrightarrow a) \\wedge \\lnot X[!]\\mathtt{tt}$ is exactly the produced-trace language of $\\Tin$."
     ],
     "161": [
       "In which we construct the NFA for the formula (\\algname{LtlfToNfa}~\\cref{alg:ltlftonfa}), compute the product of it with the two transducers (representing the 2 strategies for input and output knowledge), then determinize (\\algname{NfaToDfa}) and solve the resulting game (\\algname{SolveDfa}) to extract the controller strategy."
@@ -112,6 +112,9 @@
     "367": [
       "\\State \\na[inline]{TODO}"
     ],
+    "372": [
+      "First, the next-operator reading: $\\algname{FP}(X\\psi,w)=(\\psi,\\top)$ (weak --- vacuously satisfied when the trace ends here) and $\\algname{FP}(X[!]\\psi,w)=(\\psi,\\bot)$ (strong), a semantics this paper currently fixes nowhere, as it has no $\\text{LTL}_f$ preliminaries."
+    ],
     "416": [
       "The algorithm works by initializing a stack with the product initial state (line~\\ref{alg:otfdfa_product:stack_def}), then adding successor of the top of the stack each iteration until no new ones can be found. Successors are found using forward progression (line~\\ref{alg:otfdfa_product:fp}) and the transition functions of the knowledge transducer (lines~\\ref{alg:otfdfa_product:in_succ},~\\ref{alg:otfdfa_product:out_succ}), and classified as final by the return bit `b` (line~\\ref{alg:otfdfa_product:final_insert})."
     ],
@@ -121,11 +124,8 @@
     "544": [
       "Reachability in ``some accepting state of $A$ is reachable from $s$'' is \\textbf{reflexive}: an accepting $s$ is live, even when every successor of $s$ is dead."
     ],
-    "589": [
-      "Reading the outputs universally instead is wrong rather than merely stricter: at a state whose violating letters are $(a \\wedge b \\wedge x) \\vee (a \\wedge \\lnot b \\wedge \\lnot x)$, with $a, b \\in \\mathcal{I}$ and $x \\in \\mathcal{O}$, the environment has two genuine options for $b$, yet neither survives both values of $x$, so the universal reading finds no available value at all and reports $\\{b\\}$ input-dependent vacuously."
-    ],
-    "604": [
-      "\\begin{lemma}\\label{lem:indep-transducer}"
+    "545": [
+      "That is load-bearing and not pedantry, since it is what places the \\emph{last} letter of a trace in the $\\liveset{s}$ of the state that emits it: with an irreflexive reading, $\\varphi = \\lnot X[!]\\mathtt{tt}$ over $\\mathcal{I} = \\{a\\}$ and $\\mathcal{O} = \\{x\\}$ would give every state an empty $\\liveset{s}$ and so report $\\{x\\}$ dependent, which~\\cref{def:outdep} says it is not."
     ],
     "624": [
       "% I had an idea, its quite unrefined, but it involves using synthesis to compute the external knowledge transducer from the domain/environment assumption/any other external knowledge base."

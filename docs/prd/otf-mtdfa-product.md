@@ -1,5 +1,7 @@
 # PRD: `OtfMtdfaProduct` — Method 3.1, the on-the-fly DFA product (mtdfa representation)
 
+**What remains is tracked in the issue tracker.** Phase 2 is #25.
+
 **Status:** **Phase 1 LANDED** (`0ce5fab` on `master`), all four gates closed
 2026-07-29, `ctest` 420/420. **Benchmarked — the answer is YES, laziness
 pays:** up to **5488×** faster than `MtdfaProduct` where the $\cons$ filter
