@@ -81,8 +81,9 @@ not necessarily what runs — `ldd` the binary before diagnosing any Spot crash.
 locally; review the `.tex` by reading it. Edits to `main.tex` go in under
 `\cl{...}` notes and are left uncommitted unless the user asks to push.
 
-In a worktree, `latex/` is an uninitialized submodule — draft notes into
-`docs/BACKLOG.md` instead of editing through it.
+In a worktree, `latex/` is an uninitialized submodule — draft notes into an
+issue instead of editing through it. A manager run never edits `latex/` at all
+(`docs/project-standards.md`).
 
 After any submodule bump, `main.tex:NNN` citations drift per-region (never by a
 uniform offset). Run `scripts/check-main-tex-refs.py --fix` in the *same commit*
@@ -90,14 +91,14 @@ as the bump. Prefer `\cref` labels over line numbers in new citations.
 
 ## Workflow
 
-`docs/prd/` holds the specs; each PRD carries a `Status:` and four gates
-(`glossary`, `tests`, `code-review`, `theory-review`) ticked by the skill that
-performs each pass. `docs/GLOSSARY.md` is the ubiquitous language — every public
-domain identifier must appear there, spelled exactly.
+The unit of work is a ticket, worked by the manager's loop
+(`nadav-alon/side-projects-manager`); a feature is a supertask and its
+sub-issues, shaped by `docs/grilling-contract.md`. `docs/prd/` and `docs/runs/`
+are history: no new PRD is written. `docs/GLOSSARY.md` is the ubiquitous
+language — every public domain identifier must appear there, spelled exactly.
 
-For unattended day-runs, see `docs/unattended-workflow.md` and the `/launcher`
-skill. The rule that matters there: **an unattended run never guesses at a
-decision the user owns.** It records the blocker and stops.
+The rule that matters: **a run never guesses at a decision the user owns.** It
+files a correction discovery and stops (`docs/project-standards.md`).
 
 ## Agent harness
 
