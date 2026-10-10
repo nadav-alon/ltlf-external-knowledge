@@ -6,13 +6,12 @@ the workbook is not committed, regenerate it with `scripts/bench_xlsx_export.py`
 — 5 sheets (`summary`, `timings`, `structural`, `ltlfsynt`, `provenance`),
 1400 timing rows.
 
-The earlier Debug workbook (`2026-08-11-benchmarks.xlsx`, not committed) was kept for the
-comparison in the deck's appendix and **should not be quoted** — see *What
-changed under `-O2`* below.
+The earlier Debug workbook (`2026-08-11-benchmarks.xlsx`, not committed) was
+kept for the comparison in the deck's appendix and **should not be quoted** —
+see *What changed under `-O2`* below.
 
-Produced by `ltlf-ek-bench` (benchmark-suite PRD Phase 2), merged into this
-branch from `worktree-bench-phase2` so the workbook is reproducible from a
-checkout of the presentation branch alone.
+Produced by `ltlf-ek-bench` (benchmark-suite PRD Phase 2); the recipe below
+reproduces it from `master`.
 
 ## Reproducing it
 
@@ -21,9 +20,9 @@ cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release -DSPOT_ROOT=~/opt/spot-2.
 cmake --build build-release -j --target ltlf-ek-bench
 ./build-release/ltlf-ek-bench --families=all --subjects=all --n-min=2 --n-max=8 \
   --repeat=3 --timeout=20 --budget=2400 \
-  --ltlfsynt=/home/cowclaw/opt/spot-2.15.1/bin/ltlfsynt \
+  --ltlfsynt=~/opt/spot-2.15.1/bin/ltlfsynt \
   --out=docs/runs/2026-08-11-benchmarks-release.json \
-  --xlsx=docs/runs/2026-08-11-benchmarks-release.xlsx
+  --xlsx=build-release/benchout/2026-08-11-benchmarks-release.xlsx
 ```
 
 `ltlfsynt` must be an **absolute path** — the bare name resolves through `PATH`
