@@ -18,6 +18,7 @@ namespace ltlf_ek {
 struct Witness {
   std::vector<bdd> prefix;  // agreeing letters, start -> cycle head / dead-end.
   std::vector<bdd> cycle;   // repeating not-F_phi loop; empty => dead-end.
+  // Letters are valid only while I∪O stays registered --- see verify_controller.
 };
 
 struct VerifyResult {
@@ -39,13 +40,21 @@ struct VerifyResult {
 // Throws std::invalid_argument when an AP of phi is outside I∪O, or the
 // automata/transducers do not share one bdd_dict (same policy as
 // DfaProduct::synthesize).
+//
+// Caller precondition: keep I∪O registered with the shared bdd_dict for as
+// long as the returned Witness (or any bdd copied out of it) is alive.  The
+// Witness letters are bdds over I∪O, and the registrations verify_controller
+// makes itself do not outlive the call, so an AP registered by no object the
+// caller keeps alive (e.g. T_in/T_out/T_C) may have its variable reused by a
+// later register_ap, corrupting a witness letter.
 VerifyResult verify_controller(const spot::formula& phi,
                                const VariablePartition& vars,
                                const Transducer& t_in, const Transducer& t_out,
                                const Transducer& t_c);
 
 // Convenience overload: materialize a synthesized Controller as its Role::t_c
-// transducer, then delegate.
+// transducer, then delegate.  Same caller precondition on the returned Witness
+// as above; the T_C built here does not outlive the call.
 VerifyResult verify_controller(const spot::formula& phi,
                                const VariablePartition& vars,
                                const Transducer& t_in, const Transducer& t_out,
