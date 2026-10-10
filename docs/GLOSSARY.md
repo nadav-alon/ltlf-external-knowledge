@@ -1293,6 +1293,27 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
 
 ## Testing & oracles
 
+### Assumption reduction
+- **`main.tex`:** — (no symbol; test-only, `docs/prd/ltlfsynt-oracle.md`). It rests on
+  the monolithic conjecture after `\cref{def:probDefTransducer}` (`main.tex:139`) and on
+  the Case-A totality of `\cref{def:consistency}`; the paper does not state the reduction
+  itself.
+- **Definition:** *prose note, not a domain entry* — the encoding of a known-input
+  $\Tin$ as the $\text{LTL}_f$ assumption $\psiin$ (see *Produced-trace language*), moving
+  $\Iknown$ to the inputs of a plain synthesis problem $\psiin\to\varphi$ that Spot's
+  `ltlfsynt` solves; it is equirealizable with the known-input problem, which is what lets
+  `ltlfsynt` serve as an independent verdict oracle. The $\psiin$ is hand-paired with the
+  transducer file per fixture and never derived from it (see *Faithfulness guard*). Its
+  $\Tout$ sibling, the **guarantee reduction** ($\varphi\land\psiout$, and composed with
+  the assumption as $\psiin\to(\varphi\land\psiout)$), is a conjunction on the system
+  side rather than an assumption, and has the same standing.
+- **C++:** — (test-local, deliberately no identifier). It lives only as the hand-authored
+  `psi_in` strings and the `KnownInputOracleTest`, `KnownOutputOracleTest` and
+  `MixedOracleTest` bodies in `tests/ltlfsynt_oracle_test.cpp`; no production code
+  performs it.
+- **Do not call it:** the assumption (bare — that names the *role* of $\psiin$, see
+  *Produced-trace language*), known-input encoding, ltlfsynt encoding, translation.
+
 ### Faithfulness guard
 - **`main.tex`:** — (no symbol; test-only, `docs/prd/oracle-faithfulness-guard.md`;
   widened to $\Tout$ by `docs/prd/ltlfsynt-oracle-known-output.md`).
