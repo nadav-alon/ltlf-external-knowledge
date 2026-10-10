@@ -11,6 +11,7 @@
 #include <spot/twa/bdddict.hh>
 
 #include "ltlf_ek/bench.hpp"
+#include "ltlf_ek/dependent_inputs.hpp"
 #include "ltlf_ek/dfa_product.hpp"
 #include "ltlf_ek/mtdfa_product.hpp"
 #include "ltlf_ek/mtnfa_product.hpp"
@@ -1213,6 +1214,15 @@ struct NkCase {
   VariablePartition vars;  // Iknown -> Ifree, Oknown -> Ofree
   OutputLabeledTransducer t_in;
   OutputLabeledTransducer t_out;
+  // The dict `vars`' APs were registered on (register_turn_order_aps below).
+  // This is the same pointer as nk->t_in.dict() (OutputLabeledTransducer::
+  // dict() is delta_dfa_->get_dict(), src/output_labeled_transducer.cpp:29),
+  // which already keeps it alive --- the field is a convenience alias so the
+  // dependent_inputs call site (D9's extractor column) can read it directly
+  // rather than reaching through t_in. Safe to collapse to nk->t_in.dict()
+  // later; kept as a separate field here only to avoid touching compiled
+  // code after the corpus sweep this comment accompanies.
+  spot::bdd_dict_ptr dict;
 };
 
 std::optional<NkCase> build_nk_case(const BenchCase& c) {
@@ -1242,7 +1252,7 @@ std::optional<NkCase> build_nk_case(const BenchCase& c) {
   OutputLabeledTransducer t_in = trivial_transducer(nk_vars, Role::t_in, dict);
   OutputLabeledTransducer t_out = trivial_transducer(nk_vars, Role::t_out, dict);
 
-  return NkCase{reduced, nk_vars, std::move(t_in), std::move(t_out)};
+  return NkCase{reduced, nk_vars, std::move(t_in), std::move(t_out), dict};
 }
 
 class DfaProductNkSubject final : public BenchSubject {
@@ -1304,6 +1314,27 @@ class OtfMtdfaProductNkSubject final : public BenchSubject {
   }
 };
 
+// ---------------------------------------------------------------------------
+// The extractor column (PRD "engineered-domain-families.md" D9): the wall-
+// clock of deriving the domain knowledge instead of authoring it, i.e.
+// dependent_inputs on the SAME whole-monolithic-task case the -nk subjects
+// above already build (psi_in -> phi under the no-knowledge partition) --
+// reusing build_nk_case rather than re-deriving that reduction. A case
+// without psi_in skips cleanly, recording nothing (same rule as the -nk
+// subjects, B2 rule 1).
+// ---------------------------------------------------------------------------
+
+class DependentInputsExtractionSubject final : public BenchSubject {
+ public:
+  std::string name() const override { return "dependent-inputs-extraction"; }
+  void run(const BenchCase& c) const override {
+    const auto nk = build_nk_case(c);
+    if (!nk) return;
+    BenchTimer timer("dependent_inputs");  // D9: the extractor's own wall-clock
+    dependent_inputs(nk->reduced, nk->vars, nk->dict);
+  }
+};
+
 // Depth-first flatten of a BenchReport's span tree into rows: one row per
 // BenchSpan encountered, root or nested (PRD "the row key is generic", B6
 // "per-*stage* nanoseconds"). A span's own `label` is already either a
@@ -1352,6 +1383,7 @@ const std::vector<std::unique_ptr<BenchSubject>>& bench_subjects() {
     v.push_back(std::make_unique<MtdfaProductNkSubject>());
     v.push_back(std::make_unique<MtnfaProductNkSubject>());
     v.push_back(std::make_unique<OtfMtdfaProductNkSubject>());
+    v.push_back(std::make_unique<DependentInputsExtractionSubject>());
     return v;
   }();
   return subjects;
