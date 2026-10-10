@@ -179,11 +179,10 @@ the letters the **system** does not lose by playing. Build it by translating the
 negation — `ltlf_to_dfa(spot::formula::Not(phi), dict)` — rather than by flipping
 acceptance on $A_\varphi$. That is a design choice, not a soundness requirement:
 `\cref{lem:indep-diagonal}` is stated for any deterministic automaton with
-$L(\Aneg)=L(\lnot\varphi)$, and the acceptance flip has been tested and holds
-(against an independent LTLf trace evaluator, 17 formulas × all traces to length
-4, including the empty/length-0 cases, with no mismatch). Translating the
-negation is kept because it is the glossary definition and because O5-in's
-state-index comparison depends on both sides calling the same `ltlf_to_dfa`.
+$L(\Aneg)=L(\lnot\varphi)$, and the acceptance flip has been tested and holds.
+Translating the negation is kept because it is the glossary definition and
+because O5-in's state-index comparison depends on both sides calling the same
+`ltlf_to_dfa`.
 Everything downstream of the build is formula-agnostic and shared.
 
 **I3 — the projection is the Moore restriction, and it is $\exists$ not
@@ -632,7 +631,7 @@ public surface, which is a PRD-change event on
 Recorded by the unattended Phase 1 run (2026-08-03). All are **"consider"** —
 none was acted on, each is the user's call.
 
-1. **(Resolved: I2 and the glossary now say "design choice".) I2's rationale was stale, though its conclusion is right** (`/theory-review`,
+1. **I2's rationale is stale, though its conclusion is right** (`/theory-review`,
    `doc-bug`). I2 and the *Violation automaton* glossary entry both justify
    refusing to build $\Aneg$ by flipping acceptance on $A_\varphi$ with "an
    acceptance flip is an untested equivalence, not a free complement". The

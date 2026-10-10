@@ -965,15 +965,16 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
 - **C++:** — (no dedicated constructor; it is
   `ltlf_to_dfa(spot::formula::Not(phi), dict)`). Building it by **translating the
   negation** is a design choice, not a soundness requirement: flipping acceptance
-  on $A_\varphi$ gives the same language (tested against an independent LTLf
-  trace evaluator, including the empty/length-0 cases that `main.tex` never fixes
-  — see *Open theory questions*), but translation is the definition here and
-  O5-in's state-index comparison needs both sides to call the same `ltlf_to_dfa`. Completeness is load-bearing at emission — $\delta_{in}$ **is**
+  on $A_\varphi$ gives the same language (it has been tested and holds, including
+  the empty/length-0 cases that `main.tex` never fixes — see *Open theory
+  questions*), but translation is the definition here and O5-in's state-index
+  comparison needs both sides to call the same `ltlf_to_dfa`.
+  Completeness is load-bearing at emission — $\delta_{in}$ **is**
   $\delta_{\Aneg}$ of the complete automaton, so never purge before emitting.
 - **Do not call it:** the negated DFA (that names the construction, not the
-  concept), the complement automaton (it is built by translation, not by
-  complementing $A_\varphi$, though the two agree), the environment automaton, $A_{\lnot\varphi}$ (bare,
-  in prose).
+  concept), the complement automaton (it names a construction the code does
+  not use: the automaton is built by translation, not by complementing
+  $A_\varphi$), the environment automaton, $A_{\lnot\varphi}$ (bare, in prose).
 
 ### Live-letter region
 - **`main.tex`:** $\liveset{s}$ (`\cref{lem:outdep-diagonal}`).
