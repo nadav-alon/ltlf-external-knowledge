@@ -9,7 +9,8 @@
 # built from is committed, so `make` is reproducible from a clean checkout.
 
 REPORT := ../../runs/2026-08-11-benchmarks-release.json
-FIGS   := figures/speedup.pdf figures/structural.pdf figures/cost.pdf
+FIGS   := figures/speedup.pdf figures/structural.pdf figures/cost.pdf \
+        figures/knowledge.pdf
 
 # Keep matplotlib's cache inside the deck dir; $HOME/.config is read-only here.
 export MPLCONFIGDIR := $(CURDIR)/.mplcache
