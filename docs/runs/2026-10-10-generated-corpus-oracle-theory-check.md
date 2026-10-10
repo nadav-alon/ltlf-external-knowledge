@@ -10,13 +10,12 @@ Verdicts are `faithful`, `code-bug`, `doc-bug` or `underspecified` (`docs/projec
 | # | Place the code relies on the paper | Paper | Verdict |
 |---|------------------------------------|-------|---------|
 | 1 | The enabled predicate | `\cref{def:consistency}` | faithful |
-| 2 | Committed totality of the generated input transducer | note after `\cref{def:probDefTransducer}`, `\cref{def:consistency}` partiality clause | underspecified |
+| 2 | Committed totality of the generated input transducer | Transducers subsection `\cl` note; `\cl` witness after `\cref{def:probDefTransducer}`; `\cref{def:consistency}` partiality clause | underspecified |
 | 3 | The controller postcondition | `\cref{def:probDefTransducer}`, note after `\cref{def:probDef}` | underspecified |
 | 4 | The Mealy observed slice | `\Sigma_0`/`\Sigma_1` of `S_C` (`\cref{definition}`) | faithful |
 
 No `code-bug`, so no code or test changes accompany this report. Nothing under `latex/` changed.
-The tests named below pass on this branch (`MetamorphicRoundTrip`, `LtlfToDfaStructural`,
-`GeneratedCorpusDifferential`, `PartialTinDivergesFromLtlfsyntUnderXBangTtWitness`).
+The tests named below are unchanged by this PR; no test run is claimed here.
 
 ## 1. Enabled predicate — faithful
 
@@ -28,8 +27,14 @@ whose per-state `lambda` is the relation `ifree_cube ∧ iknown_cube`, OR'd over
 a missing `δ` or `λ` value is an inconsistent letter.
 
 **Check:** `OutputLabeledTransducer::lambda` restricts the relation to `v`'s `Σ0` slice and returns the
-cube over `Σ1`; `emits` tests `v ∧ cube ≠ ⊥`, which for a full-letter `v` is exactly `v ∩ Σ1 = λ(q, v ∩ Σ0)`.
-An undefined `λ` yields `nullopt`, hence `false`. `consistent` is the conjunction of the two. This is the
+cube over `Σ1`; `emits` tests `v ∧ cube ≠ ⊥`, which for a full-letter `v` is `v ∩ Σ1 = λ(q, v ∩ Σ0)` provided `λ` is functional and assigns every
+`Σ1` variable. Otherwise `lambda` returns a set (`exist_Σ0(restrict(out, obs))`,
+`src/output_labeled_transducer.cpp:62-66`) and `v ∧ cube ≠ ⊥` tests membership, not the paper's equality
+(`include/ltlf_ek/transducer.hpp:61` says as much). The paper makes `λ` a function through
+`λ: Q × Σ0 → Σ1` (main.tex:112, `\cref{def:probDefTransducer}`), so verdict 1 is `faithful` under that
+hypothesis; `random_tin` builds one full `Iknown` cube per `Ifree` cube, so the generated corpus meets it.
+Likewise `λ_out` reads `v ∩ (I ∪ Ofree)` only if `Tout` was built with `Σ0 = I ∪ Ofree`; nothing enforces
+that, and the corpus's trivial `Tout` does not exercise it. An undefined `λ` yields `nullopt`, hence `false`. `consistent` is the conjunction of the two. This is the
 paper's predicate, with `Σ0`/`Σ1` read from the transducer rather than hard-coded. The generated `Tin`
 has `Oknown = ∅` and a trivial `Tout`, so the second conjunct is vacuously true there.
 
@@ -49,8 +54,9 @@ transducer's domain.
 **Check:** the generator's choice is the safe one — on a total `Tin` the partial and totalized readings
 coincide, so neither reading of the open question changes any verdict the corpus grades. But the paper
 states no hypothesis that licenses the oracle, so "total ⇒ the reduction applies" rests on the generator's
-own commitment, not on a statement in `main.tex`. The paper's own witness
-(`PartialTinDivergesFromLtlfsyntUnderXBangTtWitness`) is what a partial `Tin` would break.
+own commitment, not on a statement in `main.tex`. The repo's encoding of the paper's witness
+(`PartialTinDivergesFromLtlfsyntUnderXBangTtWitness`, `tests/ltlfsynt_oracle_test.cpp:1570`; main.tex cites
+only the file) is what a partial `Tin` would break.
 
 **Coverage fact, not a verdict:** `GeneratedCorpusDifferential` grades only `V = ∅` cases (trivial `Tin`),
 so the random total `Tin` is graded by `MetamorphicRoundTrip` and the cross-method agreement only, never
@@ -69,8 +75,8 @@ controller does not decide when the trace ends.
 
 **Check:** the verifier makes the system the one that may stop: a trace counts when it reaches an
 accepting state, and a run with no agreeing letter that is not yet accepting is a failure. That is the
-mainstream system-controlled-termination reading, and the differential agrees with it on every graded case (`ltlfsynt` is only weak evidence of the reading, per the glossary), so the
-differential does not contradict it. The code is internally consistent (`solve_dfa` and the verifier share it),
+mainstream system-controlled-termination reading. The differential does not contradict it on any graded case, though `ltlfsynt` is only weak
+evidence of the reading (glossary). The code is internally consistent (`solve_dfa` and the verifier share it),
 but the paper does not say who ends the trace, so no code-vs-paper mismatch can be called a bug either way.
 
 ## 4. Mealy observed slice — faithful
@@ -84,12 +90,17 @@ combination; the differential passes `--semantics=Mealy` to `ltlfsynt` with `--i
 **Check:** the arena projects the pinned `Iknown`/`Oknown` out of every guard (`bdd_exist`, line 49) and
 plays `Ifree` (environment first) against `Ofree`; the strategy's edges mention only `Ifree`/`Ofree`.
 This loses nothing against `Σ0 = I` because `Iknown` is a function of the history and the same step's
-`Ifree` (`λ_in` is deterministic, which `random_tin` guarantees), so seeing `Ifree` is seeing `I`. The
-existential projection is likewise exact for a deterministic `Tin`: exactly one `Iknown` completion agrees
-per `Ifree` letter. Moore is not attempted, as the paper's `\na` says its signatures commit to Mealy.
+`Ifree` (`λ_in` is functional, which `random_tin` guarantees), so seeing `Ifree` is seeing `I`. The
+existential projection of `Iknown` is likewise exact for a functional `Tin`: exactly one `Iknown`
+completion agrees per `Ifree` letter. Projecting out `Oknown` (`solve_dfa.cpp:49`) is exact for a different
+reason: `Oknown = λ_out(q_out, v ∩ (I ∪ Ofree))` is fixed by `I` (which `Ifree` fixes) and the system's own
+`Ofree`, provided `λ_out` is a function (`λ: Q × Σ0 → Σ1`, main.tex:112). If `λ_out` were non-functional,
+the existential projection would let the system settle the leftover choice in its own favour. In the corpus
+`Tout` is trivial, so this is never exercised; `random_tin` covers only the `Tin` half. Verdict 4 is
+`faithful` for functional `λ_in` and `λ_out`. Moore is not attempted, as the paper's `\na` says its signatures commit to Mealy.
 The `V = ∅` differential has `Σ0 = Ifree = I` outright.
 
 ## Filed
 
-The `underspecified` verdicts (2 and 3) are filed together as one suggestion discovery. There is no
+The `underspecified` verdicts (2 and 3) are filed together as one suggestion discovery (#49). There is no
 `doc-bug`.
