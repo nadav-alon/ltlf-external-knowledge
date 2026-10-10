@@ -1293,6 +1293,46 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
 
 ## Testing & oracles
 
+### ltlfsynt reductions
+- **`main.tex`:** — (no symbol; test-only, `docs/prd/ltlfsynt-oracle.md`,
+  `docs/prd/ltlfsynt-oracle-known-output.md`). The paper states the reduction in the
+  `\na` note after `\cref{def:probDefTransducer}`: that definition is equirealizable
+  with plain $\text{LTL}_f$ synthesis of $\psiin\to(\varphi\land\psiout)$. The note is
+  headed "To be proven", so the equirealizability is a conjecture, not a result
+  (`underspecified`: stated but unproven).
+- **Definition:** the three names below fix how the oracle hands a known-knowledge
+  problem to Spot's `ltlfsynt`, which is what lets it serve as an independent verdict
+  oracle. Each is conjectured equirealizable with the known-knowledge problem under
+  Case-A totality (see *Open theory questions → Partial transducers*); the test
+  `PartialTinDivergesFromLtlfsyntUnderXBangTtWitness` shows it failing for a partial
+  $\Tin$. The $\psiin$ and $\psiout$ are hand-paired with the transducer file per
+  fixture and never derived from it (see *Faithfulness guard*).
+  - **Assumption reduction** — the reduction of a known-input $\Tin$ to the
+    $\text{LTL}_f$ assumption $\psiin$ (see *Produced-trace language*), moving $\Iknown$
+    to the inputs of a plain synthesis problem $\psiin\to\varphi$.
+  - **Guarantee reduction** — the $\Tout$ sibling: $\varphi\land\psiout$, a conjunction
+    on the system side rather than an assumption.
+  - **Composed reduction** — both together, $\psiin\to(\varphi\land\psiout)$.
+- **C++:** the bench is the one production user of the assumption reduction. It builds
+  `"(" + psi_in + ") -> (" + phi + ")"` from `BenchCase::psi_in`
+  (`include/ltlf_ek/bench_suite.hpp`, required iff the case is tier `t1`; `"1"` when
+  absent) for its `ltlfsynt` column in `src/ltlf_ek_bench.cpp`. The guarantee and
+  composed reductions have no identifier outside tests. In
+  `tests/ltlfsynt_oracle_test.cpp`: `KnownInputOracleTest`
+  (`MatchesLtlfsyntUnderAssumptionReduction`), `KnownOutputOracleTest`
+  (`MatchesLtlfsyntUnderGuaranteeReduction`), and `MixedOracleTest`
+  (`MatchesLtlfsyntUnderComposedReduction`, assumption `kMixedPsiIn`).
+- **Test-local helpers, deliberately absent as entries:** the **load-bearing guard**
+  (a `load_bearing` fixture must flip verdict once $\psiin$ is dropped), the
+  **divergence witness** (`KnownOutputDivergenceTest`,
+  `PartialTinDivergesFromLtlfsyntUnderXBangTtWitness`: a fixture on which the two
+  tools are expected to disagree), the **empty-knowledge** corpus
+  (`EmptyKnowledgeOracleTest`: bare $\varphi$, no knowledge), and the `Verdict` /
+  `IsRealizable` helpers. They name test mechanics, not `main.tex` concepts.
+- **Do not call it:** the assumption (bare — that names the *role* of $\psiin$, see
+  *Produced-trace language*), ltlfsynt encoding, translation; for the assumption
+  reduction also known-input encoding.
+
 ### Faithfulness guard
 - **`main.tex`:** — (no symbol; test-only, `docs/prd/oracle-faithfulness-guard.md`;
   widened to $\Tout$ by `docs/prd/ltlfsynt-oracle-known-output.md`).
@@ -1410,7 +1450,9 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   **metamorphic round-trip** (`synthesize`$\to$`verify_controller` must accept the
   controller it produced) — plus the `ltlf_to_dfa` structural free-rider
   (determinism + completeness). The oracle *is* the label; there is no
-  hand-authored expected value.
+  hand-authored expected value. (The one pinned value is the byte-identical
+  default-corpus checksum, `kGoldenDefaultCorpus*`, which guards the generator's
+  determinism, not any verdict.)
 - **C++:** test-local (anonymous namespace in `tests/ltlfsynt_oracle_test.cpp`),
   **not** a library API: `BuildGeneratedCorpus()` / `GeneratedCase`, the
   generators (`generate_random_formula`, `strengthen_next`, `random_partition`,
@@ -1418,7 +1460,7 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   test bodies. No canonical domain type — like the *Faithfulness guard*, it names
   a test artifact, not a `main.tex` concept.
 - **Do not call it:** fuzzing / property test (bare — it is seeded + self-labeling,
-  not shrinking random), golden corpus (there is no golden expected value),
+  not shrinking random),
   round-trip test (bare), differential test (bare — pair the noun with *oracle* /
   *round-trip* as above).
 
