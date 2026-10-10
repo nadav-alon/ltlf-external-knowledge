@@ -176,12 +176,15 @@ reachable, i.e. the **environment** can still force a violation of $\varphi$; a
 letter outside $\liveset{s}$ is one the **environment** loses by playing. This is
 the precise dual of the output tool, whose $\liveset{s}$ on $A_\varphi$ collects
 the letters the **system** does not lose by playing. Build it by translating the
-negation — `ltlf_to_dfa(spot::formula::Not(phi), dict)` — **not** by flipping
-acceptance on $A_\varphi$: `ltlf_to_dfa` returns a complete DFA whose acceptance
-also encodes the empty/length-0 convention (`main.tex` has no $\text{LTL}_f$
-preliminaries, see *Open theory questions*), so an acceptance flip is an
-untested equivalence, not a free complement. Everything downstream of the build
-is formula-agnostic and shared.
+negation — `ltlf_to_dfa(spot::formula::Not(phi), dict)` — rather than by flipping
+acceptance on $A_\varphi$. That is a design choice, not a soundness requirement:
+`\cref{lem:indep-diagonal}` is stated for any deterministic automaton with
+$L(\Aneg)=L(\lnot\varphi)$, and the acceptance flip has been tested and holds
+(against an independent LTLf trace evaluator, 17 formulas × all traces to length
+4, including the empty/length-0 cases, with no mismatch). Translating the
+negation is kept because it is the glossary definition and because O5-in's
+state-index comparison depends on both sides calling the same `ltlf_to_dfa`.
+Everything downstream of the build is formula-agnostic and shared.
 
 **I3 — the projection is the Moore restriction, and it is $\exists$ not
 $\forall$.** $\Sin$ moves **before** the controller (`main.tex:88`), so
@@ -618,17 +621,18 @@ public surface, which is a PRD-change event on
   different decision procedure; nothing here resolves it, and the block is left
   as the author wrote it.
 - **`main.tex` has no $\text{LTL}_f$ preliminaries** (tracked under the `FP`
-  entry) — load-bearing twice here: `\cref{def:indep}` quantifies over
-  $L(\lnot\varphi)$ as finite non-empty traces, and I2's refusal to obtain $\Aneg$
-  by flipping acceptance on $A_\varphi$ is precisely because the empty/length-0
-  convention is undefined in the paper.
+  entry) — load-bearing here: `\cref{def:indep}` quantifies over
+  $L(\lnot\varphi)$ as finite non-empty traces, and the empty/length-0
+  convention that `ltlf_to_dfa` encodes is undefined in the paper. I2's choice to
+  translate the negation rather than flip acceptance on $A_\varphi$ is a design
+  choice, not a consequence of this gap.
 
 ## Developer comments / PRD disagreements
 
 Recorded by the unattended Phase 1 run (2026-08-03). All are **"consider"** —
 none was acted on, each is the user's call.
 
-1. **I2's rationale is stale, though its conclusion is right** (`/theory-review`,
+1. **(Resolved: I2 and the glossary now say "design choice".) I2's rationale was stale, though its conclusion is right** (`/theory-review`,
    `doc-bug`). I2 and the *Violation automaton* glossary entry both justify
    refusing to build $\Aneg$ by flipping acceptance on $A_\varphi$ with "an
    acceptance flip is an untested equivalence, not a free complement". The

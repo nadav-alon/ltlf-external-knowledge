@@ -964,15 +964,15 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
   $A$; the commitment to a complete DFA is the implementation's, not the math's.
 - **C++:** — (no dedicated constructor; it is
   `ltlf_to_dfa(spot::formula::Not(phi), dict)`). Building it by **translating the
-  negation** is deliberate and not interchangeable with flipping acceptance on
-  $A_\varphi$: `ltlf_to_dfa` returns a complete DFA whose acceptance also encodes
-  the empty/length-0 convention, which `main.tex` never fixes (see *Open theory
-  questions*), so an acceptance flip is an untested equivalence rather than a free
-  complement. Completeness is load-bearing at emission — $\delta_{in}$ **is**
+  negation** is a design choice, not a soundness requirement: flipping acceptance
+  on $A_\varphi$ gives the same language (tested against an independent LTLf
+  trace evaluator, including the empty/length-0 cases that `main.tex` never fixes
+  — see *Open theory questions*), but translation is the definition here and
+  O5-in's state-index comparison needs both sides to call the same `ltlf_to_dfa`. Completeness is load-bearing at emission — $\delta_{in}$ **is**
   $\delta_{\Aneg}$ of the complete automaton, so never purge before emitting.
 - **Do not call it:** the negated DFA (that names the construction, not the
-  concept), the complement automaton (it is built by translation, **not** by
-  complementing $A_\varphi$), the environment automaton, $A_{\lnot\varphi}$ (bare,
+  concept), the complement automaton (it is built by translation, not by
+  complementing $A_\varphi$, though the two agree), the environment automaton, $A_{\lnot\varphi}$ (bare,
   in prose).
 
 ### Live-letter region
