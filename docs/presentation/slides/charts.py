@@ -4,7 +4,7 @@
 Reads the JSON report (not the workbook -- same numbers, no openpyxl in the
 loop) and writes one vector PDF per figure into figures/.  Run via `make figs`.
 
-Only the four `t1` families are plotted: `parity-t3` is barred from the
+The comparable families are plotted, without `parity-t3`: it is barred from the
 comparison tables by the benchmark-suite PRD's Stop-list 1, and its declared
 `expected_realizable` is known wrong (see docs/runs/2026-08-12-benchmark-numbers.md).
 """
@@ -47,6 +47,8 @@ METHODS = [
     ("nfa-product",       "NfaProduct",      "#1baf7a", "^"),
     ("mtnfa-product",     "MtnfaProduct",    "#4a3aa7", "D"),
 ]
+# Goal-DFA / product-DFA colours of the knowledge figures; same hues as slots 1, 2.
+GOAL_C, PROD_C = "#2a78d6", "#eb6834"
 # MtdfaProduct is the baseline every ratio is taken against, so it is drawn as
 # a reference rule rather than spending a categorical slot on it.
 BASELINE = "mtdfa-product"
@@ -200,7 +202,6 @@ def fig_structural(d):
     st = structural(d)
     ns = sorted({r["n"] for r in d["structural"]})
 
-    goal_c, prod_c = "#2a78d6", "#eb6834"
     fig, axes = plt.subplots(1, 4, figsize=(9.6, 3.0), sharey=True)
     for i, (ax, fam) in enumerate(zip(axes, FAMILIES)):
         recede(ax)
@@ -209,8 +210,8 @@ def fig_structural(d):
         # wide halo and the product as a dashed line on top.  Coincidence then
         # reads as "dashes inside a band" rather than as a missing series.
         series = [
-            ("goal DFA", "goal_dfa_states", goal_c, "o", 4.0, "solid", 0.0),
-            ("product", "product_states", prod_c, "s", 1.5, (0, (3, 2.4)), 3.6),
+            ("goal DFA", "goal_dfa_states", GOAL_C, "o", 4.0, "solid", 0.0),
+            ("product", "product_states", PROD_C, "s", 1.5, (0, (3, 2.4)), 3.6),
         ]
         for label, metric, colour, marker, lw, ls, ms in series:
             xs, ys = [], []
@@ -235,11 +236,11 @@ def fig_structural(d):
     a0.annotate("goal DFA", xy=(ns[-1], st[(FAMILIES[0], ns[-1], "dfa-product",
                                             "goal_dfa_states")]),
                 xytext=(-2, 7), textcoords="offset points", ha="right",
-                color=goal_c, fontsize=7, fontweight="bold")
+                color=GOAL_C, fontsize=7, fontweight="bold")
     a0.annotate("product", xy=(ns[-1], st[(FAMILIES[0], ns[-1], "dfa-product",
                                            "product_states")]),
                 xytext=(-2, -12), textcoords="offset points", ha="right",
-                color=prod_c, fontsize=7, fontweight="bold")
+                color=PROD_C, fontsize=7, fontweight="bold")
 
     axes[0].set_ylabel("states, DfaProduct")
     handles, labels = axes[0].get_legend_handles_labels()
@@ -311,7 +312,6 @@ def fig_knowledge(d):
     st = structural(d)
     ns = sorted({r["n"] for r in d["structural"]})
 
-    goal_c, prod_c = "#2a78d6", "#eb6834"
     titles = {
         "knowledge-chain": "knowledge-chain  (cons prunes)",
         "knowledge-chain-inert": "knowledge-chain-inert  (nothing to prune)",
@@ -320,8 +320,8 @@ def fig_knowledge(d):
     for ax, fam in zip(axes, KNOWLEDGE_FAMILIES):
         recede(ax)
         for label, metric, colour, marker, lw, ls, ms in [
-            ("goal DFA", "goal_dfa_states", goal_c, "o", 4.0, "solid", 0.0),
-            ("product", "product_states", prod_c, "s", 1.5, (0, (3, 2.4)), 3.6),
+            ("goal DFA", "goal_dfa_states", GOAL_C, "o", 4.0, "solid", 0.0),
+            ("product", "product_states", PROD_C, "s", 1.5, (0, (3, 2.4)), 3.6),
         ]:
             xs, ys = [], []
             for n in ns:
