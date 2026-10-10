@@ -1,0 +1,265 @@
+% LTLf synthesis under external knowledge -- progress deck, 2026-08-12.
+%
+% Build:  make          (figures + pdf)
+%         make watch    (latexmk -pvc, rebuilds on save)
+%
+% Every transcript on these slides is copied verbatim from
+% docs/presentation/transcripts/; every number in act 3 is produced by
+% charts.py from docs/runs/2026-08-11-benchmarks-release.json.  Nothing here
+% is retyped by hand -- see the benchmark-suite PRD's Stop-list 1.
+
+\documentclass[aspectratio=169, 11pt]{beamer}
+
+\usetheme[progressbar=frametitle, block=fill]{metropolis}
+\usepackage{booktabs}
+\usepackage{fancyvrb}
+\usepackage{amsmath, amssymb}
+\usepackage{graphicx}
+\usepackage{xcolor}
+
+% Palette shared with charts.py -- categorical slots 1, 2, 3, 7 of the
+% validated reference palette, plus the ink steps.
+\definecolor{slotone}{HTML}{2A78D6}
+\definecolor{slottwo}{HTML}{EB6834}
+\definecolor{inkmuted}{HTML}{8A8984}
+\setbeamercolor{alerted text}{fg=slottwo}
+
+% latex/ is an uninitialised submodule in this worktree, so the deck carries
+% its own notation rather than \input-ing main.tex's macros.
+\newcommand{\Tin}{\mathcal{T}_{\mathit{in}}}
+\newcommand{\Tout}{\mathcal{T}_{\mathit{out}}}
+\newcommand{\Ifree}{I_{f}}
+\newcommand{\Iknown}{I_{k}}
+\newcommand{\Ofree}{O_{f}}
+\newcommand{\Oknown}{O_{k}}
+\newcommand{\Xdep}{X_{\mathit{dep}}}
+\newcommand{\Ydep}{Y_{\mathit{dep}}}
+\newcommand{\cons}{\mathit{cons}}
+
+\DefineVerbatimEnvironment{shell}{Verbatim}%
+  {fontsize=\scriptsize, xleftmargin=2mm, commandchars=\\\{\}}
+\DefineVerbatimEnvironment{shelltiny}{Verbatim}%
+  {fontsize=\tiny, xleftmargin=2mm}
+
+\title{LTLf synthesis under external knowledge}
+\subtitle{Prototype, early results}
+\author{Nadav Alon}
+
+\begin{document}
+
+\maketitle
+
+% ===========================================================================
+\begin{frame}{What is this}
+
+  A \alert{prototype} that runs five synthesis methods under one interface, and a prototype benchmark suite.
+
+  \begin{itemize}
+    \item Five methods that produce controllers from a goal formula, a variable partition, and a knowledge transducer.
+    \item A parametric benchmark suite, raced against \texttt{ltlfsynt} where the comparison is legitimate.
+  \end{itemize}
+
+\end{frame}
+
+% =========================== ACT 1 -- THE TOOLS ============================
+\section{The tools}
+
+\begin{frame}{The Methods}
+
+  Every method takes a goal formula $\varphi$, a variable partition $(\Ifree, \Iknown, \Ofree, \Oknown)$, and two knowledge transducers $\Tin$, $\Tout$.
+
+  \begin{center}\small
+  \begin{tabular}{lll}
+    \toprule
+    Method & Representation & Built on \\
+    \midrule
+    \texttt{DfaProduct}       & explicit DFA      & Spot \\
+    \texttt{NfaProduct}       & explicit NFA      & \textsc{mona} \\
+    \texttt{MtdfaProduct}     & symbolic (MTDFA)  & Spot \\
+    \texttt{MtnfaProduct}     & symbolic (MTNFA)  & \textsc{mona} \\
+    \texttt{OtfMtdfaProduct}  & symbolic, on-the-fly & Spot \\
+    \bottomrule
+  \end{tabular}
+  \end{center}
+
+\end{frame}
+
+\begin{frame}[fragile]{Two binaries}
+
+  \textbf{\texttt{ltlf-ek-synth}} - the synthesizer
+  \begin{shelltiny}
+--dfa-product | --nfa-product | --mtdfa-product | --mtnfa-product | --otf-mtdfa-product
+--formula=STRING          the goal formula
+--part-file PATH          the variable partition   (or --inputs/--outputs shorthand)
+--known-input-transducer  T_in     --known-output-transducer  T_out
+--realizable              verdict only        --model-check   verify a controller
+--benchmark PATH          per-stage timing report as JSON
+  \end{shelltiny}
+
+  \vspace{2mm}
+  \textbf{\texttt{ltlf-ek-deps}} - Finds dependent variables. Very tentative.
+  \begin{shelltiny}
+--formula=STRING          --direction in|out
+--transducer PATH         write the resulting T_in / T_out
+--emit-part PATH          write the updated part file
+  \end{shelltiny}
+\end{frame}
+
+% =========================== ACT 2 -- USAGE ================================
+\section{Using it}
+
+\begin{frame}[fragile]{Example}
+
+  \begin{columns}[T]
+    \begin{column}{0.46\textwidth}
+      \textbf{The partition} --- a part file:
+      \begin{shelltiny}
+input_free:   a
+input_known:  k
+output_free:  o
+output_known:
+      \end{shelltiny}
+
+      \vspace{1mm}
+      \textbf{The goal:} $\varphi = \texttt{X[!] k}$ \\
+      {\scriptsize ``at the next step, $k$ holds'' - k is a known variable, realizability depends entirely on the known input transducer $\Tin$.}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      \textbf{The knowledge} --- $\Tin$ as HOA plus a labelling:
+      \begin{shelltiny}
+States: 2   AP: 2 "a" "k"
+--BODY--
+State: 0
+  [t] 1
+State: 1
+  [t] 1
+--END--
+%%LAMBDA
+state 0: !k
+state 1: k
+      \end{shelltiny}
+      {\scriptsize In this case its realizable}
+    \end{column}
+  \end{columns}
+\end{frame}
+
+\begin{frame}[fragile]{Example}
+
+  Just changing the known input transducer $\Tin$ makes the same formula unrealizable:  
+
+  \begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+      {\scriptsize $\Tin$ = \texttt{tin-eventual-k}: $k$ turns on at step 1
+      and stays on.}
+      \begin{shelltiny}
+$ ltlf-ek-synth --dfa-product \
+    --formula="X[!] k" \
+    --part-file part-a-k-o.txt \
+    --known-input-transducer tin-eventual-k.hoa
+
+HOA: v1
+States: 2
+...
+exit code 0                (a controller)
+      \end{shelltiny}
+    \end{column}
+    \begin{column}{0.5\textwidth}
+      {\scriptsize $\Tin$ = \texttt{tin-delay-k}: $k$ tracks the environment's
+      $a$, one step behind.}
+      \begin{shelltiny}
+$ ltlf-ek-synth --dfa-product \
+    --formula="X[!] k" \
+    --part-file part-a-k-o.txt \
+    --known-input-transducer tin-delay-k.hoa
+
+UNREALIZABLE
+exit code 20
+      \end{shelltiny}
+    \end{column}
+  \end{columns}
+
+  \vfill
+\end{frame}
+
+\begin{frame}[fragile]{Model Checking}
+
+  The output is a controller that can be model-checked against the goal formula + knowledge transducers.
+
+  \begin{shelltiny}
+HOA: v1
+States: 2
+Start: 0
+AP: 2 "a" "o"
+acc-name: all
+properties: trans-labels explicit-labels state-acc complete deterministic
+spot-state-player: 0 1
+controllable-AP: 1
+--BODY--
+State: 0    [t] 1
+State: 1    [t] 0
+--END--
+  \end{shelltiny}
+
+  \vspace{1mm}
+
+  \begin{shelltiny}
+$ ltlf-ek-synth --dfa-product --formula="X[!] k" --part-file part-a-k-o.txt \
+    --known-input-transducer tin-eventual-k.hoa --model-check
+SAFE
+  \end{shelltiny}
+\end{frame}
+
+\begin{frame}[fragile]{Tentative dependency generation}
+
+  A dependency finding tool. Tentative because it is a quick prototype that was hacked together with AI, not the final artifact.
+
+  \begin{shelltiny}
+$ ltlf-ek-deps --formula="F(a ^ b)" --inputs a,b --outputs o --direction in
+dependent inputs: a   (of a, b)
+
+$ ltlf-ek-deps --formula="F(a ^ b)" --inputs a,b --outputs o --direction out
+dependent outputs: none
+  \end{shelltiny}
+
+\end{frame}
+
+% =========================== ACT 3 -- MEASUREMENTS =========================
+\section{Early results}
+
+\begin{frame}{What was measured}
+
+      \textbf{Six parametric families}, each scaling in $n$, none with deep thought behind them:
+      \begin{itemize}\small
+        \item \texttt{cons-prunes} - instances that try to benefit from the consistency filter
+        \item \texttt{cons-inert} - instances that do not benefit from the consistency filter
+        \item \texttt{mirror-small} - instances that (supposably) benefit from the nfa method
+        \item \texttt{mirror-degenerate} - instances that (supposably) are hard for nfa and dfa both
+        \item \texttt{knowledge-chain}, \texttt{knowledge-chain-inert} - instances where the \emph{knowledge} grows with $n$, not just the formula
+      \end{itemize}
+      \vspace{1mm}
+\end{frame}
+
+\begin{frame}{Speedup relative to \texttt{MtdfaProduct}}
+  \vspace{-2mm}
+  \begin{center}
+    \includegraphics[width=0.82\textwidth]{figures/speedup.pdf}
+  \end{center}
+  \vspace{-2mm}
+  {\small Mtdfa is baseline. Only the on-the-fly method beats it: {3--4$\times$} where $\cons$ prunes (twice, independently), roughly free where it does not, \alert{below $1$} once the knowledge is large.}
+\end{frame}
+
+\begin{frame}{How big is the knowledge?}
+
+  {\small All four families above pin $\Tin$ at \textbf{one state}, so the product can never be bigger than the goal --- an artifact of how they were written, not a property of the product. Here $\lvert\Tin\rvert = n$.}
+
+  \vspace{-1mm}
+  \begin{center}
+    \includegraphics[width=0.78\textwidth]{figures/knowledge.pdf}
+  \end{center}
+  \vspace{-2mm}
+  {\small Where $\cons$ can prune, the product still collapses; where it cannot, it is exactly $n \times$ the goal --- and that is where the on-the-fly method is \alert{worst} ($0.55\times$).}
+\end{frame}
+
+
+
+\end{document}
