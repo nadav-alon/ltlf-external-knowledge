@@ -17,12 +17,13 @@ Each row is the MINIMUM over N spawns, matching the statistic
 `ltlf-ek-bench` keeps for `ltlfsynt` (best of `--repeat`).
 """
 
+import os
 import subprocess
 import time
 
 # Absolute, deliberately: the bare name resolves through PATH to a 2.14.4.dev
 # install -- see docs/runs/2026-08-12-benchmark-numbers.md.
-LTLFSYNT = "/home/cowclaw/opt/spot-2.15.1/bin/ltlfsynt"
+LTLFSYNT = os.path.expanduser("~/opt/spot-2.15.1/bin/ltlfsynt")
 SYNTH = "build-release/ltlf-ek-synth"
 N = 15
 
@@ -38,7 +39,7 @@ CASES = [
 ]
 
 
-def best(argv, n=N):
+def min_and_mean(argv, n=N):
     times = []
     for _ in range(n):
         t0 = time.perf_counter_ns()
@@ -51,7 +52,7 @@ def main():
     print(f"{'case':48} {'min ms':>9} {'mean ms':>9}")
     for label, argv in CASES:
         try:
-            lo, mean = best(argv)
+            lo, mean = min_and_mean(argv)
             print(f"{label:48} {lo:9.2f} {mean:9.2f}")
         except OSError as exc:
             print(f"{label:48} FAILED: {exc}")
