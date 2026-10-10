@@ -39,6 +39,13 @@ struct VerifyResult {
 // Throws std::invalid_argument when an AP of phi is outside I∪O, or the
 // automata/transducers do not share one bdd_dict (same policy as
 // DfaProduct::synthesize).
+//
+// Caller precondition: keep I∪O registered with the shared bdd_dict for as
+// long as the returned Witness (or any bdd copied out of it) is alive.  The
+// Witness letters are bdds over variables that verify_controller registers
+// only through a throwaway graph destroyed on return, so a partition AP that
+// phi and T_in/T_out/T_C do not also register is unregistered afterwards, and
+// a later register_ap may reuse its variable and corrupt a witness letter.
 VerifyResult verify_controller(const spot::formula& phi,
                                const VariablePartition& vars,
                                const Transducer& t_in, const Transducer& t_out,
