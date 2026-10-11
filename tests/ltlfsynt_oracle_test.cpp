@@ -2293,8 +2293,8 @@ OutputLabeledTransducer random_tin(const VariablePartition& partition,
 
 // random_tout: Role t_out => Sigma0 = I union Ofree (the same step's inputs
 // and free outputs), Sigma1 = Oknown.  Empty Oknown: trivial_transducer, as
-// for random_tin.  `dict` already carries the turn-order registration made by
-// random_tin.
+// for random_tin.  `dict` must already carry the turn-order registration
+// (GenerateOneCase registers it right after make_bdd_dict).
 OutputLabeledTransducer random_tout(const VariablePartition& partition,
                                     std::mt19937& rng,
                                     const spot::bdd_dict_ptr& dict,
@@ -2321,6 +2321,9 @@ GeneratedCase GenerateOneCase(std::mt19937& rng, const CorpusConfig& config) {
   spot::formula phi = strengthen_next(
       generate_random_formula(partition, rng, config), rng);
   const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  // Dict-setup site: random_tin and random_tout both rely on the turn order
+  // already being fixed, so neither depends on the other's call order.
+  register_turn_order_aps(partition, dict);
   OutputLabeledTransducer t_in = random_tin(partition, rng, dict, config);
   OutputLabeledTransducer t_out = random_tout(partition, rng, dict, config);
   return {phi, std::move(partition), std::move(t_in), std::move(t_out)};
