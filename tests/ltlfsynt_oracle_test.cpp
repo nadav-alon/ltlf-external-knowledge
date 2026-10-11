@@ -1784,6 +1784,8 @@ constexpr double kCorpusStrongXProbability = 0.30;
 // marked Iknown, may be empty"); a plain per-element coin flip -- the PRD
 // does not pin this exact probability, only that the subset may be empty.
 constexpr double kCorpusIknownProbability = 0.5;
+// Probability each generated output is externally governed (lands in Oknown).
+constexpr double kCorpusOknownProbability = 0.5;
 
 // |I| / |O| upper bounds for random_partition (docs/prd/generated-corpus-
 // soak-mode.md "Configuration struct"), extracted from the formerly-inline
@@ -2056,6 +2058,9 @@ VariablePartition random_partition(std::mt19937& rng,
   std::set<std::string> governed;
   for (const std::string& name : inputs)
     if (is_known(rng)) governed.insert(name);
+  std::bernoulli_distribution is_known_output(kCorpusOknownProbability);
+  for (const std::string& name : outputs)
+    if (is_known_output(rng)) governed.insert(name);
 
   return VariablePartition::split(inputs, outputs, governed);
 }
@@ -2570,16 +2575,16 @@ std::uint64_t ChecksumGeneratedCorpus(const std::vector<GeneratedCase>& corpus) 
 }
 
 // Golden values of the default corpus (BuildGeneratedCorpus on
-// corpus_config_from_env() with no env set), recaptured at aa0ad8c from a
-// single BuildGeneratedCorpus in a fresh process, after the canonical-order
-// fix.  A later mismatch means the
+// corpus_config_from_env() with no env set), recaptured from a single
+// BuildGeneratedCorpus in a fresh process after random_partition began
+// drawing Oknown.  A later mismatch means the
 // mt19937 draw order drifted -- "investigate, don't adjust" (PRD "Edge cases"
 // / repo-wide rule), never silently re-capture to make the test pass.
-const std::string kGoldenDefaultCorpusPhi0 = "1";
+const std::string kGoldenDefaultCorpusPhi0 = "F(p1)";
 const std::string kGoldenDefaultCorpusPartition0 =
     "input_free={p0 p1 p2 p3 } input_known={} output_free={p4 } "
     "output_known={}";
-constexpr std::uint64_t kGoldenDefaultCorpusChecksum = 6597942268664199858ull;
+constexpr std::uint64_t kGoldenDefaultCorpusChecksum = 7455900054567997449ull;
 
 // Byte-identical default (soak-mode PRD "Test oracles" #1, "the critical
 // guard"): with no LTLF_EK_CORPUS_* env set, corpus_config_from_env() must
@@ -2587,7 +2592,7 @@ constexpr std::uint64_t kGoldenDefaultCorpusChecksum = 6597942268664199858ull;
 // defaults must reproduce the exact 256-case golden corpus captured above --
 // proving the constexpr->struct refactor preserved the std::mt19937 draw
 // order (random_partition -> generate_random_formula -> strengthen_next ->
-// random_tin, per case).
+// random_tin -> random_tout, per case).
 TEST(GeneratedCorpus, DefaultCorpusIsByteIdenticalToGolden) {
   const std::vector<std::unique_ptr<ScopedEnvVar>> clean_env =
       UnsetAllCorpusEnvVars();
@@ -2767,9 +2772,58 @@ TEST(GeneratedCorpusGenerator, RandomToutIsDeterministicAndTotalOverInputsAndFre
   }
 }
 
+// The corpus exercises a known-output strategy: some case has a non-empty
+// Oknown, and its t_out is a table over Sigma0 = I union Ofree producing
+// Sigma1 = Oknown -- deterministic and total, lambda one full Oknown
+// assignment -- while an empty-Oknown case gets the trivial t_out.
+TEST(GeneratedCorpusGenerator, EveryGeneratedToutIsDeterministicAndTotalAndSomeAreNonTrivial) {
+  const std::vector<std::unique_ptr<ScopedEnvVar>> clean_env =
+      UnsetAllCorpusEnvVars();
+  const std::vector<GeneratedCase> corpus =
+      BuildGeneratedCorpus(corpus_config_from_env());
+
+  std::size_t with_oknown = 0;
+  for (std::size_t i = 0; i < corpus.size(); ++i) {
+    const GeneratedCase& c = corpus[i];
+    SCOPED_TRACE("case " + std::to_string(i) + " phi=" + spot::str_psl(c.phi) +
+                 " " + DescribeGeneratedPartition(c.partition));
+    if (!c.partition.output_known.empty()) ++with_oknown;
+
+    const spot::bdd_dict_ptr dict = c.t_out.dict();
+    const SigmaSlices slices = sigma_slices(c.partition, Role::t_out);
+    std::vector<int> sigma0_vars;
+    for (const std::string& name : slices.sigma0)
+      sigma0_vars.push_back(dict->varnum(spot::formula::ap(name)));
+    const std::vector<bdd> sigma0_letters = all_letters_over(sigma0_vars);
+
+    const unsigned n = c.t_out.delta_dfa()->num_states();
+    ASSERT_GE(n, 1u);
+    EXPECT_LT(c.t_out.initial_state(), n);
+    for (unsigned q = 0; q < n; ++q) {
+      bdd covered = bddfalse;
+      for (const auto& [guard, dst] : c.t_out.delta_edges(q)) {
+        EXPECT_LT(dst, n);
+        EXPECT_EQ(covered & guard, bddfalse) << "overlapping edge guards";
+        covered |= guard;
+      }
+      for (const bdd& letter : sigma0_letters) {
+        ASSERT_TRUE(c.t_out.delta(q, letter).has_value())
+            << "state " << q << " is not total on a Sigma0 valuation";
+        const std::optional<bdd> out = c.t_out.lambda(q, letter);
+        ASSERT_TRUE(out.has_value());
+        EXPECT_EQ(bdd_satcountset(*out, c.t_out.sigma1_cube()), 1.0)
+            << "lambda is not one full Oknown assignment";
+      }
+    }
+  }
+  EXPECT_GT(with_oknown, 0u) << "no generated case has a non-empty Oknown";
+  EXPECT_LT(with_oknown, corpus.size()) << "every case has a non-empty Oknown";
+}
+
 // PRD "Partition generation": every generated partition splits the case's
 // atoms into the four roles Ifree, Iknown, Ofree, Oknown with no atom in two
-// roles; there is at least one input; Oknown is empty in v1; the universe is
+// roles; there is at least one input; both Iknown and Oknown are drawn non-empty
+// somewhere in the corpus; the universe is
 // exactly the fresh names p0, p1, ... within the configured widths; and the
 // formula mentions no atom outside it.
 TEST(GeneratedCorpusGenerator, EveryGeneratedPartitionSplitsTheAtomsIntoRoles) {
@@ -2798,7 +2852,6 @@ TEST(GeneratedCorpusGenerator, EveryGeneratedPartitionSplitsTheAtomsIntoRoles) {
     EXPECT_GE(p.inputs().size(), 1u);
     EXPECT_LE(p.inputs().size(), static_cast<std::size_t>(config.input_max));
     EXPECT_LE(p.outputs().size(), static_cast<std::size_t>(config.output_max));
-    EXPECT_TRUE(p.output_known.empty());
 
     std::set<std::string> fresh_names;
     for (std::size_t k = 0; k < total; ++k)
@@ -2823,14 +2876,14 @@ TEST(CorpusConfigFromEnv, CasesOverrideChangesCorpusSize) {
   EXPECT_EQ(corpus.size(), 8u);
 }
 
-// Golden values for LTLF_EK_CORPUS_SEED=1, recaptured at aa0ad8c from a
-// single BuildGeneratedCorpus in a fresh process, after the canonical-order
-// fix.
-const std::string kGoldenSeed1CorpusPhi0 = "Or(And(Not(p0),p6),And(Not(p6),p0))";
+// Golden values for LTLF_EK_CORPUS_SEED=1, recaptured like the default
+// corpus's.
+const std::string kGoldenSeed1CorpusPhi0 =
+    "And(X(R(Not(p2),U(Not(p0),Not(p2)))),p1)";
 const std::string kGoldenSeed1CorpusPartition0 =
-    "input_free={p0 p2 } input_known={p1 } output_free={p3 p4 p5 p6 p7 } "
-    "output_known={}";
-constexpr std::uint64_t kGoldenSeed1CorpusChecksum = 8149772767289634973ull;
+    "input_free={p0 p2 } input_known={p1 } output_free={p6 p7 } "
+    "output_known={p3 p4 p5 }";
+constexpr std::uint64_t kGoldenSeed1CorpusChecksum = 16468623250011442845ull;
 
 // Env override plumbing (PRD "Test oracles" #2): LTLF_EK_CORPUS_SEED=1
 // yields a *different* corpus than the default seed (from the golden
