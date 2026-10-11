@@ -1,7 +1,6 @@
 # The monolithic reduction, under totality
 
-Draft for the developer to carry into `latex/main.tex` on Overleaf, after `def:probDefTransducer` (#37 carries that step).
-`latex/` is untouched.
+Draft to carry into `latex/main.tex` on Overleaf, after `def:probDefTransducer`.
 The macros are `main.tex`'s own: `\Tin`, `\Tout`, `\Ifree`, `\Iknown`, `\Ofree`, `\Oknown`, `\psiin`, `\psiout`.
 
 **Status.**
@@ -43,26 +42,28 @@ A plain strategy is $\sigma:(2^{\mathcal{I}\cup\mathcal{O}})^*\times2^{\mathcal{
 The play of $\sigma$ against an input sequence $(i_t)$ has $u_t = i_t\cup\sigma(u_0\cdots u_{t-1}, i_t)$.
 
 **Lemma 1 (uniqueness).**
-Under H1, for a strategy $S_C$ and an $\Ifree$-sequence $(f_t)$ there is exactly one play agreeing with $\Tin$, $\Tout$, $S_C$.
+Under H1, for a strategy $S_C$ and an $\Ifree$-sequence $(f_t)$, for every $n$ there is exactly one trace of length $n+1$ that agrees with $\Tin$, $\Tout$, $S_C$ up to $n$, and these traces are the prefixes of one play, the *agreeing play*.
 
 *Proof.*
 By induction on $t$: given $v_0\cdots v_{t-1}$, the states $q^{in}_t$, $q^{out}_t$ exist by totality of $\delta$.
 Agreement forces $v_t\cap\Ifree = f_t$, then $v_t\cap\Iknown = \lambda_{in}(q^{in}_t,f_t)$, then $v_t\cap\Ofree = S_C(v_0\cdots v_{t-1}, v_t\cap\mathcal{I})$, then $v_t\cap\Oknown=\lambda_{out}(q^{out}_t, v_t\cap(\mathcal{I}\cup\Ofree))$.
-Each is a value of a total function, so $v_t$ exists and is unique. $\square$
+Each is a value of a total function, so $v_t$ exists and is unique, and $v_0\cdots v_t$ extends $v_0\cdots v_{t-1}$. $\square$
 
 This is the canonical turn order of the Problem Definition section, and it is the only place the Mealy order is used: $\Tout$ sees the system's current $\Ofree$ and the full current $\mathcal{I}$, which is exactly what a plain strategy that picks $\Ofree$ and $\Oknown$ together may compute.
 
 ## Theorem
 
 Under H1--H3, `def:probDefTransducer` for $(\varphi,\Tin,\Tout)$ has a solution iff $G$ is realizable.
-Moreover, a finite-state solution gives a finite-state plain strategy and conversely.
+Moreover, a finite-state solution gives a finite-state plain strategy, and a realizable $G$ has a finite-state winning strategy that projects to a finite-state solution.
 
 ### Direction ($\Rightarrow$)
 
 Let $T_C$ solve the problem, with strategy $S_C$.
 Define
 $$\sigma(h, i) = S_C(h,i)\;\cup\;\lambda_{out}\big(q^{out}(h),\, i\cup S_C(h,i)\big),$$
-where $q^{out}(h)$ is the $\Tout$ state after $h$; $\sigma$ is defined by H1.
+where $q^{out}(h)$ is the $\Tout$ state after $h$, defined by H1.
+Where $S_C(h,i)$ is undefined (only on $h$ that disagree with $\Tin$, which are off $L_{in}$), pick any value: $\theta$ is vacuously true on those plays, so the choice does not matter and $\sigma$ is a total strategy.
+If $T_C$ is finite-state, so is $\sigma$: it runs as the product of $T_C$ and $\Tout$, which is finite because $Q_C$ and $Q_{out}$ are.
 
 Let $(i_t)$ be any input sequence and $u$ the play of $\sigma$ against it.
 By construction every step of $u$ agrees with $\Tout$ and with $S_C$ on $\Ofree$, so $u$ satisfies $\psiout$ at every prefix.
@@ -78,8 +79,9 @@ So $u$ satisfies $\theta$ for every input sequence, and $\sigma$ wins.
 ### Direction ($\Leftarrow$)
 
 Let $\sigma$ win $G$.
+Since $\theta$ is regular (H3), $G$ is a game with a DFA objective, and a DFA-product reachability game has positional winning strategies, so $\sigma$ can be taken finite-state.
 Define $S_C(h,i) = \sigma(h,i)\cap\Ofree$.
-This is the same transducer as $\sigma$ with its output projected, so finiteness is preserved.
+This is the same transducer as $\sigma$ with its output projected, so it is finite-state.
 
 Fix an $\Ifree$-sequence $(f_t)$ and let $w$ be the agreeing play (Lemma 1).
 We build an input sequence adaptively against $\sigma$: let $u$ be the play defined by $u_t\cap\Ifree = f_t$, $u_t\cap\Iknown = \lambda_{in}(q^{in}_t, f_t)$ with $q^{in}_t$ computed along $u$ itself, and $u_t\cap\mathcal{O}=\sigma(u_0\cdots u_{t-1},u_t\cap\mathcal{I})$.
@@ -90,7 +92,7 @@ Every prefix of $u$ is in $L_{in}$ by construction, so $\psiin$ holds at every p
 Since $\sigma$ wins, some prefix $\pi=u_0\cdots u_n$ satisfies $\theta$, hence satisfies $\varphi\land\psiout$.
 
 Because $\pi\in L_{out}$, each $u_t$ with $t\le n$ agrees with $\Tout$; $\pi\in L_{in}$ gives agreement with $\Tin$; and $u_t\cap\Ofree = S_C(u_0\cdots u_{t-1},u_t\cap\mathcal{I})$ by definition of $S_C$.
-So $\pi$ is a prefix of an agreeing trace for $(f_t)$, and by the uniqueness in Lemma 1, $w_0\cdots w_n=\pi$.
+So $\pi$ is a trace of length $n+1$ agreeing up to $n$ for $(f_t)$, and by the uniqueness in Lemma 1, $w_0\cdots w_n=\pi$.
 Hence $w$ has a prefix satisfying $\varphi$.
 This holds for every $(f_t)$, so $T_C$ solves the problem. $\square$
 
