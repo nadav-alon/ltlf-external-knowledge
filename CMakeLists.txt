@@ -72,6 +72,7 @@ add_library(ltlf_ek
   src/cli.cpp
   src/bench.cpp
   src/bench_suite.cpp
+  src/window_source.cpp
   src/detail/acceptance.cpp
   src/detail/dependency_core.cpp
   src/dependent_outputs.cpp
