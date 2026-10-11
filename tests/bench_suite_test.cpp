@@ -762,3 +762,20 @@ TEST(BenchSuiteCoGenerated, DeclaresItsPsiInAtEveryNAndSweepsFromTheFloor) {
   }
   EXPECT_EQ(family.sweep(2, 4).size(), 6u);
 }
+
+TEST(BenchSuiteCoGenerated, RejectsNBelowTheFloor) {
+  const BenchFamily& family = FamilyNamed("co-generated");
+  EXPECT_THROW(family.instantiate(Params(1, true)), std::invalid_argument);
+  EXPECT_THROW(family.sweep(1, 3), std::invalid_argument);
+}
+
+TEST(BenchSuiteCoGenerated, VerdictFollowsTheRealizableFlagUnderTheKnowledge) {
+  const BenchFamily& family = FamilyNamed("co-generated");
+  for (bool realizable : {true, false}) {
+    const BenchCase c = family.instantiate(Params(2, realizable));
+    EXPECT_EQ(c.expected_realizable, realizable);
+    EXPECT_EQ(
+        RealizabilityVerdict(run_bench_case(c, SubjectNamed("dfa-product"))),
+        std::optional<bool>(realizable));
+  }
+}

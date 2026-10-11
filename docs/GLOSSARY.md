@@ -1483,15 +1483,19 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   hand-authored expected value. (The one pinned value is the byte-identical
   default-corpus checksum, `kGoldenDefaultCorpus*`, which guards the generator's
   determinism, not any verdict.)
-- **C++:** test-local (anonymous namespace in `tests/ltlfsynt_oracle_test.cpp`),
-  **not** a library API: `BuildGeneratedCorpus()` / `GeneratedCase`, the
+- **C++:** the generators and corpus builders are test-local (anonymous
+  namespace in `tests/ltlfsynt_oracle_test.cpp`), **not** a library API; only the
+  bounded-memory window source is library (below). Test-local: `BuildGeneratedCorpus()` / `GeneratedCase`, the
   generators (`generate_random_formula`, `strengthen_next`, `random_partition`,
   `random_tin`), and the three `GeneratedCorpus.*` / `GeneratedCorpusDifferential`
   test bodies. The co-generated `(T_in, psi_in)` family adds
   `BuildCoGeneratedCorpus()` / `CoGeneratedCase` (test-local), and its
-  bounded-memory source `WindowSource` / `WindowKind` (library,
-  `ltlf_ek/window_source.hpp`, shared with the `co-generated` sweep family
-  of `src/bench_suite.cpp`), and the `CoGeneratedCorpus.*` /
+  bounded-memory source is library (`ltlf_ek/window_source.hpp`, shared with
+  the `co-generated` sweep family of `src/bench_suite.cpp`): `WindowSource`,
+  `WindowKind`, `WindowKindName`, `free_input_name`, `weak_next`,
+  `delay_window_source`, `draw_window_source`, `window_tin_file` (the table
+  T_in) and `window_psi_in` (the declared psi_in). The test bodies are the
+  `WindowSource.*` fixtures (`tests/window_source_test.cpp`) and the `CoGeneratedCorpus.*` /
   `CoGeneratedKnownKnowledgeDifferential` test bodies. No canonical domain
   type — like the *Faithfulness guard*, it names a test artifact, not a
   `main.tex` concept.
