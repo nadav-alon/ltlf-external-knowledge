@@ -98,6 +98,7 @@ using ltlf_ek::ProductState;
 using ltlf_ek::register_turn_order_aps;
 using ltlf_ek::Role;
 using ltlf_ek::SigmaSlices;
+using ltlf_ek::sigma_slices;
 using ltlf_ek::to_guard_map;
 using ltlf_ek::Transducer;
 using ltlf_ek::trivial_transducer;
@@ -1963,6 +1964,7 @@ struct GeneratedCase {
   spot::formula phi;
   VariablePartition partition;
   OutputLabeledTransducer t_in;
+  OutputLabeledTransducer t_out;
 };
 
 // is_commutative: the operators whose children Spot orders by allocation
@@ -2205,14 +2207,69 @@ spot::formula generate_random_formula(const VariablePartition& partition,
   return rename(drawn);
 }
 
-// random_tin (PRD "Random Tin generation"): an in-memory OutputLabeledTransducer
-// built directly on `dict`, deterministic + total by construction (the
-// committed Case-A regime, \cref{def:consistency}) -- no validity check needed
-// afterward.  Role t_in => Sigma0 = Ifree, Sigma1 = Iknown (glossary "Role").
-// Degenerate empty-Iknown case: trivial_transducer instead of a random table
-// (PRD "Edge cases" "Empty Iknown").  Phase 1 (soak-mode PRD): the
-// state_count(1,3) literal now comes from config.tin_states_max (defaulting
-// to kCorpusTinStatesMax).
+// random_table_transducer: an in-memory OutputLabeledTransducer built directly
+// on `dict`, deterministic + total by construction (the committed Case-A
+// regime, \cref{def:consistency}) -- no validity check needed afterward.
+// `role` fixes the observed/produced slices (glossary "Role"): delta has one
+// edge per Sigma0 valuation, and lambda answers each with one full Sigma1
+// assignment.  Only valid when the role's Sigma1 is non-empty; the empty case
+// is trivial_transducer's.
+OutputLabeledTransducer random_table_transducer(
+    const VariablePartition& partition, Role role, std::mt19937& rng,
+    const spot::bdd_dict_ptr& dict, const CorpusConfig& config) {
+  auto g = spot::make_twa_graph(dict);
+  // Register every I \cup O AP on this dict (PRD pseudocode), even the ones
+  // delta/lambda never look at -- ltlf_to_dfa/synthesize will register phi's
+  // own APs on this same dict later, by name.  Variable numbers are already
+  // fixed by register_turn_order_aps; register_ap just looks them up.
+  for (const std::string& n : partition.input_free) g->register_ap(n);
+  for (const std::string& n : partition.input_known) g->register_ap(n);
+  for (const std::string& n : partition.output_free) g->register_ap(n);
+  for (const std::string& n : partition.output_known) g->register_ap(n);
+  const SigmaSlices slices = sigma_slices(partition, role);
+  std::vector<int> sigma0_vars, sigma1_vars;
+  for (const std::string& n : slices.sigma0)
+    sigma0_vars.push_back(g->register_ap(n));
+  for (const std::string& n : slices.sigma1)
+    sigma1_vars.push_back(g->register_ap(n));
+
+  std::uniform_int_distribution<int> state_count(1, config.tin_states_max);
+  const int n = state_count(rng);
+  g->new_states(n);
+  g->set_init_state(0);
+
+  const std::vector<bdd> sigma0_letters = all_letters_over(sigma0_vars);
+  std::uniform_int_distribution<int> dst_dist(0, n - 1);
+  std::bernoulli_distribution bit(0.5);
+  std::vector<bdd> lambda_by_state(n, bddfalse);
+  for (int q = 0; q < n; ++q) {
+    bdd lambda_q = bddfalse;
+    for (const bdd& sigma0_letter : sigma0_letters) {
+      // delta: one edge per Sigma0-cube -- mutually exclusive, exhaustive
+      // guards, so delta is deterministic + total over Sigma0.
+      g->new_edge(q, dst_dist(rng), sigma0_letter);
+      // lambda: a full Sigma1 assignment OR'd in per Sigma0-cube, so
+      // lambda(q, .) is a total function Sigma0 -> 2^Sigma1.
+      bdd sigma1_assignment = bddtrue;
+      for (int x : sigma1_vars)
+        sigma1_assignment &= bit(rng) ? bdd_ithvar(x) : bdd_nithvar(x);
+      lambda_q |= sigma0_letter & sigma1_assignment;
+    }
+    lambda_by_state[q] = lambda_q;
+  }
+
+  bdd sigma0_cube = bddtrue;
+  for (int x : sigma0_vars) sigma0_cube &= bdd_ithvar(x);
+  bdd sigma1_cube = bddtrue;
+  for (int x : sigma1_vars) sigma1_cube &= bdd_ithvar(x);
+  return OutputLabeledTransducer(g, std::move(lambda_by_state), sigma0_cube,
+                                 sigma1_cube);
+}
+
+// random_tin (PRD "Random Tin generation"): Role t_in => Sigma0 = Ifree,
+// Sigma1 = Iknown.  Degenerate empty-Iknown case: trivial_transducer instead
+// of a random table (PRD "Edge cases" "Empty Iknown").  The state count comes
+// from config.tin_states_max (defaulting to kCorpusTinStatesMax).
 OutputLabeledTransducer random_tin(const VariablePartition& partition,
                                    std::mt19937& rng,
                                    const spot::bdd_dict_ptr& dict,
@@ -2221,59 +2278,25 @@ OutputLabeledTransducer random_tin(const VariablePartition& partition,
   // "register_turn_order_aps must be called at every dict-setup site in
   // tests too, not just the CLI"): establishes Ifree (sorted) < Iknown <
   // Ofree < Oknown on `dict` BEFORE any other registration, on EITHER
-  // branch below.  Identical variable numbering to the four manual
-  // register_ap loops this replaces (same order: input_free, input_known,
-  // output_free, output_known), so the existing byte-identical golden
-  // corpus (GeneratedCorpus.DefaultCorpusIsByteIdenticalToGolden) is
-  // unaffected -- register_ap is idempotent, so the loops below just look
-  // up the same variable numbers register_turn_order_aps already assigned.
+  // branch below.
   register_turn_order_aps(partition, dict);
 
   if (partition.input_known.empty())
     return trivial_transducer(partition, Role::t_in, dict);
+  return random_table_transducer(partition, Role::t_in, rng, dict, config);
+}
 
-  auto g = spot::make_twa_graph(dict);
-  // Register every I \cup O AP on this dict (PRD pseudocode), even the ones
-  // delta/lambda never look at (Ofree, Oknown) -- ltlf_to_dfa/synthesize will
-  // register phi's own APs on this same dict later, by name.
-  std::vector<int> ifree_vars, iknown_vars;
-  for (const std::string& n : partition.input_free)
-    ifree_vars.push_back(g->register_ap(n));
-  for (const std::string& n : partition.input_known)
-    iknown_vars.push_back(g->register_ap(n));
-  for (const std::string& n : partition.output_free) g->register_ap(n);
-  for (const std::string& n : partition.output_known) g->register_ap(n);
-
-  std::uniform_int_distribution<int> state_count(1, config.tin_states_max);
-  const int n = state_count(rng);
-  g->new_states(n);
-  g->set_init_state(0);
-
-  const std::vector<bdd> ifree_letters = all_letters_over(ifree_vars);
-  std::uniform_int_distribution<int> dst_dist(0, n - 1);
-  std::bernoulli_distribution bit(0.5);
-  std::vector<bdd> lambda_by_state(n, bddfalse);
-  for (int q = 0; q < n; ++q) {
-    bdd lambda_q = bddfalse;
-    for (const bdd& ifree_cube : ifree_letters) {
-      // delta: one edge per Ifree-cube -- mutually exclusive, exhaustive
-      // guards, so delta is deterministic + total over Ifree.
-      g->new_edge(q, dst_dist(rng), ifree_cube);
-      // lambda: a full Iknown assignment OR'd in per Ifree-cube, so
-      // lambda(q, .) is a total function Ifree -> 2^Iknown.
-      bdd iknown_cube = bddtrue;
-      for (int x : iknown_vars) iknown_cube &= bit(rng) ? bdd_ithvar(x) : bdd_nithvar(x);
-      lambda_q |= ifree_cube & iknown_cube;
-    }
-    lambda_by_state[q] = lambda_q;
-  }
-
-  bdd sigma0_cube = bddtrue;
-  for (int x : ifree_vars) sigma0_cube &= bdd_ithvar(x);
-  bdd sigma1_cube = bddtrue;
-  for (int x : iknown_vars) sigma1_cube &= bdd_ithvar(x);
-  return OutputLabeledTransducer(g, std::move(lambda_by_state), sigma0_cube,
-                                 sigma1_cube);
+// random_tout: Role t_out => Sigma0 = I union Ofree (the same step's inputs
+// and free outputs), Sigma1 = Oknown.  Empty Oknown: trivial_transducer, as
+// for random_tin.  `dict` already carries the turn-order registration made by
+// random_tin.
+OutputLabeledTransducer random_tout(const VariablePartition& partition,
+                                    std::mt19937& rng,
+                                    const spot::bdd_dict_ptr& dict,
+                                    const CorpusConfig& config) {
+  if (partition.output_known.empty())
+    return trivial_transducer(partition, Role::t_out, dict);
+  return random_table_transducer(partition, Role::t_out, rng, dict, config);
 }
 
 // GenerateOneCase (soak-driver OOM fix, 2026-07-12:
@@ -2294,7 +2317,8 @@ GeneratedCase GenerateOneCase(std::mt19937& rng, const CorpusConfig& config) {
       generate_random_formula(partition, rng, config), rng);
   const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
   OutputLabeledTransducer t_in = random_tin(partition, rng, dict, config);
-  return {phi, std::move(partition), std::move(t_in)};
+  OutputLabeledTransducer t_out = random_tout(partition, rng, dict, config);
+  return {phi, std::move(partition), std::move(t_in), std::move(t_out)};
 }
 
 // BuildGeneratedCorpus (PRD "Determinism / seeding"): one seeded
@@ -2696,6 +2720,53 @@ TEST(GeneratedCorpusGenerator, EveryGeneratedTinIsDeterministicAndTotal) {
   }
 }
 
+// random_tout on a partition with a non-empty Oknown: a table transducer over
+// Sigma0 = I union Ofree (the same step's inputs and free outputs) producing
+// Sigma1 = Oknown, deterministic and total -- exactly one delta edge per
+// Sigma0 valuation, and lambda answers it with one full Oknown assignment.
+TEST(GeneratedCorpusGenerator, RandomToutIsDeterministicAndTotalOverInputsAndFreeOutputs) {
+  const VariablePartition partition = VariablePartition::split(
+      {"a", "b"}, {"c", "d", "e"}, /*governed=*/{"b", "d", "e"});
+  ASSERT_EQ(partition.input_free, (std::set<std::string>{"a"}));
+  ASSERT_EQ(partition.output_free, (std::set<std::string>{"c"}));
+  ASSERT_EQ(partition.output_known, (std::set<std::string>{"d", "e"}));
+
+  const CorpusConfig config;
+  std::mt19937 rng(kCorpusSeed);
+  for (int trial = 0; trial < 16; ++trial) {
+    SCOPED_TRACE("trial " + std::to_string(trial));
+    const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+    register_turn_order_aps(partition, dict);
+    const OutputLabeledTransducer t_out =
+        random_tout(partition, rng, dict, config);
+
+    const SigmaSlices slices = sigma_slices(partition, Role::t_out);
+    std::vector<int> sigma0_vars;
+    for (const std::string& name : slices.sigma0)
+      sigma0_vars.push_back(dict->varnum(spot::formula::ap(name)));
+    ASSERT_EQ(sigma0_vars.size(), 3u);  // a, b, c.
+
+    const unsigned n = t_out.delta_dfa()->num_states();
+    ASSERT_GE(n, 1u);
+    for (unsigned q = 0; q < n; ++q) {
+      bdd covered = bddfalse;
+      for (const auto& [guard, dst] : t_out.delta_edges(q)) {
+        EXPECT_LT(dst, n);
+        EXPECT_EQ(covered & guard, bddfalse) << "overlapping edge guards";
+        covered |= guard;
+      }
+      for (const bdd& letter : all_letters_over(sigma0_vars)) {
+        ASSERT_TRUE(t_out.delta(q, letter).has_value())
+            << "state " << q << " has an unhandled Sigma0 valuation";
+        const std::optional<bdd> out = t_out.lambda(q, letter);
+        ASSERT_TRUE(out.has_value());
+        EXPECT_EQ(bdd_satcountset(*out, t_out.sigma1_cube()), 1.0)
+            << "lambda is not one full Oknown assignment";
+      }
+    }
+  }
+}
+
 // PRD "Partition generation": every generated partition splits the case's
 // atoms into the four roles Ifree, Iknown, Ofree, Oknown with no atom in two
 // roles; there is at least one input; Oknown is empty in v1; the universe is
@@ -3000,8 +3071,7 @@ TEST(GeneratedCorpus, MetamorphicRoundTrip) {
                      ", level=" + std::to_string(level) + " " +
                      DescribeCorpusConfig(cfg));
 
-        const OutputLabeledTransducer t_out =
-            trivial_transducer(c.partition, Role::t_out, c.t_in.dict());
+        const OutputLabeledTransducer& t_out = c.t_out;
 
         DfaProduct dfa_method;
         MtdfaProduct mtdfa_method;
@@ -3084,8 +3154,7 @@ TEST(GeneratedCorpus, NfaProductMatchesDfaProductAndMetamorphic) {
                      ", level=" + std::to_string(level) + " " +
                      DescribeCorpusConfig(cfg));
 
-        const OutputLabeledTransducer t_out =
-            trivial_transducer(c.partition, Role::t_out, c.t_in.dict());
+        const OutputLabeledTransducer& t_out = c.t_out;
 
         DfaProduct dfa_method;
         NfaProduct nfa_method;
@@ -3183,8 +3252,7 @@ TEST(GeneratedCorpus, BuildEquivalence) {
                      ", level=" + std::to_string(level) + " " +
                      DescribeCorpusConfig(cfg));
 
-        const OutputLabeledTransducer t_out =
-            trivial_transducer(c.partition, Role::t_out, c.t_in.dict());
+        const OutputLabeledTransducer& t_out = c.t_out;
         const std::vector<const Transducer*> taus{&c.t_in, &t_out};
 
         // Same (goal, taus, init) construction as DfaProduct::synthesize
