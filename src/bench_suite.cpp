@@ -1133,9 +1133,9 @@ class SlipperyBinaryCompactFamily final : public BenchFamily {
 // registry against the same --families=/--subjects= flag spelling).
 // ---------------------------------------------------------------------------
 
-// The co-generated (T_in, psi_in) family (issue #86; the generator is
-// window_source.hpp's, shared with the generated-corpus known-knowledge
-// differential): k_t = a0_{t-n}, a table T_in of 2^n states and the matching
+// The co-generated (T_in, psi_in) family: the delay member of
+// window_source.hpp's bounded-memory source (delay_window_source), not its
+// random draw (bench families are template-only): k_t = a0_{t-n}, a table T_in of 2^n states and the matching
 // guarded weak-X psi_in, so the family is t1 and races ltlfsynt on
 // `psi_in -> phi`.  phi_n = G((a0 -> X^n k) & (!a0 -> X^n !k)) with weak X (an
 // <-> would not be vacuous past the last position) holds under the knowledge
@@ -1162,11 +1162,9 @@ class CoGeneratedFamily final : public BenchFamily {
     VariablePartition vars;
     vars.input_free = {a0};
     vars.input_known = {"k"};
-    std::string next_k = "k", next_not_k = "!k";
-    for (std::int64_t i = 0; i < n; ++i) {
-      next_k = "X(" + next_k + ")";
-      next_not_k = "X(" + next_not_k + ")";
-    }
+    const int depth = static_cast<int>(n);
+    const std::string next_k = weak_next(depth, "k");
+    const std::string next_not_k = weak_next(depth, "!k");
     std::string phi_text = "G((" + a0 + " -> " + next_k + ") & (!" + a0 +
                            " -> " + next_not_k + "))";
     if (!realizable) phi_text = add_unrealizable_conjunct(phi_text, vars);

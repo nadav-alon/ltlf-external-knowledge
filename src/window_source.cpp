@@ -9,18 +9,27 @@ namespace ltlf_ek {
 
 std::string free_input_name(int v) { return "a" + std::to_string(v); }
 
-namespace {
+const char* WindowKindName(WindowKind kind) {
+  switch (kind) {
+    case WindowKind::kConst: return "const";
+    case WindowKind::kCopy: return "copy";
+    case WindowKind::kDelay: return "delay";
+    case WindowKind::kWindow: return "window";
+  }
+  return "?";
+}
 
-constexpr int kCoGenFreeInputsMax = 2;       // m in [1, kCoGenFreeInputsMax].
-constexpr int kCoGenDepthMax = 2;            // d in [0, kCoGenDepthMax].
-constexpr int kCoGenWindowBitsMax = 4;       // m * (d + 1) <= this.
-
-// X^n(inner) with weak X.
 std::string weak_next(int n, const std::string& inner) {
   std::string text = inner;
   for (int i = 0; i < n; ++i) text = "X(" + text + ")";
   return text;
 }
+
+namespace {
+
+constexpr int kCoGenFreeInputsMax = 2;       // m in [1, kCoGenFreeInputsMax].
+constexpr int kCoGenDepthMax = 2;            // d in [0, kCoGenDepthMax].
+constexpr int kCoGenWindowBitsMax = 4;       // m * (d + 1) <= this.
 
 // Conjunction of literals over `names` selected by the bits of `bits`.
 std::string cube_text(const std::vector<std::string>& names, unsigned bits) {
@@ -120,7 +129,7 @@ std::string window_tin_file(const WindowSource& src) {
   return os.str();
 }
 
-// psi_in of a window source, in the guarded weak-X shape described above.
+// psi_in of a window source, in the guarded weak-X shape described in window_source.hpp.
 // `h` assigns the free inputs at positions 0..len-1 of a window starting at
 // the current position (bit i*m + v = input v at offset i); f at its last
 // position reads a_{last-j} from offset last-j, and false beyond the start.
