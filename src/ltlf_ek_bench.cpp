@@ -618,6 +618,8 @@ const std::set<std::string>& CanonicalMetricNames() {
 
 struct RepeatedResult {
   std::map<std::string, std::uint64_t> min_values;  // key -> min over successes
+  std::map<std::string, std::uint64_t> median_values;  // key -> median over successes
+  std::uint64_t median_wall_total = 0;  // median over successes of that run's stage sum
   int successes = 0;
   int timeouts = 0;
   int failures = 0;               // died by signal, nonzero exit, or truncated
@@ -625,10 +627,20 @@ struct RepeatedResult {
   std::string last_failure_detail;  // e.g. "signal_11", "exit_1"
 };
 
+// Median of a non-empty sample; the mean of the two middle values (rounded
+// down) when the count is even.
+std::uint64_t Median(std::vector<std::uint64_t> v) {
+  std::sort(v.begin(), v.end());
+  const std::size_t mid = v.size() / 2;
+  return v.size() % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+}
+
 RepeatedResult RunCaseRepeated(const BenchCase* case_ptr,
                                const BenchSubject* subject_ptr, int repeat,
                                std::chrono::seconds timeout) {
   RepeatedResult result;
+  std::map<std::string, std::vector<std::uint64_t>> samples;
+  std::vector<std::uint64_t> wall_totals;
   for (int i = 0; i < repeat; ++i) {
     const TimedRunResult tr = RunCaseWithTimeout(case_ptr, subject_ptr, timeout);
     if (tr.outcome == RunOutcome::kTimedOut) {
@@ -641,12 +653,18 @@ RepeatedResult RunCaseRepeated(const BenchCase* case_ptr,
       continue;
     }
     ++result.successes;
+    std::uint64_t wall_total = 0;
     for (const BenchRow& row : tr.rows) {
+      samples[row.key].push_back(row.value);
+      if (CanonicalStageNames().count(row.key)) wall_total += row.value;
       auto it = result.min_values.find(row.key);
       if (it == result.min_values.end() || row.value < it->second)
         result.min_values[row.key] = row.value;
     }
+    wall_totals.push_back(wall_total);
   }
+  for (const auto& [key, v] : samples) result.median_values[key] = Median(v);
+  if (!wall_totals.empty()) result.median_wall_total = Median(wall_totals);
   return result;
 }
 
@@ -660,8 +678,9 @@ struct TimingRow {
   bool realizable;
   std::string subject;
   std::string stage;
-  std::uint64_t ns;
+  std::uint64_t ns;  // min over the repeats
   bool timed_out;
+  std::optional<std::uint64_t> median_ns;  // absent on a marker row
 };
 
 struct StructuralRow {
@@ -679,10 +698,11 @@ struct LtlfsyntRow {
   bool realizable;
   std::string tier;
   std::optional<std::string> psi_in;
-  std::string status;  // "ok" | "skipped" | "timeout" | "n/a -- by expressibility" | "error"
+  std::string status;  // "ok" | "skipped" | "timeout" | "partial_timeout" | "n/a -- by expressibility" | "error"
   std::optional<std::string> ek_verdict;
   std::optional<std::string> ltlfsynt_verdict;
-  std::optional<std::uint64_t> ltlfsynt_ns;
+  std::optional<std::uint64_t> ltlfsynt_ns;         // min over the repeats
+  std::optional<std::uint64_t> ltlfsynt_median_ns;  // median over the repeats
   bool verdict_mismatch = false;
 };
 
@@ -1019,14 +1039,16 @@ int main(int argc, char** argv) {
               } else {
                 timing_rows.push_back(TimingRow{family->name(), n, realizable,
                                                 subject->name(), key, value,
-                                                false});
+                                                false,
+                                                rr.median_values.at(key)});
                 if (CanonicalStageNames().count(key)) wall_total += value;
               }
             }
             if (!rr.min_values.empty()) {
               timing_rows.push_back(TimingRow{family->name(), n, realizable,
                                               subject->name(), "wall_total",
-                                              wall_total, false});
+                                              wall_total, false,
+                                              rr.median_wall_total});
             }
             if (rr.timeouts > 0) {
               // Partial timeout: some repeats succeeded (used above for the
@@ -1088,13 +1110,13 @@ int main(int argc, char** argv) {
                 family->name(), n, realizable,
                 std::string(comparability_tier_name(c->tier)), c->psi_in,
                 "n/a -- by expressibility", std::nullopt, std::nullopt,
-                std::nullopt, false});
+                std::nullopt, std::nullopt, false});
             continue;
           }
           LtlfsyntRow row{family->name(),      n,  realizable,
                          std::string(comparability_tier_name(c->tier)),
                          c->psi_in,           "",  std::nullopt,
-                         std::nullopt,         std::nullopt, false};
+                         std::nullopt,         std::nullopt, std::nullopt, false};
           row.ek_verdict = c->expected_realizable ? "REALIZABLE" : "UNREALIZABLE";
           if (ltlfsynt_binary.empty()) {
             row.status = "skipped";
@@ -1109,6 +1131,7 @@ int main(int argc, char** argv) {
           for (const auto& ap : c->vars.outputs()) outs += (outs.empty() ? "" : ",") + ap;
 
           std::optional<std::uint64_t> best_ns;
+          std::vector<std::uint64_t> samples_ns;
           std::optional<bool> synt_realizable;
           bool any_success = false, any_timeout = false;
           for (int rep = 0; rep < args.repeat; ++rep) {
@@ -1127,6 +1150,7 @@ int main(int argc, char** argv) {
             const std::uint64_t ns = static_cast<std::uint64_t>(
                 std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0)
                     .count());
+            samples_ns.push_back(ns);
             if (!best_ns || ns < *best_ns) best_ns = ns;
             synt_realizable = ParseLtlfsyntVerdict(sr);
           }
@@ -1135,8 +1159,11 @@ int main(int argc, char** argv) {
           } else if (!synt_realizable) {
             row.status = "error";  // ltlfsynt ran but printed no verdict word
           } else {
-            row.status = "ok";
+            // Some repeats timed out: the samples are the fast survivors, so
+            // the median is censored; the row says so rather than posing as ok.
+            row.status = any_timeout ? "partial_timeout" : "ok";
             row.ltlfsynt_ns = best_ns;
+            row.ltlfsynt_median_ns = Median(samples_ns);
             row.ltlfsynt_verdict = *synt_realizable ? "REALIZABLE" : "UNREALIZABLE";
             // Stop-list item 4: a verdict disagreement is an O5-class
             // theory finding, recorded prominently, never "fixed" here.
@@ -1242,6 +1269,7 @@ int main(int argc, char** argv) {
       json << ",\"subject\":"; WriteJsonString(json, r.subject);
       json << ",\"stage\":"; WriteJsonString(json, r.stage);
       json << ",\"ns\":" << r.ns;
+      json << ",\"median_ns\":"; WriteJsonOptU64(json, r.median_ns);
       json << ",\"timed_out\":" << (r.timed_out ? "true" : "false") << "}";
     }
     json << "]";
@@ -1270,6 +1298,7 @@ int main(int argc, char** argv) {
       json << ",\"ek_verdict\":"; WriteJsonOptStr(json, r.ek_verdict);
       json << ",\"ltlfsynt_verdict\":"; WriteJsonOptStr(json, r.ltlfsynt_verdict);
       json << ",\"ltlfsynt_ns\":"; WriteJsonOptU64(json, r.ltlfsynt_ns);
+      json << ",\"ltlfsynt_median_ns\":"; WriteJsonOptU64(json, r.ltlfsynt_median_ns);
       json << ",\"verdict_mismatch\":" << (r.verdict_mismatch ? "true" : "false") << "}";
     }
     json << "]";

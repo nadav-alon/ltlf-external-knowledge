@@ -179,6 +179,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/slippery_world_test.cpp
     tests/slippery_binary_compact_test.cpp
     tests/bench_runner_isolation_test.cpp
+    tests/bench_sweep_test.cpp
   )
   target_link_libraries(unit_tests PRIVATE ltlf_ek GTest::gtest_main)
   # tests/ltlf_ek_synth_test.cpp drives the built ltlf-ek-synth binary as a
@@ -223,4 +224,7 @@ if(LTLF_EK_BUILD_TESTS)
 
   include(GoogleTest)
   gtest_discover_tests(unit_tests)
+  add_test(NAME sweep_report_py
+           COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_sweep_report.py
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
 endif()

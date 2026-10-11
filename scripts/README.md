@@ -70,3 +70,17 @@ Neither check launches Python unless the staged changes could invalidate it: the
 macro check needs `latex` or `.vscode/settings.json` staged, and the citation
 check needs `latex` staged or a staged line that actually adds a `main.tex:NNN`.
 Every other commit pays just one `git diff` + `grep` (~10ms).
+
+## The sweep: `run-sweep.sh`, `sweep_report.py`
+
+```sh
+scripts/run-sweep.sh [OUT_DIR]     # Release build, one ltlf-ek-bench run, then the report
+BUDGET=60 scripts/run-sweep.sh     # a smoke run
+```
+
+`run-sweep.sh` writes `sweep.json` and `report.md` (default `build/benchout/sweep/`).
+Defaults: repeat=5, 20 s per-case timeout, `ulimit -v` 8 GiB, a one-day budget so the
+grid is never truncated; `N_MAX`, `BUDGET`, `MEM_KIB`, `SPOT_ROOT` override. The report
+groups by family (all `slippery-*` arms are one), prints the prune ratio and the
+speedup over ltlfsynt at each N, and headlines the largest N that finished on both
+sides. `test_sweep_report.py` is its unit test (ctest `sweep_report_py`).
