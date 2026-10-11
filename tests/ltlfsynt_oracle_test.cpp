@@ -3767,6 +3767,68 @@ TEST(CoGeneratedCorpus, SameSeedYieldsSamePairs) {
   }
 }
 
+// Known-knowledge differential: ltlf-ek-synth under the co-generated T_in
+// against ltlfsynt on `psi_in -> phi`.  Covers the wrongly-unrealizable
+// direction the metamorphic round-trip cannot see.  A case is load-bearing
+// when dropping psi_in flips the ltlfsynt verdict, i.e. the knowledge
+// changed the outcome; the corpus must contain some, else the differential
+// would pass vacuously.
+TEST_F(LtlfsyntOracleTest, CoGeneratedKnownKnowledgeDifferential) {
+  const CorpusConfig base = corpus_config_from_env();
+  const std::vector<CoGeneratedCase> corpus = BuildCoGeneratedCorpus(base);
+  std::size_t load_bearing = 0, skipped = 0;
+  for (std::size_t i = 0; i < corpus.size(); ++i) {
+    const CoGeneratedCase& c = corpus[i];
+    const VariablePartition& part = c.pair.partition;
+    std::ostringstream phi_os;
+    phi_os << c.phi;
+    const std::string phi = phi_os.str();
+    SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi + ", " +
+                 c.pair.description + ", psi_in=" + c.pair.psi_in);
+
+    const ScopedTempFile part_file(
+        "input_free: " + JoinSpaced(part.input_free) +
+        "\ninput_known: k\noutput_free: " + JoinSpaced(part.output_free) +
+        "\noutput_known:\n");
+    const ScopedTempFile tin_file(c.pair.tin_file);
+    const std::string ins = JoinCsv(part.input_free) + ",k";
+    const std::string outs = JoinCsv(part.output_free);
+
+    bool ek_timed_out = false;
+    const CliResult ek = RunEkSynth(
+        {"--dfa-product", "--formula=" + phi, "--part-file", part_file.path(),
+         "--known-input-transducer", tin_file.path(), "--realizable"},
+        base.subprocess_timeout_secs, &ek_timed_out);
+    bool synt_timed_out = false;
+    const CliResult synt = RunLtlfsynt(
+        {"--ins=" + ins, "--outs=" + outs, "--semantics=Mealy",
+         "--realizability", "-f", "(" + c.pair.psi_in + ") -> (" + phi + ")"},
+        base.subprocess_timeout_secs, &synt_timed_out);
+    bool bare_timed_out = false;
+    const CliResult bare = RunLtlfsynt(
+        {"--ins=" + ins, "--outs=" + outs, "--semantics=Mealy",
+         "--realizability", "-f", phi},
+        base.subprocess_timeout_secs, &bare_timed_out);
+    if (ek_timed_out || synt_timed_out || bare_timed_out) {
+      ++skipped;
+      continue;
+    }
+
+    const bool ek_realizable = IsRealizable(ParseEkSynthVerdict(ek));
+    const bool synt_realizable = IsRealizable(ParseLtlfsyntVerdict(synt));
+    EXPECT_EQ(ek_realizable, synt_realizable)
+        << "co-generated known-knowledge differential disagreement";
+    if (IsRealizable(ParseLtlfsyntVerdict(bare)) != synt_realizable)
+      ++load_bearing;
+  }
+  RecordProperty("load_bearing", static_cast<int>(load_bearing));
+  RecordProperty("differential_skipped", static_cast<int>(skipped));
+  if (corpus.size() >= kCorpusCaseCount)
+    EXPECT_GE(load_bearing, 5u)
+        << "too few load-bearing co-generated cases: the differential is "
+           "close to vacuous";
+}
+
 // ---------------------------------------------------------------------------
 // Phase 2 checkpoint (docs/prd/ltlf-to-nfa.md "Implementation phases" Phase
 // 2, "Test oracles"): L(past_ltlf_to_dfa(phi)) == reverse(L(phi)), verified
