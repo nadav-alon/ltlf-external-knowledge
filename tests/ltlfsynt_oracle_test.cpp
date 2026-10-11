@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <functional>
 #include <cstdint>
 #include <limits>
 #include <map>
@@ -45,9 +46,11 @@
 #include <spot/misc/random.hh>
 #include <spot/tl/defaultenv.hh>
 #include <spot/tl/parse.hh>
+#include <spot/tl/print.hh>
 #include <spot/tl/randomltl.hh>
 #include <spot/twa/bdddict.hh>
 #include <spot/twa/formula2bdd.hh>
+#include <spot/twa/bddprint.hh>
 #include <spot/twaalgos/complete.hh>
 #include <spot/twaalgos/isdet.hh>
 #include <spot/twaalgos/powerset.hh>
@@ -1962,16 +1965,52 @@ struct GeneratedCase {
   OutputLabeledTransducer t_in;
 };
 
+// is_commutative: the operators whose children Spot orders by allocation
+// identity, so canonical_text and strengthen_next must both sort them.
+bool is_commutative(spot::formula f) {
+  return f.is(spot::op::And, spot::op::Or, spot::op::Xor, spot::op::Equiv);
+}
+
+// canonical_text: a printed form of `f` that does not depend on Spot's
+// allocation-identity order of commutative children: the children of &, |,
+// xor and <-> are listed in sorted order at every depth, so the text is a
+// function of the formula alone, not of what the process built before it.
+std::string canonical_text(spot::formula f) {
+  if (f.size() == 0) return spot::str_psl(f);
+  std::vector<std::string> children;
+  for (spot::formula child : f) children.push_back(canonical_text(child));
+  if (is_commutative(f)) std::sort(children.begin(), children.end());
+  std::string text = std::string(f.kindstr()) + "(";
+  for (std::size_t i = 0; i < children.size(); ++i)
+    text += (i ? "," : "") + children[i];
+  return text + ")";
+}
+
 // strengthen_next (PRD "Formula generation"): recursively rewrite every
 // op::X node in `f` to op::strong_X (X[!]) with probability
 // kCorpusStrongXProbability, drawn from `rng` so the rewrite is seeded and
 // reproducible.  Both ltlf-ek-synth and ltlfsynt accept weak X and X[!], so
 // this only shifts the generated distribution, never an encoding hazard.
-// Uses spot::formula::map (bottom-up: children are rewritten first, so a
-// nested X[X a] can independently promote either/both occurrences).
+// Bottom-up: children are rewritten first, so a nested X[X a] can
+// independently promote either/both occurrences.  Spot orders the children of
+// the commutative operators (&, |, xor, <->) by allocation identity, which
+// differs between builds, so those children are visited in the order of their
+// canonical_text instead: the rng draws then land on the same X nodes in every
+// build, and the same seed yields the same corpus.
 spot::formula strengthen_next(spot::formula f, std::mt19937& rng) {
-  spot::formula mapped = f.map(
-      [&](spot::formula child) { return strengthen_next(child, rng); });
+  std::map<spot::formula, spot::formula> rewritten;
+  if (is_commutative(f)) {
+    std::vector<std::pair<std::string, spot::formula>> children;
+    for (spot::formula child : f) children.emplace_back(canonical_text(child), child);
+    std::sort(children.begin(), children.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (const auto& [text, child] : children)
+      rewritten.emplace(child, strengthen_next(child, rng));
+  }
+  spot::formula mapped = f.map([&](spot::formula child) {
+    const auto it = rewritten.find(child);
+    return it != rewritten.end() ? it->second : strengthen_next(child, rng);
+  });
   std::bernoulli_distribution flip(kCorpusStrongXProbability);
   if (mapped.is(spot::op::X) && flip(rng))
     return spot::formula::unop(spot::op::strong_X, mapped[0]);
@@ -2143,11 +2182,27 @@ spot::formula generate_random_formula(const VariablePartition& partition,
   priorities.push_back('\0');
 
   spot::randltlgenerator rg(aprops, opts, priorities.data());
-  const spot::formula phi = rg.next();
-  if (!phi)
+  const spot::formula drawn = rg.next();
+  if (!drawn)
     throw std::runtime_error(
         "generate_random_formula: randltlgenerator produced no formula");
-  return phi;
+
+  // randltlgenerator picks atoms by their position in `aprops`, which Spot
+  // orders by allocation identity -- not by name, and not the same in every
+  // build.  Rename the k-th atom in that order to the k-th name in sorted
+  // order, so the formula drawn for a seed does not depend on what the
+  // process interned before.
+  std::vector<spot::formula> by_identity(aprops.begin(), aprops.end());
+  std::map<spot::formula, spot::formula> by_name;
+  auto name_it = ap_names.begin();
+  for (spot::formula ap : by_identity)
+    by_name.emplace(ap, spot::formula::ap(*name_it++));
+  std::function<spot::formula(spot::formula)> rename =
+      [&](spot::formula f) -> spot::formula {
+    if (f.is(spot::op::ap)) return by_name.at(f);
+    return f.map(rename);
+  };
+  return rename(drawn);
 }
 
 // random_tin (PRD "Random Tin generation"): an in-memory OutputLabeledTransducer
@@ -2316,20 +2371,16 @@ struct RunCorpusStats {
 // Spot global-RNG reset (soak-mode PRD "Fresh seed per level" warning):
 // spot::randltlgenerator's "seed" option seeds Spot's process-*global* RNG
 // (spot::srand), which a same-seed re-construction in the same process does
-// not cleanly reset (empirically confirmed -- see the kGoldenSeed1Corpus*
-// comment above).  run_corpus builds many corpora per process, so calling
+// not cleanly reset (empirically confirmed by the Phase 2 developer).
+// run_corpus builds many corpora per process, so calling
 // spot::srand(cfg.seed) immediately before each per-level BuildGeneratedCorpus
-// resets that one mechanism.  IMPORTANT: this reset is necessary but *not*
-// sufficient for full in-process, level-to-level reproducibility -- a deeper
-// Spot mechanism (reference-counted/apid-recycling hash-consing of atomic
-// props, spot/tl/formula.cc fnode::ap) can still make two same-seed
-// in-process builds diverge (empirically confirmed by the Phase 2 developer;
-// see docs/prd/generated-corpus-soak-mode.md "Developer comments / PRD
-// disagreements", 2026-07-12, for the full repro and root cause). This does
-// NOT affect the documented per-case replay recipe (fresh process, single
-// BuildGeneratedCorpus call, LTLF_EK_SOAK unset) -- only repeated in-process
-// rebuilds with the same seed are at risk. Do not write a "same cfg.seed
-// twice in one process" unit test against run_corpus; it would be flaky.
+// resets that mechanism.  The other process-history leak, Spot's
+// allocation-identity order of atomic propositions and of the commutative
+// children (spot/tl/formula.cc fnode::ap), no longer reaches the corpus:
+// BuildGeneratedCorpus renames each drawn formula's atoms in sorted order and
+// strengthen_next visits commutative children in canonical_text order, so two
+// same-seed builds in one process yield the same corpus (see
+// GeneratedCorpusGenerator.SameSeedYieldsSameCorpusCaseForCase).
 template <class PerCase>
 RunCorpusStats run_corpus(const CorpusConfig& base, PerCase&& per_case) {
   RunCorpusStats stats;
@@ -2484,9 +2535,8 @@ std::vector<std::unique_ptr<ScopedEnvVar>> UnsetAllCorpusEnvVars() {
 std::uint64_t ChecksumGeneratedCorpus(const std::vector<GeneratedCase>& corpus) {
   std::uint64_t hash = 14695981039346656037ull;  // FNV-1a 64-bit offset basis
   for (const GeneratedCase& c : corpus) {
-    std::ostringstream phi_os;
-    phi_os << c.phi;
-    const std::string s = phi_os.str() + DescribeGeneratedPartition(c.partition);
+    const std::string s =
+        canonical_text(c.phi) + DescribeGeneratedPartition(c.partition);
     for (unsigned char byte : s) {
       hash ^= byte;
       hash *= 1099511628211ull;  // FNV-1a 64-bit prime
@@ -2495,17 +2545,17 @@ std::uint64_t ChecksumGeneratedCorpus(const std::vector<GeneratedCase>& corpus) 
   return hash;
 }
 
-// Golden values captured from the actual just-landed default corpus (PRD
-// "Golden values": "the PRD leaves the exact golden open" -- captured here
-// by running BuildGeneratedCorpus(corpus_config_from_env()) with no env set
-// on the landed Phase 1 tree). A later mismatch means the mt19937 draw order
-// drifted -- "investigate, don't adjust" (PRD "Edge cases" / repo-wide rule),
-// never silently re-capture to make the test pass.
+// Golden values of the default corpus (BuildGeneratedCorpus on
+// corpus_config_from_env() with no env set), recaptured at aa0ad8c from a
+// single BuildGeneratedCorpus in a fresh process, after the canonical-order
+// fix.  A later mismatch means the
+// mt19937 draw order drifted -- "investigate, don't adjust" (PRD "Edge cases"
+// / repo-wide rule), never silently re-capture to make the test pass.
 const std::string kGoldenDefaultCorpusPhi0 = "1";
 const std::string kGoldenDefaultCorpusPartition0 =
     "input_free={p0 p1 p2 p3 } input_known={} output_free={p4 } "
     "output_known={}";
-constexpr std::uint64_t kGoldenDefaultCorpusChecksum = 6327196066608144121ull;
+constexpr std::uint64_t kGoldenDefaultCorpusChecksum = 6597942268664199858ull;
 
 // Byte-identical default (soak-mode PRD "Test oracles" #1, "the critical
 // guard"): with no LTLF_EK_CORPUS_* env set, corpus_config_from_env() must
@@ -2532,9 +2582,7 @@ TEST(GeneratedCorpus, DefaultCorpusIsByteIdenticalToGolden) {
   const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
   ASSERT_EQ(corpus.size(), kCorpusCaseCount);
 
-  std::ostringstream phi0_os;
-  phi0_os << corpus.front().phi;
-  EXPECT_EQ(phi0_os.str(), kGoldenDefaultCorpusPhi0)
+  EXPECT_EQ(canonical_text(corpus.front().phi), kGoldenDefaultCorpusPhi0)
       << "default corpus's case-0 phi drifted from the golden -- the "
          "CorpusConfig refactor may have shifted the mt19937 draw order";
   EXPECT_EQ(DescribeGeneratedPartition(corpus.front().partition),
@@ -2543,6 +2591,153 @@ TEST(GeneratedCorpus, DefaultCorpusIsByteIdenticalToGolden) {
   EXPECT_EQ(ChecksumGeneratedCorpus(corpus), kGoldenDefaultCorpusChecksum)
       << "default corpus's full 256-case (phi, partition) stream drifted "
          "from the golden checksum -- some case beyond #0 shifted";
+}
+
+// A case's random Tin as text, so two cases built on different private
+// bdd_dicts compare by AP name rather than by BDD variable number, and by
+// canonical_text rather than Spot's allocation-identity order of the
+// commutative children: per state, every delta edge (guard -> destination)
+// and the emits region.
+std::string DescribeGeneratedTin(const OutputLabeledTransducer& t_in) {
+  const spot::bdd_dict_ptr dict = t_in.dict();
+  std::ostringstream os;
+  os << "init=" << t_in.initial_state();
+  const unsigned n = t_in.delta_dfa()->num_states();
+  for (unsigned q = 0; q < n; ++q) {
+    os << " q" << q << "{";
+    for (const auto& [guard, dst] : t_in.delta_edges(q))
+      os << "[" << canonical_text(spot::bdd_to_formula(guard, dict)) << "->"
+         << dst << "]";
+    os << " emits="
+       << canonical_text(spot::bdd_to_formula(t_in.emits_region(q), dict))
+       << "}";
+  }
+  return os.str();
+}
+
+// PRD "Determinism / seeding": the same config yields the same corpus, case
+// for case -- formula, partition and Tin -- even when built twice in one
+// process, where Spot's allocation state differs between the two builds.
+TEST(GeneratedCorpusGenerator, SameSeedYieldsSameCorpusCaseForCase) {
+  const std::vector<std::unique_ptr<ScopedEnvVar>> clean_env =
+      UnsetAllCorpusEnvVars();
+  const CorpusConfig config = corpus_config_from_env();
+
+  const std::vector<GeneratedCase> first = BuildGeneratedCorpus(config);
+  const std::vector<GeneratedCase> second = BuildGeneratedCorpus(config);
+  ASSERT_EQ(first.size(), second.size());
+  for (std::size_t i = 0; i < first.size(); ++i) {
+    SCOPED_TRACE("case " + std::to_string(i) + " phi=" +
+                 spot::str_psl(first[i].phi));
+    EXPECT_EQ(canonical_text(first[i].phi), canonical_text(second[i].phi));
+    EXPECT_EQ(DescribeGeneratedPartition(first[i].partition),
+              DescribeGeneratedPartition(second[i].partition));
+    EXPECT_EQ(DescribeGeneratedTin(first[i].t_in),
+              DescribeGeneratedTin(second[i].t_in));
+  }
+}
+
+// PRD "Random Tin generation": every generated Tin is deterministic and total
+// (the committed Case-A regime, \cref{def:consistency}).  Over the Ifree
+// slice it observes: exactly one delta edge matches each Ifree valuation, the
+// edge guards are pairwise disjoint, and lambda answers each valuation with one full Iknown assignment.
+TEST(GeneratedCorpusGenerator, EveryGeneratedTinIsDeterministicAndTotal) {
+  const std::vector<std::unique_ptr<ScopedEnvVar>> clean_env =
+      UnsetAllCorpusEnvVars();
+  const std::vector<GeneratedCase> corpus =
+      BuildGeneratedCorpus(corpus_config_from_env());
+
+  for (std::size_t i = 0; i < corpus.size(); ++i) {
+    const GeneratedCase& c = corpus[i];
+    SCOPED_TRACE("case " + std::to_string(i) + " phi=" + spot::str_psl(c.phi) +
+                 " " + DescribeGeneratedPartition(c.partition) + " tin=" +
+                 DescribeGeneratedTin(c.t_in));
+    const spot::bdd_dict_ptr dict = c.t_in.dict();
+    std::vector<int> ifree_vars;
+    for (const std::string& name : c.partition.input_free)
+      ifree_vars.push_back(dict->varnum(spot::formula::ap(name)));
+    const std::vector<bdd> ifree_letters = all_letters_over(ifree_vars);
+
+    const unsigned n = c.t_in.delta_dfa()->num_states();
+    ASSERT_GE(n, 1u);
+    EXPECT_LT(c.t_in.initial_state(), n);
+    for (unsigned q = 0; q < n; ++q) {
+      const auto edges = c.t_in.delta_edges(q);
+      bdd covered = bddfalse;
+      for (const auto& [guard, dst] : edges) {
+        EXPECT_LT(dst, n) << "state " << q << " has an edge out of range";
+        EXPECT_EQ(covered & guard, bddfalse)
+            << "state " << q << " has overlapping edge guards";
+        covered |= guard;
+      }
+
+      for (const bdd& ifree_letter : ifree_letters) {
+        std::size_t matching = 0;
+        unsigned matching_dst = 0;
+        for (const auto& [guard, dst] : edges)
+          if ((guard & ifree_letter) != bddfalse) {
+            ++matching;
+            matching_dst = dst;
+          }
+        EXPECT_EQ(matching, 1u) << "state " << q << " is not deterministic and "
+                                << "total on an Ifree valuation";
+
+        const std::optional<unsigned> dst = c.t_in.delta(q, ifree_letter);
+        ASSERT_TRUE(dst.has_value());
+        EXPECT_EQ(*dst, matching_dst)
+            << "state " << q << " delta disagrees with its matching edge";
+        const std::optional<bdd> out = c.t_in.lambda(q, ifree_letter);
+        ASSERT_TRUE(out.has_value())
+            << "state " << q << " has an Ifree valuation with no lambda";
+        EXPECT_EQ(bdd_satcountset(*out, c.t_in.sigma1_cube()), 1.0)
+            << "state " << q << " lambda is not one full Iknown assignment";
+      }
+    }
+  }
+}
+
+// PRD "Partition generation": every generated partition splits the case's
+// atoms into the four roles Ifree, Iknown, Ofree, Oknown with no atom in two
+// roles; there is at least one input; Oknown is empty in v1; the universe is
+// exactly the fresh names p0, p1, ... within the configured widths; and the
+// formula mentions no atom outside it.
+TEST(GeneratedCorpusGenerator, EveryGeneratedPartitionSplitsTheAtomsIntoRoles) {
+  const std::vector<std::unique_ptr<ScopedEnvVar>> clean_env =
+      UnsetAllCorpusEnvVars();
+  const CorpusConfig config = corpus_config_from_env();
+  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
+
+  for (std::size_t i = 0; i < corpus.size(); ++i) {
+    const GeneratedCase& c = corpus[i];
+    const VariablePartition& p = c.partition;
+    SCOPED_TRACE("case " + std::to_string(i) + " phi=" + spot::str_psl(c.phi) +
+                 " " + DescribeGeneratedPartition(p));
+
+    const std::vector<const std::set<std::string>*> roles = {
+        &p.input_free, &p.input_known, &p.output_free, &p.output_known};
+    std::set<std::string> seen;
+    std::size_t total = 0;
+    for (const std::set<std::string>* role : roles) {
+      total += role->size();
+      seen.insert(role->begin(), role->end());
+    }
+    EXPECT_EQ(seen.size(), total) << "an atom has more than one role";
+    EXPECT_EQ(seen, p.universe());
+
+    EXPECT_GE(p.inputs().size(), 1u);
+    EXPECT_LE(p.inputs().size(), static_cast<std::size_t>(config.input_max));
+    EXPECT_LE(p.outputs().size(), static_cast<std::size_t>(config.output_max));
+    EXPECT_TRUE(p.output_known.empty());
+
+    std::set<std::string> fresh_names;
+    for (std::size_t k = 0; k < total; ++k)
+      fresh_names.insert("p" + std::to_string(k));
+    EXPECT_EQ(seen, fresh_names);
+
+    for (const std::string& atom : collect_aps(c.phi))
+      EXPECT_EQ(seen.count(atom), 1u) << "phi mentions " << atom
+                                      << " outside the partition";
+  }
 }
 
 // Env override plumbing (PRD "Test oracles" #2): LTLF_EK_CORPUS_CASES=8
@@ -2557,26 +2752,14 @@ TEST(CorpusConfigFromEnv, CasesOverrideChangesCorpusSize) {
   EXPECT_EQ(corpus.size(), 8u);
 }
 
-// Golden values for LTLF_EK_CORPUS_SEED=1, captured the same way as the
-// default golden above (a single BuildGeneratedCorpus call in a fresh
-// process).  NOTE for future readers: spot::randltlgenerator draws from a
-// process-*global* RNG that a same-seed re-construction does not cleanly
-// reset (confirmed experimentally: constructing it twice with an identical
-// explicit spot::srand()+"seed" option in the *same* process yields two
-// different formulas), so "internally deterministic" is verified the same
-// way as the default corpus -- one call per (fresh, ctest-per-test) process
-// against a captured golden -- rather than by rebuilding twice in-process
-// and comparing, which would spuriously fail on this Spot quirk and not on
-// any bug in CorpusConfig/BuildGeneratedCorpus. This is a mechanical Spot-API
-// issue (fix: spot::srand(seed) before each in-process build), captured as a
-// Phase-2 must-resolve in docs/prd/generated-corpus-soak-mode.md ("Fresh seed
-// per level"), since run_corpus's level loop builds multiple corpora per
-// process -- not a /theory-review item.
-const std::string kGoldenSeed1CorpusPhi0 = "(!p0 & p6) | (p0 & !p6)";
+// Golden values for LTLF_EK_CORPUS_SEED=1, recaptured at aa0ad8c from a
+// single BuildGeneratedCorpus in a fresh process, after the canonical-order
+// fix.
+const std::string kGoldenSeed1CorpusPhi0 = "Or(And(Not(p0),p6),And(Not(p6),p0))";
 const std::string kGoldenSeed1CorpusPartition0 =
     "input_free={p0 p2 } input_known={p1 } output_free={p3 p4 p5 p6 p7 } "
     "output_known={}";
-constexpr std::uint64_t kGoldenSeed1CorpusChecksum = 12756743135039034952ull;
+constexpr std::uint64_t kGoldenSeed1CorpusChecksum = 8149772767289634973ull;
 
 // Env override plumbing (PRD "Test oracles" #2): LTLF_EK_CORPUS_SEED=1
 // yields a *different* corpus than the default seed (from the golden
@@ -2591,9 +2774,7 @@ TEST(CorpusConfigFromEnv, SeedOverrideChangesCorpusDeterministically) {
   const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
   ASSERT_EQ(corpus.size(), kCorpusCaseCount);
 
-  std::ostringstream phi0_os;
-  phi0_os << corpus.front().phi;
-  EXPECT_EQ(phi0_os.str(), kGoldenSeed1CorpusPhi0);
+  EXPECT_EQ(canonical_text(corpus.front().phi), kGoldenSeed1CorpusPhi0);
   EXPECT_EQ(DescribeGeneratedPartition(corpus.front().partition),
             kGoldenSeed1CorpusPartition0);
   const std::uint64_t checksum = ChecksumGeneratedCorpus(corpus);
