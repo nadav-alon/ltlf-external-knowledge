@@ -1,0 +1,60 @@
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
+#include <fstream>
+#include <regex>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include <sys/wait.h>
+
+#include <gtest/gtest.h>
+
+#ifndef LTLF_EK_BENCH_BINARY
+#error "LTLF_EK_BENCH_BINARY must be defined by CMake (see CMakeLists.txt)"
+#endif
+#ifndef LTLF_EK_REPO_ROOT
+#error "LTLF_EK_REPO_ROOT must be defined by CMake (see CMakeLists.txt)"
+#endif
+
+// The sweep columns of ltlf-ek-bench's JSON: the median next to the min of the
+// repeats, the ltlfsynt column, the prune baseline.
+// Subprocess-level like tests/bench_runner_isolation_test.cpp; the report is
+// read back with regexes over the emitter's fixed key order rather than a
+// JSON parser.
+namespace {
+
+std::string RunSweep(const std::string& tag, const std::string& flags) {
+  const std::string out = std::string(LTLF_EK_REPO_ROOT) + "/build/benchout/" +
+                          tag + ".json";
+  const std::string cmd = std::string("timeout 120s ") + LTLF_EK_BENCH_BINARY +
+                          " " + flags + " --out=" + out + " >/dev/null 2>&1";
+  const int rc = std::system(cmd.c_str());
+  EXPECT_TRUE(WIFEXITED(rc) && WEXITSTATUS(rc) == 0) << cmd;
+  std::ifstream in(out);
+  std::ostringstream ss;
+  ss << in.rdbuf();
+  std::remove(out.c_str());
+  return ss.str();
+}
+
+TEST(BenchSweep, EveryTimingRowCarriesAMedianNoBelowItsMin) {
+  const std::string json = RunSweep(
+      "bench_sweep_median",
+      "--families=cons-prunes --subjects=dfa-product --n-min=2 --n-max=2 "
+      "--repeat=3 --timeout=20 --ltlfsynt=/nonexistent");
+  const std::regex row(
+      "\\{\"family\":\"cons-prunes\",\"n\":2,[^}]*\"stage\":\"wall_total\","
+      "\"ns\":([0-9]+),\"median_ns\":([0-9]+),");
+  std::size_t seen = 0;
+  for (auto it = std::sregex_iterator(json.begin(), json.end(), row);
+       it != std::sregex_iterator(); ++it, ++seen) {
+    // wall_total's min is a sum of per-stage minima, so it can sit below
+    // every single run's total, and so below the median of the totals.
+    EXPECT_LE(std::stoull((*it)[1]), std::stoull((*it)[2]));
+  }
+  EXPECT_EQ(seen, 2u) << "one wall_total row per polarity (realizable 0/1)";
+}
+
+}  // namespace

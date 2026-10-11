@@ -618,6 +618,8 @@ const std::set<std::string>& CanonicalMetricNames() {
 
 struct RepeatedResult {
   std::map<std::string, std::uint64_t> min_values;  // key -> min over successes
+  std::map<std::string, std::uint64_t> median_values;  // key -> median over successes
+  std::uint64_t median_wall_total = 0;  // median over successes of that run's stage sum
   int successes = 0;
   int timeouts = 0;
   int failures = 0;               // died by signal, nonzero exit, or truncated
@@ -625,10 +627,20 @@ struct RepeatedResult {
   std::string last_failure_detail;  // e.g. "signal_11", "exit_1"
 };
 
+// Median of a non-empty sample; the mean of the two middle values (rounded
+// down) when the count is even.
+std::uint64_t Median(std::vector<std::uint64_t> v) {
+  std::sort(v.begin(), v.end());
+  const std::size_t mid = v.size() / 2;
+  return v.size() % 2 ? v[mid] : (v[mid - 1] + v[mid]) / 2;
+}
+
 RepeatedResult RunCaseRepeated(const BenchCase* case_ptr,
                                const BenchSubject* subject_ptr, int repeat,
                                std::chrono::seconds timeout) {
   RepeatedResult result;
+  std::map<std::string, std::vector<std::uint64_t>> samples;
+  std::vector<std::uint64_t> wall_totals;
   for (int i = 0; i < repeat; ++i) {
     const TimedRunResult tr = RunCaseWithTimeout(case_ptr, subject_ptr, timeout);
     if (tr.outcome == RunOutcome::kTimedOut) {
@@ -641,12 +653,18 @@ RepeatedResult RunCaseRepeated(const BenchCase* case_ptr,
       continue;
     }
     ++result.successes;
+    std::uint64_t wall_total = 0;
     for (const BenchRow& row : tr.rows) {
+      samples[row.key].push_back(row.value);
+      if (CanonicalStageNames().count(row.key)) wall_total += row.value;
       auto it = result.min_values.find(row.key);
       if (it == result.min_values.end() || row.value < it->second)
         result.min_values[row.key] = row.value;
     }
+    wall_totals.push_back(wall_total);
   }
+  for (const auto& [key, v] : samples) result.median_values[key] = Median(v);
+  if (!wall_totals.empty()) result.median_wall_total = Median(wall_totals);
   return result;
 }
 
@@ -660,8 +678,9 @@ struct TimingRow {
   bool realizable;
   std::string subject;
   std::string stage;
-  std::uint64_t ns;
+  std::uint64_t ns;  // min over the repeats
   bool timed_out;
+  std::optional<std::uint64_t> median_ns;  // absent on a marker row
 };
 
 struct StructuralRow {
@@ -1019,14 +1038,16 @@ int main(int argc, char** argv) {
               } else {
                 timing_rows.push_back(TimingRow{family->name(), n, realizable,
                                                 subject->name(), key, value,
-                                                false});
+                                                false,
+                                                rr.median_values.at(key)});
                 if (CanonicalStageNames().count(key)) wall_total += value;
               }
             }
             if (!rr.min_values.empty()) {
               timing_rows.push_back(TimingRow{family->name(), n, realizable,
                                               subject->name(), "wall_total",
-                                              wall_total, false});
+                                              wall_total, false,
+                                              rr.median_wall_total});
             }
             if (rr.timeouts > 0) {
               // Partial timeout: some repeats succeeded (used above for the
@@ -1242,6 +1263,7 @@ int main(int argc, char** argv) {
       json << ",\"subject\":"; WriteJsonString(json, r.subject);
       json << ",\"stage\":"; WriteJsonString(json, r.stage);
       json << ",\"ns\":" << r.ns;
+      json << ",\"median_ns\":"; WriteJsonOptU64(json, r.median_ns);
       json << ",\"timed_out\":" << (r.timed_out ? "true" : "false") << "}";
     }
     json << "]";
