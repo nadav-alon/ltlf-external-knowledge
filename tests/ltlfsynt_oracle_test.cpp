@@ -2655,6 +2655,50 @@ TEST(GeneratedCorpusGenerator, EveryGeneratedTinIsDeterministicAndTotal) {
   }
 }
 
+// PRD "Partition generation": every generated partition splits the case's
+// atoms into the four roles Ifree, Iknown, Ofree, Oknown with no atom in two
+// roles; there is at least one input; Oknown is empty in v1; the universe is
+// exactly the fresh names p0, p1, ... within the configured widths; and the
+// formula mentions no atom outside it.
+TEST(GeneratedCorpusGenerator, EveryGeneratedPartitionSplitsTheAtomsIntoRoles) {
+  const std::vector<std::unique_ptr<ScopedEnvVar>> clean_env =
+      UnsetAllCorpusEnvVars();
+  const CorpusConfig config = corpus_config_from_env();
+  const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
+
+  for (std::size_t i = 0; i < corpus.size(); ++i) {
+    const GeneratedCase& c = corpus[i];
+    const VariablePartition& p = c.partition;
+    SCOPED_TRACE("case " + std::to_string(i) + " phi=" + spot::str_psl(c.phi) +
+                 " " + DescribeGeneratedPartition(p));
+
+    const std::vector<const std::set<std::string>*> roles = {
+        &p.input_free, &p.input_known, &p.output_free, &p.output_known};
+    std::set<std::string> seen;
+    std::size_t total = 0;
+    for (const std::set<std::string>* role : roles) {
+      total += role->size();
+      seen.insert(role->begin(), role->end());
+    }
+    EXPECT_EQ(seen.size(), total) << "an atom has more than one role";
+    EXPECT_EQ(seen, p.universe());
+
+    EXPECT_GE(p.inputs().size(), 1u);
+    EXPECT_LE(p.inputs().size(), static_cast<std::size_t>(config.input_max));
+    EXPECT_LE(p.outputs().size(), static_cast<std::size_t>(config.output_max));
+    EXPECT_TRUE(p.output_known.empty());
+
+    std::set<std::string> fresh_names;
+    for (std::size_t k = 0; k < total; ++k)
+      fresh_names.insert("p" + std::to_string(k));
+    EXPECT_EQ(seen, fresh_names);
+
+    for (const std::string& atom : collect_aps(c.phi))
+      EXPECT_EQ(seen.count(atom), 1u) << "phi mentions " << atom
+                                      << " outside the partition";
+  }
+}
+
 // Env override plumbing (PRD "Test oracles" #2): LTLF_EK_CORPUS_CASES=8
 // shrinks both the reported config and the built corpus to exactly 8 cases.
 TEST(CorpusConfigFromEnv, CasesOverrideChangesCorpusSize) {
