@@ -701,7 +701,8 @@ struct LtlfsyntRow {
   std::string status;  // "ok" | "skipped" | "timeout" | "n/a -- by expressibility" | "error"
   std::optional<std::string> ek_verdict;
   std::optional<std::string> ltlfsynt_verdict;
-  std::optional<std::uint64_t> ltlfsynt_ns;
+  std::optional<std::uint64_t> ltlfsynt_ns;         // min over the repeats
+  std::optional<std::uint64_t> ltlfsynt_median_ns;  // median over the repeats
   bool verdict_mismatch = false;
 };
 
@@ -1109,13 +1110,13 @@ int main(int argc, char** argv) {
                 family->name(), n, realizable,
                 std::string(comparability_tier_name(c->tier)), c->psi_in,
                 "n/a -- by expressibility", std::nullopt, std::nullopt,
-                std::nullopt, false});
+                std::nullopt, std::nullopt, false});
             continue;
           }
           LtlfsyntRow row{family->name(),      n,  realizable,
                          std::string(comparability_tier_name(c->tier)),
                          c->psi_in,           "",  std::nullopt,
-                         std::nullopt,         std::nullopt, false};
+                         std::nullopt,         std::nullopt, std::nullopt, false};
           row.ek_verdict = c->expected_realizable ? "REALIZABLE" : "UNREALIZABLE";
           if (ltlfsynt_binary.empty()) {
             row.status = "skipped";
@@ -1130,6 +1131,7 @@ int main(int argc, char** argv) {
           for (const auto& ap : c->vars.outputs()) outs += (outs.empty() ? "" : ",") + ap;
 
           std::optional<std::uint64_t> best_ns;
+          std::vector<std::uint64_t> samples_ns;
           std::optional<bool> synt_realizable;
           bool any_success = false, any_timeout = false;
           for (int rep = 0; rep < args.repeat; ++rep) {
@@ -1148,6 +1150,7 @@ int main(int argc, char** argv) {
             const std::uint64_t ns = static_cast<std::uint64_t>(
                 std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0)
                     .count());
+            samples_ns.push_back(ns);
             if (!best_ns || ns < *best_ns) best_ns = ns;
             synt_realizable = ParseLtlfsyntVerdict(sr);
           }
@@ -1158,6 +1161,7 @@ int main(int argc, char** argv) {
           } else {
             row.status = "ok";
             row.ltlfsynt_ns = best_ns;
+            row.ltlfsynt_median_ns = Median(samples_ns);
             row.ltlfsynt_verdict = *synt_realizable ? "REALIZABLE" : "UNREALIZABLE";
             // Stop-list item 4: a verdict disagreement is an O5-class
             // theory finding, recorded prominently, never "fixed" here.
@@ -1292,6 +1296,7 @@ int main(int argc, char** argv) {
       json << ",\"ek_verdict\":"; WriteJsonOptStr(json, r.ek_verdict);
       json << ",\"ltlfsynt_verdict\":"; WriteJsonOptStr(json, r.ltlfsynt_verdict);
       json << ",\"ltlfsynt_ns\":"; WriteJsonOptU64(json, r.ltlfsynt_ns);
+      json << ",\"ltlfsynt_median_ns\":"; WriteJsonOptU64(json, r.ltlfsynt_median_ns);
       json << ",\"verdict_mismatch\":" << (r.verdict_mismatch ? "true" : "false") << "}";
     }
     json << "]";

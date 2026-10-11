@@ -57,4 +57,20 @@ TEST(BenchSweep, EveryTimingRowCarriesAMedianNoBelowItsMin) {
   EXPECT_EQ(seen, 2u) << "one wall_total row per polarity (realizable 0/1)";
 }
 
+TEST(BenchSweep, LtlfsyntRowCarriesAMedianNoBelowItsMin) {
+  const std::string json = RunSweep(
+      "bench_sweep_ltlfsynt",
+      "--families=cons-prunes --subjects=dfa-product --n-min=2 --n-max=2 "
+      "--repeat=3 --timeout=20");
+  const std::regex row(
+      "\\{\"family\":\"cons-prunes\",\"n\":2,[^}]*\"status\":\"ok\"[^}]*"
+      "\"ltlfsynt_ns\":([0-9]+),\"ltlfsynt_median_ns\":([0-9]+),");
+  std::size_t seen = 0;
+  for (auto it = std::sregex_iterator(json.begin(), json.end(), row);
+       it != std::sregex_iterator(); ++it, ++seen) {
+    EXPECT_LE(std::stoull((*it)[1]), std::stoull((*it)[2]));
+  }
+  EXPECT_EQ(seen, 2u) << "one raced row per polarity (realizable 0/1)";
+}
+
 }  // namespace
