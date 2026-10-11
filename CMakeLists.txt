@@ -72,6 +72,7 @@ add_library(ltlf_ek
   src/cli.cpp
   src/bench.cpp
   src/bench_suite.cpp
+  src/window_source.cpp
   src/detail/acceptance.cpp
   src/detail/dependency_core.cpp
   src/dependent_outputs.cpp
@@ -176,6 +177,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/bench_test.cpp
     tests/bench_size_metric_test.cpp
     tests/bench_suite_test.cpp
+    tests/window_source_test.cpp
     tests/slippery_world_test.cpp
     tests/slippery_binary_compact_test.cpp
     tests/bench_runner_isolation_test.cpp

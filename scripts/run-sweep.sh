@@ -36,8 +36,8 @@ if [[ -z "$spot_root" || ! -x "$spot_root/bin/ltlfsynt" ]]; then
 fi
 
 # Families of the run: the three slippery arms (one family in the report),
-# knowledge-chain, cons-prunes.
-families="slippery-binary,slippery-onehot,slippery-binary-compact,knowledge-chain,cons-prunes"
+# knowledge-chain, cons-prunes, co-generated.
+families="slippery-binary,slippery-onehot,slippery-binary-compact,knowledge-chain,cons-prunes,co-generated"
 # The EK champion, the explicit product with and without the knowledge (the
 # prune ratio), and the folded no-knowledge product (its second baseline).
 subjects="otf-mtdfa-product,dfa-product,dfa-product-unpruned,dfa-product-nk"

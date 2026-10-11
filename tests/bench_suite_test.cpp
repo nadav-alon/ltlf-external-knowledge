@@ -621,7 +621,8 @@ TEST(BenchSuiteTierDeclaration, ExactlyTheDeclaredT1FamiliesAreT1AndParityT3IsT3
                                              "mirror-degenerate",
                                              "slippery-binary",
                                              "slippery-onehot",
-                                             "slippery-binary-compact"};
+                                             "slippery-binary-compact",
+                                             "co-generated"};
   EXPECT_EQ(t1_names, expected_t1);
   EXPECT_EQ(t3_names, std::set<std::string>({"parity-t3"}));
   // The two knowledge-size families are t2: their T_in is aperiodic (a
@@ -744,4 +745,37 @@ TEST(BenchSuitePruneBaseline, RunsOnACaseWithoutPsiIn) {
   const BenchCase c = FamilyNamed("knowledge-chain").instantiate(Params(3, true));
   ASSERT_FALSE(c.psi_in.has_value());
   EXPECT_GT(ProductStates(c, "dfa-product-unpruned"), 0u);
+}
+
+TEST(BenchSuitePruneBaseline, IsLargerThanTheKnowledgeProductOnTheCoGeneratedFamily) {
+  const BenchCase c = FamilyNamed("co-generated").instantiate(Params(3, true));
+  EXPECT_GT(ProductStates(c, "dfa-product-unpruned"),
+            ProductStates(c, "dfa-product"));
+}
+
+TEST(BenchSuiteCoGenerated, DeclaresItsPsiInAtEveryNAndSweepsFromTheFloor) {
+  const BenchFamily& family = FamilyNamed("co-generated");
+  for (const BenchParams& params : family.sweep(2, 4)) {
+    const BenchCase c = family.instantiate(params);
+    ASSERT_TRUE(c.psi_in.has_value());
+    EXPECT_EQ(c.tier, ComparabilityTier::t1);
+  }
+  EXPECT_EQ(family.sweep(2, 4).size(), 6u);
+}
+
+TEST(BenchSuiteCoGenerated, RejectsNBelowTheFloor) {
+  const BenchFamily& family = FamilyNamed("co-generated");
+  EXPECT_THROW(family.instantiate(Params(1, true)), std::invalid_argument);
+  EXPECT_THROW(family.sweep(1, 3), std::invalid_argument);
+}
+
+TEST(BenchSuiteCoGenerated, VerdictFollowsTheRealizableFlagUnderTheKnowledge) {
+  const BenchFamily& family = FamilyNamed("co-generated");
+  for (bool realizable : {true, false}) {
+    const BenchCase c = family.instantiate(Params(2, realizable));
+    EXPECT_EQ(c.expected_realizable, realizable);
+    EXPECT_EQ(
+        RealizabilityVerdict(run_bench_case(c, SubjectNamed("dfa-product"))),
+        std::optional<bool>(realizable));
+  }
 }
