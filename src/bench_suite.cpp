@@ -1205,24 +1205,15 @@ class OtfMtdfaProductSubject final : public BenchSubject {
 // (family, params) with no new pairing convention.
 // ---------------------------------------------------------------------------
 
-// One no-knowledge instance built from a BenchCase's declared psi_in. nullopt
-// iff `c.psi_in` is absent --- a case without it is skipped cleanly,
-// recording nothing (D7, "Edge cases": the five landed non-T1 families are
-// unaffected).
+// One knowledge-free instance: `goal` is psi_in -> phi for the -nk subjects
+// and phi for the prune baseline. build_nk_case yields nullopt iff `c.psi_in`
+// is absent --- a case without it is skipped cleanly, recording nothing (D7,
+// "Edge cases": the five landed non-T1 families are unaffected).
 struct NkCase {
-  spot::formula reduced;   // psi_in -> phi
+  spot::formula goal;
   VariablePartition vars;  // Iknown -> Ifree, Oknown -> Ofree
   OutputLabeledTransducer t_in;
   OutputLabeledTransducer t_out;
-  // The dict `vars`' APs were registered on (register_turn_order_aps below).
-  // This is the same pointer as nk->t_in.dict() (OutputLabeledTransducer::
-  // dict() is delta_dfa_->get_dict(), src/output_labeled_transducer.cpp:29),
-  // which already keeps it alive --- the field is a convenience alias so the
-  // dependent_inputs call site (D9's extractor column) can read it directly
-  // rather than reaching through t_in. Safe to collapse to nk->t_in.dict()
-  // later; kept as a separate field here only to avoid touching compiled
-  // code after the corpus sweep this comment accompanies.
-  spot::bdd_dict_ptr dict;
 };
 
 // The knowledge-free shell of `c` around `goal`: Iknown/Oknown demoted to free
@@ -1235,7 +1226,7 @@ NkCase build_knowledge_free_case(const BenchCase& c, const spot::formula& goal) 
   // refuse such a case rather than measure a different instance.
   if (!c.vars.output_known.empty())
     throw std::invalid_argument(
-        "build_nk_case: case '" + c.family +
+        "build_knowledge_free_case: case '" + c.family +
         "' declares output_known, which the no-knowledge reduction would "
         "silently discard along with T_out");
 
@@ -1259,7 +1250,7 @@ NkCase build_knowledge_free_case(const BenchCase& c, const spot::formula& goal) 
   OutputLabeledTransducer t_in = trivial_transducer(nk_vars, Role::t_in, dict);
   OutputLabeledTransducer t_out = trivial_transducer(nk_vars, Role::t_out, dict);
 
-  return NkCase{goal, nk_vars, std::move(t_in), std::move(t_out), dict};
+  return NkCase{goal, nk_vars, std::move(t_in), std::move(t_out)};
 }
 
 std::optional<NkCase> build_nk_case(const BenchCase& c) {
@@ -1276,7 +1267,7 @@ class DfaProductNkSubject final : public BenchSubject {
     const auto nk = build_nk_case(c);
     if (!nk) return;
     DfaProduct method;
-    method.synthesize(nk->reduced, nk->vars, nk->t_in, nk->t_out);
+    method.synthesize(nk->goal, nk->vars, nk->t_in, nk->t_out);
   }
 };
 
@@ -1289,7 +1280,7 @@ class NfaProductNkSubject final : public BenchSubject {
     const auto nk = build_nk_case(c);
     if (!nk) return;
     NfaProduct method;
-    method.synthesize(nk->reduced, nk->vars, nk->t_in, nk->t_out);
+    method.synthesize(nk->goal, nk->vars, nk->t_in, nk->t_out);
   }
 };
 
@@ -1300,7 +1291,7 @@ class MtdfaProductNkSubject final : public BenchSubject {
     const auto nk = build_nk_case(c);
     if (!nk) return;
     MtdfaProduct method;
-    method.synthesize(nk->reduced, nk->vars, nk->t_in, nk->t_out);
+    method.synthesize(nk->goal, nk->vars, nk->t_in, nk->t_out);
   }
 };
 
@@ -1313,7 +1304,7 @@ class MtnfaProductNkSubject final : public BenchSubject {
     const auto nk = build_nk_case(c);
     if (!nk) return;
     MtnfaProduct method;
-    method.synthesize(nk->reduced, nk->vars, nk->t_in, nk->t_out);
+    method.synthesize(nk->goal, nk->vars, nk->t_in, nk->t_out);
   }
 };
 
@@ -1324,7 +1315,7 @@ class OtfMtdfaProductNkSubject final : public BenchSubject {
     const auto nk = build_nk_case(c);
     if (!nk) return;
     OtfMtdfaProduct method;
-    method.synthesize(nk->reduced, nk->vars, nk->t_in, nk->t_out);
+    method.synthesize(nk->goal, nk->vars, nk->t_in, nk->t_out);
   }
 };
 
@@ -1343,7 +1334,7 @@ class DfaProductUnprunedSubject final : public BenchSubject {
   void run(const BenchCase& c) const override {
     const NkCase bare = build_knowledge_free_case(c, c.phi);
     DfaProduct method;
-    method.synthesize(bare.reduced, bare.vars, bare.t_in, bare.t_out);
+    method.synthesize(bare.goal, bare.vars, bare.t_in, bare.t_out);
   }
 };
 
@@ -1364,7 +1355,7 @@ class DependentInputsExtractionSubject final : public BenchSubject {
     const auto nk = build_nk_case(c);
     if (!nk) return;
     BenchTimer timer("dependent_inputs");  // D9: the extractor's own wall-clock
-    dependent_inputs(nk->reduced, nk->vars, nk->dict);
+    dependent_inputs(nk->goal, nk->vars, nk->t_in.dict());
   }
 };
 
