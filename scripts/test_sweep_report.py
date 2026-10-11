@@ -80,7 +80,43 @@ class SweepReport(unittest.TestCase):
                      timing("f", 4, True, EK, 1, 100)],
             ltlfsynt=[lt("f", 2, True, 1, 300), lt("f", 3, True, 1, 700),
                       lt("f", 4, True, 1, 0, status="timeout")]))
-        self.assertIn("(N=3): 7.00x", out)
+        self.assertIn("(N=3, 1 of 1 cells): 7.00x", out)
+        self.assertIn("ltlfsynt timed out (20 s) at N=4 in 1 of 1 cells", out)
+        self.assertIn("speedup at least 200000000.00x", out)
+
+    def test_a_partially_timed_out_ek_cell_is_left_out(self):
+        rows = sr.build_rows(sweep(
+            timings=[timing("f", 2, True, EK, 1, 1),
+                     timing("f", 2, True, EK, 0, None, stage="PARTIAL_TIMEOUT_4_of_5"),
+                     timing("f", 2, False, EK, 1, 100)],
+            ltlfsynt=[lt("f", 2, True, 1, 1), lt("f", 2, False, 1, 500)]))
+        self.assertEqual(rows["f"][2]["cells"], 1)
+        self.assertEqual(rows["f"][2]["speedup_med"], 5.0)
+
+    def test_a_partially_timed_out_ltlfsynt_cell_is_left_out(self):
+        rows = sr.build_rows(sweep(
+            timings=[timing("f", 2, True, EK, 1, 100)],
+            ltlfsynt=[lt("f", 2, True, 1, 1, status="partial_timeout")]))
+        self.assertIsNone(rows["f"][2].get("speedup_med"))
+
+    def test_headline_prefers_the_largest_n_with_every_cell_finished(self):
+        out = sr.render(sweep(
+            timings=[timing("f", 2, True, EK, 1, 100), timing("f", 2, False, EK, 1, 100),
+                     timing("f", 3, True, EK, 1, 100), timing("f", 3, False, EK, 1, 100)],
+            ltlfsynt=[lt("f", 2, True, 1, 300), lt("f", 2, False, 1, 300),
+                      lt("f", 3, True, 1, 900)]))
+        self.assertIn("(N=2, 2 of 2 cells): 3.00x", out)
+
+    def test_headline_names_the_cell_count_when_no_n_is_complete(self):
+        out = sr.render(sweep(
+            timings=[timing("f", 3, True, EK, 1, 100), timing("f", 3, False, EK, 1, 100)],
+            ltlfsynt=[lt("f", 3, True, 1, 900)]))
+        self.assertIn("(N=3, 1 of 2 cells): 9.00x", out)
+
+    def test_a_stopped_early_sweep_is_flagged_at_the_top(self):
+        s = sweep(timings=[timing("f", 2, True, EK, 1, 1)])
+        s["provenance"]["stopped_early"] = True
+        self.assertIn("STOPPED EARLY", sr.render(s).splitlines()[2])
 
     def test_a_family_ltlfsynt_cannot_encode_says_so_instead_of_a_speedup(self):
         out = sr.render(sweep(timings=[timing("knowledge-chain", 2, True, EK, 1, 1)]))

@@ -6,10 +6,14 @@
 Every slippery-* arm is one family. Per family and per N the report gives the
 prune ratio (reachable product states with the knowledge over without:
 dfa-product / dfa-product-unpruned; the same over dfa-product-nk is the
-column "vs -nk", the task-equivalent baseline), the EK and ltlfsynt wall-clock, and the
-speedup over ltlfsynt. A cell is one (arm, realizable) pair; the figure for a
-family at N is the median over its cells. The headline per family is the
-speedup at the largest N where at least one cell finished on both sides.
+nk-product ratio, the task-equivalent baseline), the EK and ltlfsynt wall-clock,
+and the speedup over ltlfsynt. A cell is one (arm, realizable) pair; the figure
+for a family at N is the median over its cells. A cell with any timed-out or
+failed repeat, on either side, is not finished: its median would be taken over
+the survivors alone, so it is left out. The headline per family is the speedup
+at the largest N where every cell finished on both sides, else at the largest N
+where some did, with the cell count. Where ltlfsynt timed out and EK finished,
+the speedup is reported as a lower bound.
 ltlfsynt's startup floor (~4 ms) is not subtracted.
 """
 import argparse
@@ -29,11 +33,12 @@ def family_group(name):
 
 
 def _finished_wall(timings):
-    """(family, n, realizable, subject) -> (min_ns, median_ns), finished cells only."""
+    """(family, n, realizable, subject) -> (min_ns, median_ns), cells whose every repeat finished."""
     out, failed = {}, set()
     for r in timings:
         key = (r["family"], r["n"], r["realizable"], r["subject"])
-        if r["stage"] == "TIMEOUT" or r["stage"].startswith("FAILED_"):
+        if r["stage"] == "TIMEOUT" or r["stage"].startswith(
+                ("FAILED_", "PARTIAL_TIMEOUT_", "PARTIAL_FAILED_")):
             failed.add(key)
         elif r["stage"] == "wall_total" and r.get("median_ns") is not None:
             out[key] = (r["ns"], r["median_ns"])
@@ -51,8 +56,8 @@ def _product_states(structural, subject):
 
 
 def build_rows(sweep, subject=EK_SUBJECT):
-    """{group: {n: {'cells', 'prune', 'prune_nk', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
-    'speedup_med', 'speedup_min'}}}; a figure is None when no cell has it."""
+    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'prune', 'prune_nk', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
+    'speedup_med', 'speedup_min', 'bound'}}}; a figure is None when no cell has it."""
     wall = _finished_wall(sweep["timings"])
     with_k = _product_states(sweep["structural"], EK_PRODUCT)
     without_k = _product_states(sweep["structural"], EK_UNPRUNED)
@@ -63,16 +68,24 @@ def build_rows(sweep, subject=EK_SUBJECT):
         if r["status"] == "ok" and r.get("ltlfsynt_median_ns") is not None
     }
 
+    lt_timeout = {
+        (r["family"], r["n"], r["realizable"])
+        for r in sweep["ltlfsynt"]
+        if r["status"] in ("timeout", "partial_timeout")
+    }
+
     cells = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
     keys = {(r["family"], r["n"], r["realizable"]) for r in sweep["timings"]}
     for fam, n, real in sorted(keys):
+        key = (fam, n, real)
         c = cells[family_group(fam)][n]
-        if (fam, n, real) in with_k and without_k.get((fam, n, real)):
-            c["prune"].append(with_k[(fam, n, real)] / without_k[(fam, n, real)])
-        if (fam, n, real) in with_k and nk_k.get((fam, n, real)):
-            c["prune_nk"].append(with_k[(fam, n, real)] / nk_k[(fam, n, real)])
-        ek = wall.get((fam, n, real, subject))
-        row = lt.get((fam, n, real))
+        c["total"].append(1)
+        if key in with_k and without_k.get(key):
+            c["prune"].append(with_k[key] / without_k[key])
+        if key in with_k and nk_k.get(key):
+            c["prune_nk"].append(with_k[key] / nk_k[key])
+        ek = wall.get(key + (subject,))
+        row = lt.get(key)
         if ek:
             c["ek_min"].append(ek[0])
             c["ek_med"].append(ek[1])
@@ -82,12 +95,17 @@ def build_rows(sweep, subject=EK_SUBJECT):
         if ek and row:
             c["speedup_med"].append(row["ltlfsynt_median_ns"] / ek[1])
             c["speedup_min"].append(row["ltlfsynt_ns"] / ek[0])
+        if ek and key in lt_timeout:
+            c["lt_timeout"].append(1)
+            c["bound"].append(sweep["provenance"]["timeout_seconds"] * 1e9 / ek[1])
 
     def med(xs):
         return statistics.median(xs) if xs else None
 
     return {
-        g: {n: {k: med(v) for k, v in by_n[n].items()} | {"cells": len(by_n[n]["ek_med"])}
+        g: {n: {k: med(v) for k, v in by_n[n].items()}
+               | {"cells": len(by_n[n]["ek_med"]), "both": len(by_n[n]["speedup_med"]),
+                  "total": len(by_n[n]["total"]), "lt_timeouts": len(by_n[n]["lt_timeout"])}
             for n in sorted(by_n)}
         for g, by_n in cells.items()
     }
@@ -95,6 +113,27 @@ def build_rows(sweep, subject=EK_SUBJECT):
 
 def _fmt(x, fmt):
     return "n/a" if x is None else fmt.format(x)
+
+
+def _headline(by_n, timeout_s):
+    raced = [n for n, r in by_n.items() if r.get("speedup_med") is not None]
+    complete = [n for n in raced if by_n[n]["both"] == by_n[n]["total"]]
+    lines = []
+    if raced:
+        n = max(complete or raced)
+        r = by_n[n]
+        lines.append(f"**Speedup over ltlfsynt at the largest N finished "
+                     f"(N={n}, {r['both']} of {r['total']} cells): "
+                     f"{r['speedup_med']:.2f}x (median).**")
+    else:
+        lines.append("**No speedup over ltlfsynt: no cell finished on both sides "
+                     "(ltlfsynt is n/a for a family without a declared psi_in).**")
+    for n, r in by_n.items():
+        if r["lt_timeouts"]:
+            lines += ["", f"ltlfsynt timed out ({timeout_s} s) at N={n} in "
+                          f"{r['lt_timeouts']} of {r['total']} cells where EK finished: "
+                          f"speedup at least {r['bound']:.2f}x (median lower bound)."]
+    return lines
 
 
 def render(sweep, subject=EK_SUBJECT):
@@ -110,18 +149,22 @@ def render(sweep, subject=EK_SUBJECT):
         "ltlfsynt on the monolithic `psi_in -> phi` encoding",
         "- prune ratio: reachable product states with knowledge over without "
         "(`dfa-product` / `dfa-product-unpruned`)",
-        "- prune ratio (vs -nk): the same over `dfa-product-nk` (psi_in folded into "
+        "- nk-product ratio: `dfa-product` over `dfa-product-nk` (psi_in folded into "
         "the Goal; the same decision problem ltlfsynt is given)",
         "- a family's figure at N is the median over its cells (arm x realizable); "
         "all slippery-* arms are one family",
+        "- a cell with any timed-out or failed repeat, on either side, is left out "
+        "(its median would cover the surviving repeats only)",
         "- ltlfsynt startup floor (~4 ms) is noted, not subtracted",
-        f"- stopped early: {prov['stopped_early']}; verdict mismatches: "
-        f"{prov['verdict_mismatch_count']}",
+        f"- verdict mismatches: {prov['verdict_mismatch_count']}",
         "",
     ]
+    if prov["stopped_early"]:
+        out[2:2] = ["**STOPPED EARLY: the sweep hit its budget, so the grid is truncated "
+                    "and the largest N rows are partial.**", ""]
     for group in sorted(rows):
         out += [f"## {group}", ""]
-        out += ["| N | cells | prune ratio | prune ratio (vs -nk) | EK med (ms) | EK min (ms) | "
+        out += ["| N | cells | prune ratio | nk-product ratio | EK med (ms) | EK min (ms) | "
                 "ltlfsynt med (ms) | speedup (med) | speedup (min) |",
                 "|---|---|---|---|---|---|---|---|---|"]
         for n, r in rows[group].items():
@@ -133,15 +176,8 @@ def render(sweep, subject=EK_SUBJECT):
                 f"| {_fmt(r.get('lt_med') and r['lt_med'] / 1e6, '{:.2f}')} "
                 f"| {_fmt(r.get('speedup_med'), '{:.2f}x')} "
                 f"| {_fmt(r.get('speedup_min'), '{:.2f}x')} |")
-        raced = [n for n, r in rows[group].items() if r.get("speedup_med") is not None]
         out.append("")
-        if raced:
-            n = max(raced)
-            out.append(f"**Speedup over ltlfsynt at the largest N finished "
-                       f"(N={n}): {rows[group][n]['speedup_med']:.2f}x (median).**")
-        else:
-            out.append("**No speedup over ltlfsynt: no cell finished on both sides "
-                       "(ltlfsynt is n/a for a family without a declared psi_in).**")
+        out += _headline(rows[group], prov["timeout_seconds"])
         out.append("")
     return "\n".join(out)
 

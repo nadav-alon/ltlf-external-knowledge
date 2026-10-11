@@ -698,7 +698,7 @@ struct LtlfsyntRow {
   bool realizable;
   std::string tier;
   std::optional<std::string> psi_in;
-  std::string status;  // "ok" | "skipped" | "timeout" | "n/a -- by expressibility" | "error"
+  std::string status;  // "ok" | "skipped" | "timeout" | "partial_timeout" | "n/a -- by expressibility" | "error"
   std::optional<std::string> ek_verdict;
   std::optional<std::string> ltlfsynt_verdict;
   std::optional<std::uint64_t> ltlfsynt_ns;         // min over the repeats
@@ -1159,7 +1159,9 @@ int main(int argc, char** argv) {
           } else if (!synt_realizable) {
             row.status = "error";  // ltlfsynt ran but printed no verdict word
           } else {
-            row.status = "ok";
+            // Some repeats timed out: the samples are the fast survivors, so
+            // the median is censored; the row says so rather than posing as ok.
+            row.status = any_timeout ? "partial_timeout" : "ok";
             row.ltlfsynt_ns = best_ns;
             row.ltlfsynt_median_ns = Median(samples_ns);
             row.ltlfsynt_verdict = *synt_realizable ? "REALIZABLE" : "UNREALIZABLE";
