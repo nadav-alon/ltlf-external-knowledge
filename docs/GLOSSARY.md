@@ -1301,7 +1301,9 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   where $\cons$ and the transducers cut the product; 1 where the knowledge is inert.
   It is the class criterion of the Oct 17 sweep and the report's x-axis.
 - **C++:** the `dfa-product-unpruned` bench subject (`src/bench_suite.cpp`); the
-  ratio itself is computed by `scripts/sweep_report.py`, not stored.
+  ratio itself is computed by `scripts/sweep_report.py`, not stored. The report
+  prints beside it the ratio over `dfa-product-nk`, which poses the same decision
+  problem; the two differ wherever the world model lives in $\Tin$.
 - **Do not call it:** pruning factor, reduction ratio, compression; and not the
   `-nk` ratio — the `-nk` subjects fold $\psiin$ into the Goal, a different
   instance that needs a $\psiin$ the T2 families lack.

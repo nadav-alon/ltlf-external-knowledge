@@ -224,4 +224,7 @@ if(LTLF_EK_BUILD_TESTS)
 
   include(GoogleTest)
   gtest_discover_tests(unit_tests)
+  add_test(NAME sweep_report_py
+           COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_sweep_report.py
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
 endif()
