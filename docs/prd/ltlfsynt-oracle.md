@@ -64,6 +64,12 @@ assumption) and is deferred to `docs/BACKLOG.md`.
 > guarantee U), because $\Tout$ constrains the system rather than the environment.
 
 ## Why the reduction is equirealizable (the correctness argument)
+
+**Assumptions of the reduction.** The proof is `docs/theory/monolithic-reduction.md`.
+It holds under three hypotheses, and the oracle's verdicts mean what they say only inside them:
+total $\Tin$/$\Tout$ (partial transducers, e.g. case O5, are outside it and pinned as a boundary);
+the standard $\text{LTL}_f$ synthesis termination convention (the system ends the trace, traces are non-empty), which is what `ltlfsynt` implements;
+and $\psi_{in}$, $\psi_{out}$ defining exactly the produced-trace languages, which `run_faithfulness_guard` checks per corpus pair.
 Known-input problem: the environment picks $\Ifree$; $\Tin$ forces $\Iknown$
 **deterministically** from the $\Ifree$-history ($\Sigma_0=\Ifree$,
 $\Sigma_1=\Iknown$, glossary "Role"); the Mealy controller sees the current
