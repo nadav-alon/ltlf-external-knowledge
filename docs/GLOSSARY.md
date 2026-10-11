@@ -1487,8 +1487,12 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   **not** a library API: `BuildGeneratedCorpus()` / `GeneratedCase`, the
   generators (`generate_random_formula`, `strengthen_next`, `random_partition`,
   `random_tin`), and the three `GeneratedCorpus.*` / `GeneratedCorpusDifferential`
-  test bodies. No canonical domain type — like the *Faithfulness guard*, it names
-  a test artifact, not a `main.tex` concept.
+  test bodies. The co-generated `(T_in, psi_in)` family adds
+  `BuildCoGeneratedCorpus()` / `CoGeneratedCase`, its bounded-memory source
+  `WindowSource` / `WindowKind`, and the `CoGeneratedCorpus.*` /
+  `CoGeneratedKnownKnowledgeDifferential` test bodies. No canonical domain
+  type — like the *Faithfulness guard*, it names a test artifact, not a
+  `main.tex` concept.
 - **Do not call it:** fuzzing / property test (bare — it is seeded + self-labeling,
   not shrinking random),
   round-trip test (bare), differential test (bare — pair the noun with *oracle* /

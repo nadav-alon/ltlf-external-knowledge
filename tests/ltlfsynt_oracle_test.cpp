@@ -2330,6 +2330,20 @@ GeneratedCase GenerateOneCase(std::mt19937& rng, const CorpusConfig& config) {
   return {phi, std::move(partition), std::move(t_in), std::move(t_out)};
 }
 
+// The seeded loop shared by every corpus: one std::mt19937(config.seed)
+// consumed by `generate_one(rng, config)` once per case, so no corpus can
+// diverge from another in how it draws from rng.
+template <typename Case, typename GenerateOne>
+std::vector<Case> BuildCorpus(const CorpusConfig& config,
+                              GenerateOne&& generate_one) {
+  std::mt19937 rng(config.seed);
+  std::vector<Case> corpus;
+  corpus.reserve(config.case_count);
+  for (std::size_t i = 0; i < config.case_count; ++i)
+    corpus.push_back(generate_one(rng, config));
+  return corpus;
+}
+
 // BuildGeneratedCorpus (PRD "Determinism / seeding"): one seeded
 // std::mt19937(config.seed), no reserved draw slots.  Emits config.case_count
 // cases partition-first, so
@@ -2345,12 +2359,7 @@ GeneratedCase GenerateOneCase(std::mt19937& rng, const CorpusConfig& config) {
 // but is still called by the soak==0 fast path and the golden tests exactly
 // as before, up front, with no deadline/OOM handling of its own.
 std::vector<GeneratedCase> BuildGeneratedCorpus(const CorpusConfig& config) {
-  std::mt19937 rng(config.seed);
-  std::vector<GeneratedCase> corpus;
-  corpus.reserve(config.case_count);
-  for (std::size_t i = 0; i < config.case_count; ++i)
-    corpus.push_back(GenerateOneCase(rng, config));
-  return corpus;
+  return BuildCorpus<GeneratedCase>(config, GenerateOneCase);
 }
 
 // RunCorpusStats: bookkeeping returned by run_corpus (soak-mode PRD
@@ -3349,11 +3358,13 @@ TEST(GeneratedCorpus, BuildEquivalence) {
 
 // Comma-joins an AP-name set for --inputs/--outputs (ek-synth) or the
 // --ins=/--outs= form (ltlfsynt) -- both parse a plain comma-separated list
-// (src/ltlf_ek_synth.cpp SplitCsv).
-std::string JoinCsv(const std::set<std::string>& names) {
+// (src/ltlf_ek_synth.cpp SplitCsv).  `sep` is "," for those and " " for the
+// partition-file lines.
+std::string JoinCsv(const std::set<std::string>& names,
+                    const std::string& sep = ",") {
   std::string out;
   for (const std::string& name : names) {
-    if (!out.empty()) out += ",";
+    if (!out.empty()) out += sep;
     out += name;
   }
   return out;
@@ -3522,6 +3533,346 @@ TEST_F(LtlfsyntOracleTest, GeneratedCorpusDifferential) {
   RecordProperty("cases_run", static_cast<int>(stats.cases_run));
   RecordProperty("cases_skipped", static_cast<int>(stats.cases_skipped));
   RecordProperty("differential_skipped", static_cast<int>(skipped));
+}
+
+// ---------------------------------------------------------------------------
+// Co-generated (T_in, psi_in) family: a known-knowledge differential.
+//
+// A free-form random T_in has no LTLf psi_in (a table can be a modular
+// counter, regular but not star-free), and a random psi_in is rarely a total
+// deterministic strategy.  The bounded-memory family has both views: Iknown_t
+// is a total boolean function f of the window ifree_t .. ifree_{t-d}
+// (ifree_{<0} = false).  One drawn parameter set (m free inputs, depth d,
+// truth table of f) yields
+//   * a table T_in whose state is the last d free-input letters, and
+//   * psi_in, a safety formula in the guarded weak-X shape of
+//     kPsiInDelayCorrected: for every assignment h of the window ahead of
+//     position t, `G(h at t.. -> X^d (k <-> f(h)))`, plus the same implication
+//     once per position s < d for the shorter prefixes.  Weak X makes the
+//     implication vacuous where the window runs past the last position; X[!]
+//     would instead force a continuation.
+// so the two denote the same language by construction, and ltlfsynt can be
+// fed `psi_in -> phi` against ltlf-ek-synth's known-input verdict.
+// ---------------------------------------------------------------------------
+
+constexpr int kCoGenFreeInputsMax = 2;       // m in [1, kCoGenFreeInputsMax].
+constexpr int kCoGenDepthMax = 2;            // d in [0, kCoGenDepthMax].
+constexpr int kCoGenWindowBitsMax = 4;       // m * (d + 1) <= this.
+constexpr int kCoGenOutputsMax = 2;          // |Ofree| in [1, this].
+
+// The four members of the bounded-memory family.
+enum class WindowKind { kConst, kCopy, kDelay, kWindow };
+
+const char* WindowKindName(WindowKind kind) {
+  switch (kind) {
+    case WindowKind::kConst: return "const";
+    case WindowKind::kCopy: return "copy";
+    case WindowKind::kDelay: return "delay";
+    case WindowKind::kWindow: return "window";
+  }
+  return "?";
+}
+
+// The bounded-memory source: which Iknown, window depth, boolean function.
+struct WindowSource {
+  WindowKind kind = WindowKind::kConst;
+  int free_inputs = 1;  // m
+  int depth = 0;        // d
+  // Truth table of f, indexed by bit j*m + v = value of free input v at
+  // position t-j.
+  std::vector<bool> table;
+};
+
+// One co-generated pair, with the text of both views.
+struct CoGeneratedPair {
+  VariablePartition partition;
+  std::string tin_file;
+  std::string psi_in;
+  std::string description;
+};
+
+struct CoGeneratedCase {
+  spot::formula phi;
+  CoGeneratedPair pair;
+};
+
+std::string free_input_name(int v) { return "a" + std::to_string(v); }
+
+// X^n(inner) with weak X.
+std::string weak_next(int n, const std::string& inner) {
+  std::string text = inner;
+  for (int i = 0; i < n; ++i) text = "X(" + text + ")";
+  return text;
+}
+
+// Conjunction of literals over `names` selected by the bits of `bits`.
+std::string cube_text(const std::vector<std::string>& names, unsigned bits) {
+  std::string text = "1";
+  for (std::size_t i = 0; i < names.size(); ++i)
+    text += std::string(" & ") + (((bits >> i) & 1u) ? "" : "!") + names[i];
+  return "(" + text + ")";
+}
+
+WindowSource draw_window_source(std::mt19937& rng) {
+  WindowSource src;
+  const int kind = std::uniform_int_distribution<int>(0, 3)(rng);
+  std::bernoulli_distribution coin(0.5);
+  switch (kind) {
+    case 0:  // const: ignores the window.
+      src.kind = WindowKind::kConst;
+      src.free_inputs = 1;
+      src.depth = 0;
+      src.table = {false, false};
+      if (coin(rng)) src.table = {true, true};
+      break;
+    case 1:  // copy: k_t = a0_t.
+      src.kind = WindowKind::kCopy;
+      src.free_inputs = 1;
+      src.depth = 0;
+      src.table = {false, true};
+      break;
+    case 2:  // delay: k_t = a0_{t-d}.
+      src.kind = WindowKind::kDelay;
+      src.free_inputs = 1;
+      src.depth = std::uniform_int_distribution<int>(1, kCoGenDepthMax)(rng);
+      src.table.assign(1u << (src.depth + 1), false);
+      for (unsigned idx = 0; idx < src.table.size(); ++idx)
+        src.table[idx] = (idx >> src.depth) & 1u;
+      break;
+    default: {  // window: a random boolean function of the whole window.
+      src.kind = WindowKind::kWindow;
+      do {
+        src.free_inputs =
+            std::uniform_int_distribution<int>(1, kCoGenFreeInputsMax)(rng);
+        src.depth =
+            std::uniform_int_distribution<int>(0, kCoGenDepthMax)(rng);
+      } while (src.free_inputs * (src.depth + 1) > kCoGenWindowBitsMax);
+      src.table.assign(1u << (src.free_inputs * (src.depth + 1)), false);
+      for (unsigned idx = 0; idx < src.table.size(); ++idx)
+        src.table[idx] = coin(rng);
+      break;
+    }
+  }
+  return src;
+}
+
+// The table T_in of a window source: state = the last d free-input letters
+// (initially all false), edge on the current letter shifts it in, lambda(q)
+// sets k to f(current letter, q).
+std::string window_tin_file(const WindowSource& src) {
+  const int m = src.free_inputs;
+  const unsigned letters = 1u << m;
+  const unsigned states = 1u << (m * src.depth);
+  std::vector<std::string> in_names;
+  for (int v = 0; v < m; ++v) in_names.push_back(free_input_name(v));
+
+  std::ostringstream os;
+  os << "HOA: v1\nStates: " << states << "\nStart: 0\nAP: " << (m + 1);
+  for (const std::string& n : in_names) os << " \"" << n << "\"";
+  os << " \"k\"\nacc-name: all\nAcceptance: 0 t\n--BODY--\n";
+  for (unsigned q = 0; q < states; ++q) {
+    os << "State: " << q << "\n";
+    for (unsigned c = 0; c < letters; ++c) {
+      std::string guard;
+      for (int v = 0; v < m; ++v)
+        guard += std::string(v ? "&" : "") + (((c >> v) & 1u) ? "" : "!") +
+                 std::to_string(v);
+      const unsigned next = ((q << m) | c) & (states - 1u);
+      os << "  [" << guard << "] " << next << "\n";
+    }
+  }
+  os << "--END--\n%%LAMBDA\n";
+  for (unsigned q = 0; q < states; ++q) {
+    os << "state " << q << ": ";
+    for (unsigned c = 0; c < letters; ++c) {
+      const bool k = src.table[c | (q << m)];
+      os << (c ? " | " : "") << "(" << cube_text(in_names, c) << " & "
+         << (k ? "k" : "!k") << ")";
+    }
+    os << "\n";
+  }
+  return os.str();
+}
+
+// psi_in of a window source, in the guarded weak-X shape described above.
+// `h` assigns the free inputs at positions 0..len-1 of a window starting at
+// the current position (bit i*m + v = input v at offset i); f at its last
+// position reads a_{last-j} from offset last-j, and false beyond the start.
+std::string window_psi_in(const WindowSource& src) {
+  const int m = src.free_inputs;
+  const int d = src.depth;
+  auto clause = [&](int len) {
+    const int last = len - 1;
+    std::string conj = "1";
+    for (unsigned h = 0; h < (1u << (m * len)); ++h) {
+      std::string premise = "1";
+      for (int i = 0; i < len; ++i)
+        for (int v = 0; v < m; ++v)
+          premise += std::string(" & ") +
+                     (((h >> (i * m + v)) & 1u) ? "" : "!") +
+                     weak_next(i, free_input_name(v));
+      unsigned idx = 0;
+      for (int j = 0; j <= last; ++j)
+        for (int v = 0; v < m; ++v)
+          if ((h >> ((last - j) * m + v)) & 1u) idx |= 1u << (j * m + v);
+      conj += " & ((" + premise + ") -> " +
+              weak_next(last, src.table[idx] ? "k" : "!k") + ")";
+    }
+    return conj;
+  };
+  std::string psi = "1";
+  for (int s = 0; s < d; ++s) psi += " & (" + clause(s + 1) + ")";
+  psi += " & G(" + clause(d + 1) + ")";
+  return psi;
+}
+
+CoGeneratedCase GenerateOneCoGeneratedCase(std::mt19937& rng,
+                                           const CorpusConfig& config) {
+  const WindowSource src = draw_window_source(rng);
+  std::set<std::string> ifree, ofree;
+  for (int v = 0; v < src.free_inputs; ++v) ifree.insert(free_input_name(v));
+  const int n_out =
+      std::uniform_int_distribution<int>(1, kCoGenOutputsMax)(rng);
+  for (int v = 0; v < n_out; ++v) ofree.insert("o" + std::to_string(v));
+
+  VariablePartition partition;
+  partition.input_free = ifree;
+  partition.input_known = {"k"};
+  partition.output_free = ofree;
+
+  spot::formula phi = strengthen_next(
+      generate_random_formula(partition, rng, config), rng);
+  std::string description = std::string(WindowKindName(src.kind)) + " m=" + std::to_string(src.free_inputs) +
+                            " d=" + std::to_string(src.depth) + " f=";
+  for (bool b : src.table) description += b ? '1' : '0';
+  return {phi,
+          {std::move(partition), window_tin_file(src), window_psi_in(src),
+           std::move(description)}};
+}
+
+std::vector<CoGeneratedCase> BuildCoGeneratedCorpus(
+    const CorpusConfig& config) {
+  return BuildCorpus<CoGeneratedCase>(config, GenerateOneCoGeneratedCase);
+}
+
+TEST(CoGeneratedCorpus, EveryPairPassesTheFaithfulnessGuard) {
+  const CorpusConfig base = corpus_config_from_env();
+  const std::vector<CoGeneratedCase> corpus = BuildCoGeneratedCorpus(base);
+  for (std::size_t i = 0; i < corpus.size(); ++i) {
+    const CoGeneratedPair& p = corpus[i].pair;
+    const GuardResult result =
+        run_faithfulness_guard(p.tin_file, p.psi_in, p.partition, Role::t_in);
+    EXPECT_TRUE(result.ok) << "case " << i << " (" << p.description
+                           << "): " << result.detail
+                           << "\npsi_in=" << p.psi_in;
+  }
+}
+
+TEST(CoGeneratedCorpus, SameSeedYieldsSamePairs) {
+  CorpusConfig config = corpus_config_from_env();
+  config.case_count = 16;
+  const std::vector<CoGeneratedCase> a = BuildCoGeneratedCorpus(config);
+  const std::vector<CoGeneratedCase> b = BuildCoGeneratedCorpus(config);
+  for (std::size_t i = 0; i < a.size(); ++i) {
+    EXPECT_EQ(canonical_text(a[i].phi), canonical_text(b[i].phi));
+    EXPECT_EQ(a[i].pair.tin_file, b[i].pair.tin_file);
+    EXPECT_EQ(a[i].pair.psi_in, b[i].pair.psi_in);
+  }
+}
+
+// Product back-ends the known-knowledge differential drives, as in
+// GeneratedCorpusDifferential (nfa only where mona is available).
+const std::vector<std::string> kKnownKnowledgeMethods = {
+    "--dfa-product", "--mtdfa-product", "--otf-mtdfa-product",
+#ifdef MONA_FOUND
+    "--nfa-product",
+#endif
+};
+
+// Bars from #29's split decision for the default 256-case corpus, which
+// reaches 12-14 load-bearing cases with none skipped: a generator change
+// that makes most psi_in vacuous, or a corpus that mostly times out, must
+// fail rather than pass quietly.
+constexpr std::size_t kCoGenLoadBearingFloor = 10;
+constexpr std::size_t kCoGenSkippedCeiling = 8;
+
+// Known-knowledge differential: ltlf-ek-synth under the co-generated T_in
+// against ltlfsynt on `psi_in -> phi`.  Covers the wrongly-unrealizable
+// direction the metamorphic round-trip cannot see.  A case is load-bearing
+// when dropping psi_in flips the ltlfsynt verdict, i.e. the knowledge
+// changed the outcome; the corpus must contain some, else the differential
+// would pass vacuously.
+TEST_F(LtlfsyntOracleTest, CoGeneratedKnownKnowledgeDifferential) {
+  const CorpusConfig base = corpus_config_from_env();
+  const std::vector<CoGeneratedCase> corpus = BuildCoGeneratedCorpus(base);
+  std::size_t load_bearing = 0, skipped = 0;
+  for (std::size_t i = 0; i < corpus.size(); ++i) {
+    const CoGeneratedCase& c = corpus[i];
+    const VariablePartition& part = c.pair.partition;
+    std::ostringstream phi_os;
+    phi_os << c.phi;
+    const std::string phi = phi_os.str();
+    SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi + ", " +
+                 c.pair.description + ", psi_in=" + c.pair.psi_in);
+
+    const ScopedTempFile part_file(
+        "input_free: " + JoinCsv(part.input_free, " ") +
+        "\ninput_known: " + JoinCsv(part.input_known, " ") +
+        "\noutput_free: " + JoinCsv(part.output_free, " ") +
+        "\noutput_known:\n");
+    const ScopedTempFile tin_file(c.pair.tin_file);
+    std::set<std::string> all_inputs = part.input_free;
+    all_inputs.insert(part.input_known.begin(), part.input_known.end());
+    const std::string ins = JoinCsv(all_inputs);
+    const std::string outs = JoinCsv(part.output_free);
+
+    bool ek_timed_out = false;
+    std::vector<std::pair<std::string, bool>> ek_verdicts;
+    for (const std::string& method : kKnownKnowledgeMethods) {
+      bool timed_out = false;
+      const CliResult ek = RunEkSynth(
+          {method, "--formula=" + phi, "--part-file", part_file.path(),
+           "--known-input-transducer", tin_file.path(), "--realizable"},
+          base.subprocess_timeout_secs, &timed_out);
+      if (timed_out) {
+        ek_timed_out = true;
+        break;
+      }
+      ek_verdicts.emplace_back(method, IsRealizable(ParseEkSynthVerdict(ek)));
+    }
+    bool synt_timed_out = false;
+    const CliResult synt = RunLtlfsynt(
+        {"--ins=" + ins, "--outs=" + outs, "--semantics=Mealy",
+         "--realizability", "-f", "(" + c.pair.psi_in + ") -> (" + phi + ")"},
+        base.subprocess_timeout_secs, &synt_timed_out);
+    bool bare_timed_out = false;
+    const CliResult bare = RunLtlfsynt(
+        {"--ins=" + ins, "--outs=" + outs, "--semantics=Mealy",
+         "--realizability", "-f", phi},
+        base.subprocess_timeout_secs, &bare_timed_out);
+    if (ek_timed_out || synt_timed_out || bare_timed_out) {
+      ++skipped;
+      continue;
+    }
+
+    const bool synt_realizable = IsRealizable(ParseLtlfsyntVerdict(synt));
+    for (const auto& [method, ek_realizable] : ek_verdicts)
+      EXPECT_EQ(ek_realizable, synt_realizable)
+          << method << ": co-generated known-knowledge differential "
+                       "disagreement";
+    if (IsRealizable(ParseLtlfsyntVerdict(bare)) != synt_realizable)
+      ++load_bearing;
+  }
+  RecordProperty("load_bearing", static_cast<int>(load_bearing));
+  RecordProperty("differential_skipped", static_cast<int>(skipped));
+  if (corpus.size() >= kCorpusCaseCount) {
+    EXPECT_GE(load_bearing, kCoGenLoadBearingFloor)
+        << "too few load-bearing co-generated cases: the differential is "
+           "close to vacuous";
+    EXPECT_LE(skipped, kCoGenSkippedCeiling)
+        << "too many co-generated cases timed out: the differential is "
+           "mostly unchecked";
+  }
 }
 
 // ---------------------------------------------------------------------------
