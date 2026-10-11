@@ -23,6 +23,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <functional>
 #include <cstdint>
 #include <limits>
 #include <map>
@@ -1964,6 +1965,22 @@ struct GeneratedCase {
   OutputLabeledTransducer t_in;
 };
 
+// canonical_text: a printed form of `f` that does not depend on Spot's
+// allocation-identity order of commutative children: the children of &, |,
+// xor and <-> are listed in sorted order at every depth, so the text is a
+// function of the formula alone, not of what the process built before it.
+std::string canonical_text(spot::formula f) {
+  if (f.size() == 0) return spot::str_psl(f);
+  std::vector<std::string> children;
+  for (spot::formula child : f) children.push_back(canonical_text(child));
+  if (f.is(spot::op::And, spot::op::Or, spot::op::Xor, spot::op::Equiv))
+    std::sort(children.begin(), children.end());
+  std::string text = std::string(f.kindstr()) + "(";
+  for (std::size_t i = 0; i < children.size(); ++i)
+    text += (i ? "," : "") + children[i];
+  return text + ")";
+}
+
 // strengthen_next (PRD "Formula generation"): recursively rewrite every
 // op::X node in `f` to op::strong_X (X[!]) with probability
 // kCorpusStrongXProbability, drawn from `rng` so the rewrite is seeded and
@@ -1973,13 +1990,13 @@ struct GeneratedCase {
 // independently promote either/both occurrences.  Spot orders the children of
 // the commutative operators (&, |, xor, <->) by allocation identity, which
 // differs between builds, so those children are visited in the order of their
-// printed form instead: the rng draws then land on the same X nodes in every
+// canonical_text instead: the rng draws then land on the same X nodes in every
 // build, and the same seed yields the same corpus.
 spot::formula strengthen_next(spot::formula f, std::mt19937& rng) {
   std::map<spot::formula, spot::formula> rewritten;
   if (f.is(spot::op::And, spot::op::Or, spot::op::Xor, spot::op::Equiv)) {
     std::vector<std::pair<std::string, spot::formula>> children;
-    for (spot::formula child : f) children.emplace_back(spot::str_psl(child), child);
+    for (spot::formula child : f) children.emplace_back(canonical_text(child), child);
     std::sort(children.begin(), children.end(),
               [](const auto& a, const auto& b) { return a.first < b.first; });
     for (const auto& [text, child] : children)
@@ -2160,11 +2177,27 @@ spot::formula generate_random_formula(const VariablePartition& partition,
   priorities.push_back('\0');
 
   spot::randltlgenerator rg(aprops, opts, priorities.data());
-  const spot::formula phi = rg.next();
-  if (!phi)
+  const spot::formula drawn = rg.next();
+  if (!drawn)
     throw std::runtime_error(
         "generate_random_formula: randltlgenerator produced no formula");
-  return phi;
+
+  // randltlgenerator picks atoms by their position in `aprops`, which Spot
+  // orders by allocation identity -- not by name, and not the same in every
+  // build.  Rename the k-th atom in that order to the k-th name in sorted
+  // order, so the formula drawn for a seed does not depend on what the
+  // process interned before.
+  std::vector<spot::formula> by_identity(aprops.begin(), aprops.end());
+  std::map<spot::formula, spot::formula> by_name;
+  auto name_it = ap_names.begin();
+  for (spot::formula ap : by_identity)
+    by_name.emplace(ap, spot::formula::ap(*name_it++));
+  std::function<spot::formula(spot::formula)> rename =
+      [&](spot::formula f) -> spot::formula {
+    if (f.is(spot::op::ap)) return by_name.at(f);
+    return f.map(rename);
+  };
+  return rename(drawn);
 }
 
 // random_tin (PRD "Random Tin generation"): an in-memory OutputLabeledTransducer
@@ -2501,9 +2534,8 @@ std::vector<std::unique_ptr<ScopedEnvVar>> UnsetAllCorpusEnvVars() {
 std::uint64_t ChecksumGeneratedCorpus(const std::vector<GeneratedCase>& corpus) {
   std::uint64_t hash = 14695981039346656037ull;  // FNV-1a 64-bit offset basis
   for (const GeneratedCase& c : corpus) {
-    std::ostringstream phi_os;
-    phi_os << c.phi;
-    const std::string s = phi_os.str() + DescribeGeneratedPartition(c.partition);
+    const std::string s =
+        canonical_text(c.phi) + DescribeGeneratedPartition(c.partition);
     for (unsigned char byte : s) {
       hash ^= byte;
       hash *= 1099511628211ull;  // FNV-1a 64-bit prime
@@ -2520,7 +2552,7 @@ const std::string kGoldenDefaultCorpusPhi0 = "1";
 const std::string kGoldenDefaultCorpusPartition0 =
     "input_free={p0 p1 p2 p3 } input_known={} output_free={p4 } "
     "output_known={}";
-constexpr std::uint64_t kGoldenDefaultCorpusChecksum = 18368535040111923015ull;
+constexpr std::uint64_t kGoldenDefaultCorpusChecksum = 6597942268664199858ull;
 
 // Byte-identical default (soak-mode PRD "Test oracles" #1, "the critical
 // guard"): with no LTLF_EK_CORPUS_* env set, corpus_config_from_env() must
@@ -2547,9 +2579,7 @@ TEST(GeneratedCorpus, DefaultCorpusIsByteIdenticalToGolden) {
   const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
   ASSERT_EQ(corpus.size(), kCorpusCaseCount);
 
-  std::ostringstream phi0_os;
-  phi0_os << corpus.front().phi;
-  EXPECT_EQ(phi0_os.str(), kGoldenDefaultCorpusPhi0)
+  EXPECT_EQ(canonical_text(corpus.front().phi), kGoldenDefaultCorpusPhi0)
       << "default corpus's case-0 phi drifted from the golden -- the "
          "CorpusConfig refactor may have shifted the mt19937 draw order";
   EXPECT_EQ(DescribeGeneratedPartition(corpus.front().partition),
@@ -2592,7 +2622,7 @@ TEST(GeneratedCorpusGenerator, SameSeedYieldsSameCorpusCaseForCase) {
   for (std::size_t i = 0; i < first.size(); ++i) {
     SCOPED_TRACE("case " + std::to_string(i) + " phi=" +
                  spot::str_psl(first[i].phi));
-    EXPECT_EQ(spot::str_psl(first[i].phi), spot::str_psl(second[i].phi));
+    EXPECT_EQ(canonical_text(first[i].phi), canonical_text(second[i].phi));
     EXPECT_EQ(DescribeGeneratedPartition(first[i].partition),
               DescribeGeneratedPartition(second[i].partition));
     EXPECT_EQ(DescribeGeneratedTin(first[i].t_in),
@@ -2713,11 +2743,11 @@ TEST(CorpusConfigFromEnv, CasesOverrideChangesCorpusSize) {
 
 // Golden values for LTLF_EK_CORPUS_SEED=1, captured the same way as the
 // default golden above.
-const std::string kGoldenSeed1CorpusPhi0 = "(!p0 & p6) | (p0 & !p6)";
+const std::string kGoldenSeed1CorpusPhi0 = "Or(And(Not(p0),p6),And(Not(p6),p0))";
 const std::string kGoldenSeed1CorpusPartition0 =
     "input_free={p0 p2 } input_known={p1 } output_free={p3 p4 p5 p6 p7 } "
     "output_known={}";
-constexpr std::uint64_t kGoldenSeed1CorpusChecksum = 15412568671363869496ull;
+constexpr std::uint64_t kGoldenSeed1CorpusChecksum = 8149772767289634973ull;
 
 // Env override plumbing (PRD "Test oracles" #2): LTLF_EK_CORPUS_SEED=1
 // yields a *different* corpus than the default seed (from the golden
@@ -2732,9 +2762,7 @@ TEST(CorpusConfigFromEnv, SeedOverrideChangesCorpusDeterministically) {
   const std::vector<GeneratedCase> corpus = BuildGeneratedCorpus(config);
   ASSERT_EQ(corpus.size(), kCorpusCaseCount);
 
-  std::ostringstream phi0_os;
-  phi0_os << corpus.front().phi;
-  EXPECT_EQ(phi0_os.str(), kGoldenSeed1CorpusPhi0);
+  EXPECT_EQ(canonical_text(corpus.front().phi), kGoldenSeed1CorpusPhi0);
   EXPECT_EQ(DescribeGeneratedPartition(corpus.front().partition),
             kGoldenSeed1CorpusPartition0);
   const std::uint64_t checksum = ChecksumGeneratedCorpus(corpus);
