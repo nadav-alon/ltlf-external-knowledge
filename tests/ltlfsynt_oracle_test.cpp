@@ -2596,8 +2596,10 @@ TEST(GeneratedCorpus, DefaultCorpusIsByteIdenticalToGolden) {
 }
 
 // A case's random Tin as text, so two cases built on different private
-// bdd_dicts compare by AP name rather than by BDD variable number: per state,
-// every delta edge (guard -> destination) and the lambda BDD.
+// bdd_dicts compare by AP name rather than by BDD variable number, and by
+// canonical_text rather than Spot's allocation-identity order of the
+// commutative children: per state, every delta edge (guard -> destination)
+// and the emits region.
 std::string DescribeGeneratedTin(const OutputLabeledTransducer& t_in) {
   const spot::bdd_dict_ptr dict = t_in.dict();
   std::ostringstream os;
@@ -2606,8 +2608,10 @@ std::string DescribeGeneratedTin(const OutputLabeledTransducer& t_in) {
   for (unsigned q = 0; q < n; ++q) {
     os << " q" << q << "{";
     for (const auto& [guard, dst] : t_in.delta_edges(q))
-      os << "[" << spot::bdd_format_formula(dict, guard) << "->" << dst << "]";
-    os << " lambda=" << spot::bdd_format_formula(dict, t_in.emits_region(q))
+      os << "[" << canonical_text(spot::bdd_to_formula(guard, dict)) << "->"
+         << dst << "]";
+    os << " emits="
+       << canonical_text(spot::bdd_to_formula(t_in.emits_region(q), dict))
        << "}";
   }
   return os.str();
