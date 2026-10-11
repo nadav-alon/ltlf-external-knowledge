@@ -1228,6 +1228,16 @@ struct NkCase {
 std::optional<NkCase> build_nk_case(const BenchCase& c) {
   if (!c.psi_in.has_value()) return std::nullopt;
 
+  // The reduction below demotes Oknown to free and swaps in a trivial T_out,
+  // which discards whatever knowledge c.t_out carried. That is only sound
+  // while no case declares output knowledge (psi_in speaks for Tin alone), so
+  // refuse such a case rather than measure a different instance.
+  if (!c.vars.output_known.empty())
+    throw std::invalid_argument(
+        "build_nk_case: case '" + c.family +
+        "' declares output_known, which the no-knowledge reduction would "
+        "silently discard along with T_out");
+
   // Demote FIRST (D7): trivial_transducer only accepts a role whose produced
   // slice is empty, and it is the demotion below that empties Iknown/Oknown
   // --- building against the domain partition would throw.

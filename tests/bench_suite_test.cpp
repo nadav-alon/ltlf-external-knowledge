@@ -694,3 +694,17 @@ TEST(BenchSuiteExtractorColumn,
         "measures under build_nk_case's demoted, no-knowledge partition";
   EXPECT_TRUE(RowValue(rows, "dependent_inputs"));
 }
+
+TEST(BenchSuiteNoKnowledgeColumn, RefusesACaseThatDeclaresOutputKnowledge) {
+  // The reduction swaps in a trivial T_out, so a case with output_known would
+  // silently lose that knowledge; it must fail loudly instead.
+  BenchCase c = FamilyNamed("slippery-binary").instantiate(Params(2, true));
+  ASSERT_TRUE(c.psi_in.has_value());
+  ASSERT_TRUE(c.vars.output_known.empty())
+      << "sanity: no shipped family populates output_known";
+  c.vars.output_known.insert("o_known");
+  EXPECT_THROW(run_bench_case(c, SubjectNamed("dfa-product-nk")),
+               std::invalid_argument);
+  EXPECT_THROW(run_bench_case(c, SubjectNamed("dependent-inputs-extraction")),
+               std::invalid_argument);
+}
