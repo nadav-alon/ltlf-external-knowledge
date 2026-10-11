@@ -39,7 +39,7 @@ std::string RunSweep(const std::string& tag, const std::string& flags) {
   return ss.str();
 }
 
-TEST(BenchSweep, EveryTimingRowCarriesAMedianNoBelowItsMin) {
+TEST(BenchSweep, WallTotalRowCarriesAMedianNotBelowItsMin) {
   const std::string json = RunSweep(
       "bench_sweep_median",
       "--families=cons-prunes --subjects=dfa-product --n-min=2 --n-max=2 "
@@ -57,7 +57,9 @@ TEST(BenchSweep, EveryTimingRowCarriesAMedianNoBelowItsMin) {
   EXPECT_EQ(seen, 2u) << "one wall_total row per polarity (realizable 0/1)";
 }
 
-TEST(BenchSweep, LtlfsyntRowCarriesAMedianNoBelowItsMin) {
+TEST(BenchSweep, LtlfsyntRowCarriesAMedianNotBelowItsMin) {
+  if (std::system("command -v ltlfsynt >/dev/null 2>&1") != 0)
+    GTEST_SKIP() << "no ltlfsynt on PATH";
   const std::string json = RunSweep(
       "bench_sweep_ltlfsynt",
       "--families=cons-prunes --subjects=dfa-product --n-min=2 --n-max=2 "
