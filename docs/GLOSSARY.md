@@ -1292,6 +1292,20 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   encodability (that is the *condition* a tier records, not the declared label);
   and never speak of a tier as *measured* or *detected* — it is declared.
 
+### Prune ratio
+- **`main.tex`:** none (implementation-only: a benchmark report column).
+- **Definition:** for one case, the number of *reachable* explicit-product states
+  built **with** the knowledge over the number built **without** it —
+  `product_states` of `dfa-product` over `product_states` of `dfa-product-unpruned`
+  (the same Goal, `Iknown`/`Oknown` demoted to free, trivial transducers). Below 1
+  where $\cons$ and the transducers cut the product; 1 where the knowledge is inert.
+  It is the class criterion of the Oct 17 sweep and the report's x-axis.
+- **C++:** the `dfa-product-unpruned` bench subject (`src/bench_suite.cpp`); the
+  ratio itself is computed by `scripts/sweep_report.py`, not stored.
+- **Do not call it:** pruning factor, reduction ratio, compression; and not the
+  `-nk` ratio — the `-nk` subjects fold $\psiin$ into the Goal, a different
+  instance that needs a $\psiin$ the T2 families lack.
+
 ## Testing & oracles
 
 ### ltlfsynt reductions

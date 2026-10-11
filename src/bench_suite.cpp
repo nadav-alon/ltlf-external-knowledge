@@ -1225,9 +1225,10 @@ struct NkCase {
   spot::bdd_dict_ptr dict;
 };
 
-std::optional<NkCase> build_nk_case(const BenchCase& c) {
-  if (!c.psi_in.has_value()) return std::nullopt;
-
+// The knowledge-free shell of `c` around `goal`: Iknown/Oknown demoted to free
+// and both transducers trivial. Shared by the -nk subjects (goal = psi_in ->
+// phi) and the prune baseline (goal = phi).
+NkCase build_knowledge_free_case(const BenchCase& c, const spot::formula& goal) {
   // The reduction below demotes Oknown to free and swaps in a trivial T_out,
   // which discards whatever knowledge c.t_out carried. That is only sound
   // while no case declares output knowledge (psi_in speaks for Tin alone), so
@@ -1255,14 +1256,17 @@ std::optional<NkCase> build_nk_case(const BenchCase& c) {
   const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
   register_turn_order_aps(nk_vars, dict);
 
-  const std::string phi_str = spot::str_psl(c.phi);
-  const spot::formula reduced =
-      parse_or_throw("(" + *c.psi_in + ") -> (" + phi_str + ")");
-
   OutputLabeledTransducer t_in = trivial_transducer(nk_vars, Role::t_in, dict);
   OutputLabeledTransducer t_out = trivial_transducer(nk_vars, Role::t_out, dict);
 
-  return NkCase{reduced, nk_vars, std::move(t_in), std::move(t_out), dict};
+  return NkCase{goal, nk_vars, std::move(t_in), std::move(t_out), dict};
+}
+
+std::optional<NkCase> build_nk_case(const BenchCase& c) {
+  if (!c.psi_in.has_value()) return std::nullopt;
+  const std::string phi_str = spot::str_psl(c.phi);
+  return build_knowledge_free_case(
+      c, parse_or_throw("(" + *c.psi_in + ") -> (" + phi_str + ")"));
 }
 
 class DfaProductNkSubject final : public BenchSubject {
@@ -1321,6 +1325,25 @@ class OtfMtdfaProductNkSubject final : public BenchSubject {
     if (!nk) return;
     OtfMtdfaProduct method;
     method.synthesize(nk->reduced, nk->vars, nk->t_in, nk->t_out);
+  }
+};
+
+// ---------------------------------------------------------------------------
+// The prune baseline: DfaProduct on the case's own Goal with the knowledge
+// ignored (Iknown/Oknown free, trivial transducers). Its product_states over
+// the knowledge row's is the prune ratio's denominator --- the reachable
+// product the knowledge would otherwise have cut. Unlike the -nk subjects it
+// needs no psi_in, so it covers the T2 families too. It decides a different
+// (harder) game than the case, so its verdict is not the case's.
+// ---------------------------------------------------------------------------
+
+class DfaProductUnprunedSubject final : public BenchSubject {
+ public:
+  std::string name() const override { return "dfa-product-unpruned"; }
+  void run(const BenchCase& c) const override {
+    const NkCase bare = build_knowledge_free_case(c, c.phi);
+    DfaProduct method;
+    method.synthesize(bare.reduced, bare.vars, bare.t_in, bare.t_out);
   }
 };
 
@@ -1394,6 +1417,7 @@ const std::vector<std::unique_ptr<BenchSubject>>& bench_subjects() {
     v.push_back(std::make_unique<MtnfaProductNkSubject>());
     v.push_back(std::make_unique<OtfMtdfaProductNkSubject>());
     v.push_back(std::make_unique<DependentInputsExtractionSubject>());
+    v.push_back(std::make_unique<DfaProductUnprunedSubject>());
     return v;
   }();
   return subjects;

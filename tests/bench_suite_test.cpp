@@ -505,6 +505,11 @@ TEST(BenchSuiteCrossMethodAgreement, AllFiveMethodsAgreeWithEachOtherAndTheDecla
           if (subject->name() == "dependent-inputs-extraction") {
             continue;
           }
+          // dfa-product-unpruned decides the knowledge-free game, whose
+          // verdict is not the case's.
+          if (subject->name() == "dfa-product-unpruned") {
+            continue;
+          }
           const std::vector<BenchRow> rows = run_bench_case(c, *subject);
           const std::optional<bool> verdict = RealizabilityVerdict(rows);
           if (!verdict.has_value()) continue;  // subject skipped (mona absent).
@@ -707,4 +712,36 @@ TEST(BenchSuiteNoKnowledgeColumn, RefusesACaseThatDeclaresOutputKnowledge) {
                std::invalid_argument);
   EXPECT_THROW(run_bench_case(c, SubjectNamed("dependent-inputs-extraction")),
                std::invalid_argument);
+}
+
+// ---------------------------------------------------------------------------
+// The prune baseline ("dfa-product-unpruned"): the denominator of the prune
+// ratio, reachable product states with the knowledge ignored.
+// ---------------------------------------------------------------------------
+
+namespace {
+std::uint64_t ProductStates(const BenchCase& c, const std::string& subject) {
+  const auto v = RowValue(run_bench_case(c, SubjectNamed(subject)),
+                          "product_states");
+  EXPECT_TRUE(v.has_value()) << subject << " on " << c.family;
+  return v.value_or(0);
+}
+}  // namespace
+
+TEST(BenchSuitePruneBaseline, IsLargerThanTheKnowledgeProductWhereConsPrunes) {
+  const BenchCase c = FamilyNamed("cons-prunes").instantiate(Params(3, true));
+  EXPECT_LT(ProductStates(c, "dfa-product"),
+            ProductStates(c, "dfa-product-unpruned"));
+}
+
+TEST(BenchSuitePruneBaseline, EqualsTheKnowledgeProductWhereTheKnowledgeIsInert) {
+  const BenchCase c = FamilyNamed("cons-inert").instantiate(Params(3, true));
+  EXPECT_EQ(ProductStates(c, "dfa-product"),
+            ProductStates(c, "dfa-product-unpruned"));
+}
+
+TEST(BenchSuitePruneBaseline, RunsOnACaseWithoutPsiIn) {
+  const BenchCase c = FamilyNamed("knowledge-chain").instantiate(Params(3, true));
+  ASSERT_FALSE(c.psi_in.has_value());
+  EXPECT_GT(ProductStates(c, "dfa-product-unpruned"), 0u);
 }
