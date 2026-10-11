@@ -2238,6 +2238,7 @@ OutputLabeledTransducer random_table_transducer(
   for (const std::string& n : slices.sigma1)
     sigma1_vars.push_back(g->register_ap(n));
 
+  // tin_states_max bounds the state count of both T_in and T_out.
   std::uniform_int_distribution<int> state_count(1, config.tin_states_max);
   const int n = state_count(rng);
   g->new_states(n);
@@ -2556,8 +2557,30 @@ std::vector<std::unique_ptr<ScopedEnvVar>> UnsetAllCorpusEnvVars() {
   return guards;
 }
 
+// A case's random Tin or Tout as text, so two cases built on different private
+// bdd_dicts compare by AP name rather than by BDD variable number, and by
+// canonical_text rather than Spot's allocation-identity order of the
+// commutative children: per state, every delta edge (guard -> destination)
+// and the emits region.
+std::string DescribeGeneratedTransducer(const OutputLabeledTransducer& t) {
+  const spot::bdd_dict_ptr dict = t.dict();
+  std::ostringstream os;
+  os << "init=" << t.initial_state();
+  const unsigned n = t.delta_dfa()->num_states();
+  for (unsigned q = 0; q < n; ++q) {
+    os << " q" << q << "{";
+    for (const auto& [guard, dst] : t.delta_edges(q))
+      os << "[" << canonical_text(spot::bdd_to_formula(guard, dict)) << "->"
+         << dst << "]";
+    os << " emits="
+       << canonical_text(spot::bdd_to_formula(t.emits_region(q), dict))
+       << "}";
+  }
+  return os.str();
+}
+
 // A portable, order-sensitive 64-bit FNV-1a fold over a generated corpus's
-// (phi, partition) stream -- a stable stand-in for "the whole 256-case
+// (phi, partition, Tin, Tout) stream -- a stable stand-in for "the whole 256-case
 // stream" so the byte-identical guard does not string-compare 256 cases by
 // hand (PRD "Test oracles": "a stable checksum over the streamed cases").
 // Deliberately NOT std::hash, whose output is implementation-defined -- a
@@ -2567,8 +2590,10 @@ std::vector<std::unique_ptr<ScopedEnvVar>> UnsetAllCorpusEnvVars() {
 std::uint64_t ChecksumGeneratedCorpus(const std::vector<GeneratedCase>& corpus) {
   std::uint64_t hash = 14695981039346656037ull;  // FNV-1a 64-bit offset basis
   for (const GeneratedCase& c : corpus) {
-    const std::string s =
-        canonical_text(c.phi) + DescribeGeneratedPartition(c.partition);
+    const std::string s = canonical_text(c.phi) +
+                          DescribeGeneratedPartition(c.partition) +
+                          DescribeGeneratedTransducer(c.t_in) +
+                          DescribeGeneratedTransducer(c.t_out);
     for (unsigned char byte : s) {
       hash ^= byte;
       hash *= 1099511628211ull;  // FNV-1a 64-bit prime
@@ -2578,16 +2603,14 @@ std::uint64_t ChecksumGeneratedCorpus(const std::vector<GeneratedCase>& corpus) 
 }
 
 // Golden values of the default corpus (BuildGeneratedCorpus on
-// corpus_config_from_env() with no env set), recaptured from a single
-// BuildGeneratedCorpus in a fresh process after random_partition began
-// drawing Oknown.  A later mismatch means the
+// corpus_config_from_env() with no env set).  A later mismatch means the
 // mt19937 draw order drifted -- "investigate, don't adjust" (PRD "Edge cases"
 // / repo-wide rule), never silently re-capture to make the test pass.
 const std::string kGoldenDefaultCorpusPhi0 = "F(p1)";
 const std::string kGoldenDefaultCorpusPartition0 =
     "input_free={p0 p1 p2 p3 } input_known={} output_free={p4 } "
     "output_known={}";
-constexpr std::uint64_t kGoldenDefaultCorpusChecksum = 7455900054567997449ull;
+constexpr std::uint64_t kGoldenDefaultCorpusChecksum = 3526613798530469506ull;
 
 // Byte-identical default (soak-mode PRD "Test oracles" #1, "the critical
 // guard"): with no LTLF_EK_CORPUS_* env set, corpus_config_from_env() must
@@ -2625,28 +2648,6 @@ TEST(GeneratedCorpus, DefaultCorpusIsByteIdenticalToGolden) {
          "from the golden checksum -- some case beyond #0 shifted";
 }
 
-// A case's random Tin as text, so two cases built on different private
-// bdd_dicts compare by AP name rather than by BDD variable number, and by
-// canonical_text rather than Spot's allocation-identity order of the
-// commutative children: per state, every delta edge (guard -> destination)
-// and the emits region.
-std::string DescribeGeneratedTin(const OutputLabeledTransducer& t_in) {
-  const spot::bdd_dict_ptr dict = t_in.dict();
-  std::ostringstream os;
-  os << "init=" << t_in.initial_state();
-  const unsigned n = t_in.delta_dfa()->num_states();
-  for (unsigned q = 0; q < n; ++q) {
-    os << " q" << q << "{";
-    for (const auto& [guard, dst] : t_in.delta_edges(q))
-      os << "[" << canonical_text(spot::bdd_to_formula(guard, dict)) << "->"
-         << dst << "]";
-    os << " emits="
-       << canonical_text(spot::bdd_to_formula(t_in.emits_region(q), dict))
-       << "}";
-  }
-  return os.str();
-}
-
 // PRD "Determinism / seeding": the same config yields the same corpus, case
 // for case -- formula, partition and Tin -- even when built twice in one
 // process, where Spot's allocation state differs between the two builds.
@@ -2664,8 +2665,10 @@ TEST(GeneratedCorpusGenerator, SameSeedYieldsSameCorpusCaseForCase) {
     EXPECT_EQ(canonical_text(first[i].phi), canonical_text(second[i].phi));
     EXPECT_EQ(DescribeGeneratedPartition(first[i].partition),
               DescribeGeneratedPartition(second[i].partition));
-    EXPECT_EQ(DescribeGeneratedTin(first[i].t_in),
-              DescribeGeneratedTin(second[i].t_in));
+    EXPECT_EQ(DescribeGeneratedTransducer(first[i].t_in),
+              DescribeGeneratedTransducer(second[i].t_in));
+    EXPECT_EQ(DescribeGeneratedTransducer(first[i].t_out),
+              DescribeGeneratedTransducer(second[i].t_out));
   }
 }
 
@@ -2683,7 +2686,7 @@ TEST(GeneratedCorpusGenerator, EveryGeneratedTinIsDeterministicAndTotal) {
     const GeneratedCase& c = corpus[i];
     SCOPED_TRACE("case " + std::to_string(i) + " phi=" + spot::str_psl(c.phi) +
                  " " + DescribeGeneratedPartition(c.partition) + " tin=" +
-                 DescribeGeneratedTin(c.t_in));
+                 DescribeGeneratedTransducer(c.t_in));
     const spot::bdd_dict_ptr dict = c.t_in.dict();
     std::vector<int> ifree_vars;
     for (const std::string& name : c.partition.input_free)
@@ -2728,6 +2731,33 @@ TEST(GeneratedCorpusGenerator, EveryGeneratedTinIsDeterministicAndTotal) {
   }
 }
 
+// A table transducer is deterministic and total over `sigma0_vars`: edge
+// guards pairwise disjoint and in range, delta defined on every Sigma0 letter,
+// and lambda answering each with one full Sigma1 assignment.
+void ExpectTableTransducerDeterministicAndTotal(
+    const OutputLabeledTransducer& t, const std::vector<int>& sigma0_vars) {
+  const std::vector<bdd> sigma0_letters = all_letters_over(sigma0_vars);
+  const unsigned n = t.delta_dfa()->num_states();
+  ASSERT_GE(n, 1u);
+  EXPECT_LT(t.initial_state(), n);
+  for (unsigned q = 0; q < n; ++q) {
+    bdd covered = bddfalse;
+    for (const auto& [guard, dst] : t.delta_edges(q)) {
+      EXPECT_LT(dst, n);
+      EXPECT_EQ(covered & guard, bddfalse) << "overlapping edge guards";
+      covered |= guard;
+    }
+    for (const bdd& letter : sigma0_letters) {
+      ASSERT_TRUE(t.delta(q, letter).has_value())
+          << "state " << q << " has an unhandled Sigma0 valuation";
+      const std::optional<bdd> out = t.lambda(q, letter);
+      ASSERT_TRUE(out.has_value());
+      EXPECT_EQ(bdd_satcountset(*out, t.sigma1_cube()), 1.0)
+          << "lambda is not one full Sigma1 assignment";
+    }
+  }
+}
+
 // random_tout on a partition with a non-empty Oknown: a table transducer over
 // Sigma0 = I union Ofree (the same step's inputs and free outputs) producing
 // Sigma1 = Oknown, deterministic and total -- exactly one delta edge per
@@ -2754,24 +2784,7 @@ TEST(GeneratedCorpusGenerator, RandomToutIsDeterministicAndTotalOverInputsAndFre
       sigma0_vars.push_back(dict->varnum(spot::formula::ap(name)));
     ASSERT_EQ(sigma0_vars.size(), 3u);  // a, b, c.
 
-    const unsigned n = t_out.delta_dfa()->num_states();
-    ASSERT_GE(n, 1u);
-    for (unsigned q = 0; q < n; ++q) {
-      bdd covered = bddfalse;
-      for (const auto& [guard, dst] : t_out.delta_edges(q)) {
-        EXPECT_LT(dst, n);
-        EXPECT_EQ(covered & guard, bddfalse) << "overlapping edge guards";
-        covered |= guard;
-      }
-      for (const bdd& letter : all_letters_over(sigma0_vars)) {
-        ASSERT_TRUE(t_out.delta(q, letter).has_value())
-            << "state " << q << " has an unhandled Sigma0 valuation";
-        const std::optional<bdd> out = t_out.lambda(q, letter);
-        ASSERT_TRUE(out.has_value());
-        EXPECT_EQ(bdd_satcountset(*out, t_out.sigma1_cube()), 1.0)
-            << "lambda is not one full Oknown assignment";
-      }
-    }
+    ExpectTableTransducerDeterministicAndTotal(t_out, sigma0_vars);
   }
 }
 
@@ -2797,27 +2810,7 @@ TEST(GeneratedCorpusGenerator, EveryGeneratedToutIsDeterministicAndTotalAndSomeA
     std::vector<int> sigma0_vars;
     for (const std::string& name : slices.sigma0)
       sigma0_vars.push_back(dict->varnum(spot::formula::ap(name)));
-    const std::vector<bdd> sigma0_letters = all_letters_over(sigma0_vars);
-
-    const unsigned n = c.t_out.delta_dfa()->num_states();
-    ASSERT_GE(n, 1u);
-    EXPECT_LT(c.t_out.initial_state(), n);
-    for (unsigned q = 0; q < n; ++q) {
-      bdd covered = bddfalse;
-      for (const auto& [guard, dst] : c.t_out.delta_edges(q)) {
-        EXPECT_LT(dst, n);
-        EXPECT_EQ(covered & guard, bddfalse) << "overlapping edge guards";
-        covered |= guard;
-      }
-      for (const bdd& letter : sigma0_letters) {
-        ASSERT_TRUE(c.t_out.delta(q, letter).has_value())
-            << "state " << q << " is not total on a Sigma0 valuation";
-        const std::optional<bdd> out = c.t_out.lambda(q, letter);
-        ASSERT_TRUE(out.has_value());
-        EXPECT_EQ(bdd_satcountset(*out, c.t_out.sigma1_cube()), 1.0)
-            << "lambda is not one full Oknown assignment";
-      }
-    }
+    ExpectTableTransducerDeterministicAndTotal(c.t_out, sigma0_vars);
   }
   EXPECT_GT(with_oknown, 0u) << "no generated case has a non-empty Oknown";
   EXPECT_LT(with_oknown, corpus.size()) << "every case has a non-empty Oknown";
@@ -2879,14 +2872,13 @@ TEST(CorpusConfigFromEnv, CasesOverrideChangesCorpusSize) {
   EXPECT_EQ(corpus.size(), 8u);
 }
 
-// Golden values for LTLF_EK_CORPUS_SEED=1, recaptured like the default
-// corpus's.
+// Golden values for LTLF_EK_CORPUS_SEED=1.
 const std::string kGoldenSeed1CorpusPhi0 =
     "And(X(R(Not(p2),U(Not(p0),Not(p2)))),p1)";
 const std::string kGoldenSeed1CorpusPartition0 =
     "input_free={p0 p2 } input_known={p1 } output_free={p6 p7 } "
     "output_known={p3 p4 p5 }";
-constexpr std::uint64_t kGoldenSeed1CorpusChecksum = 16468623250011442845ull;
+constexpr std::uint64_t kGoldenSeed1CorpusChecksum = 3773334576033281644ull;
 
 // Env override plumbing (PRD "Test oracles" #2): LTLF_EK_CORPUS_SEED=1
 // yields a *different* corpus than the default seed (from the golden
@@ -3033,18 +3025,20 @@ TEST(GeneratedCorpusSoak, DISABLED_LtlfToDfaStructuralReachesAtLeastOneLevel) {
   RecordProperty("elapsed_ms", static_cast<int>(elapsed_ms));
 }
 
-// DumpTinForReplay (soak-mode PRD "Test oracles" deliverable 3, "closing the
+// DumpTransducerForReplay, wrapped by DumpTinForReplay and
+// DumpToutForReplay (soak-mode PRD "Test oracles" deliverable 3, "closing the
 // metamorphic t_in replay gap"): renders the reachable (state, Ifree-letter)
 // -> (lambda-over-Iknown, delta dst) table for a generated case's random
-// Tin, so a MetamorphicRoundTrip failure is fully replayable even though the
+// Tin or Tout, so a MetamorphicRoundTrip failure is fully replayable even though the
 // generated corpus itself has no reliable in-process regeneration recipe
 // (run_corpus's Spot apid-recycling comment above) -- SCOPED_TRACE already
 // prints phi + partition + the seed/config a failing case ran under, but
 // until now nothing captured the random Tin those were paired with, so a
 // failure's *transducer* half of the reproducer was lost. Enumerates only
-// Sigma0=Ifree letters: random_tin's delta guards are exactly Ifree cubes
+// Sigma0 letters: the random table's delta guards are exactly Sigma0 cubes
 // and lambda reads only its Sigma0 slice (Role t_in: Sigma0=Ifree,
-// Sigma1=Iknown), so Ifree alone determines every (delta, lambda) pair --
+// Sigma1=Iknown; Role t_out: Sigma0=I u Ofree, Sigma1=Oknown), so Sigma0
+// alone determines every (delta, lambda) pair --
 // same partial-cube idiom as run_transducer/single_bit_sigma1_mutations
 // above. A throwaway registrar twa_graph on t_in's own dict resolves I∪O
 // names to the exact variable numbers t_in's private graph already
@@ -3053,32 +3047,34 @@ TEST(GeneratedCorpusSoak, DISABLED_LtlfToDfaStructuralReachesAtLeastOneLevel) {
 // failure-only: call this only from a failing EXPECT_*'s `<<` stream (which
 // GoogleTest evaluates lazily -- only when the assertion actually fails),
 // never unconditionally, so passing cases pay nothing extra.
-std::string DumpTinForReplay(const OutputLabeledTransducer& t_in,
-                             const VariablePartition& partition) {
-  const spot::bdd_dict_ptr dict = t_in.dict();
+std::string DumpTransducerForReplay(const char* label,
+                                    const OutputLabeledTransducer& t,
+                                    const VariablePartition& partition,
+                                    Role role) {
+  const spot::bdd_dict_ptr dict = t.dict();
   const spot::twa_graph_ptr registrar = spot::make_twa_graph(dict);
-  std::vector<int> ifree_vars;
-  for (const std::string& n : partition.input_free)
-    ifree_vars.push_back(registrar->register_ap(n));
-  const std::vector<bdd> ifree_letters = all_letters_over(ifree_vars);
+  std::vector<int> sigma0_vars;
+  for (const std::string& n : sigma_slices(partition, role).sigma0)
+    sigma0_vars.push_back(registrar->register_ap(n));
+  const std::vector<bdd> sigma0_letters = all_letters_over(sigma0_vars);
 
   std::ostringstream os;
-  os << "t_in replay dump: initial_state=" << t_in.initial_state()
-     << ", " << ifree_letters.size() << " Ifree letter(s) per state\n";
-  std::vector<unsigned> queue{t_in.initial_state()};
-  std::set<unsigned> visited{t_in.initial_state()};
+  os << label << " replay dump: initial_state=" << t.initial_state()
+     << ", " << sigma0_letters.size() << " Sigma0 letter(s) per state\n";
+  std::vector<unsigned> queue{t.initial_state()};
+  std::set<unsigned> visited{t.initial_state()};
   for (std::size_t qi = 0; qi < queue.size(); ++qi) {
     const unsigned q = queue[qi];
-    for (const bdd& ifree : ifree_letters) {
-      const std::optional<bdd> iknown = t_in.lambda(q, ifree);
+    for (const bdd& sigma0 : sigma0_letters) {
+      const std::optional<bdd> sigma1 = t.lambda(q, sigma0);
       os << "  state " << q
-         << " ifree=(" << spot::bdd_to_formula(ifree, dict) << ")";
-      if (!iknown) {
+         << " sigma0=(" << spot::bdd_to_formula(sigma0, dict) << ")";
+      if (!sigma1) {
         os << " lambda=undefined delta=undefined\n";
         continue;
       }
-      os << " lambda=(" << spot::bdd_to_formula(*iknown, dict) << ")";
-      const std::optional<unsigned> dst = t_in.delta(q, ifree & *iknown);
+      os << " lambda=(" << spot::bdd_to_formula(*sigma1, dict) << ")";
+      const std::optional<unsigned> dst = t.delta(q, sigma0 & *sigma1);
       if (!dst) {
         os << " delta=undefined\n";
         continue;
@@ -3090,6 +3086,18 @@ std::string DumpTinForReplay(const OutputLabeledTransducer& t_in,
   return os.str();
 }
 
+std::string DumpTinForReplay(const OutputLabeledTransducer& t_in,
+                             const VariablePartition& partition) {
+  return DumpTransducerForReplay("t_in", t_in, partition, Role::t_in);
+}
+
+// The known-output half of the reproducer: Sigma0 = I union Ofree (Role
+// t_out), so it enumerates every input/free-output letter.
+std::string DumpToutForReplay(const OutputLabeledTransducer& t_out,
+                              const VariablePartition& partition) {
+  return DumpTransducerForReplay("t_out", t_out, partition, Role::t_out);
+}
+
 // Metamorphic round-trip (PRD "Test oracles" #1, Phase 2's green checkpoint;
 // extended by docs/prd/mtdfa-product.md "Test oracles" #1 to a SECOND
 // method, and by docs/prd/otf-mtdfa-product.md "Test oracles" Phase 1 green
@@ -3098,7 +3106,7 @@ std::string DumpTinForReplay(const OutputLabeledTransducer& t_in,
 // AGREE on realizability (cross-method metamorphic -- route (a) leans on Spot
 // semantics Phase 0 probes but does not prove, so this "roughly doubles
 // corpus runtime; earns it"), and whichever of a/b/c returns a Controller
-// must pass verify_controller on that same (phi, Tin, trivial Tout, T_C) --
+// must pass verify_controller on that same (phi, Tin, Tout, T_C) --
 // the standing "every ...Product controller verifies" invariant
 // (docs/prd/controller-verifier.md), now exercised on generated phi AND
 // generated Tin, for all three methods independently.  The (b) vs (c) pair is
@@ -3143,14 +3151,16 @@ TEST(GeneratedCorpus, MetamorphicRoundTrip) {
             << "cross-method metamorphic failure: DfaProduct and "
                "MtdfaProduct disagree on realizability -- t_in for replay "
                "(see DumpTinForReplay):\n"
-            << DumpTinForReplay(c.t_in, c.partition);
+            << DumpTinForReplay(c.t_in, c.partition)
+            << DumpToutForReplay(c.t_out, c.partition);
         EXPECT_EQ(b.has_value(), d.has_value())
             << "cross-method metamorphic failure: MtdfaProduct and "
                "OtfMtdfaProduct disagree on realizability -- same solver, "
                "same substrate, same interning rule, so this isolates "
                "laziness (docs/prd/otf-mtdfa-product.md 'Goal') -- t_in for "
                "replay (see DumpTinForReplay):\n"
-            << DumpTinForReplay(c.t_in, c.partition);
+            << DumpTinForReplay(c.t_in, c.partition)
+            << DumpToutForReplay(c.t_out, c.partition);
 
         if (a.has_value())
           EXPECT_TRUE(
@@ -3158,21 +3168,24 @@ TEST(GeneratedCorpus, MetamorphicRoundTrip) {
               << "metamorphic round-trip failed: DfaProduct returned a "
                  "controller that verify_controller rejects -- t_in for "
                  "replay (see DumpTinForReplay):\n"
-              << DumpTinForReplay(c.t_in, c.partition);
+              << DumpTinForReplay(c.t_in, c.partition)
+            << DumpToutForReplay(c.t_out, c.partition);
         if (b.has_value())
           EXPECT_TRUE(
               verify_controller(c.phi, c.partition, c.t_in, t_out, *b).ok)
               << "metamorphic round-trip failed: MtdfaProduct returned a "
                  "controller that verify_controller rejects -- t_in for "
                  "replay (see DumpTinForReplay):\n"
-              << DumpTinForReplay(c.t_in, c.partition);
+              << DumpTinForReplay(c.t_in, c.partition)
+            << DumpToutForReplay(c.t_out, c.partition);
         if (d.has_value())
           EXPECT_TRUE(
               verify_controller(c.phi, c.partition, c.t_in, t_out, *d).ok)
               << "metamorphic round-trip failed: OtfMtdfaProduct returned a "
                  "controller that verify_controller rejects -- t_in for "
                  "replay (see DumpTinForReplay):\n"
-              << DumpTinForReplay(c.t_in, c.partition);
+              << DumpTinForReplay(c.t_in, c.partition)
+            << DumpToutForReplay(c.t_out, c.partition);
       });
   RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
   RecordProperty("cases_run", static_cast<int>(stats.cases_run));
@@ -3185,7 +3198,7 @@ TEST(GeneratedCorpus, MetamorphicRoundTrip) {
 // every generated case, NfaProduct::synthesize and DfaProduct::synthesize
 // must AGREE on realizability -- "the strongest Method-1 oracle and the
 // reason NfaProduct is the baseline" -- and any NfaProduct controller
-// returned must pass verify_controller on the same (phi, Tin, trivial Tout,
+// returned must pass verify_controller on the same (phi, Tin, Tout,
 // T_C), the same "every ...Product controller verifies" invariant already
 // exercised for DfaProduct/MtdfaProduct in MetamorphicRoundTrip above.
 // NfaProduct::synthesize shells out to mona via ltlf_to_nfa, so this test is
@@ -3223,7 +3236,8 @@ TEST(GeneratedCorpus, NfaProductMatchesDfaProductAndMetamorphic) {
             << "cross-method realizability disagreement: DfaProduct and "
                "NfaProduct disagree -- t_in for replay (see "
                "DumpTinForReplay):\n"
-            << DumpTinForReplay(c.t_in, c.partition);
+            << DumpTinForReplay(c.t_in, c.partition)
+            << DumpToutForReplay(c.t_out, c.partition);
 
         if (b.has_value())
           EXPECT_TRUE(
@@ -3231,7 +3245,8 @@ TEST(GeneratedCorpus, NfaProductMatchesDfaProductAndMetamorphic) {
               << "metamorphic round-trip failed: NfaProduct returned a "
                  "controller that verify_controller rejects -- t_in for "
                  "replay (see DumpTinForReplay):\n"
-              << DumpTinForReplay(c.t_in, c.partition);
+              << DumpTinForReplay(c.t_in, c.partition)
+            << DumpToutForReplay(c.t_out, c.partition);
       });
   RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
   RecordProperty("cases_run", static_cast<int>(stats.cases_run));

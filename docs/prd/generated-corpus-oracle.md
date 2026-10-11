@@ -179,7 +179,7 @@ Per case, draw from `rng`:
 - **Metamorphic (library, fast) width:** $\lvert\mathcal{I}\rvert\in[1,5]$,
   $\lvert\mathcal{O}\rvert\in[0,5]$ ($0$ hits the empty-$\Ofree$ edge case). A
   random subset of the inputs is marked $\Iknown$ (**may be empty** = degenerate
-  empty-knowledge). $\Oknown=\emptyset$ always in v1 ($\Tout$ stays trivial). AP
+  empty-knowledge). Each output is marked $\Oknown$ by a coin flip (a non-empty $\Oknown$ gets a random table $\Tout$; empty keeps $\Tout$ trivial), so the differential, which reads only the all-free subset, never sees a known output. AP
   names are fresh `p0, p1, …` up to $\lvert\mathcal{I}\cup\mathcal{O}\rvert$.
 - **Differential (subprocess, slow) width cap:** the differential body only runs
   cases with $\mathcal{V}=\emptyset$ **and**
