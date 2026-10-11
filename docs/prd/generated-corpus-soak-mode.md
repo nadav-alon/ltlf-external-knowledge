@@ -761,9 +761,10 @@ the point: more evidence, no new resolution):
   the distribution, add them as further `LTLF_EK_CORPUS_*` knobs then.
 - **Formula shrinking on failure** — a separate `docs/BACKLOG.md` item; soak
   prints the un-shrunk reproducer, as v1 does.
-- **Generated $\Tout$ / $\Oknown$ and the co-generated $(\Tin,\psiin)$
-  known-knowledge differential** — separate backlog items; soak keeps
-  $\Oknown=\emptyset$, $\Tout$ trivial, exactly as v1.
+- **The co-generated $(\Tin,\psiin)$ known-knowledge differential** — a
+  separate backlog item; the differential still reads only the all-free
+  subset. The corpus itself now draws a random $\Oknown$ split and table
+  $\Tout$.
 - **Splitting one wall budget across the three bodies** — rejected; the budget is
   per body (see *Soak switch and budget*).
 ```
