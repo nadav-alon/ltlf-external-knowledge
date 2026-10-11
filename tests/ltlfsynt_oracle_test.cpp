@@ -2330,6 +2330,20 @@ GeneratedCase GenerateOneCase(std::mt19937& rng, const CorpusConfig& config) {
   return {phi, std::move(partition), std::move(t_in), std::move(t_out)};
 }
 
+// The seeded loop shared by every corpus: one std::mt19937(config.seed)
+// consumed by `generate_one(rng, config)` once per case, so no corpus can
+// diverge from another in how it draws from rng.
+template <typename Case, typename GenerateOne>
+std::vector<Case> BuildCorpus(const CorpusConfig& config,
+                              GenerateOne&& generate_one) {
+  std::mt19937 rng(config.seed);
+  std::vector<Case> corpus;
+  corpus.reserve(config.case_count);
+  for (std::size_t i = 0; i < config.case_count; ++i)
+    corpus.push_back(generate_one(rng, config));
+  return corpus;
+}
+
 // BuildGeneratedCorpus (PRD "Determinism / seeding"): one seeded
 // std::mt19937(config.seed), no reserved draw slots.  Emits config.case_count
 // cases partition-first, so
@@ -2345,12 +2359,7 @@ GeneratedCase GenerateOneCase(std::mt19937& rng, const CorpusConfig& config) {
 // but is still called by the soak==0 fast path and the golden tests exactly
 // as before, up front, with no deadline/OOM handling of its own.
 std::vector<GeneratedCase> BuildGeneratedCorpus(const CorpusConfig& config) {
-  std::mt19937 rng(config.seed);
-  std::vector<GeneratedCase> corpus;
-  corpus.reserve(config.case_count);
-  for (std::size_t i = 0; i < config.case_count; ++i)
-    corpus.push_back(GenerateOneCase(rng, config));
-  return corpus;
+  return BuildCorpus<GeneratedCase>(config, GenerateOneCase);
 }
 
 // RunCorpusStats: bookkeeping returned by run_corpus (soak-mode PRD
@@ -3349,11 +3358,13 @@ TEST(GeneratedCorpus, BuildEquivalence) {
 
 // Comma-joins an AP-name set for --inputs/--outputs (ek-synth) or the
 // --ins=/--outs= form (ltlfsynt) -- both parse a plain comma-separated list
-// (src/ltlf_ek_synth.cpp SplitCsv).
-std::string JoinCsv(const std::set<std::string>& names) {
+// (src/ltlf_ek_synth.cpp SplitCsv).  `sep` is "," for those and " " for the
+// partition-file lines.
+std::string JoinCsv(const std::set<std::string>& names,
+                    const std::string& sep = ",") {
   std::string out;
   for (const std::string& name : names) {
-    if (!out.empty()) out += ",";
+    if (!out.empty()) out += sep;
     out += name;
   }
   return out;
@@ -3549,9 +3560,22 @@ constexpr int kCoGenDepthMax = 2;            // d in [0, kCoGenDepthMax].
 constexpr int kCoGenWindowBitsMax = 4;       // m * (d + 1) <= this.
 constexpr int kCoGenOutputsMax = 2;          // |Ofree| in [1, this].
 
+// The four members of the bounded-memory family.
+enum class WindowKind { kConst, kCopy, kDelay, kWindow };
+
+const char* WindowKindName(WindowKind kind) {
+  switch (kind) {
+    case WindowKind::kConst: return "const";
+    case WindowKind::kCopy: return "copy";
+    case WindowKind::kDelay: return "delay";
+    case WindowKind::kWindow: return "window";
+  }
+  return "?";
+}
+
 // The bounded-memory source: which Iknown, window depth, boolean function.
 struct WindowSource {
-  std::string kind;  // const / copy / delay / window.
+  WindowKind kind = WindowKind::kConst;
   int free_inputs = 1;  // m
   int depth = 0;        // d
   // Truth table of f, indexed by bit j*m + v = value of free input v at
@@ -3595,20 +3619,20 @@ WindowSource draw_window_source(std::mt19937& rng) {
   std::bernoulli_distribution coin(0.5);
   switch (kind) {
     case 0:  // const: ignores the window.
-      src.kind = "const";
+      src.kind = WindowKind::kConst;
       src.free_inputs = 1;
       src.depth = 0;
       src.table = {false, false};
       if (coin(rng)) src.table = {true, true};
       break;
     case 1:  // copy: k_t = a0_t.
-      src.kind = "copy";
+      src.kind = WindowKind::kCopy;
       src.free_inputs = 1;
       src.depth = 0;
       src.table = {false, true};
       break;
     case 2:  // delay: k_t = a0_{t-d}.
-      src.kind = "delay";
+      src.kind = WindowKind::kDelay;
       src.free_inputs = 1;
       src.depth = std::uniform_int_distribution<int>(1, kCoGenDepthMax)(rng);
       src.table.assign(1u << (src.depth + 1), false);
@@ -3616,7 +3640,7 @@ WindowSource draw_window_source(std::mt19937& rng) {
         src.table[idx] = (idx >> src.depth) & 1u;
       break;
     default: {  // window: a random boolean function of the whole window.
-      src.kind = "window";
+      src.kind = WindowKind::kWindow;
       do {
         src.free_inputs =
             std::uniform_int_distribution<int>(1, kCoGenFreeInputsMax)(rng);
@@ -3718,7 +3742,7 @@ CoGeneratedCase GenerateOneCoGeneratedCase(std::mt19937& rng,
 
   spot::formula phi = strengthen_next(
       generate_random_formula(partition, rng, config), rng);
-  std::string description = src.kind + " m=" + std::to_string(src.free_inputs) +
+  std::string description = std::string(WindowKindName(src.kind)) + " m=" + std::to_string(src.free_inputs) +
                             " d=" + std::to_string(src.depth) + " f=";
   for (bool b : src.table) description += b ? '1' : '0';
   return {phi,
@@ -3728,18 +3752,7 @@ CoGeneratedCase GenerateOneCoGeneratedCase(std::mt19937& rng,
 
 std::vector<CoGeneratedCase> BuildCoGeneratedCorpus(
     const CorpusConfig& config) {
-  std::mt19937 rng(config.seed);
-  std::vector<CoGeneratedCase> corpus;
-  corpus.reserve(config.case_count);
-  for (std::size_t i = 0; i < config.case_count; ++i)
-    corpus.push_back(GenerateOneCoGeneratedCase(rng, config));
-  return corpus;
-}
-
-std::string JoinSpaced(const std::set<std::string>& names) {
-  std::string text;
-  for (const std::string& n : names) text += (text.empty() ? "" : " ") + n;
-  return text;
+  return BuildCorpus<CoGeneratedCase>(config, GenerateOneCoGeneratedCase);
 }
 
 TEST(CoGeneratedCorpus, EveryPairPassesTheFaithfulnessGuard) {
@@ -3767,6 +3780,22 @@ TEST(CoGeneratedCorpus, SameSeedYieldsSamePairs) {
   }
 }
 
+// Product back-ends the known-knowledge differential drives, as in
+// GeneratedCorpusDifferential (nfa only where mona is available).
+const std::vector<std::string> kKnownKnowledgeMethods = {
+    "--dfa-product", "--mtdfa-product", "--otf-mtdfa-product",
+#ifdef MONA_FOUND
+    "--nfa-product",
+#endif
+};
+
+// Bars from #29's split decision for the default 256-case corpus, which
+// reaches 12-14 load-bearing cases with none skipped: a generator change
+// that makes most psi_in vacuous, or a corpus that mostly times out, must
+// fail rather than pass quietly.
+constexpr std::size_t kCoGenLoadBearingFloor = 10;
+constexpr std::size_t kCoGenSkippedCeiling = 8;
+
 // Known-knowledge differential: ltlf-ek-synth under the co-generated T_in
 // against ltlfsynt on `psi_in -> phi`.  Covers the wrongly-unrealizable
 // direction the metamorphic round-trip cannot see.  A case is load-bearing
@@ -3787,18 +3816,30 @@ TEST_F(LtlfsyntOracleTest, CoGeneratedKnownKnowledgeDifferential) {
                  c.pair.description + ", psi_in=" + c.pair.psi_in);
 
     const ScopedTempFile part_file(
-        "input_free: " + JoinSpaced(part.input_free) +
-        "\ninput_known: k\noutput_free: " + JoinSpaced(part.output_free) +
+        "input_free: " + JoinCsv(part.input_free, " ") +
+        "\ninput_known: " + JoinCsv(part.input_known, " ") +
+        "\noutput_free: " + JoinCsv(part.output_free, " ") +
         "\noutput_known:\n");
     const ScopedTempFile tin_file(c.pair.tin_file);
-    const std::string ins = JoinCsv(part.input_free) + ",k";
+    std::set<std::string> all_inputs = part.input_free;
+    all_inputs.insert(part.input_known.begin(), part.input_known.end());
+    const std::string ins = JoinCsv(all_inputs);
     const std::string outs = JoinCsv(part.output_free);
 
     bool ek_timed_out = false;
-    const CliResult ek = RunEkSynth(
-        {"--dfa-product", "--formula=" + phi, "--part-file", part_file.path(),
-         "--known-input-transducer", tin_file.path(), "--realizable"},
-        base.subprocess_timeout_secs, &ek_timed_out);
+    std::vector<std::pair<std::string, bool>> ek_verdicts;
+    for (const std::string& method : kKnownKnowledgeMethods) {
+      bool timed_out = false;
+      const CliResult ek = RunEkSynth(
+          {method, "--formula=" + phi, "--part-file", part_file.path(),
+           "--known-input-transducer", tin_file.path(), "--realizable"},
+          base.subprocess_timeout_secs, &timed_out);
+      if (timed_out) {
+        ek_timed_out = true;
+        break;
+      }
+      ek_verdicts.emplace_back(method, IsRealizable(ParseEkSynthVerdict(ek)));
+    }
     bool synt_timed_out = false;
     const CliResult synt = RunLtlfsynt(
         {"--ins=" + ins, "--outs=" + outs, "--semantics=Mealy",
@@ -3814,19 +3855,24 @@ TEST_F(LtlfsyntOracleTest, CoGeneratedKnownKnowledgeDifferential) {
       continue;
     }
 
-    const bool ek_realizable = IsRealizable(ParseEkSynthVerdict(ek));
     const bool synt_realizable = IsRealizable(ParseLtlfsyntVerdict(synt));
-    EXPECT_EQ(ek_realizable, synt_realizable)
-        << "co-generated known-knowledge differential disagreement";
+    for (const auto& [method, ek_realizable] : ek_verdicts)
+      EXPECT_EQ(ek_realizable, synt_realizable)
+          << method << ": co-generated known-knowledge differential "
+                       "disagreement";
     if (IsRealizable(ParseLtlfsyntVerdict(bare)) != synt_realizable)
       ++load_bearing;
   }
   RecordProperty("load_bearing", static_cast<int>(load_bearing));
   RecordProperty("differential_skipped", static_cast<int>(skipped));
-  if (corpus.size() >= kCorpusCaseCount)
-    EXPECT_GE(load_bearing, 5u)
+  if (corpus.size() >= kCorpusCaseCount) {
+    EXPECT_GE(load_bearing, kCoGenLoadBearingFloor)
         << "too few load-bearing co-generated cases: the differential is "
            "close to vacuous";
+    EXPECT_LE(skipped, kCoGenSkippedCeiling)
+        << "too many co-generated cases timed out: the differential is "
+           "mostly unchecked";
+  }
 }
 
 // ---------------------------------------------------------------------------
