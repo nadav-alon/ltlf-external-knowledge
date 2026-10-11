@@ -1298,15 +1298,28 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   built **with** the knowledge over the number built **without** it —
   `product_states` of `dfa-product` over `product_states` of `dfa-product-unpruned`
   (the same Goal, `Iknown`/`Oknown` demoted to free, trivial transducers). Below 1
-  where $\cons$ and the transducers cut the product; 1 where the knowledge is inert.
-  It is the class criterion of the Oct 17 sweep and the report's x-axis.
+  where $\cons$ and the transducers cut the product; 1 where the knowledge is inert;
+  **above 1** where the world model lives in $\Tin$ (the slippery arms), since the
+  knowledge product then carries the transducer's states on top of the Goal's and is
+  larger than the knowledge-free one. It is not a "fraction kept"; read a value above
+  1 as the knowledge costing states, not saving them. It is the benchmark's class
+  criterion.
 - **C++:** the `dfa-product-unpruned` bench subject (`src/bench_suite.cpp`); the
   ratio itself is computed by `scripts/sweep_report.py`, not stored. The report
-  prints beside it the ratio over `dfa-product-nk`, which poses the same decision
-  problem; the two differ wherever the world model lives in $\Tin$.
+  prints beside it the [nk-product ratio](#nk-product-ratio).
 - **Do not call it:** pruning factor, reduction ratio, compression; and not the
-  `-nk` ratio — the `-nk` subjects fold $\psiin$ into the Goal, a different
-  instance that needs a $\psiin$ the T2 families lack.
+  nk-product ratio, which has its own name.
+
+### Nk-product ratio
+- **`main.tex`:** none (implementation-only: a benchmark report column).
+- **Definition:** for one case, `product_states` of `dfa-product` over
+  `product_states` of `dfa-product-nk`: the knowledge product against the product
+  of the `-nk` instance, which folds $\psiin$ into the Goal and so poses the same
+  decision problem. It needs a $\psiin$, which the T2 families lack (the report
+  prints n/a). It differs from the [prune ratio](#prune-ratio) wherever the world
+  model lives in $\Tin$.
+- **C++:** computed by `scripts/sweep_report.py`, not stored.
+- **Do not call it:** prune ratio, the `-nk` ratio.
 
 ## Testing & oracles
 
