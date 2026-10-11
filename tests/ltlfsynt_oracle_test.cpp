@@ -1965,6 +1965,12 @@ struct GeneratedCase {
   OutputLabeledTransducer t_in;
 };
 
+// is_commutative: the operators whose children Spot orders by allocation
+// identity, so canonical_text and strengthen_next must both sort them.
+bool is_commutative(spot::formula f) {
+  return f.is(spot::op::And, spot::op::Or, spot::op::Xor, spot::op::Equiv);
+}
+
 // canonical_text: a printed form of `f` that does not depend on Spot's
 // allocation-identity order of commutative children: the children of &, |,
 // xor and <-> are listed in sorted order at every depth, so the text is a
@@ -1973,8 +1979,7 @@ std::string canonical_text(spot::formula f) {
   if (f.size() == 0) return spot::str_psl(f);
   std::vector<std::string> children;
   for (spot::formula child : f) children.push_back(canonical_text(child));
-  if (f.is(spot::op::And, spot::op::Or, spot::op::Xor, spot::op::Equiv))
-    std::sort(children.begin(), children.end());
+  if (is_commutative(f)) std::sort(children.begin(), children.end());
   std::string text = std::string(f.kindstr()) + "(";
   for (std::size_t i = 0; i < children.size(); ++i)
     text += (i ? "," : "") + children[i];
@@ -1994,7 +1999,7 @@ std::string canonical_text(spot::formula f) {
 // build, and the same seed yields the same corpus.
 spot::formula strengthen_next(spot::formula f, std::mt19937& rng) {
   std::map<spot::formula, spot::formula> rewritten;
-  if (f.is(spot::op::And, spot::op::Or, spot::op::Xor, spot::op::Equiv)) {
+  if (is_commutative(f)) {
     std::vector<std::pair<std::string, spot::formula>> children;
     for (spot::formula child : f) children.emplace_back(canonical_text(child), child);
     std::sort(children.begin(), children.end(),
