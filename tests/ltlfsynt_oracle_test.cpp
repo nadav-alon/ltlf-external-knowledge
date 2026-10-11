@@ -2600,6 +2600,61 @@ TEST(GeneratedCorpusGenerator, SameSeedYieldsSameCorpusCaseForCase) {
   }
 }
 
+// PRD "Random Tin generation": every generated Tin is deterministic and total
+// (the committed Case-A regime, \cref{def:consistency}).  Over the Ifree
+// slice it observes: exactly one delta edge matches each Ifree valuation, the
+// edge guards are pairwise disjoint and cover every letter, and lambda
+// answers each valuation with one full Iknown assignment.
+TEST(GeneratedCorpusGenerator, EveryGeneratedTinIsDeterministicAndTotal) {
+  const std::vector<std::unique_ptr<ScopedEnvVar>> clean_env =
+      UnsetAllCorpusEnvVars();
+  const std::vector<GeneratedCase> corpus =
+      BuildGeneratedCorpus(corpus_config_from_env());
+
+  for (std::size_t i = 0; i < corpus.size(); ++i) {
+    const GeneratedCase& c = corpus[i];
+    SCOPED_TRACE("case " + std::to_string(i) + " phi=" + spot::str_psl(c.phi) +
+                 " " + DescribeGeneratedPartition(c.partition) + " tin=" +
+                 DescribeGeneratedTin(c.t_in));
+    const spot::bdd_dict_ptr dict = c.t_in.dict();
+    std::vector<int> ifree_vars;
+    for (const std::string& name : c.partition.input_free)
+      ifree_vars.push_back(dict->varnum(spot::formula::ap(name)));
+    const std::vector<bdd> ifree_letters = all_letters_over(ifree_vars);
+
+    const unsigned n = c.t_in.delta_dfa()->num_states();
+    ASSERT_GE(n, 1u);
+    EXPECT_LT(c.t_in.initial_state(), n);
+    for (unsigned q = 0; q < n; ++q) {
+      const auto edges = c.t_in.delta_edges(q);
+      bdd covered = bddfalse;
+      for (const auto& [guard, dst] : edges) {
+        EXPECT_LT(dst, n) << "state " << q << " has an edge out of range";
+        EXPECT_EQ(covered & guard, bddfalse)
+            << "state " << q << " has overlapping edge guards";
+        covered |= guard;
+      }
+      EXPECT_EQ(covered, bddtrue) << "state " << q << " has a letter with no edge";
+
+      for (const bdd& ifree_letter : ifree_letters) {
+        std::size_t matching = 0;
+        for (const auto& [guard, dst] : edges)
+          if ((guard & ifree_letter) != bddfalse) ++matching;
+        EXPECT_EQ(matching, 1u) << "state " << q << " is not deterministic and "
+                                << "total on an Ifree valuation";
+
+        const std::optional<unsigned> next = c.t_in.delta(q, ifree_letter);
+        EXPECT_TRUE(next.has_value());
+        const std::optional<bdd> out = c.t_in.lambda(q, ifree_letter);
+        ASSERT_TRUE(out.has_value())
+            << "state " << q << " has an Ifree valuation with no lambda";
+        EXPECT_EQ(bdd_satcountset(*out, c.t_in.sigma1_cube()), 1.0)
+            << "state " << q << " lambda is not one full Iknown assignment";
+      }
+    }
+  }
+}
+
 // Env override plumbing (PRD "Test oracles" #2): LTLF_EK_CORPUS_CASES=8
 // shrinks both the reported config and the built corpus to exactly 8 cases.
 TEST(CorpusConfigFromEnv, CasesOverrideChangesCorpusSize) {
