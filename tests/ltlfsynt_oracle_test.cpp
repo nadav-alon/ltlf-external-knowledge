@@ -45,9 +45,11 @@
 #include <spot/misc/random.hh>
 #include <spot/tl/defaultenv.hh>
 #include <spot/tl/parse.hh>
+#include <spot/tl/print.hh>
 #include <spot/tl/randomltl.hh>
 #include <spot/twa/bdddict.hh>
 #include <spot/twa/formula2bdd.hh>
+#include <spot/twa/bddprint.hh>
 #include <spot/twaalgos/complete.hh>
 #include <spot/twaalgos/isdet.hh>
 #include <spot/twaalgos/powerset.hh>
@@ -1967,11 +1969,26 @@ struct GeneratedCase {
 // kCorpusStrongXProbability, drawn from `rng` so the rewrite is seeded and
 // reproducible.  Both ltlf-ek-synth and ltlfsynt accept weak X and X[!], so
 // this only shifts the generated distribution, never an encoding hazard.
-// Uses spot::formula::map (bottom-up: children are rewritten first, so a
-// nested X[X a] can independently promote either/both occurrences).
+// Bottom-up: children are rewritten first, so a nested X[X a] can
+// independently promote either/both occurrences.  Spot orders the children of
+// the commutative operators (&, |, xor, <->) by allocation identity, which
+// differs between builds, so those children are visited in the order of their
+// printed form instead: the rng draws then land on the same X nodes in every
+// build, and the same seed yields the same corpus.
 spot::formula strengthen_next(spot::formula f, std::mt19937& rng) {
-  spot::formula mapped = f.map(
-      [&](spot::formula child) { return strengthen_next(child, rng); });
+  std::map<spot::formula, spot::formula> rewritten;
+  if (f.is(spot::op::And, spot::op::Or, spot::op::Xor, spot::op::Equiv)) {
+    std::vector<std::pair<std::string, spot::formula>> children;
+    for (spot::formula child : f) children.emplace_back(spot::str_psl(child), child);
+    std::sort(children.begin(), children.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
+    for (const auto& [text, child] : children)
+      rewritten.emplace(child, strengthen_next(child, rng));
+  }
+  spot::formula mapped = f.map([&](spot::formula child) {
+    const auto it = rewritten.find(child);
+    return it != rewritten.end() ? it->second : strengthen_next(child, rng);
+  });
   std::bernoulli_distribution flip(kCorpusStrongXProbability);
   if (mapped.is(spot::op::X) && flip(rng))
     return spot::formula::unop(spot::op::strong_X, mapped[0]);
@@ -2495,17 +2512,15 @@ std::uint64_t ChecksumGeneratedCorpus(const std::vector<GeneratedCase>& corpus) 
   return hash;
 }
 
-// Golden values captured from the actual just-landed default corpus (PRD
-// "Golden values": "the PRD leaves the exact golden open" -- captured here
-// by running BuildGeneratedCorpus(corpus_config_from_env()) with no env set
-// on the landed Phase 1 tree). A later mismatch means the mt19937 draw order
-// drifted -- "investigate, don't adjust" (PRD "Edge cases" / repo-wide rule),
-// never silently re-capture to make the test pass.
+// Golden values of the default corpus (BuildGeneratedCorpus on
+// corpus_config_from_env() with no env set).  A later mismatch means the
+// mt19937 draw order drifted -- "investigate, don't adjust" (PRD "Edge cases"
+// / repo-wide rule), never silently re-capture to make the test pass.
 const std::string kGoldenDefaultCorpusPhi0 = "1";
 const std::string kGoldenDefaultCorpusPartition0 =
     "input_free={p0 p1 p2 p3 } input_known={} output_free={p4 } "
     "output_known={}";
-constexpr std::uint64_t kGoldenDefaultCorpusChecksum = 6327196066608144121ull;
+constexpr std::uint64_t kGoldenDefaultCorpusChecksum = 18368535040111923015ull;
 
 // Byte-identical default (soak-mode PRD "Test oracles" #1, "the critical
 // guard"): with no LTLF_EK_CORPUS_* env set, corpus_config_from_env() must
@@ -2545,6 +2560,46 @@ TEST(GeneratedCorpus, DefaultCorpusIsByteIdenticalToGolden) {
          "from the golden checksum -- some case beyond #0 shifted";
 }
 
+// A case's random Tin as text, so two cases built on different private
+// bdd_dicts compare by AP name rather than by BDD variable number: per state,
+// every delta edge (guard -> destination) and the lambda BDD.
+std::string DescribeGeneratedTin(const OutputLabeledTransducer& t_in) {
+  const spot::bdd_dict_ptr dict = t_in.dict();
+  std::ostringstream os;
+  os << "init=" << t_in.initial_state();
+  const unsigned n = t_in.delta_dfa()->num_states();
+  for (unsigned q = 0; q < n; ++q) {
+    os << " q" << q << "{";
+    for (const auto& [guard, dst] : t_in.delta_edges(q))
+      os << "[" << spot::bdd_format_formula(dict, guard) << "->" << dst << "]";
+    os << " lambda=" << spot::bdd_format_formula(dict, t_in.emits_region(q))
+       << "}";
+  }
+  return os.str();
+}
+
+// PRD "Determinism / seeding": the same config yields the same corpus, case
+// for case -- formula, partition and Tin -- even when built twice in one
+// process, where Spot's allocation state differs between the two builds.
+TEST(GeneratedCorpusGenerator, SameSeedYieldsSameCorpusCaseForCase) {
+  const std::vector<std::unique_ptr<ScopedEnvVar>> clean_env =
+      UnsetAllCorpusEnvVars();
+  const CorpusConfig config = corpus_config_from_env();
+
+  const std::vector<GeneratedCase> first = BuildGeneratedCorpus(config);
+  const std::vector<GeneratedCase> second = BuildGeneratedCorpus(config);
+  ASSERT_EQ(first.size(), second.size());
+  for (std::size_t i = 0; i < first.size(); ++i) {
+    SCOPED_TRACE("case " + std::to_string(i) + " phi=" +
+                 spot::str_psl(first[i].phi));
+    EXPECT_EQ(spot::str_psl(first[i].phi), spot::str_psl(second[i].phi));
+    EXPECT_EQ(DescribeGeneratedPartition(first[i].partition),
+              DescribeGeneratedPartition(second[i].partition));
+    EXPECT_EQ(DescribeGeneratedTin(first[i].t_in),
+              DescribeGeneratedTin(second[i].t_in));
+  }
+}
+
 // Env override plumbing (PRD "Test oracles" #2): LTLF_EK_CORPUS_CASES=8
 // shrinks both the reported config and the built corpus to exactly 8 cases.
 TEST(CorpusConfigFromEnv, CasesOverrideChangesCorpusSize) {
@@ -2558,25 +2613,12 @@ TEST(CorpusConfigFromEnv, CasesOverrideChangesCorpusSize) {
 }
 
 // Golden values for LTLF_EK_CORPUS_SEED=1, captured the same way as the
-// default golden above (a single BuildGeneratedCorpus call in a fresh
-// process).  NOTE for future readers: spot::randltlgenerator draws from a
-// process-*global* RNG that a same-seed re-construction does not cleanly
-// reset (confirmed experimentally: constructing it twice with an identical
-// explicit spot::srand()+"seed" option in the *same* process yields two
-// different formulas), so "internally deterministic" is verified the same
-// way as the default corpus -- one call per (fresh, ctest-per-test) process
-// against a captured golden -- rather than by rebuilding twice in-process
-// and comparing, which would spuriously fail on this Spot quirk and not on
-// any bug in CorpusConfig/BuildGeneratedCorpus. This is a mechanical Spot-API
-// issue (fix: spot::srand(seed) before each in-process build), captured as a
-// Phase-2 must-resolve in docs/prd/generated-corpus-soak-mode.md ("Fresh seed
-// per level"), since run_corpus's level loop builds multiple corpora per
-// process -- not a /theory-review item.
+// default golden above.
 const std::string kGoldenSeed1CorpusPhi0 = "(!p0 & p6) | (p0 & !p6)";
 const std::string kGoldenSeed1CorpusPartition0 =
     "input_free={p0 p2 } input_known={p1 } output_free={p3 p4 p5 p6 p7 } "
     "output_known={}";
-constexpr std::uint64_t kGoldenSeed1CorpusChecksum = 12756743135039034952ull;
+constexpr std::uint64_t kGoldenSeed1CorpusChecksum = 15412568671363869496ull;
 
 // Env override plumbing (PRD "Test oracles" #2): LTLF_EK_CORPUS_SEED=1
 // yields a *different* corpus than the default seed (from the golden
