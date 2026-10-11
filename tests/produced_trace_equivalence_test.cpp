@@ -1,4 +1,5 @@
 #include <optional>
+#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -300,6 +301,51 @@ TEST(ProducedTraceEquivalence,
   // initial pair with differing finality --- no strictly shorter non-empty
   // word exists to disagree on.
   EXPECT_EQ(w.size(), 1u);
+}
+
+// ---------------------------------------------------------------------------
+// Regression (code-review, 2026-08-23): the walk must not enumerate 2^|universe|
+// letters.  At >= 64 APs the old alphabet shift was undefined and the verdict
+// silently green; now only the distinctions the automata draw are visited.
+// ---------------------------------------------------------------------------
+
+TEST(ProducedTraceEquivalence, UniverseOfSeventyApsIsDecidedNotTruncated) {
+  auto dict = spot::make_bdd_dict();
+  std::set<std::string> inputs;
+  for (int k = 0; k < 70; ++k) inputs.insert("x" + std::to_string(k));
+  const auto vars = VariablePartition::split(inputs, /*outputs=*/{},
+                                             /*governed=*/{});
+  auto tau = trivial_transducer(vars, Role::t_in, dict);
+
+  // L(tau) = Sigma+ = L(true): equivalent, however many APs there are.
+  EXPECT_TRUE(produced_trace_equivalent(tau, Phi("true"), vars, Role::t_in)
+                  .equivalent_on_nonempty);
+
+  // And a real difference on the last AP is still found, with a witness that
+  // genuinely separates the two sides.
+  const spot::formula psi = Phi("F(x69)");
+  const EquivalenceResult r =
+      produced_trace_equivalent(tau, psi, vars, Role::t_in);
+  EXPECT_FALSE(r.equivalent_on_nonempty);
+  ASSERT_TRUE(r.counterexample.has_value());
+  EXPECT_NE(TauAcceptsWord(tau, *r.counterexample),
+            PsiAcceptsWord(psi, dict, *r.counterexample));
+}
+
+// A psi over an AP that is not in vars.universe() is still decided on every
+// letter it distinguishes (it used to depend on tau_dfa->ap(), always empty).
+TEST(ProducedTraceEquivalence, PsiApOutsideVarsIsStillDistinguished) {
+  auto dict = spot::make_bdd_dict();
+  const auto vars = SingleFreeInputVars();
+  auto tau = trivial_transducer(vars, Role::t_in, dict);
+  const spot::formula psi = Phi("G(stray)");
+
+  const EquivalenceResult r =
+      produced_trace_equivalent(tau, psi, vars, Role::t_in);
+  EXPECT_FALSE(r.equivalent_on_nonempty);
+  ASSERT_TRUE(r.counterexample.has_value());
+  EXPECT_NE(TauAcceptsWord(tau, *r.counterexample),
+            PsiAcceptsWord(psi, dict, *r.counterexample));
 }
 
 }  // namespace

@@ -569,6 +569,16 @@ std::optional<long long> ExtractJsonIntField(const std::string& json,
   return std::stoll(json.substr(start, i - start));
 }
 
+// Number of non-overlapping occurrences of `needle` in `haystack`.
+std::size_t CountOccurrences(const std::string& haystack,
+                             const std::string& needle) {
+  std::size_t n = 0;
+  for (std::size_t pos = haystack.find(needle); pos != std::string::npos;
+       pos = haystack.find(needle, pos + needle.size()))
+    ++n;
+  return n;
+}
+
 }  // namespace
 
 TEST(SlipperyWorldLtlfsyntRace, ReportsZeroVerdictMismatchesForBothArmsAtNEqualsTwoAndThree) {
@@ -593,7 +603,10 @@ TEST(SlipperyWorldLtlfsyntRace, ReportsZeroVerdictMismatchesForBothArmsAtNEquals
       {"--families=slippery-binary,slippery-onehot", "--subjects=dfa-product",
        "--n-min=2", "--n-max=3", "--repeat=1", "--timeout=30",
        "--ltlfsynt=" + ltlfsynt_path, "--out=" + out_path},
-      /*timeout_secs=*/180);
+      // The sweep's own worst case is 8 cases x 30 s of subject + 8 x 30 s
+      // of race = 480 s; the outer bound sits above it so a slow machine
+      // reports the sweep's verdict, not exit 124.
+      /*timeout_secs=*/600);
   ASSERT_EQ(r.exit_code, 0)
       << "ltlf-ek-bench exited non-zero; stdout=[" << r.stdout_text
       << "] stderr=[" << r.stderr_text << "]";
@@ -613,4 +626,22 @@ TEST(SlipperyWorldLtlfsyntRace, ReportsZeroVerdictMismatchesForBothArmsAtNEquals
       << "T3: the ltlfsynt T1 race must report zero verdict mismatches "
         "(Stop-list item 3/4 is an O5-class theory finding, never a "
         "benchmark bug); full report=[" << report_json << "]";
+
+  // A zero mismatch count is vacuous if the race never produced a verdict
+  // (every ltlfsynt run timing out or erroring leaves it at 0), so require
+  // that every one of the 2 families x n in {2,3} x 2 goals = 8 cells has
+  // an "ok" race row with a verdict on both sides.
+  const std::size_t race_begin = report_json.find("\"ltlfsynt\":[");
+  const std::size_t race_end = report_json.find("\"summary\":[", race_begin);
+  ASSERT_NE(race_begin, std::string::npos) << report_json;
+  ASSERT_NE(race_end, std::string::npos) << report_json;
+  const std::string race_rows =
+      report_json.substr(race_begin, race_end - race_begin);
+  EXPECT_EQ(CountOccurrences(race_rows, "\"family\":"), 8u)
+      << "expected one race row per cell; rows=[" << race_rows << "]";
+  EXPECT_EQ(CountOccurrences(race_rows, "\"status\":\"ok\""), 8u)
+      << "every ltlfsynt run must have completed; rows=[" << race_rows << "]";
+  EXPECT_EQ(CountOccurrences(race_rows, "\"ltlfsynt_verdict\":null"), 0u)
+      << "every ok row must carry ltlfsynt's verdict; rows=[" << race_rows
+      << "]";
 }
