@@ -20,6 +20,7 @@
 #include "ltlf_ek/role.hpp"
 #include "ltlf_ek/transducer_io.hpp"
 #include "ltlf_ek/turn_order.hpp"
+#include "ltlf_ek/window_source.hpp"
 
 namespace ltlf_ek {
 
@@ -1132,6 +1133,65 @@ class SlipperyBinaryCompactFamily final : public BenchFamily {
 // registry against the same --families=/--subjects= flag spelling).
 // ---------------------------------------------------------------------------
 
+// The co-generated (T_in, psi_in) family (issue #86; the generator is
+// window_source.hpp's, shared with the generated-corpus known-knowledge
+// differential): k_t = a0_{t-n}, a table T_in of 2^n states and the matching
+// guarded weak-X psi_in, so the family is t1 and races ltlfsynt on
+// `psi_in -> phi`.  phi_n = G((a0 -> X^n k) & (!a0 -> X^n !k)) with weak X (an
+// <-> would not be vacuous past the last position) holds under the knowledge
+// and fails without it (k is then a free input), so the knowledge
+// is load-bearing and cons prunes the product.  The sweep axis is the window
+// depth n; the number of free inputs stays 1.
+class CoGeneratedFamily final : public BenchFamily {
+ public:
+  std::string name() const override { return "co-generated"; }
+
+  std::vector<BenchParams> sweep(std::int64_t n_min,
+                                 std::int64_t n_max) const override {
+    return default_sweep(n_min, n_max);
+  }
+
+  BenchCase instantiate(const BenchParams& params) const override {
+    const std::int64_t n = require_param(params, "n");
+    const bool realizable = require_param(params, "realizable") != 0;
+    check_floor(name(), n);
+
+    const WindowSource src = delay_window_source(static_cast<int>(n));
+    const std::string a0 = free_input_name(0);
+
+    VariablePartition vars;
+    vars.input_free = {a0};
+    vars.input_known = {"k"};
+    std::string next_k = "k", next_not_k = "!k";
+    for (std::int64_t i = 0; i < n; ++i) {
+      next_k = "X(" + next_k + ")";
+      next_not_k = "X(" + next_not_k + ")";
+    }
+    std::string phi_text = "G((" + a0 + " -> " + next_k + ") & (!" + a0 +
+                           " -> " + next_not_k + "))";
+    if (!realizable) phi_text = add_unrealizable_conjunct(phi_text, vars);
+
+    const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+    register_turn_order_aps(vars, dict);
+
+    const spot::formula phi = parse_or_throw(phi_text);
+    std::istringstream tin_text(window_tin_file(src));
+    OutputLabeledTransducer t_in =
+        parse_transducer(tin_text, vars, Role::t_in, dict);
+    OutputLabeledTransducer t_out = trivial_transducer(vars, Role::t_out, dict);
+
+    return BenchCase{name(),
+                     params,
+                     phi,
+                     vars,
+                     std::move(t_in),
+                     std::move(t_out),
+                     ComparabilityTier::t1,
+                     std::optional<std::string>(window_psi_in(src)),
+                     realizable};
+  }
+};
+
 // True iff `mona` resolves on PATH (the MONA_FOUND ctest gate's runtime
 // analogue: this file lives in the ltlf_ek library, not the unit_tests
 // target, so the compile-time MONA_FOUND define is not available here).
@@ -1389,6 +1449,7 @@ const std::vector<std::unique_ptr<BenchFamily>>& bench_families() {
     v.push_back(std::make_unique<SlipperyBinaryFamily>());
     v.push_back(std::make_unique<SlipperyOnehotFamily>());
     v.push_back(std::make_unique<SlipperyBinaryCompactFamily>());
+    v.push_back(std::make_unique<CoGeneratedFamily>());
     return v;
   }();
   return families;

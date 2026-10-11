@@ -1488,8 +1488,10 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   generators (`generate_random_formula`, `strengthen_next`, `random_partition`,
   `random_tin`), and the three `GeneratedCorpus.*` / `GeneratedCorpusDifferential`
   test bodies. The co-generated `(T_in, psi_in)` family adds
-  `BuildCoGeneratedCorpus()` / `CoGeneratedCase`, its bounded-memory source
-  `WindowSource` / `WindowKind`, and the `CoGeneratedCorpus.*` /
+  `BuildCoGeneratedCorpus()` / `CoGeneratedCase` (test-local), and its
+  bounded-memory source `WindowSource` / `WindowKind` (library,
+  `ltlf_ek/window_source.hpp`, shared with the `co-generated` sweep family
+  of `src/bench_suite.cpp`), and the `CoGeneratedCorpus.*` /
   `CoGeneratedKnownKnowledgeDifferential` test bodies. No canonical domain
   type — like the *Faithfulness guard*, it names a test artifact, not a
   `main.tex` concept.
