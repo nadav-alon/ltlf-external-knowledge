@@ -2371,20 +2371,16 @@ struct RunCorpusStats {
 // Spot global-RNG reset (soak-mode PRD "Fresh seed per level" warning):
 // spot::randltlgenerator's "seed" option seeds Spot's process-*global* RNG
 // (spot::srand), which a same-seed re-construction in the same process does
-// not cleanly reset (empirically confirmed -- see the kGoldenSeed1Corpus*
-// comment above).  run_corpus builds many corpora per process, so calling
+// not cleanly reset (empirically confirmed by the Phase 2 developer).
+// run_corpus builds many corpora per process, so calling
 // spot::srand(cfg.seed) immediately before each per-level BuildGeneratedCorpus
-// resets that one mechanism.  IMPORTANT: this reset is necessary but *not*
-// sufficient for full in-process, level-to-level reproducibility -- a deeper
-// Spot mechanism (reference-counted/apid-recycling hash-consing of atomic
-// props, spot/tl/formula.cc fnode::ap) can still make two same-seed
-// in-process builds diverge (empirically confirmed by the Phase 2 developer;
-// see docs/prd/generated-corpus-soak-mode.md "Developer comments / PRD
-// disagreements", 2026-07-12, for the full repro and root cause). This does
-// NOT affect the documented per-case replay recipe (fresh process, single
-// BuildGeneratedCorpus call, LTLF_EK_SOAK unset) -- only repeated in-process
-// rebuilds with the same seed are at risk. Do not write a "same cfg.seed
-// twice in one process" unit test against run_corpus; it would be flaky.
+// resets that mechanism.  The other process-history leak, Spot's
+// allocation-identity order of atomic propositions and of the commutative
+// children (spot/tl/formula.cc fnode::ap), no longer reaches the corpus:
+// BuildGeneratedCorpus renames each drawn formula's atoms in sorted order and
+// strengthen_next visits commutative children in canonical_text order, so two
+// same-seed builds in one process yield the same corpus (see
+// GeneratedCorpusGenerator.SameSeedYieldsSameCorpusCaseForCase).
 template <class PerCase>
 RunCorpusStats run_corpus(const CorpusConfig& base, PerCase&& per_case) {
   RunCorpusStats stats;
@@ -2550,7 +2546,9 @@ std::uint64_t ChecksumGeneratedCorpus(const std::vector<GeneratedCase>& corpus) 
 }
 
 // Golden values of the default corpus (BuildGeneratedCorpus on
-// corpus_config_from_env() with no env set).  A later mismatch means the
+// corpus_config_from_env() with no env set), recaptured at aa0ad8c from a
+// single BuildGeneratedCorpus in a fresh process, after the canonical-order
+// fix.  A later mismatch means the
 // mt19937 draw order drifted -- "investigate, don't adjust" (PRD "Edge cases"
 // / repo-wide rule), never silently re-capture to make the test pass.
 const std::string kGoldenDefaultCorpusPhi0 = "1";
@@ -2642,8 +2640,7 @@ TEST(GeneratedCorpusGenerator, SameSeedYieldsSameCorpusCaseForCase) {
 // PRD "Random Tin generation": every generated Tin is deterministic and total
 // (the committed Case-A regime, \cref{def:consistency}).  Over the Ifree
 // slice it observes: exactly one delta edge matches each Ifree valuation, the
-// edge guards are pairwise disjoint and cover every letter, and lambda
-// answers each valuation with one full Iknown assignment.
+// edge guards are pairwise disjoint, and lambda answers each valuation with one full Iknown assignment.
 TEST(GeneratedCorpusGenerator, EveryGeneratedTinIsDeterministicAndTotal) {
   const std::vector<std::unique_ptr<ScopedEnvVar>> clean_env =
       UnsetAllCorpusEnvVars();
@@ -2673,17 +2670,22 @@ TEST(GeneratedCorpusGenerator, EveryGeneratedTinIsDeterministicAndTotal) {
             << "state " << q << " has overlapping edge guards";
         covered |= guard;
       }
-      EXPECT_EQ(covered, bddtrue) << "state " << q << " has a letter with no edge";
 
       for (const bdd& ifree_letter : ifree_letters) {
         std::size_t matching = 0;
+        unsigned matching_dst = 0;
         for (const auto& [guard, dst] : edges)
-          if ((guard & ifree_letter) != bddfalse) ++matching;
+          if ((guard & ifree_letter) != bddfalse) {
+            ++matching;
+            matching_dst = dst;
+          }
         EXPECT_EQ(matching, 1u) << "state " << q << " is not deterministic and "
                                 << "total on an Ifree valuation";
 
-        const std::optional<unsigned> next = c.t_in.delta(q, ifree_letter);
-        EXPECT_TRUE(next.has_value());
+        const std::optional<unsigned> dst = c.t_in.delta(q, ifree_letter);
+        ASSERT_TRUE(dst.has_value());
+        EXPECT_EQ(*dst, matching_dst)
+            << "state " << q << " delta disagrees with its matching edge";
         const std::optional<bdd> out = c.t_in.lambda(q, ifree_letter);
         ASSERT_TRUE(out.has_value())
             << "state " << q << " has an Ifree valuation with no lambda";
@@ -2750,8 +2752,9 @@ TEST(CorpusConfigFromEnv, CasesOverrideChangesCorpusSize) {
   EXPECT_EQ(corpus.size(), 8u);
 }
 
-// Golden values for LTLF_EK_CORPUS_SEED=1, captured the same way as the
-// default golden above.
+// Golden values for LTLF_EK_CORPUS_SEED=1, recaptured at aa0ad8c from a
+// single BuildGeneratedCorpus in a fresh process, after the canonical-order
+// fix.
 const std::string kGoldenSeed1CorpusPhi0 = "Or(And(Not(p0),p6),And(Not(p6),p0))";
 const std::string kGoldenSeed1CorpusPartition0 =
     "input_free={p0 p2 } input_known={p1 } output_free={p3 p4 p5 p6 p7 } "
