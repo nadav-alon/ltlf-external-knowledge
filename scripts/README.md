@@ -97,10 +97,14 @@ instead of a native build.
   Same settings as `run-sweep.sh`. `EK_DRY_RUN=1` prints the command.
 - `merge_sweep.py` (in `scripts/`) — joins the parts into one sweep JSON; it refuses
   parts from different machines, builds, commits, repeat or timeout.
-- `wizard.sh` — the developer's half: build the image, `scp`, `sbatch`, fetch the
+- `build-image.sh` — clones the repo and builds the image on the cluster's login
+  node (the developer's machine has no apptainer); the log is `~/ltlf-ek-build.log` there.
+- `wizard.sh` — the developer's half: build the image on the login node over ssh, `scp`
+  `sweep.sbatch`, `sbatch`, fetch the
   parts, merge and write `docs/runs/<date>-four-family-sweep.{json,md}`.
 
-`test_sweep_sbatch.sh` (ctest `sweep_sbatch_sh`) keeps the array's families, subjects,
+`test_build_image.sh` (ctest `build_image_sh`) runs `build-image.sh` against a stub
+apptainer. `test_sweep_sbatch.sh` (ctest `sweep_sbatch_sh`) keeps the array's families, subjects,
 repeat and timeout equal to `run-sweep.sh`'s, and checks the gold6130 constraint, the
 memory reservation, the hostname/lscpu log and the wizard's gold6130 recon. The image compiles Spot and the bench
 with one baseline, `-O3 -march=x86-64-v3`.
