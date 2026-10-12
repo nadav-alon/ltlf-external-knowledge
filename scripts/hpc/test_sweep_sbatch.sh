@@ -25,4 +25,7 @@ got="$(sort <<<"$got" | sed '/^$/d')"
 if SLURM_ARRAY_TASK_ID=$((last + 1)) EK_DRY_RUN=1 "$here/sweep.sbatch" 2>/dev/null; then
   echo "task past the array was accepted"; exit 1
 fi
+for d in --constraint=gold6130 --mem=16G; do
+  grep -q -- "^#SBATCH $d$" "$here/sweep.sbatch" || { echo "sweep.sbatch lacks $d"; exit 1; }
+done
 echo ok

@@ -5,7 +5,9 @@
 #   sbatch -w NODE scripts/hpc/sweep.sbatch
 #
 # Pin every task to one node with -w: the parts are merged into a single report
-# and merge_sweep.py refuses parts from different machines. Tasks then run one
+# and merge_sweep.py refuses parts from different machines. --constraint keeps the
+# pinned node within the gold6130 class (a feature tag, not proof: see the lscpu
+# in each log). Tasks then run one
 # after another on that node (--exclusive), so none perturbs another's timings.
 #
 # Same settings as scripts/run-sweep.sh (Release, repeat=5, 20 s per-case
@@ -27,6 +29,8 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --exclusive
+#SBATCH --constraint=gold6130
+#SBATCH --mem=16G
 #SBATCH --time=12:00:00
 #SBATCH --output=%x-%A_%a.log
 set -euo pipefail
