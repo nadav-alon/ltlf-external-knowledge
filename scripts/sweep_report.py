@@ -7,14 +7,16 @@ Every slippery-* arm is one family. Per family and per N the report gives the
 prune ratio (reachable product states with the knowledge over without:
 dfa-product / dfa-product-unpruned; the same over dfa-product-nk is the
 nk-product ratio, the task-equivalent baseline), the EK and ltlfsynt wall-clock,
-and the speedup over ltlfsynt. The cells column counts the cells EK finished, the raced column those finished on
-both sides. A cell is one (arm, realizable) pair; the figure
-for a family at N is the median over its cells. A cell with any timed-out or
+and the speedup over ltlfsynt. The cells column counts the cells EK finished,
+the raced column those finished on both sides. A cell is one (arm, realizable)
+pair; the figure for a family at N is the median over its cells. A cell with any timed-out or
 failed repeat, on either side, is not finished: its median would be taken over
 the survivors alone, so it is left out. The headline per family is the speedup
 at the largest N where every cell finished on both sides, else at the largest N
-where some did, with the cell count. Where ltlfsynt timed out and EK finished,
-the speedup is reported as a lower bound.
+where some did, with the cell count, and says why it stopped at that N (the first N that
+lost a cell to an ltlfsynt error or timeout, or to an unfinished cell).
+Where ltlfsynt timed out and EK finished, the speedup is reported as a lower
+bound; where it errored, a note names the N and the cell count.
 ltlfsynt's startup floor (~4 ms) is not subtracted.
 """
 import argparse
@@ -57,7 +59,7 @@ def _product_states(structural, subject):
 
 
 def build_rows(sweep, subject=EK_SUBJECT):
-    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_errors', 'prune', 'prune_nk', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
+    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_bounded', 'lt_errors', 'prune', 'prune_nk', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
     'speedup_med', 'speedup_min', 'bound'}}}; a figure is None when no cell has it."""
     wall = _finished_wall(sweep["timings"])
     with_k = _product_states(sweep["structural"], EK_PRODUCT)
@@ -104,8 +106,9 @@ def build_rows(sweep, subject=EK_SUBJECT):
             c["speedup_min"].append(row["ltlfsynt_ns"] / ek[0])
         if key in lt_error:
             c["lt_error"].append(1)
-        if ek and key in lt_timeout:
+        if key in lt_timeout:
             c["lt_timeout"].append(1)
+        if ek and key in lt_timeout:
             c["bound"].append(sweep["provenance"]["timeout_seconds"] * 1e9 / ek[1])
 
     def med(xs):
@@ -115,6 +118,7 @@ def build_rows(sweep, subject=EK_SUBJECT):
         g: {n: {k: med(v) for k, v in by_n[n].items()}
                | {"cells": len(by_n[n]["ek_med"]), "both": len(by_n[n]["speedup_med"]),
                   "total": len(by_n[n]["total"]), "lt_timeouts": len(by_n[n]["lt_timeout"]),
+                  "lt_bounded": len(by_n[n]["bound"]),
                   "lt_errors": len(by_n[n]["lt_error"])}
             for n in sorted(by_n)}
         for g, by_n in cells.items()
@@ -125,13 +129,17 @@ def _fmt(x, fmt):
     return "n/a" if x is None else fmt.format(x)
 
 
+def _count(k, noun):
+    return f"{k} {noun}{'s' * (k > 1)}"
+
+
 def _unraced(r):
     """Why a cell at this N did not race on both sides, as 'a, b' (empty when all raced)."""
     parts = []
     if r["lt_errors"]:
-        parts.append(f"{r['lt_errors']} ltlfsynt error{'s' * (r['lt_errors'] > 1)}")
+        parts.append(_count(r["lt_errors"], "ltlfsynt error"))
     if r["lt_timeouts"]:
-        parts.append(f"{r['lt_timeouts']} ltlfsynt timeout{'s' * (r['lt_timeouts'] > 1)}")
+        parts.append(_count(r["lt_timeouts"], "ltlfsynt timeout"))
     other = r["total"] - r["both"] - r["lt_errors"] - r["lt_timeouts"]
     if other > 0:
         parts.append(f"{other} unfinished on another side")
@@ -139,11 +147,20 @@ def _unraced(r):
 
 
 def _stop_reason(by_n, n):
-    """Why the headline N is not the family's last: the first unraced cells at n or above."""
-    for m in (k for k in by_n if k >= n):
+    """The clause the headline at N=n ends with, leading '; ' included.
+
+    Names the first N >= n with an unraced cell: 'stops at' when it is above n,
+    'partial' when n itself lost cells (no N was complete). Otherwise says every
+    cell finished, or, when only an N below n lost cells, that every cell at n did.
+    """
+    for m in sorted(k for k in by_n if k >= n):
         why = _unraced(by_n[m])
         if why:
+            if m == n:
+                return f"; partial: N={n} has {why}"
             return f"; stops at N={n} because N={m} has {why}"
+    if any(_unraced(r) for r in by_n.values()):
+        return f"; every cell at N={n} finished"
     return "; every cell finished"
 
 
@@ -161,9 +178,9 @@ def _headline(by_n, timeout_s):
         lines.append("**No speedup over ltlfsynt: no cell finished on both sides "
                      "(ltlfsynt is n/a for a family without a declared psi_in).**")
     for n, r in by_n.items():
-        if r["lt_timeouts"]:
+        if r["lt_bounded"]:
             lines += ["", f"ltlfsynt timed out ({timeout_s} s) at N={n} in "
-                          f"{r['lt_timeouts']} of {r['total']} cells where EK finished: "
+                          f"{r['lt_bounded']} of {r['total']} cells where EK finished: "
                           f"speedup at least {r['bound']:.2f}x (median lower bound)."]
         if r["lt_errors"]:
             lines += ["", f"ltlfsynt errored at N={n} in {r['lt_errors']} of "
