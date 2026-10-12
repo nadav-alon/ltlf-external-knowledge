@@ -113,6 +113,12 @@ class SweepReport(unittest.TestCase):
             ltlfsynt=[lt("f", 3, True, 1, 900)]))
         self.assertIn("(N=3, 1 of 2 cells): 9.00x", out)
 
+    def test_an_ltlfsynt_error_cell_gets_a_note_naming_n_and_the_count(self):
+        out = sr.render(sweep(
+            timings=[timing("f", 2, True, EK, 1, 100), timing("f", 2, False, EK, 1, 100)],
+            ltlfsynt=[lt("f", 2, True, 1, 300), lt("f", 2, False, 0, None, status="error")]))
+        self.assertIn("ltlfsynt errored at N=2 in 1 of 2 cells", out)
+
     def test_a_stopped_early_sweep_is_flagged_at_the_top(self):
         s = sweep(timings=[timing("f", 2, True, EK, 1, 1)])
         s["provenance"]["stopped_early"] = True

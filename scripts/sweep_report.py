@@ -56,7 +56,7 @@ def _product_states(structural, subject):
 
 
 def build_rows(sweep, subject=EK_SUBJECT):
-    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'prune', 'prune_nk', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
+    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_errors', 'prune', 'prune_nk', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
     'speedup_med', 'speedup_min', 'bound'}}}; a figure is None when no cell has it."""
     wall = _finished_wall(sweep["timings"])
     with_k = _product_states(sweep["structural"], EK_PRODUCT)
@@ -72,6 +72,12 @@ def build_rows(sweep, subject=EK_SUBJECT):
         (r["family"], r["n"], r["realizable"])
         for r in sweep["ltlfsynt"]
         if r["status"] in ("timeout", "partial_timeout")
+    }
+
+    lt_error = {
+        (r["family"], r["n"], r["realizable"])
+        for r in sweep["ltlfsynt"]
+        if r["status"] == "error"
     }
 
     cells = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
@@ -95,6 +101,8 @@ def build_rows(sweep, subject=EK_SUBJECT):
         if ek and row:
             c["speedup_med"].append(row["ltlfsynt_median_ns"] / ek[1])
             c["speedup_min"].append(row["ltlfsynt_ns"] / ek[0])
+        if key in lt_error:
+            c["lt_error"].append(1)
         if ek and key in lt_timeout:
             c["lt_timeout"].append(1)
             c["bound"].append(sweep["provenance"]["timeout_seconds"] * 1e9 / ek[1])
@@ -105,7 +113,8 @@ def build_rows(sweep, subject=EK_SUBJECT):
     return {
         g: {n: {k: med(v) for k, v in by_n[n].items()}
                | {"cells": len(by_n[n]["ek_med"]), "both": len(by_n[n]["speedup_med"]),
-                  "total": len(by_n[n]["total"]), "lt_timeouts": len(by_n[n]["lt_timeout"])}
+                  "total": len(by_n[n]["total"]), "lt_timeouts": len(by_n[n]["lt_timeout"]),
+                  "lt_errors": len(by_n[n]["lt_error"])}
             for n in sorted(by_n)}
         for g, by_n in cells.items()
     }
@@ -133,6 +142,9 @@ def _headline(by_n, timeout_s):
             lines += ["", f"ltlfsynt timed out ({timeout_s} s) at N={n} in "
                           f"{r['lt_timeouts']} of {r['total']} cells where EK finished: "
                           f"speedup at least {r['bound']:.2f}x (median lower bound)."]
+        if r["lt_errors"]:
+            lines += ["", f"ltlfsynt errored at N={n} in {r['lt_errors']} of "
+                          f"{r['total']} cells: those cells have no speedup."]
     return lines
 
 
