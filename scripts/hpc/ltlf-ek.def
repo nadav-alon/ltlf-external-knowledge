@@ -1,0 +1,46 @@
+Bootstrap: docker
+From: debian:bookworm-slim
+
+# The Release image the HPC sweep runs in: Spot (with ltlfsynt), MONA and
+# ltlf-ek-bench, so the cluster's CentOS 7 / gcc 10 toolchain is never used.
+# Build it from the repo root, on a machine with apptainer:
+#
+#   apptainer build ltlf-ek.sif scripts/hpc/ltlf-ek.def
+#
+# The Spot version is the one .sandbox/Dockerfile and ci.yml pin; bump all
+# three together. .git is copied so the sweep JSON records the commit.
+
+%files
+    CMakeLists.txt /src/CMakeLists.txt
+    include /src/include
+    src /src/src
+    tests /src/tests
+    scripts /src/scripts
+    .git /src/.git
+
+%post
+    set -eu
+    SPOT_VERSION=2.15.1
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        ca-certificates curl g++ make cmake pkg-config python3 git mona
+    rm -rf /var/lib/apt/lists/*
+    curl -fsSL "https://www.lrde.epita.fr/dload/spot/spot-${SPOT_VERSION}.tar.gz" | tar -xz -C /tmp
+    cd "/tmp/spot-${SPOT_VERSION}"
+    ./configure --prefix=/usr/local --disable-python --disable-devel --disable-static
+    make -j"$(nproc)"
+    make install-strip
+    ldconfig
+    rm -rf "/tmp/spot-${SPOT_VERSION}"
+    git config --global --add safe.directory /src
+    cmake -S /src -B /src/build -DCMAKE_BUILD_TYPE=Release \
+        -DSPOT_ROOT=/usr/local -DLTLF_EK_BUILD_TESTS=OFF
+    cmake --build /src/build -j"$(nproc)" --target ltlf-ek-bench
+
+%environment
+    export LC_ALL=C
+
+%test
+    test -x /src/build/ltlf-ek-bench
+    test -x /usr/local/bin/ltlfsynt
+    command -v mona

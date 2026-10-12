@@ -8,13 +8,13 @@ row lists (timings, structural, ltlfsynt, and any other top-level list) are
 concatenated; the provenance of the first part stands, with the family list
 unioned, stopped_early OR-ed, verdict_mismatch_count summed and
 sweep_wall_seconds the longest part (the parts run concurrently). Parts that
-disagree on build type, Spot version, commit, repeat or timeout were not one
+disagree on machine, build type, Spot version, commit, repeat or timeout were not one
 sweep, so the merge refuses them.
 """
 import json
 import sys
 
-SAME = ("cmake_build_type", "spot_version", "repo_commit", "repeat", "timeout_seconds")
+SAME = ("machine", "cmake_build_type", "spot_version", "repo_commit", "repeat", "timeout_seconds")
 
 
 def merge(parts):

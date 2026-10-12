@@ -6,7 +6,7 @@ import merge_sweep as ms
 
 
 def part(family, stopped=False, mismatches=0, wall=10, **prov):
-    p = {"cmake_build_type": "Release", "spot_version": "2.15.1", "repo_commit": "abc",
+    p = {"machine": "cn01", "cmake_build_type": "Release", "spot_version": "2.15.1", "repo_commit": "abc",
          "repeat": 5, "timeout_seconds": 20, "families": [family],
          "stopped_early": stopped, "verdict_mismatch_count": mismatches,
          "sweep_wall_seconds": wall}
@@ -27,6 +27,10 @@ class MergeSweep(unittest.TestCase):
     def test_parts_of_different_sweeps_are_refused(self):
         with self.assertRaisesRegex(ValueError, "repeat"):
             ms.merge([part("a"), part("b", repeat=1)])
+
+    def test_parts_from_different_machines_are_refused(self):
+        with self.assertRaisesRegex(ValueError, "machine"):
+            ms.merge([part("a"), part("b", machine="cn02")])
 
     def test_no_parts_is_refused(self):
         with self.assertRaises(ValueError):
