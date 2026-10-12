@@ -4,7 +4,8 @@
 #   scripts/run-sweep.sh [OUT_DIR]          # default build/benchout/sweep
 #
 # OUT_DIR must resolve inside this clone: ltlf-ek-bench refuses --out anywhere
-# else, so the script refuses it up front, before configuring or building.
+# else, so the script refuses it up front, before configuring or building. It
+# likewise refuses one that resolves under /tmp (read-only under the sandbox).
 #
 # Release build, repeat=5, 20 s per-case timeout, one ltlf-ek-bench invocation
 # over the whole grid, then scripts/sweep_report.py over its JSON. parity-t3 is
@@ -32,6 +33,11 @@ resolved_out="$(realpath -m -- "$out_dir")"
 if [[ "$resolved_out" != "$repo" && "$resolved_out" != "$repo"/* ]]; then
   echo "run-sweep: OUT_DIR must resolve inside the repository ($repo)," \
        "got $resolved_out" >&2
+  exit 1
+fi
+if [[ "$resolved_out" == /tmp || "$resolved_out" == /tmp/* ]]; then
+  echo "run-sweep: OUT_DIR must not resolve under /tmp (mounted read-only" \
+       "under the sandbox), got $resolved_out" >&2
   exit 1
 fi
 spot_root="${SPOT_ROOT:-}"
