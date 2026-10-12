@@ -75,4 +75,24 @@ TEST(BenchSweep, LtlfsyntRowCarriesAMedianNotBelowItsMin) {
   EXPECT_EQ(seen, 2u) << "one raced row per polarity (realizable 0/1)";
 }
 
+// slippery-onehot's enumerated psi_in passes 128 KiB (MAX_ARG_STRLEN) at N=5,
+// so a formula handed over as one argv string fails the exec.
+TEST(BenchSweep, LtlfsyntRacesAPsiInLargerThanOneArgvString) {
+  if (std::system("command -v ltlfsynt >/dev/null 2>&1") != 0)
+    GTEST_SKIP() << "no ltlfsynt on PATH";
+  const std::string json = RunSweep(
+      "bench_sweep_big_psi",
+      "--families=slippery-onehot --subjects=dfa-product --n-min=5 --n-max=5 "
+      "--repeat=1 --timeout=5");
+  const std::size_t at = json.find("\"ltlfsynt\":[");
+  ASSERT_NE(at, std::string::npos);
+  const std::regex row("\"status\":\"(ok|timeout|partial_timeout)\"");
+  std::size_t seen = 0;
+  const std::string tail = json.substr(at);
+  for (auto it = std::sregex_iterator(tail.begin(), tail.end(), row);
+       it != std::sregex_iterator(); ++it)
+    ++seen;
+  EXPECT_EQ(seen, 2u) << "both polarities raced, neither errored";
+}
+
 }  // namespace

@@ -1130,16 +1130,30 @@ int main(int argc, char** argv) {
           for (const auto& ap : c->vars.inputs()) ins += (ins.empty() ? "" : ",") + ap;
           for (const auto& ap : c->vars.outputs()) outs += (outs.empty() ? "" : ",") + ap;
 
+          // The formula goes to ltlfsynt through a file: one argv string is
+          // capped at MAX_ARG_STRLEN (128 KiB), and an enumerated psi_in passes that.
+          char case_dir[4096];
+          std::snprintf(case_dir, sizeof(case_dir), "%s",
+                        ltlf_ek::detail::temp_template("ltlf_ek_bench_case").c_str());
+          if (!mkdtemp(case_dir)) case_dir[0] = '\0';
+          const std::string formula_path = std::string(case_dir) + "/reduced.ltlf";
+          bool formula_written = false;
+          if (case_dir[0]) {
+            std::ofstream f(formula_path);
+            f << reduced << "\n";
+            formula_written = static_cast<bool>(f);
+          }
+
           std::optional<std::uint64_t> best_ns;
           std::vector<std::uint64_t> samples_ns;
           std::optional<bool> synt_realizable;
           bool any_success = false, any_timeout = false;
-          for (int rep = 0; rep < args.repeat; ++rep) {
+          for (int rep = 0; formula_written && rep < args.repeat; ++rep) {
             const auto t0 = std::chrono::steady_clock::now();
             const SubprocessResult sr = RunSubprocessCaptured(
                 ltlfsynt_binary,
                 {"--ins=" + ins, "--outs=" + outs, "--semantics=Mealy",
-                 "--realizability", "-f", reduced},
+                 "--realizability", "-F", formula_path},
                 args.timeout_seconds);
             const auto t1 = std::chrono::steady_clock::now();
             if (sr.timed_out) {
@@ -1153,6 +1167,10 @@ int main(int argc, char** argv) {
             samples_ns.push_back(ns);
             if (!best_ns || ns < *best_ns) best_ns = ns;
             synt_realizable = ParseLtlfsyntVerdict(sr);
+          }
+          if (case_dir[0]) {
+            std::remove(formula_path.c_str());
+            rmdir(case_dir);
           }
           if (!any_success) {
             row.status = any_timeout ? "timeout" : "error";
