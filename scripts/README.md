@@ -99,5 +99,6 @@ instead of a native build.
 - `wizard.sh` — the developer's half: build the image, `scp`, `sbatch`, fetch the
   parts, merge and write `docs/runs/<date>-four-family-sweep.{json,md}`.
 
-`test_sweep_sbatch.sh` (ctest `sweep_sbatch_sh`) keeps the array's families equal to
-`run-sweep.sh`'s. The image and the job itself have not been run on the cluster.
+`test_sweep_sbatch.sh` (ctest `sweep_sbatch_sh`) keeps the array's families, subjects,
+repeat and timeout equal to `run-sweep.sh`'s. The image compiles Spot and the bench
+with one baseline, `-O3 -march=x86-64-v3`.
