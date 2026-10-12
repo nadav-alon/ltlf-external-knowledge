@@ -704,6 +704,8 @@ struct LtlfsyntRow {
   std::optional<std::uint64_t> ltlfsynt_ns;         // min over the repeats
   std::optional<std::uint64_t> ltlfsynt_median_ns;  // median over the repeats
   bool verdict_mismatch = false;
+  // Why status is "error": ltlfsynt's stderr head, else its exit code.
+  std::optional<std::string> error;
 };
 
 // Per (family, subject) running summary state, folded into a SummaryRow at
@@ -752,6 +754,7 @@ std::string ShellQuote(const std::string& s) {
 struct SubprocessResult {
   int exit_code = -1;
   std::string stdout_text;
+  std::string stderr_head;  // first bytes of stderr, for a failure's reason
   bool timed_out = false;
 };
 
@@ -765,11 +768,12 @@ SubprocessResult RunSubprocessCaptured(const std::string& binary,
   const int fd = mkstemp(out_buf);
   if (fd >= 0) close(fd);
   const std::string capture_path = out_buf;
+  const std::string err_path = capture_path + ".err";
 
   std::ostringstream cmd;
   cmd << "timeout " << timeout_secs << "s " << ShellQuote(binary);
   for (const auto& a : args) cmd << " " << ShellQuote(a);
-  cmd << " >" << ShellQuote(capture_path) << " 2>/dev/null";
+  cmd << " >" << ShellQuote(capture_path) << " 2>" << ShellQuote(err_path);
   const int rc = std::system(cmd.str().c_str());
 
   SubprocessResult result;
@@ -781,6 +785,13 @@ SubprocessResult RunSubprocessCaptured(const std::string& binary,
   ss << in.rdbuf();
   result.stdout_text = ss.str();
   std::remove(capture_path.c_str());
+  {
+    std::ifstream err(err_path);
+    char buf[200];
+    err.read(buf, sizeof(buf));
+    result.stderr_head.assign(buf, static_cast<std::size_t>(err.gcount()));
+  }
+  std::remove(err_path.c_str());
   return result;
 }
 
@@ -1147,6 +1158,7 @@ int main(int argc, char** argv) {
           std::optional<std::uint64_t> best_ns;
           std::vector<std::uint64_t> samples_ns;
           std::optional<bool> synt_realizable;
+          std::string failure_reason;
           bool any_success = false, any_timeout = false;
           for (int rep = 0; formula_written && rep < args.repeat; ++rep) {
             const auto t0 = std::chrono::steady_clock::now();
@@ -1167,6 +1179,11 @@ int main(int argc, char** argv) {
             samples_ns.push_back(ns);
             if (!best_ns || ns < *best_ns) best_ns = ns;
             synt_realizable = ParseLtlfsyntVerdict(sr);
+            if (!synt_realizable) {
+              failure_reason = ltlf_ek::detail::trim(sr.stderr_head);
+              if (failure_reason.empty())
+                failure_reason = "exit code " + std::to_string(sr.exit_code);
+            }
           }
           if (case_dir[0]) {
             std::remove(formula_path.c_str());
@@ -1174,8 +1191,14 @@ int main(int argc, char** argv) {
           }
           if (!any_success) {
             row.status = any_timeout ? "timeout" : "error";
+            if (!any_timeout)
+              row.error = !formula_written
+                              ? "could not write the formula file: " +
+                                    std::string(std::strerror(errno))
+                              : failure_reason;
           } else if (!synt_realizable) {
             row.status = "error";  // ltlfsynt ran but printed no verdict word
+            row.error = failure_reason;
           } else {
             // Some repeats timed out: the samples are the fast survivors, so
             // the median is censored; the row says so rather than posing as ok.
@@ -1317,7 +1340,9 @@ int main(int argc, char** argv) {
       json << ",\"ltlfsynt_verdict\":"; WriteJsonOptStr(json, r.ltlfsynt_verdict);
       json << ",\"ltlfsynt_ns\":"; WriteJsonOptU64(json, r.ltlfsynt_ns);
       json << ",\"ltlfsynt_median_ns\":"; WriteJsonOptU64(json, r.ltlfsynt_median_ns);
-      json << ",\"verdict_mismatch\":" << (r.verdict_mismatch ? "true" : "false") << "}";
+      json << ",\"verdict_mismatch\":" << (r.verdict_mismatch ? "true" : "false");
+      json << ",\"error\":"; WriteJsonOptStr(json, r.error);
+      json << "}";
     }
     json << "]";
 
