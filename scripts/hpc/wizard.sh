@@ -40,8 +40,8 @@ banner() {
   _clear
   printf '\n%s%s  %s%s\n' "$BOLD" "$BLUE" "$1" "$RESET"
   printf '%s  %s stages%s\n\n' "$DIM" "$TOTAL_STAGES" "$RESET"
-  printf '%s  You drive the browser; this wizard tells you exactly what to do and\n' "$DIM"
-  printf '  captures the values you copy back. Stop any time with Ctrl-C and re-run\n'
+  printf '%s  This wizard builds, copies and submits for you and tells you what to do by hand, and\n' "$DIM"
+  printf '  keeps the values you give it. Stop any time with Ctrl-C and re-run\n'
   printf '  later, since it remembers values already saved.%s\n' "$RESET"
   pause "Ready to start?"
 }
@@ -181,9 +181,9 @@ finish() {
 
 # ──────────────────────────────────────────────────────────────────────────
 # ──────────────────────────────────────────────────────────────────────────
-# STAGES: the developer's half of the HPC sweep (#19): build the Release
-# image, copy it to the cluster, submit the job array, bring the parts back
-# and merge them into the report #74 expects. Run from the repo root.
+# STAGES: the developer's half of the HPC sweep: build the Release image,
+# copy it to the cluster, submit the job array, bring the parts back and merge
+# them into the four-family report. Run from the repo root.
 # ──────────────────────────────────────────────────────────────────────────
 
 TOTAL_STAGES=5
@@ -202,16 +202,19 @@ if [[ -f ltlf-ek.sif ]] && ! confirm "ltlf-ek.sif exists. Rebuild it?"; then
   say "keeping the existing image"
 else
   apptainer build --force ltlf-ek.sif scripts/hpc/ltlf-ek.def
+  write_env EK_IMAGE_SHA "$(git rev-parse HEAD)"
 fi
-write_env EK_IMAGE_SHA "$(git rev-parse HEAD)"
 
 stage "Copy the image and scripts to the cluster"
 say "Copies ltlf-ek.sif and scripts/hpc/sweep.sbatch to ~/ on $HOST (user alnadav5)."
 note "Connect to the cluster's network or VPN first, if it needs one."
 ask EK_USER "Cluster user:"
 EK_USER="${EK_USER:-alnadav5}"
-confirm "scp now?" || { say "skipped; do it by hand: scp ltlf-ek.sif scripts/hpc/sweep.sbatch $EK_USER@$HOST:"; }
-scp ltlf-ek.sif scripts/hpc/sweep.sbatch "$EK_USER@$HOST:"
+if confirm "scp now?"; then
+  scp ltlf-ek.sif scripts/hpc/sweep.sbatch "$EK_USER@$HOST:"
+else
+  say "skipped; do it by hand: scp ltlf-ek.sif scripts/hpc/sweep.sbatch $EK_USER@$HOST:"
+fi
 write_env EK_USER "$EK_USER"
 
 stage "Submit the job array"
@@ -234,15 +237,18 @@ write_env EK_PARTS "build/hpc/$EK_JOB"
 
 stage "Merge into the committed report"
 say "merge_sweep.py refuses parts of different machines/commits; sweep_report.py renders the report."
-ask EK_DATE "Run date, YYYY-MM-DD (#74 expects 2026-10-17):"
-EK_DATE="${EK_DATE:-2026-10-17}"
+ask EK_DATE "Run date, YYYY-MM-DD:"
+EK_DATE="${EK_DATE:-$(date +%F)}"
 json="docs/runs/$EK_DATE-four-family-sweep.json"
 md="docs/runs/$EK_DATE-four-family-sweep.md"
-python3 scripts/merge_sweep.py build/hpc/"$EK_JOB"/part-*.json > "$json"
-python3 scripts/sweep_report.py "$json" > "$md"
+families="$(sed -n 's/^families="\(.*\)"$/\1/p' scripts/run-sweep.sh)"
+python3 scripts/merge_sweep.py --expect-families="$families" build/hpc/"$EK_JOB"/part-*.json > "$json.tmp"
+mv "$json.tmp" "$json"
+python3 scripts/sweep_report.py "$json" > "$md.tmp"
+mv "$md.tmp" "$md"
 write_env EK_REPORT "$md"
 say "wrote $json and $md"
-note "Commit both, then comment on #74 with which side of the bar it landed."
+note "Commit both, then comment on the ticket that asked for the sweep."
 # ──────────────────────────────────────────────────────────────────────────
 
 finish
