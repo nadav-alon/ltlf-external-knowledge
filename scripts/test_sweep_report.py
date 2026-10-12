@@ -126,6 +126,19 @@ class SweepReport(unittest.TestCase):
         self.assertIn("| N | cells | raced |", out)
         self.assertIn("| 2 | 2 | 1 |", out)
 
+    def test_headline_says_why_it_stopped_at_that_n(self):
+        out = sr.render(sweep(
+            timings=[timing("f", n, r, EK, 1, 100) for n in (4, 5) for r in (True, False)],
+            ltlfsynt=[lt("f", 4, True, 1, 300), lt("f", 4, False, 1, 300),
+                      lt("f", 5, True, 1, 300), lt("f", 5, False, 0, None, status="error")]))
+        self.assertIn("(N=4, 2 of 2 cells): 3.00x (median); stops at N=4 because "
+                      "N=5 has 1 ltlfsynt error.", out)
+
+    def test_headline_says_every_cell_finished_when_nothing_was_lost(self):
+        out = sr.render(sweep(timings=[timing("f", 2, True, EK, 1, 100)],
+                              ltlfsynt=[lt("f", 2, True, 1, 300)]))
+        self.assertIn("3.00x (median); every cell finished.", out)
+
     def test_a_stopped_early_sweep_is_flagged_at_the_top(self):
         s = sweep(timings=[timing("f", 2, True, EK, 1, 1)])
         s["provenance"]["stopped_early"] = True

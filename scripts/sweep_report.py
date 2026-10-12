@@ -125,6 +125,28 @@ def _fmt(x, fmt):
     return "n/a" if x is None else fmt.format(x)
 
 
+def _unraced(r):
+    """Why a cell at this N did not race on both sides, as 'a, b' (empty when all raced)."""
+    parts = []
+    if r["lt_errors"]:
+        parts.append(f"{r['lt_errors']} ltlfsynt error{'s' * (r['lt_errors'] > 1)}")
+    if r["lt_timeouts"]:
+        parts.append(f"{r['lt_timeouts']} ltlfsynt timeout{'s' * (r['lt_timeouts'] > 1)}")
+    other = r["total"] - r["both"] - r["lt_errors"] - r["lt_timeouts"]
+    if other > 0:
+        parts.append(f"{other} unfinished on another side")
+    return ", ".join(parts)
+
+
+def _stop_reason(by_n, n):
+    """Why the headline N is not the family's last: the first unraced cells at n or above."""
+    for m in (k for k in by_n if k >= n):
+        why = _unraced(by_n[m])
+        if why:
+            return f"; stops at N={n} because N={m} has {why}"
+    return "; every cell finished"
+
+
 def _headline(by_n, timeout_s):
     raced = [n for n, r in by_n.items() if r.get("speedup_med") is not None]
     complete = [n for n in raced if by_n[n]["both"] == by_n[n]["total"]]
@@ -134,7 +156,7 @@ def _headline(by_n, timeout_s):
         r = by_n[n]
         lines.append(f"**Speedup over ltlfsynt at the largest N finished "
                      f"(N={n}, {r['both']} of {r['total']} cells): "
-                     f"{r['speedup_med']:.2f}x (median).**")
+                     f"{r['speedup_med']:.2f}x (median){_stop_reason(by_n, n)}.**")
     else:
         lines.append("**No speedup over ltlfsynt: no cell finished on both sides "
                      "(ltlfsynt is n/a for a family without a declared psi_in).**")
