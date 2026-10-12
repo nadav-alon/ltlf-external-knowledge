@@ -70,5 +70,8 @@ if scontrol show node "${SLURMD_NODENAME:?run under sbatch}" | grep -qi 'Gres=.*
   exit 1
 fi
 mkdir -p "$out_dir"
+# The gold6130 tag is a label, not hardware proof: record what actually ran.
+hostname
+lscpu
 "${cmd[@]}"
 echo "part: $out_dir/$part"

@@ -28,4 +28,9 @@ fi
 for d in --constraint=gold6130 --mem=16G; do
   grep -q -- "^#SBATCH $d$" "$here/sweep.sbatch" || { echo "sweep.sbatch lacks $d"; exit 1; }
 done
+run_at="$(grep -n '^"${cmd\[@\]}"$' "$here/sweep.sbatch" | cut -d: -f1)"
+for tool in hostname lscpu; do
+  at="$(grep -n "^$tool$" "$here/sweep.sbatch" | cut -d: -f1)"
+  [[ -n "$at" && "$at" -lt "$run_at" ]] || { echo "sweep.sbatch does not log $tool before the bench"; exit 1; }
+done
 echo ok
