@@ -181,58 +181,77 @@ finish() {
 
 # ──────────────────────────────────────────────────────────────────────────
 # ──────────────────────────────────────────────────────────────────────────
-# STAGES: the developer's half of the HPC sweep: build the Release image,
-# copy it to the cluster, submit the job array, bring the parts back and merge
+# STAGES: the developer's half of the HPC sweep: build the Release image on the
+# cluster's login node, copy the sbatch script, submit the job array, bring the parts back and merge
 # them into the four-family report. Run from the repo root.
 # ──────────────────────────────────────────────────────────────────────────
 
 TOTAL_STAGES=5
 ENV_FILE="build/hpc-sweep-wizard.env"
 mkdir -p build
-HOST="hpc-login9.hpc.pub.lan"
 
 banner "HPC sweep: image, submit, collect"
 
-stage "Build the Release image"
-say "Builds scripts/hpc/ltlf-ek.def into ltlf-ek.sif: Spot 2.15.1, MONA, ltlf-ek-bench (Release)."
-note "Needs apptainer on this machine (and fakeroot or root), and the repo's own .git directory, not a worktree."
-[[ -d .git ]] || { warn "run this from the main clone: .git is not a directory here"; exit 1; }
-git status --short | grep -v '^??' && warn "tracked changes are uncommitted; the image records only HEAD's commit" || true
-if [[ -f ltlf-ek.sif ]] && ! confirm "ltlf-ek.sif exists. Rebuild it?"; then
-  say "keeping the existing image"
-else
-  apptainer build --force ltlf-ek.sif scripts/hpc/ltlf-ek.def
-  write_env EK_IMAGE_SHA "$(git rev-parse HEAD)"
-fi
-
-stage "Copy the image and scripts to the cluster"
-say "Copies ltlf-ek.sif and scripts/hpc/sweep.sbatch to ~/ on $HOST (user alnadav5)."
+stage "Build the Release image on the cluster"
+say "Clones the repo on the login node at HEAD and builds scripts/hpc/ltlf-ek.def there into ~/ltlf-ek.sif:"
+say "Spot 2.15.1, MONA, ltlf-ek-bench (Release). No apptainer is needed on this machine."
 note "Connect to the cluster's network or VPN first, if it needs one."
-ask EK_USER "Cluster user:"
-EK_USER="${EK_USER:-alnadav5}"
-if confirm "scp now?"; then
-  scp ltlf-ek.sif scripts/hpc/sweep.sbatch "$EK_USER@$HOST:"
+ask EK_SSH_TARGET "ssh target on the cluster (a ~/.ssh/config alias or user@host) [login]:"
+EK_SSH_TARGET="${EK_SSH_TARGET:-login}"
+write_env EK_SSH_TARGET "$EK_SSH_TARGET"
+ask EK_REPO_URL "Repo URL the cluster can clone [https://github.com/nadav-alon/ltlf-external-knowledge.git]:"
+EK_REPO_URL="${EK_REPO_URL:-https://github.com/nadav-alon/ltlf-external-knowledge.git}"
+write_env EK_REPO_URL "$EK_REPO_URL"
+git fetch -q origin 2>/dev/null || true
+git status --short | grep -v '^??' && warn "tracked changes are uncommitted; the image records only HEAD's commit" || true
+commit="$(git rev-parse HEAD)"
+git branch -r --contains "$commit" | grep -q . || { warn "$commit is not on any remote branch; push it first"; exit 1; }
+warn "the cluster clones $commit from $EK_REPO_URL, so it must be pushed there"
+BUILD_LOG="ltlf-ek-build.log"
+if confirm "Build $commit on $EK_SSH_TARGET now? (about 20 min)"; then
+  ssh "$EK_SSH_TARGET" true || { warn "cannot ssh to $EK_SSH_TARGET (host, VPN or key); nothing was built"; exit 1; }
+  ssh "$EK_SSH_TARGET" git ls-remote "$EK_REPO_URL" HEAD > /dev/null ||
+    { warn "the login node cannot read $EK_REPO_URL (no network to GitHub, or a private repo); give a URL it can clone, e.g. an ssh one with a deploy key"; exit 1; }
+  if ssh "$EK_SSH_TARGET" "EK_BUILD_LOG=\$HOME/$BUILD_LOG" bash -s -- "$EK_REPO_URL" "$commit" < scripts/hpc/build-image.sh; then
+    write_env EK_IMAGE_SHA "$commit"
+  else
+    warn "the build failed; the log is ~/$BUILD_LOG on the cluster: ssh $EK_SSH_TARGET tail -50 $BUILD_LOG (a missing or old log means it failed before the build started)"
+    exit 1
+  fi
 else
-  say "skipped; do it by hand: scp ltlf-ek.sif scripts/hpc/sweep.sbatch $EK_USER@$HOST:"
+  say "skipped; do it by hand: ssh $EK_SSH_TARGET bash -s -- $EK_REPO_URL $commit < scripts/hpc/build-image.sh"
 fi
-write_env EK_USER "$EK_USER"
+note "Build log: ~/$BUILD_LOG on the cluster."
+
+stage "Copy the sbatch script to the cluster"
+if [[ "$(_existing EK_IMAGE_SHA || true)" == "$commit" ]]; then
+  say "Copies scripts/hpc/sweep.sbatch to ~/ on $EK_SSH_TARGET; the image for $commit is already there."
+else
+  warn "no image built from $commit is recorded; make sure ~/ltlf-ek.sif on $EK_SSH_TARGET is the one you want"
+  say "Copies scripts/hpc/sweep.sbatch to ~/ on $EK_SSH_TARGET."
+fi
+if confirm "scp now?"; then
+  scp scripts/hpc/sweep.sbatch "$EK_SSH_TARGET:"
+else
+  say "skipped; do it by hand: scp scripts/hpc/sweep.sbatch $EK_SSH_TARGET:"
+fi
 
 stage "Submit the job array"
 say "One task per family group, all pinned to one node so the parts merge."
-step "Pick an idle gold6130 node (the class sweep.sbatch constrains to): ssh $EK_USER@$HOST \"sinfo -N -t idle -o '%N %c %m %f'\" | grep gold6130"
+step "Pick an idle gold6130 node (the class sweep.sbatch constrains to): ssh $EK_SSH_TARGET \"sinfo -N -t idle -o '%N %c %m %f'\" | grep gold6130"
 ask EK_NODE "Node name (e.g. cn07):"
-confirm "sbatch -w $EK_NODE on $HOST?" || exit 0
-EK_JOB=$(ssh "$EK_USER@$HOST" "sbatch --parsable -w $EK_NODE sweep.sbatch" | cut -d';' -f1)
+confirm "sbatch -w $EK_NODE on $EK_SSH_TARGET?" || exit 0
+EK_JOB=$(ssh "$EK_SSH_TARGET" "sbatch --parsable -w $EK_NODE sweep.sbatch" | cut -d';' -f1)
 say "submitted array job $EK_JOB"
 write_env EK_JOB "$EK_JOB"
-note "Watch it: ssh $EK_USER@$HOST squeue -u $EK_USER   (the sweep is about 2.5 h)"
+note "Watch it: ssh $EK_SSH_TARGET squeue --me   (the sweep is about 2.5 h)"
 
 stage "Wait, then fetch the parts"
 step "Wait until squeue shows no ek-sweep tasks, and sacct reports COMPLETED for all four."
-note "ssh $EK_USER@$HOST sacct -j $EK_JOB --format=JobID,State,Elapsed"
+note "ssh $EK_SSH_TARGET sacct -j $EK_JOB --format=JobID,State,Elapsed"
 pause "All four tasks COMPLETED?"
 mkdir -p "build/hpc/$EK_JOB"
-scp "$EK_USER@$HOST:ek-sweep/$EK_JOB/part-*.json" "build/hpc/$EK_JOB/"
+scp "$EK_SSH_TARGET:ek-sweep/$EK_JOB/part-*.json" "build/hpc/$EK_JOB/"
 write_env EK_PARTS "build/hpc/$EK_JOB"
 
 stage "Merge into the committed report"

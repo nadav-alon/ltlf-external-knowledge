@@ -3,7 +3,8 @@ From: debian:bookworm-slim
 
 # The Release image the HPC sweep runs in: Spot (with ltlfsynt), MONA and
 # ltlf-ek-bench, so the cluster's CentOS 7 / gcc 10 toolchain is never used.
-# Build it from the repo root, on a machine with apptainer:
+# Build it from the repo root, on a machine with apptainer (wizard.sh builds it on the
+# cluster's login node, via build-image.sh):
 #
 #   apptainer build ltlf-ek.sif scripts/hpc/ltlf-ek.def
 #
