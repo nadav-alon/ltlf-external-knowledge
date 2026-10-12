@@ -113,6 +113,52 @@ class SweepReport(unittest.TestCase):
             ltlfsynt=[lt("f", 3, True, 1, 900)]))
         self.assertIn("(N=3, 1 of 2 cells): 9.00x", out)
 
+    def test_an_ltlfsynt_error_cell_gets_a_note_naming_n_and_the_count(self):
+        out = sr.render(sweep(
+            timings=[timing("f", 2, True, EK, 1, 100), timing("f", 2, False, EK, 1, 100)],
+            ltlfsynt=[lt("f", 2, True, 1, 300), lt("f", 2, False, 0, None, status="error")]))
+        self.assertIn("ltlfsynt errored at N=2 in 1 of 2 cells", out)
+
+    def test_the_table_shows_how_many_cells_raced_on_both_sides(self):
+        out = sr.render(sweep(
+            timings=[timing("f", 2, True, EK, 1, 100), timing("f", 2, False, EK, 1, 100)],
+            ltlfsynt=[lt("f", 2, True, 1, 300), lt("f", 2, False, 0, None, status="error")]))
+        self.assertIn("| N | cells | raced |", out)
+        self.assertIn("| 2 | 2 | 1 |", out)
+
+    def test_headline_says_why_it_stopped_at_that_n(self):
+        out = sr.render(sweep(
+            timings=[timing("f", n, r, EK, 1, 100) for n in (4, 5) for r in (True, False)],
+            ltlfsynt=[lt("f", 4, True, 1, 300), lt("f", 4, False, 1, 300),
+                      lt("f", 5, True, 1, 300), lt("f", 5, False, 0, None, status="error")]))
+        self.assertIn("(N=4, 2 of 2 cells): 3.00x (median); stops at N=4 because "
+                      "N=5 has 1 ltlfsynt error.", out)
+
+    def test_an_error_below_a_complete_headline_n_is_not_called_every_cell(self):
+        out = sr.render(sweep(
+            timings=[timing("f", n, r, EK, 1, 100) for n in (2, 3) for r in (True, False)],
+            ltlfsynt=[lt("f", 2, True, 1, 300), lt("f", 2, False, 0, None, status="error"),
+                      lt("f", 3, True, 1, 300), lt("f", 3, False, 1, 300)]))
+        self.assertIn("(N=3, 2 of 2 cells): 3.00x (median); every cell at N=3 finished.", out)
+
+    def test_headline_calls_the_last_n_partial_when_no_n_is_complete(self):
+        out = sr.render(sweep(
+            timings=[timing("f", 3, True, EK, 1, 100), timing("f", 3, False, EK, 1, 100)],
+            ltlfsynt=[lt("f", 3, True, 1, 900), lt("f", 3, False, 0, None, status="error")]))
+        self.assertIn("(N=3, 1 of 2 cells): 9.00x (median); partial: N=3 has 1 ltlfsynt error.", out)
+
+    def test_an_ltlfsynt_timeout_is_named_even_when_ek_did_not_finish(self):
+        out = sr.render(sweep(
+            timings=[timing("f", 2, True, EK, 1, 100),
+                     timing("f", 2, False, EK, 0, None, stage="TIMEOUT")],
+            ltlfsynt=[lt("f", 2, True, 1, 300), lt("f", 2, False, 0, None, status="timeout")]))
+        self.assertIn("partial: N=2 has 1 ltlfsynt timeout.", out)
+
+    def test_headline_says_every_cell_finished_when_nothing_was_lost(self):
+        out = sr.render(sweep(timings=[timing("f", 2, True, EK, 1, 100)],
+                              ltlfsynt=[lt("f", 2, True, 1, 300)]))
+        self.assertIn("3.00x (median); every cell finished.", out)
+
     def test_a_stopped_early_sweep_is_flagged_at_the_top(self):
         s = sweep(timings=[timing("f", 2, True, EK, 1, 1)])
         s["provenance"]["stopped_early"] = True
