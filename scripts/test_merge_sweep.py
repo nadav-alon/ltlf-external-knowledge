@@ -7,7 +7,9 @@ import merge_sweep as ms
 
 def part(family, stopped=False, mismatches=0, wall=10, **prov):
     p = {"machine": "cn01", "cmake_build_type": "Release", "spot_version": "2.15.1", "repo_commit": "abc",
-         "repeat": 5, "timeout_seconds": 20, "families": [family],
+         "repeat": 5, "timeout_seconds": 20, "n_min": 2, "n_max": 6,
+         "subjects": ["s"], "budget_seconds": 4000000000, "spot_resolved_path": "/usr/local/lib",
+         "families": [family],
          "stopped_early": stopped, "verdict_mismatch_count": mismatches,
          "sweep_wall_seconds": wall}
     p.update(prov)
@@ -22,11 +24,23 @@ class MergeSweep(unittest.TestCase):
         self.assertEqual(m["provenance"]["families"], ["a", "b"])
         self.assertTrue(m["provenance"]["stopped_early"])
         self.assertEqual(m["provenance"]["verdict_mismatch_count"], 2)
-        self.assertEqual(m["provenance"]["sweep_wall_seconds"], 9)
+        self.assertEqual(m["provenance"]["sweep_wall_seconds"], 14)
 
     def test_parts_of_different_sweeps_are_refused(self):
         with self.assertRaisesRegex(ValueError, "repeat"):
             ms.merge([part("a"), part("b", repeat=1)])
+
+    def test_parts_with_different_grid_or_subjects_are_refused(self):
+        with self.assertRaisesRegex(ValueError, "n_max"):
+            ms.merge([part("a"), part("b", n_max=4)])
+        with self.assertRaisesRegex(ValueError, "subjects"):
+            ms.merge([part("a"), part("b", subjects=["t"])])
+
+    def test_a_short_family_set_is_refused_when_expected(self):
+        parts = [part("a"), part("b")]
+        self.assertEqual(ms.merge(parts, ["a", "b"])["provenance"]["families"], ["a", "b"])
+        with self.assertRaisesRegex(ValueError, "expected"):
+            ms.merge(parts, ["a", "b", "c"])
 
     def test_parts_from_different_machines_are_refused(self):
         with self.assertRaisesRegex(ValueError, "machine"):
