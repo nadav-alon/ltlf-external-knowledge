@@ -1146,13 +1146,18 @@ int main(int argc, char** argv) {
           char case_dir[4096];
           std::snprintf(case_dir, sizeof(case_dir), "%s",
                         ltlf_ek::detail::temp_template("ltlf_ek_bench_case").c_str());
-          if (!mkdtemp(case_dir)) case_dir[0] = '\0';
+          std::string write_error;
+          if (!mkdtemp(case_dir)) {
+            write_error = std::strerror(errno);
+            case_dir[0] = '\0';
+          }
           const std::string formula_path = std::string(case_dir) + "/reduced.ltlf";
           bool formula_written = false;
           if (case_dir[0]) {
             std::ofstream f(formula_path);
             f << reduced << "\n";
             formula_written = static_cast<bool>(f);
+            if (!formula_written) write_error = std::strerror(errno);
           }
 
           std::optional<std::uint64_t> best_ns;
@@ -1193,8 +1198,7 @@ int main(int argc, char** argv) {
             row.status = any_timeout ? "timeout" : "error";
             if (!any_timeout)
               row.error = !formula_written
-                              ? "could not write the formula file: " +
-                                    std::string(std::strerror(errno))
+                              ? "could not write the formula file: " + write_error
                               : failure_reason;
           } else if (!synt_realizable) {
             row.status = "error";  // ltlfsynt ran but printed no verdict word
