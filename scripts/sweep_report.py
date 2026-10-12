@@ -7,7 +7,8 @@ Every slippery-* arm is one family. Per family and per N the report gives the
 prune ratio (reachable product states with the knowledge over without:
 dfa-product / dfa-product-unpruned; the same over dfa-product-nk is the
 nk-product ratio, the task-equivalent baseline), the EK and ltlfsynt wall-clock,
-and the speedup over ltlfsynt. A cell is one (arm, realizable) pair; the figure
+and the speedup over ltlfsynt. The cells column counts the cells EK finished, the raced column those finished on
+both sides. A cell is one (arm, realizable) pair; the figure
 for a family at N is the median over its cells. A cell with any timed-out or
 failed repeat, on either side, is not finished: its median would be taken over
 the survivors alone, so it is left out. The headline per family is the speedup
@@ -176,12 +177,12 @@ def render(sweep, subject=EK_SUBJECT):
                     "and the largest N rows are partial.**", ""]
     for group in sorted(rows):
         out += [f"## {group}", ""]
-        out += ["| N | cells | prune ratio | nk-product ratio | EK med (ms) | EK min (ms) | "
+        out += ["| N | cells | raced | prune ratio | nk-product ratio | EK med (ms) | EK min (ms) | "
                 "ltlfsynt med (ms) | speedup (med) | speedup (min) |",
-                "|---|---|---|---|---|---|---|---|---|"]
+                "|---|---|---|---|---|---|---|---|---|---|"]
         for n, r in rows[group].items():
             out.append(
-                f"| {n} | {r['cells']} | {_fmt(r.get('prune'), '{:.3f}')} "
+                f"| {n} | {r['cells']} | {r['both']} | {_fmt(r.get('prune'), '{:.3f}')} "
                 f"| {_fmt(r.get('prune_nk'), '{:.3f}')} "
                 f"| {_fmt(r.get('ek_med') and r['ek_med'] / 1e6, '{:.2f}')} "
                 f"| {_fmt(r.get('ek_min') and r['ek_min'] / 1e6, '{:.2f}')} "
