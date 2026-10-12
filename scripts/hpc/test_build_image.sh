@@ -30,6 +30,16 @@ second="$(git -C "$work/origin" rev-parse HEAD)"
 bash "$here/build-image.sh" "$work/origin" "$second"
 [[ "$(cat "$EK_SIF")" == two ]] || { echo "existing clone was not updated"; exit 1; }
 
+# A changed URL is honoured on a reused clone, and stray untracked files stay out of the build.
+git clone -q "$work/origin" "$work/origin2"
+echo three > "$work/origin2/scripts/hpc/ltlf-ek.def"
+git -C "$work/origin2" commit -qam three
+third="$(git -C "$work/origin2" rev-parse HEAD)"
+echo stray > "$work/src/stray.txt"
+bash "$here/build-image.sh" "$work/origin2" "$third"
+[[ "$(cat "$EK_SIF")" == three ]] || { echo "a changed URL was ignored by the reused clone"; exit 1; }
+[[ ! -e "$work/src/stray.txt" ]] || { echo "an untracked file survived in the reused clone"; exit 1; }
+
 if STUB_FAIL=1 bash "$here/build-image.sh" "$work/origin" "$second"; then
   echo "a failed build was reported as success"; exit 1
 fi
