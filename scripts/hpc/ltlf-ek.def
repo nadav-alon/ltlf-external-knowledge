@@ -9,6 +9,9 @@ From: debian:bookworm-slim
 #
 # The Spot version is the one .sandbox/Dockerfile and ci.yml pin; bump all
 # three together. .git is copied so the sweep JSON records the commit.
+#
+# Spot (so ltlfsynt) and ltlf-ek-bench are compiled with the same baseline,
+# FLAGS = -O3 -march=x86-64-v3, so the comparison between them stays fair.
 
 %files
     CMakeLists.txt /src/CMakeLists.txt
@@ -21,19 +24,22 @@ From: debian:bookworm-slim
 %post
     set -eu
     SPOT_VERSION=2.15.1
+    FLAGS='-O3 -march=x86-64-v3'
     apt-get update
     apt-get install -y --no-install-recommends \
         ca-certificates curl g++ make cmake pkg-config python3 git mona
     rm -rf /var/lib/apt/lists/*
     curl -fsSL "https://www.lrde.epita.fr/dload/spot/spot-${SPOT_VERSION}.tar.gz" | tar -xz -C /tmp
     cd "/tmp/spot-${SPOT_VERSION}"
-    ./configure --prefix=/usr/local --disable-python --disable-devel --disable-static
+    ./configure --prefix=/usr/local --disable-python --disable-devel --disable-static \
+        CXXFLAGS="$FLAGS"
     make -j"$(nproc)"
     make install-strip
     ldconfig
     rm -rf "/tmp/spot-${SPOT_VERSION}"
-    git config --global --add safe.directory /src
+    git config --system --add safe.directory /src
     cmake -S /src -B /src/build -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_CXX_FLAGS_RELEASE="$FLAGS -DNDEBUG" \
         -DSPOT_ROOT=/usr/local -DLTLF_EK_BUILD_TESTS=OFF
     cmake --build /src/build -j"$(nproc)" --target ltlf-ek-bench
 
@@ -44,3 +50,4 @@ From: debian:bookworm-slim
     test -x /src/build/ltlf-ek-bench
     test -x /usr/local/bin/ltlfsynt
     command -v mona
+    git -C /src rev-parse HEAD
