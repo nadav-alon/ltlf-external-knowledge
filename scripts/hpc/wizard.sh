@@ -219,7 +219,7 @@ write_env EK_USER "$EK_USER"
 
 stage "Submit the job array"
 say "One task per family group, all pinned to one node so the parts merge."
-step "Pick a CPU-only node that is idle: ssh $EK_USER@$HOST sinfo -N -t idle -o '%N %c %m %G'"
+step "Pick an idle gold6130 node (the class sweep.sbatch constrains to): ssh $EK_USER@$HOST \"sinfo -N -t idle -o '%N %c %m %f'\" | grep gold6130"
 ask EK_NODE "Node name (e.g. cn07):"
 confirm "sbatch -w $EK_NODE on $HOST?" || exit 0
 EK_JOB=$(ssh "$EK_USER@$HOST" "sbatch --parsable -w $EK_NODE sweep.sbatch" | cut -d';' -f1)
