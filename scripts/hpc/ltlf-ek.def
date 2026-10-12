@@ -37,6 +37,7 @@ From: debian:bookworm-slim
     make -j"$(nproc)"
     make install-strip
     ldconfig
+    cd /
     rm -rf "/tmp/spot-${SPOT_VERSION}"
     git config --system --add safe.directory /src
     cmake -S /src -B /src/build -DCMAKE_BUILD_TYPE=Release \
