@@ -7,8 +7,8 @@
 # shared image reuses the compiled Spot rather than compiling it again.
 #
 # SPOT_VERSION is the version on the developer's machine. The CI workflow
-# (.github/workflows/ci.yml) pins the same one; bump both together, in a ticket
-# of its own.
+# (.github/workflows/ci.yml) and scripts/hpc/ltlf-ek.def pin the same one; bump all
+# three together, in a ticket of its own.
 FROM debian:bookworm-slim AS spot-build
 
 ARG SPOT_VERSION=2.15.1
