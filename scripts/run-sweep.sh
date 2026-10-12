@@ -3,6 +3,9 @@
 #
 #   scripts/run-sweep.sh [OUT_DIR]          # default build/benchout/sweep
 #
+# OUT_DIR must resolve inside this clone: ltlf-ek-bench refuses --out anywhere
+# else, so the script refuses it up front, before configuring or building.
+#
 # Release build, repeat=5, 20 s per-case timeout, one ltlf-ek-bench invocation
 # over the whole grid, then scripts/sweep_report.py over its JSON. parity-t3 is
 # not in the family list (a capability separation, not a timing).
@@ -22,9 +25,15 @@
 #                  turns bad_alloc into SIGSEGV.
 set -euo pipefail
 
-repo="$(cd "$(dirname "$0")/.." && pwd)"
+repo="$(cd "$(dirname "$0")/.." && pwd -P)"
 out_dir="${1:-$repo/build/benchout/sweep}"
 build_dir="$repo/build/release"
+resolved_out="$(realpath -m -- "$out_dir")"
+if [[ "$resolved_out" != "$repo" && "$resolved_out" != "$repo"/* ]]; then
+  echo "run-sweep: OUT_DIR must resolve inside the repository ($repo)," \
+       "got $resolved_out" >&2
+  exit 1
+fi
 spot_root="${SPOT_ROOT:-}"
 if [[ -z "$spot_root" && -d "$HOME/opt/spot-2.15.1" ]]; then
   spot_root="$HOME/opt/spot-2.15.1"
