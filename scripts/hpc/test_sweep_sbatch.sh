@@ -33,4 +33,6 @@ for tool in hostname lscpu; do
   at="$(grep -n "^$tool$" "$here/sweep.sbatch" | cut -d: -f1)"
   [[ -n "$at" && "$at" -lt "$run_at" ]] || { echo "sweep.sbatch does not log $tool before the bench"; exit 1; }
 done
+grep -qF "sinfo -N -t idle -o '%N %c %m %f' | grep gold6130" "$here/wizard.sh" \
+  || { echo "wizard.sh recon does not list idle gold6130 nodes"; exit 1; }
 echo ok
