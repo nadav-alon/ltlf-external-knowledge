@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The Oct 17-18 sweep as a SLURM job array, one family group per task, on one
+# The four-family sweep as a SLURM job array, one family group per task, on one
 # exclusive CPU node of the `work` partition:
 #
 #   sbatch -w NODE scripts/hpc/sweep.sbatch
@@ -47,16 +47,24 @@ out_dir="${EK_OUT:-$HOME/ek-sweep/${SLURM_ARRAY_JOB_ID:-local}}"
 part="part-${SLURM_ARRAY_TASK_ID}.json"
 
 # ulimit and TMPDIR are set inside the container: a cap on apptainer itself
-# would starve its Go runtime. BUDGET is the bench's own 2 h default lifted.
+# would starve its Go runtime. --budget is set far above the bench's 2 h default
+# so it never truncates the grid. The 8 GiB default cap is run-sweep.sh's.
 inner="ulimit -v ${MEM_KIB:-8388608}; export TMPDIR=\$(mktemp -d);
 exec /src/build/ltlf-ek-bench --families=$families --subjects=$subjects \
   --n-min=2 --n-max=${N_MAX:-6} --repeat=5 --timeout=20 --budget=4000000000 \
   --ltlfsynt=\$(readlink -f /usr/local/bin/ltlfsynt) --out=/out/$part"
 
+cmd=(apptainer exec --cleanenv --bind "$out_dir:/out" "$image" bash -c "$inner")
 if [[ -n "${EK_DRY_RUN:-}" ]]; then
-  echo "apptainer exec --bind $out_dir:/out $image bash -c '$inner'"
+  echo "${cmd[*]}"
   exit 0
 fi
+
+# The sweep is CPU-only: refuse a GPU node of the shared partition.
+if scontrol show node "${SLURMD_NODENAME:?run under sbatch}" | grep -qi 'Gres=.*gpu'; then
+  echo "sweep.sbatch: $SLURMD_NODENAME has GPUs; pass a CPU-only node to sbatch -w" >&2
+  exit 1
+fi
 mkdir -p "$out_dir"
-apptainer exec --cleanenv --bind "$out_dir:/out" "$image" bash -c "$inner"
+"${cmd[@]}"
 echo "part: $out_dir/$part"
