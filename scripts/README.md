@@ -92,13 +92,15 @@ instead of a native build.
 
 - `ltlf-ek.def` — the Release image: Spot 2.15.1, MONA, `ltlf-ek-bench`.
 - `sweep.sbatch` — a SLURM array, one family group per task (the three `slippery-*`
-  arms together), `--exclusive` on one node pinned with `sbatch -w NODE`. Same
-  settings as `run-sweep.sh`. `EK_DRY_RUN=1` prints the command.
+  arms together), `--exclusive` on one node pinned with `sbatch -w NODE`, constrained to
+  `--constraint=gold6130` with `--mem=16G`; each log opens with `hostname` and `lscpu`.
+  Same settings as `run-sweep.sh`. `EK_DRY_RUN=1` prints the command.
 - `merge_sweep.py` (in `scripts/`) — joins the parts into one sweep JSON; it refuses
   parts from different machines, builds, commits, repeat or timeout.
 - `wizard.sh` — the developer's half: build the image, `scp`, `sbatch`, fetch the
   parts, merge and write `docs/runs/<date>-four-family-sweep.{json,md}`.
 
 `test_sweep_sbatch.sh` (ctest `sweep_sbatch_sh`) keeps the array's families, subjects,
-repeat and timeout equal to `run-sweep.sh`'s. The image compiles Spot and the bench
+repeat and timeout equal to `run-sweep.sh`'s, and checks the gold6130 constraint, the
+memory reservation, the hostname/lscpu log and the wizard's gold6130 recon. The image compiles Spot and the bench
 with one baseline, `-O3 -march=x86-64-v3`.

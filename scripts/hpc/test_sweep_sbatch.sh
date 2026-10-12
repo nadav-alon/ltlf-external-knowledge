@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # The array tasks of sweep.sbatch together cover exactly the families of
 # run-sweep.sh, each once, every task has a part file of its own, and the subjects,
-# repeat and timeout are run-sweep.sh's. Run by ctest.
+# repeat and timeout are run-sweep.sh's, the header carries --constraint=gold6130 and
+# --mem=16G, hostname and lscpu are logged before the bench, and the wizard's recon
+# lists idle gold6130 nodes with their features. Run by ctest.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 want="$(sed -n 's/^families="\(.*\)"$/\1/p' "$here/../run-sweep.sh" | tr ',' '\n' | sort)"
@@ -33,6 +35,10 @@ for tool in hostname lscpu; do
   at="$(grep -n "^$tool$" "$here/sweep.sbatch" | cut -d: -f1)"
   [[ -n "$at" && "$at" -lt "$run_at" ]] || { echo "sweep.sbatch does not log $tool before the bench"; exit 1; }
 done
-grep -qF "sinfo -N -t idle -o '%N %c %m %f' | grep gold6130" "$here/wizard.sh" \
+recon="$(grep '^step "Pick an idle' "$here/wizard.sh")"
+for part in '%f' '-t idle' gold6130; do
+  grep -qF -- "$part" <<<"$recon" || { echo "wizard.sh recon lacks $part"; exit 1; }
+done
+[[ -n "$recon" ]] \
   || { echo "wizard.sh recon does not list idle gold6130 nodes"; exit 1; }
 echo ok

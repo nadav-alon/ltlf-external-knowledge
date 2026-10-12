@@ -7,8 +7,9 @@
 # Pin every task to one node with -w: the parts are merged into a single report
 # and merge_sweep.py refuses parts from different machines. --constraint keeps the
 # pinned node within the gold6130 class (a feature tag, not proof: see the lscpu
-# in each log). Tasks then run one
-# after another on that node (--exclusive), so none perturbs another's timings.
+# in each log). Tasks then run one after another on that node (--exclusive), so
+# none perturbs another's timings. --mem=16G is the job's reservation; the
+# per-process cap (MEM_KIB, 8 GiB) sits below it.
 #
 # Same settings as scripts/run-sweep.sh (Release, repeat=5, 20 s per-case
 # timeout, parity-t3 not in the grid, no budget truncating it), but run out of
@@ -66,7 +67,7 @@ fi
 
 # The sweep is CPU-only: refuse a GPU node of the shared partition.
 if scontrol show node "${SLURMD_NODENAME:?run under sbatch}" | grep -qi 'Gres=.*gpu'; then
-  echo "sweep.sbatch: $SLURMD_NODENAME has GPUs; pass a CPU-only node to sbatch -w" >&2
+  echo "sweep.sbatch: $SLURMD_NODENAME has GPUs; pass a CPU-only gold6130 node to sbatch -w" >&2
   exit 1
 fi
 mkdir -p "$out_dir"
