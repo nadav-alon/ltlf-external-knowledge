@@ -5,7 +5,8 @@
 #
 # OUT_DIR must resolve inside this clone: ltlf-ek-bench refuses --out anywhere
 # else, so the script refuses it up front, before configuring or building. It
-# likewise refuses one that resolves under /tmp (read-only under the sandbox).
+# likewise refuses one that resolves under /tmp or under $TMPDIR when set (both
+# read-only under the sandbox).
 #
 # Release build, repeat=5, 20 s per-case timeout, one ltlf-ek-bench invocation
 # over the whole grid, then scripts/sweep_report.py over its JSON. parity-t3 is
@@ -39,6 +40,14 @@ if [[ "$resolved_out" == /tmp || "$resolved_out" == /tmp/* ]]; then
   echo "run-sweep: OUT_DIR must not resolve under /tmp (mounted read-only" \
        "under the sandbox), got $resolved_out" >&2
   exit 1
+fi
+if [[ -n "${TMPDIR:-}" ]]; then
+  resolved_tmpdir="$(realpath -m -- "$TMPDIR")"
+  if [[ "$resolved_out" == "$resolved_tmpdir" || "$resolved_out" == "$resolved_tmpdir"/* ]]; then
+    echo "run-sweep: OUT_DIR must not resolve under \$TMPDIR (mounted read-only" \
+         "under the sandbox), got $resolved_out" >&2
+    exit 1
+  fi
 fi
 spot_root="${SPOT_ROOT:-}"
 if [[ -z "$spot_root" && -d "$HOME/opt/spot-2.15.1" ]]; then

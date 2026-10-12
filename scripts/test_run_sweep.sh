@@ -35,3 +35,14 @@ grep -q "must not resolve under /tmp" "$work/tmp.log" || { echo "error does not 
 grep -qF "$(realpath -m "$fake/sweep")" "$work/tmp.log" || { echo "error does not name the path"; cat "$work/tmp.log"; exit 1; }
 [[ ! -e "$fake/sweep" ]] || { echo "the refused OUT_DIR was created"; exit 1; }
 [[ ! -e "$work/cmake-ran" ]] || { echo "refusal came after configuring"; exit 1; }
+
+# An OUT_DIR inside the clone but under $TMPDIR is refused as well.
+repo="$(cd "$here/.." && pwd -P)"
+tmpd="$repo/build/ek-run-sweep-tmpdir-$$"
+rc=0
+TMPDIR="$tmpd" PATH="$work/bin:$PATH" bash "$here/run-sweep.sh" "$tmpd/sweep" > "$work/tmpdir.log" 2>&1 || rc=$?
+[[ "$rc" -ne 0 ]] || { echo "an OUT_DIR under TMPDIR was accepted"; exit 1; }
+grep -qF 'must not resolve under $TMPDIR' "$work/tmpdir.log" || { echo "error does not name the TMPDIR constraint"; cat "$work/tmpdir.log"; exit 1; }
+grep -qF "$tmpd/sweep" "$work/tmpdir.log" || { echo "error does not name the path"; cat "$work/tmpdir.log"; exit 1; }
+[[ ! -e "$tmpd" ]] || { echo "the refused OUT_DIR was created"; exit 1; }
+[[ ! -e "$work/cmake-ran" ]] || { echo "refusal came after configuring"; exit 1; }
