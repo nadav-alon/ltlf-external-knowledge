@@ -25,7 +25,7 @@
 #                  turns bad_alloc into SIGSEGV.
 set -euo pipefail
 
-repo="$(cd "$(dirname "$0")/.." && pwd)"
+repo="$(cd "$(dirname "$0")/.." && pwd -P)"
 out_dir="${1:-$repo/build/benchout/sweep}"
 build_dir="$repo/build/release"
 resolved_out="$(realpath -m -- "$out_dir")"
