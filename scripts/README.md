@@ -99,9 +99,11 @@ instead of a native build.
   parts from different machines, builds, commits, repeat or timeout.
 - `build-image.sh` — clones the repo and builds the image on the cluster's login
   node (the developer's machine has no apptainer); the log is `~/ltlf-ek-build.log` there.
-- `wizard.sh` — the developer's half: build the image on the login node over ssh, `scp`
-  `sweep.sbatch`, `sbatch`, fetch the
-  parts, merge and write `docs/runs/<date>-four-family-sweep.{json,md}`.
+- `wizard.sh` — the developer's half: build the image on the login node over ssh,
+  `scp` `sweep.sbatch`, `sbatch`, fetch the parts, merge and write
+  `docs/runs/<date>-four-family-sweep.{json,md}`. HEAD must be pushed, and the login node
+  must be able to clone the repo URL (the wizard checks with `git ls-remote`; if it
+  cannot, give it a URL it can read).
 
 `test_build_image.sh` (ctest `build_image_sh`) runs `build-image.sh` against a stub
 apptainer. `test_sweep_sbatch.sh` (ctest `sweep_sbatch_sh`) keeps the array's families, subjects,
