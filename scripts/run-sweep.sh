@@ -4,7 +4,9 @@
 #   scripts/run-sweep.sh [OUT_DIR]          # default build/benchout/sweep
 #
 # OUT_DIR must resolve inside this clone: ltlf-ek-bench refuses --out anywhere
-# else, so the script refuses it up front, before configuring or building.
+# else, so the script refuses it up front, before configuring or building. It
+# likewise refuses one that resolves under /tmp or under $TMPDIR when set,
+# mirroring the bench's own checks.
 #
 # Release build, repeat=5, 20 s per-case timeout, one ltlf-ek-bench invocation
 # over the whole grid, then scripts/sweep_report.py over its JSON. parity-t3 is
@@ -29,10 +31,25 @@ repo="$(cd "$(dirname "$0")/.." && pwd -P)"
 out_dir="${1:-$repo/build/benchout/sweep}"
 build_dir="$repo/build/release"
 resolved_out="$(realpath -m -- "$out_dir")"
-if [[ "$resolved_out" != "$repo" && "$resolved_out" != "$repo"/* ]]; then
+# under PATH DIR: PATH is DIR or inside it (a trailing "/" on DIR is ignored,
+# so DIR=/ holds every absolute path, as the bench's PathStartsWith does).
+under() { local dir="${2%/}"; [[ $1 == "$dir" || $1 == "$dir"/* ]]; }
+if ! under "$resolved_out" "$repo"; then
   echo "run-sweep: OUT_DIR must resolve inside the repository ($repo)," \
        "got $resolved_out" >&2
   exit 1
+fi
+if under "$resolved_out" /tmp; then
+  echo "run-sweep: OUT_DIR must not resolve under /tmp, got $resolved_out" >&2
+  exit 1
+fi
+if [[ -n "${TMPDIR:-}" ]]; then
+  resolved_tmpdir="$(realpath -m -- "$TMPDIR")"
+  if under "$resolved_out" "$resolved_tmpdir"; then
+    echo "run-sweep: OUT_DIR must not resolve under \$TMPDIR" \
+         "($resolved_tmpdir), got $resolved_out" >&2
+    exit 1
+  fi
 fi
 spot_root="${SPOT_ROOT:-}"
 if [[ -z "$spot_root" && -d "$HOME/opt/spot-2.15.1" ]]; then
