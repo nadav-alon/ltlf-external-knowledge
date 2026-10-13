@@ -965,7 +965,7 @@ adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
 - **C++:** — (no dedicated constructor; it is
   `ltlf_to_dfa(spot::formula::Not(phi), dict)`). Building it by **translating the
   negation** is a design choice, not a soundness requirement: flipping acceptance
-  on $A_\varphi$ gives the same language (it has been tested and holds, including
+  on a deterministic $A_\varphi$ yields $L(\lnot\varphi)$ (tested, and it holds, including
   the empty/length-0 cases that `main.tex` never fixes — see *Open theory
   questions*), but translation is the definition here and O5-in's state-index
   comparison needs both sides to call the same `ltlf_to_dfa`.

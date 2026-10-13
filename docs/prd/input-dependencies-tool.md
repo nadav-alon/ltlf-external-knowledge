@@ -179,7 +179,8 @@ the letters the **system** does not lose by playing. Build it by translating the
 negation — `ltlf_to_dfa(spot::formula::Not(phi), dict)` — rather than by flipping
 acceptance on $A_\varphi$. That is a design choice, not a soundness requirement:
 `\cref{lem:indep-diagonal}` is stated for any deterministic automaton with
-$L(\Aneg)=L(\lnot\varphi)$, and the acceptance flip has been tested and holds.
+$L(\Aneg)=L(\lnot\varphi)$, and flipping acceptance on a deterministic
+$A_\varphi$ yields exactly $L(\lnot\varphi)$ (tested, and it holds).
 Translating the negation is kept because it is the glossary definition and
 because O5-in's state-index comparison depends on both sides calling the same
 `ltlf_to_dfa`.
