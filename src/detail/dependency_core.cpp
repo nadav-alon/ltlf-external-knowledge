@@ -162,9 +162,10 @@ DependencyResult run_dependency_analysis(
 
   // I2: the analysed automaton is A_phi for t_out, or the Violation automaton
   // A_lnot_phi = ltlf_to_dfa(Not(phi), dict) for t_in --- built by translating
-  // the negation, never by flipping acceptance on A_phi (ltlf_to_dfa's
-  // acceptance also encodes the empty/length-0 convention, so a flip is an
-  // untested equivalence, not a free complement).  Both are complete
+  // the negation.  That is a design choice, not a soundness requirement:
+  // flipping acceptance on the complete A_phi yields L(not phi), but
+  // translation is the definition and O5-in needs both sides to call the same
+  // ltlf_to_dfa.  Both are complete
   // (ltlf_to_dfa calls spot::complete_here) and reused unmodified as delta of
   // the emitted transducer (I5).
   const spot::formula analysed = is_input ? spot::formula::Not(phi) : phi;
