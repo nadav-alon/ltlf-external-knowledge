@@ -41,7 +41,7 @@ for part in '%f' '-t idle' gold6130; do
 done
 [[ -n "$recon" ]] \
   || { echo "wizard.sh recon does not list idle gold6130 nodes"; exit 1; }
-if grep -q '^#SBATCH .*-w\b\|^#SBATCH --nodelist' "$here/sweep.sbatch"; then
+if grep -qE '^#SBATCH[[:space:]]+(-w|--nodelist)' "$here/sweep.sbatch"; then
   echo "sweep.sbatch pins a node"; exit 1
 fi
 echo ok

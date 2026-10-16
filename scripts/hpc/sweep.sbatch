@@ -4,14 +4,14 @@
 #
 #   sbatch scripts/hpc/sweep.sbatch
 #
-# Submit unpinned: --constraint=gold6130 and --exclude=cn[31-44],gpu[1-4],gpu[6-8]
-# (the GPU and non-gold6130 nodes, as nadav-alon/ltlf-po-benchmarks's sbatch scripts
-# exclude them) let SLURM place the tasks on different nodes, so they run side by side.
+# Submit unpinned: --constraint=gold6130 and the --exclude list below (the GPU and
+# non-gold6130 nodes, as nadav-alon/ltlf-po-benchmarks's sbatch scripts exclude
+# them) let SLURM place the tasks on different nodes, so they run side by side.
 # merge_sweep.py merges parts from different hostnames of one CPU model, and each
 # task times EK and ltlfsynt itself, so a cell's speedup never crosses nodes. The
 # constraint is a feature tag, not proof: see the lscpu in each log, and the
-# cpu_model in each part's provenance. `sbatch -w NODE` still pins every task to one
-# node, which then run one after another. --exclusive keeps another job from
+# cpu_model in each part's provenance. `sbatch -w NODE` pins every task to one
+# node, where they run one after another. --exclusive keeps another job from
 # perturbing a task's timings. --mem=16G is the job's reservation; the per-process
 # cap (MEM_KIB, 8 GiB) sits below it.
 #
