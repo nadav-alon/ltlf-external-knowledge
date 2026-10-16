@@ -237,14 +237,16 @@ else
 fi
 
 stage "Submit the job array"
-say "One task per family group, all pinned to one node so the parts merge."
-step "Pick an idle gold6130 node (the class sweep.sbatch constrains to): ssh $EK_SSH_TARGET \"sinfo -N -t idle -o '%N %c %m %f'\" | grep gold6130"
-ask EK_NODE "Node name (e.g. cn07):"
-confirm "sbatch -w $EK_NODE on $EK_SSH_TARGET?" || exit 0
-EK_JOB=$(ssh "$EK_SSH_TARGET" "sbatch --parsable -w $EK_NODE sweep.sbatch" | cut -d';' -f1)
+say "One task per family group, submitted unpinned so SLURM spreads them over idle gold6130 nodes and they run side by side."
+step "Pick an idle gold6130 node (the class sweep.sbatch constrains to) if you want to pin: ssh $EK_SSH_TARGET \"sinfo -N -t idle -o '%N %c %m %f'\" | grep gold6130"
+ask EK_NODE "Node name to pin every task to (e.g. cn07), or Enter for unpinned:"
+EK_SBATCH_W=""
+[[ -n "${EK_NODE:-}" ]] && EK_SBATCH_W="-w $EK_NODE "
+confirm "sbatch ${EK_SBATCH_W}sweep.sbatch on $EK_SSH_TARGET?" || exit 0
+EK_JOB=$(ssh "$EK_SSH_TARGET" "sbatch --parsable ${EK_SBATCH_W}sweep.sbatch" | cut -d';' -f1)
 say "submitted array job $EK_JOB"
 write_env EK_JOB "$EK_JOB"
-note "Watch it: ssh $EK_SSH_TARGET squeue --me   (the sweep is about 2.5 h)"
+note "Watch it: ssh $EK_SSH_TARGET squeue --me   (pinned to one node the sweep is about 2.5 h; unpinned the tasks overlap)"
 
 stage "Wait, then fetch the parts"
 step "Wait until squeue shows no ek-sweep tasks, and sacct reports COMPLETED for all four."
