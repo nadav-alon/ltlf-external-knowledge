@@ -7,8 +7,7 @@ Each part is one ltlf-ek-bench invocation over a subset of the families. The
 row lists (timings, structural, ltlfsynt, and any other top-level list) are
 concatenated; the provenance of the first part stands, with the family list
 unioned, stopped_early OR-ed, verdict_mismatch_count summed and
-sweep_wall_seconds the sum of the parts (an upper bound on the elapsed time when
-parts run side by side). Parts may come from different hostnames of one CPU model: the merged
+sweep_wall_seconds the sum of the parts. Parts may come from different hostnames of one CPU model: the merged
 provenance lists every hostname under "machines" (each task times EK and
 ltlfsynt itself, so a cell's speedup never crosses nodes). Parts that disagree
 on cpu_model, build type, Spot version, commit, repeat,
@@ -26,6 +25,11 @@ SAME = ("cpu_model", "cmake_build_type", "spot_version", "repo_commit", "repeat"
 def merge(parts, expect_families=None):
     if not parts:
         raise ValueError("merge_sweep: no parts")
+    for i, part in enumerate(parts):
+        model = part["provenance"].get("cpu_model")
+        if model in (None, "", "unknown"):
+            raise ValueError(f"merge_sweep: part {i} has no usable cpu_model ({model!r}); "
+                             f"its hardware is unknown, so it cannot be told to match the others")
     prov = dict(parts[0]["provenance"])
     for i, part in enumerate(parts[1:], 1):
         for key in SAME:

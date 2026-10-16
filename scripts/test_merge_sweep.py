@@ -51,6 +51,16 @@ class MergeSweep(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cpu_model"):
             ms.merge([part("a"), part("b", machine="cn02", cpu_model="Xeon Gold 6230")])
 
+    def test_a_part_without_cpu_model_is_refused(self):
+        a, b = part("a"), part("b")
+        del a["provenance"]["cpu_model"], b["provenance"]["cpu_model"]
+        with self.assertRaisesRegex(ValueError, "cpu_model"):
+            ms.merge([a, b])
+
+    def test_parts_with_an_unknown_cpu_model_are_refused(self):
+        with self.assertRaisesRegex(ValueError, "cpu_model"):
+            ms.merge([part("a", cpu_model="unknown"), part("b", machine="cn02", cpu_model="unknown")])
+
     def test_no_parts_is_refused(self):
         with self.assertRaises(ValueError):
             ms.merge([])
