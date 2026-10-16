@@ -92,7 +92,7 @@ instead of a native build.
 
 - `ltlf-ek.def` — the Release image: Spot 2.15.1, MONA, `ltlf-ek-bench`.
 - `sweep.sbatch` — a SLURM array, one family group per task (the three `slippery-*`
-  arms together), `--exclusive`, submitted unpinned (`sbatch -w NODE` pins every task to one node), constrained to
+  arms together), two CPUs per task (one physical core; the cluster refuses `--exclusive`), submitted unpinned (`sbatch -w NODE` pins every task to one node), constrained to
   `--constraint=gold6130` with the `--exclude` list and `--mem=16G`; each log opens with `hostname` and `lscpu`.
   Same settings as `run-sweep.sh`. `EK_DRY_RUN=1` prints the command.
 - `merge_sweep.py` (in `scripts/`) — joins the parts into one sweep JSON; it refuses
