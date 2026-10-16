@@ -6,7 +6,7 @@ import merge_sweep as ms
 
 
 def part(family, stopped=False, mismatches=0, wall=10, **prov):
-    p = {"machine": "cn01", "cmake_build_type": "Release", "spot_version": "2.15.1", "repo_commit": "abc",
+    p = {"machine": "cn01", "cpu_model": "Xeon Gold 6130", "cmake_build_type": "Release", "spot_version": "2.15.1", "repo_commit": "abc",
          "repeat": 5, "timeout_seconds": 20, "n_min": 2, "n_max": 6,
          "subjects": ["s"], "budget_seconds": 4000000000, "spot_resolved_path": "/usr/local/lib",
          "families": [family],
@@ -42,9 +42,14 @@ class MergeSweep(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "expected"):
             ms.merge(parts, ["a", "b", "c"])
 
-    def test_parts_from_different_machines_are_refused(self):
-        with self.assertRaisesRegex(ValueError, "machine"):
-            ms.merge([part("a"), part("b", machine="cn02")])
+    def test_parts_from_two_hostnames_of_one_cpu_model_merge_listing_both(self):
+        m = ms.merge([part("a"), part("b", machine="cn02"), part("c", machine="cn01")])
+        self.assertEqual(m["provenance"]["machines"], ["cn01", "cn02"])
+        self.assertNotIn("machine", m["provenance"])
+
+    def test_parts_from_two_cpu_models_are_refused(self):
+        with self.assertRaisesRegex(ValueError, "cpu_model"):
+            ms.merge([part("a"), part("b", machine="cn02", cpu_model="Xeon Gold 6230")])
 
     def test_no_parts_is_refused(self):
         with self.assertRaises(ValueError):
