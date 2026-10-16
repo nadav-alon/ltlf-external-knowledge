@@ -115,4 +115,24 @@ TEST(BenchSweep, LtlfsyntFailureRecordsItsReason) {
   EXPECT_TRUE(std::regex_search(json, row));
 }
 
+// Provenance names the CPU model beside the hostname, as lscpu reports it.
+TEST(BenchSweep, ProvenanceRecordsTheCpuModelBesideTheMachine) {
+  const std::string json = RunSweep(
+      "bench_sweep_cpu_model",
+      "--families=cons-prunes --subjects=dfa-product --n-min=2 --n-max=2 "
+      "--repeat=1 --timeout=20 --ltlfsynt=/nonexistent");
+  const std::regex field("\"machine\":\"[^\"]*\",\"cpu_model\":\"([^\"]+)\"");
+  std::smatch m;
+  ASSERT_TRUE(std::regex_search(json, m, field));
+  FILE* pipe = popen(
+      "lscpu 2>/dev/null | sed -n 's/^Model name:[[:space:]]*//p' | head -n 1", "r");
+  ASSERT_NE(pipe, nullptr);
+  char buf[512] = {0};
+  const bool read = fgets(buf, sizeof(buf), pipe) != nullptr;
+  pclose(pipe);
+  std::string want = read ? buf : "unknown";
+  while (!want.empty() && want.back() == '\n') want.pop_back();
+  EXPECT_EQ(m[1].str(), want.empty() ? "unknown" : want);
+}
+
 }  // namespace
