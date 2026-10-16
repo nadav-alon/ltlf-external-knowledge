@@ -100,6 +100,15 @@ remote_since "$m" | grep -q sbatch && fail "a second submit submitted again"
 ek submit --force > /dev/null 2>&1
 remote_since "$m" | grep -q 'sbatch --parsable --exclude=' || fail "unpinned submit lacks the exclude list"
 
+# A refused sbatch is an error that says so, and records no job.
+cp "$ENV_FILE" "$work/env.bak"; sed -i '/^EK_JOB/d' "$ENV_FILE"
+printf '#!/usr/bin/env bash\necho "sbatch: error: --exclusive is disabled" >&2; exit 1\n' > "$work/bin/sbatch"
+err=$(ek submit --node cn07 2>&1) && fail "a refused sbatch was reported as submitted"
+grep -q "refused the job" <<<"$err" || fail "a refused sbatch gave no explanation: $err"
+grep -q '^EK_JOB=' "$ENV_FILE" && fail "a refused sbatch recorded a job"
+printf '#!/usr/bin/env bash\necho "sbatch $*" >> "$CALLS"\necho "4242;cluster"\n' > "$work/bin/sbatch"
+cp "$work/env.bak" "$ENV_FILE"
+
 # status: 2 while running, 1 on a failed task, 0 when all complete, then no remote work.
 printf '4242_0|COMPLETED|1:00\n4242_1|RUNNING|0:30\n' > "$work/home/sacct.txt"
 rc=0; ek status > /dev/null || rc=$?; [[ $rc == 2 ]] || fail "status of a running job exited $rc, not 2"
