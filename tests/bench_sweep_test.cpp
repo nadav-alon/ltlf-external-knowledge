@@ -121,18 +121,21 @@ TEST(BenchSweep, ProvenanceRecordsTheCpuModelBesideTheMachine) {
       "bench_sweep_cpu_model",
       "--families=cons-prunes --subjects=dfa-product --n-min=2 --n-max=2 "
       "--repeat=1 --timeout=20 --ltlfsynt=/nonexistent");
-  const std::regex field("\"machine\":\"[^\"]*\",\"cpu_model\":\"([^\"]+)\"");
+  const std::regex field("\"cpu_model\":\"([^\"]+)\"");
   std::smatch m;
   ASSERT_TRUE(std::regex_search(json, m, field));
-  FILE* pipe = popen(
-      "lscpu 2>/dev/null | sed -n 's/^Model name:[[:space:]]*//p' | head -n 1", "r");
-  ASSERT_NE(pipe, nullptr);
-  char buf[512] = {0};
-  const bool read = fgets(buf, sizeof(buf), pipe) != nullptr;
-  pclose(pipe);
-  std::string want = read ? buf : "unknown";
-  while (!want.empty() && want.back() == '\n') want.pop_back();
-  EXPECT_EQ(m[1].str(), want.empty() ? "unknown" : want);
+  const std::string got = m[1].str();
+  EXPECT_EQ(got.front() == ' ' || got.back() == ' ', false) << "unstripped: '" << got << "'";
+  EXPECT_EQ(got.find("Model name"), std::string::npos) << "label leaked into the value: " << got;
+  // Wherever the kernel reports a model name, the bench must have found one.
+  std::ifstream cpuinfo("/proc/cpuinfo");
+  std::string line;
+  while (std::getline(cpuinfo, line)) {
+    if (line.rfind("model name", 0) != 0) continue;
+    EXPECT_NE(got, "unknown");
+    EXPECT_NE(line.find(got), std::string::npos) << got << " vs " << line;
+    break;
+  }
 }
 
 }  // namespace

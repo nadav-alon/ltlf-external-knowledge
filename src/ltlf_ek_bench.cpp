@@ -877,11 +877,16 @@ std::string Hostname() {
   return buf;
 }
 
-// The CPU model as lscpu's "Model name" reports it: the hardware class that
-// decides whether timings from two hostnames are comparable.
+// The CPU model as lscpu's "Model name" reports it, else the first "model name"
+// line of /proc/cpuinfo (lscpu is not guaranteed in the container image): the
+// hardware class that decides whether timings from two hostnames are comparable.
 std::string CpuModel() {
-  const std::string model = RunCaptureStdout(
+  std::string model = RunCaptureStdout(
       "lscpu 2>/dev/null | sed -n 's/^Model name:[[:space:]]*//p' | head -n 1");
+  if (model.empty())
+    model = RunCaptureStdout(
+        "sed -n 's/^model name[[:space:]]*:[[:space:]]*//p' /proc/cpuinfo 2>/dev/null"
+        " | head -n 1");
   return model.empty() ? "unknown" : model;
 }
 
