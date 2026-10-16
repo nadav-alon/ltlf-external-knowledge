@@ -112,7 +112,8 @@ cmd_submit() {
     place="--exclude=$EXCLUDE"
     warn "unpinned: tasks may land on different nodes, and merge_sweep.py refuses parts from different machines until #136; pin with --node"
   fi
-  job=$(remote "sbatch --parsable $place sweep.sbatch" | cut -d';' -f1)
+  job=$(remote "sbatch --parsable $place sweep.sbatch") || die "sbatch on $t refused the job (its error is above)"
+  job=${job%%;*}
   [[ "$job" =~ ^[0-9]+$ ]] || die "sbatch on $t did not return a job id: $job"
   put EK_JOB "$job"; put EK_JOB_IMAGE "$image"
   [[ -z "$node" ]] || put EK_NODE "$node"
