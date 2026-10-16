@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# The four-family sweep as a SLURM job array, one family group per task, on one
-# exclusive CPU node of the `work` partition:
+# The four-family sweep as a SLURM job array, one family group per task, on CPU
+# nodes of the `work` partition:
 #
 #   sbatch -w NODE scripts/hpc/sweep.sbatch
 #
 # Pin every task to one node with -w: the parts are merged into a single report
 # and merge_sweep.py refuses parts from different machines. --constraint keeps the
-# pinned node within the gold6130 class (a feature tag, not proof: see the lscpu
-# in each log). Tasks then run one after another on that node (--exclusive), so
-# none perturbs another's timings. --mem=16G is the job's reservation; the
-# per-process cap (MEM_KIB, 8 GiB) sits below it.
+# node within the gold6130 class (a feature tag, not proof: see the lscpu in each
+# log). The cluster refuses every form of --exclusive, so each task asks for two
+# CPUs instead: the bench is single-threaded, and two CPUs are one physical core
+# with its hyperthread sibling, so no other job shares that core. Other jobs do
+# share the node, so absolute timings carry some noise; each cell's speedup is
+# timed within one task. --mem=16G is the task's reservation; the per-process
+# cap (MEM_KIB, 8 GiB) sits below it.
 #
 # Same settings as scripts/run-sweep.sh (Release, repeat=5, 20 s per-case
 # timeout, parity-t3 not in the grid, no budget truncating it), but run out of
@@ -29,7 +32,7 @@
 #SBATCH --array=0-3
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --exclusive
+#SBATCH --cpus-per-task=2
 #SBATCH --constraint=gold6130
 #SBATCH --mem=16G
 #SBATCH --time=12:00:00
@@ -54,12 +57,14 @@ part="part-${SLURM_ARRAY_TASK_ID}.json"
 # ulimit and TMPDIR are set inside the container: a cap on apptainer itself
 # would starve its Go runtime. --budget is set far above the bench's 2 h default
 # so it never truncates the grid. The 8 GiB default cap is run-sweep.sh's.
+# The bench refuses an --out outside the repository (/src in the image), so the
+# part directory is bound under it.
 inner="ulimit -v ${MEM_KIB:-8388608}; export TMPDIR=\$(mktemp -d);
 exec /src/build/ltlf-ek-bench --families=$families --subjects=$subjects \
   --n-min=2 --n-max=${N_MAX:-6} --repeat=5 --timeout=20 --budget=4000000000 \
-  --ltlfsynt=\$(readlink -f /usr/local/bin/ltlfsynt) --out=/out/$part"
+  --ltlfsynt=\$(readlink -f /usr/local/bin/ltlfsynt) --out=/src/sweep-out/$part"
 
-cmd=(apptainer exec --cleanenv --bind "$out_dir:/out" "$image" bash -c "$inner")
+cmd=(apptainer exec --cleanenv --bind "$out_dir:/src/sweep-out" "$image" bash -c "$inner")
 if [[ -n "${EK_DRY_RUN:-}" ]]; then
   echo "${cmd[*]}"
   exit 0
