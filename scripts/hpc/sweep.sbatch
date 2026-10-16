@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
-# The four-family sweep as a SLURM job array, one family group per task, on one
-# exclusive CPU node of the `work` partition:
+# The four-family sweep as a SLURM job array, one family group per task, on CPU
+# nodes of the `work` partition:
 #
 #   sbatch -w NODE scripts/hpc/sweep.sbatch
 #
 # Pin every task to one node with -w: the parts are merged into a single report
 # and merge_sweep.py refuses parts from different machines. --constraint keeps the
-# pinned node within the gold6130 class (a feature tag, not proof: see the lscpu
-# in each log). Tasks then run one after another on that node (--exclusive), so
-# none perturbs another's timings. --mem=16G is the job's reservation; the
-# per-process cap (MEM_KIB, 8 GiB) sits below it.
+# node within the gold6130 class (a feature tag, not proof: see the lscpu in each
+# log). The cluster refuses every form of --exclusive, so each task asks for two
+# CPUs instead: the bench is single-threaded, and two CPUs are one physical core
+# with its hyperthread sibling, so no other job shares that core. Other jobs do
+# share the node, so absolute timings carry some noise; each cell's speedup is
+# timed within one task. --mem=16G is the task's reservation; the per-process
+# cap (MEM_KIB, 8 GiB) sits below it.
 #
 # Same settings as scripts/run-sweep.sh (Release, repeat=5, 20 s per-case
 # timeout, parity-t3 not in the grid, no budget truncating it), but run out of
@@ -29,7 +32,7 @@
 #SBATCH --array=0-3
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --exclusive
+#SBATCH --cpus-per-task=2
 #SBATCH --constraint=gold6130
 #SBATCH --mem=16G
 #SBATCH --time=12:00:00

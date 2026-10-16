@@ -2,7 +2,7 @@
 # The array tasks of sweep.sbatch together cover exactly the families of
 # run-sweep.sh, each once, every task has a part file of its own, and the subjects,
 # repeat and timeout are run-sweep.sh's, the header carries --constraint=gold6130 and
-# --mem=16G, hostname and lscpu are logged before the bench, and the wizard's recon
+# --mem=16G and two CPUs but never --exclusive, hostname and lscpu are logged before the bench, and the wizard's recon
 # lists idle gold6130 nodes with their features. Run by ctest.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -27,9 +27,11 @@ got="$(sort <<<"$got" | sed '/^$/d')"
 if SLURM_ARRAY_TASK_ID=$((last + 1)) EK_DRY_RUN=1 "$here/sweep.sbatch" 2>/dev/null; then
   echo "task past the array was accepted"; exit 1
 fi
-for d in --constraint=gold6130 --mem=16G; do
+for d in --constraint=gold6130 --mem=16G --cpus-per-task=2; do
   grep -q -- "^#SBATCH $d$" "$here/sweep.sbatch" || { echo "sweep.sbatch lacks $d"; exit 1; }
 done
+# The cluster rejects every form of --exclusive at submission.
+grep -q -- '^#SBATCH --exclusive' "$here/sweep.sbatch" && { echo "sweep.sbatch asks for --exclusive, which the cluster refuses"; exit 1; }
 run_at="$(grep -n '^"${cmd\[@\]}"$' "$here/sweep.sbatch" | cut -d: -f1)"
 for tool in hostname lscpu; do
   at="$(grep -n "^$tool$" "$here/sweep.sbatch" | cut -d: -f1)"
