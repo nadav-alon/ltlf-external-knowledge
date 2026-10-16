@@ -255,7 +255,7 @@ scp "$EK_SSH_TARGET:ek-sweep/$EK_JOB/part-*.json" "build/hpc/$EK_JOB/"
 write_env EK_PARTS "build/hpc/$EK_JOB"
 
 stage "Merge into the committed report"
-say "merge_sweep.py refuses parts of different machines/commits; sweep_report.py renders the report."
+say "merge_sweep.py refuses parts of different CPU models/commits; sweep_report.py renders the report."
 ask EK_DATE "Run date, YYYY-MM-DD:"
 EK_DATE="${EK_DATE:-$(date +%F)}"
 json="docs/runs/$EK_DATE-four-family-sweep.json"

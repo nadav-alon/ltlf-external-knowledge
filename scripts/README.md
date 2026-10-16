@@ -92,11 +92,11 @@ instead of a native build.
 
 - `ltlf-ek.def` — the Release image: Spot 2.15.1, MONA, `ltlf-ek-bench`.
 - `sweep.sbatch` — a SLURM array, one family group per task (the three `slippery-*`
-  arms together), `--exclusive` on one node pinned with `sbatch -w NODE`, constrained to
-  `--constraint=gold6130` with `--mem=16G`; each log opens with `hostname` and `lscpu`.
+  arms together), `--exclusive`, submitted unpinned (`-w NODE` still allowed), constrained to
+  `--constraint=gold6130` with the `--exclude` list and `--mem=16G`; each log opens with `hostname` and `lscpu`.
   Same settings as `run-sweep.sh`. `EK_DRY_RUN=1` prints the command.
 - `merge_sweep.py` (in `scripts/`) — joins the parts into one sweep JSON; it refuses
-  parts from different machines, builds, commits, repeat or timeout.
+  parts from different CPU models, builds, commits, repeat or timeout.
 - `build-image.sh` — clones the repo and builds the image on the cluster's login
   node (the developer's machine has no apptainer); the log is `~/ltlf-ek-build.log` there.
 - `wizard.sh` — the developer's half: build the image on the login node over ssh,
