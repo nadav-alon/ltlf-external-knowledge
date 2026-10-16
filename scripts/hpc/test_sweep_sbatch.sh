@@ -12,7 +12,7 @@ last="$(sed -n 's/^#SBATCH --array=0-\([0-9]*\)$/\1/p' "$here/sweep.sbatch")"
 got=""
 for i in $(seq 0 "$last"); do
   line="$(SLURM_ARRAY_TASK_ID=$i EK_DRY_RUN=1 EK_OUT=/x EK_IMAGE=/i.sif "$here/sweep.sbatch")"
-  grep -q -- "--out=/out/part-$i.json" <<<"$line" || { echo "task $i: wrong part file"; exit 1; }
+  grep -q -- "--out=/src/sweep-out/part-$i.json" <<<"$line" || { echo "task $i: wrong part file"; exit 1; }
   [[ "$(sed -n 's/.*--subjects=\([^ ]*\) .*/\1/p' <<<"$line" | head -1)" == "$want_subjects" ]] \
     || { echo "task $i: subjects differ from run-sweep.sh"; exit 1; }
   for flag in repeat timeout; do

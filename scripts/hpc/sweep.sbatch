@@ -57,12 +57,14 @@ part="part-${SLURM_ARRAY_TASK_ID}.json"
 # ulimit and TMPDIR are set inside the container: a cap on apptainer itself
 # would starve its Go runtime. --budget is set far above the bench's 2 h default
 # so it never truncates the grid. The 8 GiB default cap is run-sweep.sh's.
+# The bench refuses an --out outside the repository (/src in the image), so the
+# part directory is bound under it.
 inner="ulimit -v ${MEM_KIB:-8388608}; export TMPDIR=\$(mktemp -d);
 exec /src/build/ltlf-ek-bench --families=$families --subjects=$subjects \
   --n-min=2 --n-max=${N_MAX:-6} --repeat=5 --timeout=20 --budget=4000000000 \
-  --ltlfsynt=\$(readlink -f /usr/local/bin/ltlfsynt) --out=/out/$part"
+  --ltlfsynt=\$(readlink -f /usr/local/bin/ltlfsynt) --out=/src/sweep-out/$part"
 
-cmd=(apptainer exec --cleanenv --bind "$out_dir:/out" "$image" bash -c "$inner")
+cmd=(apptainer exec --cleanenv --bind "$out_dir:/src/sweep-out" "$image" bash -c "$inner")
 if [[ -n "${EK_DRY_RUN:-}" ]]; then
   echo "${cmd[*]}"
   exit 0
