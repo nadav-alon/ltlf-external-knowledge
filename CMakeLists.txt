@@ -238,4 +238,6 @@ if(LTLF_EK_BUILD_TESTS)
            COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_run_sweep.sh)
   add_test(NAME build_image_sh
            COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/hpc/test_build_image.sh)
+  add_test(NAME ek_hpc_sh
+           COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/hpc/test_ek_hpc.sh)
 endif()
