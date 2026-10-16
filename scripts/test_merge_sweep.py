@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """Unit tests for merge_sweep.py, on hand-built part JSON. Run by ctest."""
+import os
+import tempfile
 import unittest
 
 import merge_sweep as ms
@@ -60,6 +62,46 @@ class MergeSweep(unittest.TestCase):
     def test_parts_with_an_unknown_cpu_model_are_refused(self):
         with self.assertRaisesRegex(ValueError, "cpu_model"):
             ms.merge([part("a", cpu_model="unknown"), part("b", machine="cn02", cpu_model="unknown")])
+
+    def test_cpu_model_comes_from_the_task_log(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "ek-sweep-7_1.log"), "w") as f:
+                f.write("cn05\nArchitecture: x86_64\nModel name:            Xeon Gold 6130 CPU\n")
+            with open(os.path.join(d, "ek-sweep-7_0.log"), "w") as f:
+                f.write("cn01\nModel name: Other CPU\n")
+            self.assertEqual(ms.cpu_model_from_log(d, "x/part-1.json"), "Xeon Gold 6130 CPU")
+            self.assertEqual(ms.cpu_model_from_log(d, "x/part-0.json"), "Other CPU")
+            self.assertIsNone(ms.cpu_model_from_log(d, "x/part-2.json"))
+            self.assertIsNone(ms.cpu_model_from_log(d, "x/other.json"))
+
+    def test_main_fills_missing_models_from_logs_and_refuses_the_rest(self):
+        import contextlib
+        import io
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            paths = []
+            for i in range(2):
+                p = part("abc"[i])
+                del p["provenance"]["cpu_model"]
+                paths.append(os.path.join(d, f"part-{i}.json"))
+                with open(paths[-1], "w") as f:
+                    json.dump(p, f)
+            for i in range(2):
+                with open(os.path.join(d, f"ek-sweep-9_{i}.log"), "w") as f:
+                    f.write("Model name: Xeon Gold 6130\n")
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                ms.main(["--cpu-model-from-logs", d] + paths)
+            self.assertEqual(json.loads(out.getvalue())["provenance"]["cpu_model"], "Xeon Gold 6130")
+            with self.assertRaisesRegex(SystemExit, "cpu_model"):
+                ms.main(paths)
+            os.remove(os.path.join(d, "ek-sweep-9_1.log"))
+            with self.assertRaisesRegex(SystemExit, "cpu_model"):
+                ms.main(["--cpu-model-from-logs", d] + paths)
+            with open(os.path.join(d, "ek-sweep-9_1.log"), "w") as f:
+                f.write("Model name: Xeon Gold 6230\n")
+            with self.assertRaisesRegex(SystemExit, "differs on cpu_model"):
+                ms.main(["--cpu-model-from-logs", d] + paths)
 
     def test_no_parts_is_refused(self):
         with self.assertRaises(ValueError):

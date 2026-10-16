@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Merge the per-family sweep JSONs of a SLURM job array into one sweep JSON.
 
-    python3 scripts/merge_sweep.py [--expect-families=A,B,...] PART.json [PART.json ...] > sweep.json
+    python3 scripts/merge_sweep.py [--expect-families=A,B,...] [--cpu-model-from-logs DIR] PART.json [PART.json ...] > sweep.json
 
 Each part is one ltlf-ek-bench invocation over a subset of the families. The
 row lists (timings, structural, ltlfsynt, and any other top-level list) are
@@ -14,12 +14,34 @@ on cpu_model, build type, Spot version, commit, repeat,
 timeout, grid bounds, budget, subjects or resolved Spot path were not one sweep, so
 the merge refuses them. With --expect-families, a merged family set that is not
 exactly the expected one is refused too.
+
+A part written before the bench recorded cpu_model has none. With
+--cpu-model-from-logs DIR, such a part (file part-<a>.json) takes the "Model name"
+of the lscpu output in the log of task <a>, DIR/*_<a>.log (sweep.sbatch's
+ek-sweep-<A>_<a>.log); a part with no field and no such log is still refused.
 """
+import glob
 import json
+import os
+import re
 import sys
 
 SAME = ("cpu_model", "cmake_build_type", "spot_version", "repo_commit", "repeat", "timeout_seconds",
         "n_min", "n_max", "subjects", "budget_seconds", "spot_resolved_path")
+
+
+def cpu_model_from_log(log_dir, part_path):
+    """The lscpu "Model name" in the SLURM log of the task that wrote part_path, or None."""
+    task = re.fullmatch(r"part-(\d+)\.json", os.path.basename(part_path))
+    if not task:
+        return None
+    for log in sorted(glob.glob(os.path.join(glob.escape(log_dir), f"*_{task.group(1)}.log"))):
+        with open(log, errors="replace") as f:
+            for line in f:
+                m = re.match(r"\s*Model name:\s*(.+?)\s*$", line)
+                if m:
+                    return m.group(1)
+    return None
 
 
 def merge(parts, expect_families=None):
@@ -58,10 +80,16 @@ def merge(parts, expect_families=None):
 def main(argv=None):
     args = sys.argv[1:] if argv is None else argv
     expect = None
+    log_dir = None
     paths = []
-    for arg in args:
+    it = iter(args)
+    for arg in it:
         if arg.startswith("--expect-families="):
             expect = [f for f in arg.split("=", 1)[1].split(",") if f]
+        elif arg == "--cpu-model-from-logs":
+            log_dir = next(it, None)
+            if log_dir is None:
+                sys.exit(__doc__)
         else:
             paths.append(arg)
     if not paths:
@@ -69,7 +97,12 @@ def main(argv=None):
     parts = []
     for path in paths:
         with open(path) as f:
-            parts.append(json.load(f))
+            part = json.load(f)
+        if log_dir is not None and part["provenance"].get("cpu_model") in (None, "", "unknown"):
+            model = cpu_model_from_log(log_dir, path)
+            if model:
+                part["provenance"]["cpu_model"] = model
+        parts.append(part)
     try:
         merged = merge(parts, expect)
     except ValueError as e:
