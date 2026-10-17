@@ -95,26 +95,6 @@ TEST(BenchSweep, LtlfsyntRacesAPsiInLargerThanOneArgvString) {
   EXPECT_EQ(seen, 4u) << "N=5 and N=6, both polarities raced, neither errored";
 }
 
-// A failing ltlfsynt leaves status "error" with the reason beside it.
-TEST(BenchSweep, LtlfsyntFailureRecordsItsReason) {
-  const std::string stub =
-      std::string(LTLF_EK_REPO_ROOT) + "/build/benchout/failing_ltlfsynt.sh";
-  {
-    std::ofstream f(stub);
-    f << "#!/bin/sh\n[ \"$1\" = --version ] && exit 0\n"
-         "echo 'stub: cannot parse formula' >&2\nexit 2\n";
-  }
-  ASSERT_EQ(std::system(("chmod +x '" + stub + "'").c_str()), 0);
-  const std::string json = RunSweep(
-      "bench_sweep_failure_reason",
-      "--families=cons-prunes --subjects=dfa-product --n-min=2 --n-max=2 "
-      "--repeat=1 --timeout=20 --ltlfsynt=" + stub);
-  std::remove(stub.c_str());
-  const std::regex row("\"status\":\"error\"[^}]*\"error\":"
-                       "\"stub: cannot parse formula\"");
-  EXPECT_TRUE(std::regex_search(json, row));
-}
-
 // Writes a stub ltlfsynt that answers --version and otherwise runs `body`.
 std::string WriteStubLtlfsynt(const std::string& name, const std::string& body) {
   const std::string stub =
@@ -122,7 +102,7 @@ std::string WriteStubLtlfsynt(const std::string& name, const std::string& body) 
   std::ofstream f(stub);
   f << "#!/bin/sh\n[ \"$1\" = --version ] && exit 0\n" << body;
   f.close();
-  std::system(("chmod +x '" + stub + "'").c_str());
+  EXPECT_EQ(std::system(("chmod +x '" + stub + "'").c_str()), 0);
   return stub;
 }
 
@@ -137,6 +117,27 @@ std::string LtlfsyntRowsWith(const std::string& tag, const std::string& body,
   std::remove(stub.c_str());
   const std::size_t at = json.find("\"ltlfsynt\":[");
   return at == std::string::npos ? "" : json.substr(at);
+}
+
+// A failing ltlfsynt leaves status "error" with the reason beside it.
+TEST(BenchSweep, LtlfsyntFailureRecordsItsReason) {
+  const std::string rows = LtlfsyntRowsWith(
+      "failing_ltlfsynt", "echo 'stub: cannot parse formula' >&2\nexit 2\n");
+  const std::regex row("\"status\":\"error\"[^}]*\"error\":"
+                       "\"stub: cannot parse formula\"");
+  EXPECT_TRUE(std::regex_search(rows, row));
+}
+
+// The --verbose lines ltlfsynt prints before failing are not its reason.
+TEST(BenchSweep, LtlfsyntFailureReasonSkipsVerboseLines) {
+  const std::string rows = LtlfsyntRowsWith(
+      "failing_verbose_ltlfsynt",
+      "echo 'using Mealy semantics' >&2\n"
+      "echo 'formula simplified to a' >&2\n"
+      "echo 'translation to MTDFA (1 roots, 0 APs) took 0.1 seconds' >&2\n"
+      "echo 'stub: out of memory' >&2\nexit 2\n");
+  const std::regex row("\"status\":\"error\"[^}]*\"error\":\"stub: out of memory\"");
+  EXPECT_TRUE(std::regex_search(rows, row));
 }
 
 TEST(BenchSweep, LtlfsyntRowRecordsInternalTimeAndExploredRootsFromVerbose) {

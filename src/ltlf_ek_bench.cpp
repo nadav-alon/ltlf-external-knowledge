@@ -706,10 +706,11 @@ struct LtlfsyntRow {
   std::optional<std::uint64_t> ltlfsynt_ns;         // min over the repeats
   std::optional<std::uint64_t> ltlfsynt_median_ns;  // median over the repeats
   bool verdict_mismatch = false;
-  // Why status is "error": ltlfsynt's stderr head, else its exit code.
+  // Why status is "error": ltlfsynt's stderr without the --verbose lines, else its exit code.
   std::optional<std::string> error;
   // From --verbose: median over the repeats of the internal time, and the
-  // explored roots. Missing when any repeat lacks one, or a repeat timed out.
+  // explored roots of the last repeat (the count is the same on every repeat).
+  // Missing when any repeat lacks one, or a repeat timed out.
   std::optional<std::uint64_t> ltlfsynt_internal_ns;
   std::optional<std::uint64_t> ltlfsynt_explored_roots;
 };
@@ -760,7 +761,6 @@ std::string ShellQuote(const std::string& s) {
 struct SubprocessResult {
   int exit_code = -1;
   std::string stdout_text;
-  std::string stderr_head;  // first bytes of stderr, for a failure's reason
   std::string stderr_text;  // all of stderr (ltlfsynt --verbose reports there)
   bool timed_out = false;
 };
@@ -794,18 +794,29 @@ SubprocessResult RunSubprocessCaptured(const std::string& binary,
   std::remove(capture_path.c_str());
   {
     std::ifstream err(err_path);
-    char buf[200];
-    err.read(buf, sizeof(buf));
-    result.stderr_head.assign(buf, static_cast<std::size_t>(err.gcount()));
-  }
-  {
-    std::ifstream err(err_path);
     std::ostringstream es;
     es << err.rdbuf();
     result.stderr_text = es.str();
   }
   std::remove(err_path.c_str());
   return result;
+}
+
+// The stderr lines that are not `ltlfsynt --verbose` stage or progress chatter:
+// what ltlfsynt says when it fails, as it did before --verbose was added.
+std::string StripLtlfsyntVerboseLines(const std::string& stderr_text) {
+  static const char* const chatter[] = {
+      "using ", "formula simplified to", "the following signals",
+      "new formula:", "starting ", "translation to ", "MTDFA game "};
+  std::istringstream in(stderr_text);
+  std::string line, kept;
+  while (std::getline(in, line)) {
+    bool is_chatter = line.rfind("  ", 0) == 0 || line.find(" took ") != std::string::npos;
+    for (const char* prefix : chatter)
+      if (line.rfind(prefix, 0) == 0) is_chatter = true;
+    if (!is_chatter) kept += line + "\n";
+  }
+  return kept;
 }
 
 // Bare "ltlfsynt --version" runnability probe, same idiom as the test suite.
@@ -1210,7 +1221,8 @@ int main(int argc, char** argv) {
             else
               roots_missing = true;
             if (!synt_realizable) {
-              failure_reason = ltlf_ek::detail::trim(sr.stderr_head);
+              failure_reason = ltlf_ek::detail::trim(
+                  StripLtlfsyntVerboseLines(sr.stderr_text).substr(0, 200));
               if (failure_reason.empty())
                 failure_reason = "exit code " + std::to_string(sr.exit_code);
             }
