@@ -72,6 +72,7 @@ add_library(ltlf_ek
   src/cli.cpp
   src/bench.cpp
   src/bench_suite.cpp
+  src/ltlfsynt_verbose.cpp
   src/window_source.cpp
   src/detail/acceptance.cpp
   src/detail/dependency_core.cpp
@@ -183,6 +184,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/slippery_binary_compact_test.cpp
     tests/bench_runner_isolation_test.cpp
     tests/bench_sweep_test.cpp
+    tests/ltlfsynt_verbose_test.cpp
   )
   target_link_libraries(unit_tests PRIVATE ltlf_ek GTest::gtest_main)
   # tests/ltlf_ek_synth_test.cpp drives the built ltlf-ek-synth binary as a
