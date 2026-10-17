@@ -3,22 +3,7 @@
 
     python3 scripts/sweep_report.py SWEEP.json [--subject otf-mtdfa-product] > report.md
 
-Every slippery-* arm is one family. Per family and per N the report gives the
-prune ratio (reachable product states with the knowledge over without:
-dfa-product / dfa-product-unpruned; the same over dfa-product-nk is the
-nk-product ratio, the task-equivalent baseline; the minimized nk-product
-ratio is the same over product_states_min, both products Moore-minimized), the EK and ltlfsynt wall-clock,
-and the speedup over ltlfsynt. The cells column counts the cells EK finished,
-the raced column those finished on both sides. A cell is one (arm, realizable)
-pair; the figure for a family at N is the median over its cells. A cell with any timed-out or
-failed repeat, on either side, is not finished: its median would be taken over
-the survivors alone, so it is left out. The headline per family is the speedup
-at the largest N where every cell finished on both sides, else at the largest N
-where some did, with the cell count, and says why it stopped at that N (the first N that
-lost a cell to an ltlfsynt error or timeout, or to an unfinished cell).
-Where ltlfsynt timed out and EK finished, the speedup is reported as a lower
-bound; where it errored, a note names the N and the cell count.
-ltlfsynt's startup floor (~4 ms) is not subtracted.
+Column definitions and the handling of unfinished cells are in the legend the report prints.
 """
 import argparse
 import json
@@ -30,7 +15,9 @@ EK_SUBJECT = "otf-mtdfa-product"
 EK_UNPRUNED = "dfa-product-unpruned"
 EK_PRODUCT = "dfa-product"
 EK_NK = "dfa-product-nk"
+OTF_NK = "otf-mtdfa-product-nk"
 PRODUCT_STATES_MIN = "product_states_min"
+PRODUCT_MTDFA_ROOTS = "product_mtdfa_roots"
 
 
 def family_group(name):
@@ -60,8 +47,14 @@ def _metric_by_cell(structural, subject, metric="product_states"):
     }
 
 
+def _ratio(c, name, num, den, key):
+    """Append num[key] / den[key] to c[name] when both are present and den is nonzero."""
+    if key in num and den.get(key):
+        c[name].append(num[key] / den[key])
+
+
 def build_rows(sweep, subject=EK_SUBJECT):
-    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_bounded', 'lt_errors', 'prune', 'prune_nk', 'nk_ratio_min', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
+    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_bounded', 'lt_errors', 'prune', 'prune_nk', 'nk_ratio_min', 'inproc_speedup', 'roots_ratio', 'inproc_bound', 'nk_bounded', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
     'speedup_med', 'speedup_min', 'bound'}}}; a figure is None when no cell has it."""
     wall = _finished_wall(sweep["timings"])
     with_k = _metric_by_cell(sweep["structural"], EK_PRODUCT)
@@ -69,6 +62,13 @@ def build_rows(sweep, subject=EK_SUBJECT):
     nk_k = _metric_by_cell(sweep["structural"], EK_NK)
     with_k_min = _metric_by_cell(sweep["structural"], EK_PRODUCT, PRODUCT_STATES_MIN)
     nk_k_min = _metric_by_cell(sweep["structural"], EK_NK, PRODUCT_STATES_MIN)
+    roots = _metric_by_cell(sweep["structural"], EK_SUBJECT, PRODUCT_MTDFA_ROOTS)
+    roots_nk = _metric_by_cell(sweep["structural"], OTF_NK, PRODUCT_MTDFA_ROOTS)
+    nk_timeout = {
+        (r["family"], r["n"], r["realizable"])
+        for r in sweep["timings"]
+        if r["subject"] == OTF_NK and r["stage"] in ("TIMEOUT", "PARTIAL_TIMEOUT_wall_total")
+    }
     lt = {
         (r["family"], r["n"], r["realizable"]): r
         for r in sweep["ltlfsynt"]
@@ -93,14 +93,18 @@ def build_rows(sweep, subject=EK_SUBJECT):
         key = (fam, n, real)
         c = cells[family_group(fam)][n]
         c["total"].append(1)
-        if key in with_k and without_k.get(key):
-            c["prune"].append(with_k[key] / without_k[key])
-        if key in with_k and nk_k.get(key):
-            c["prune_nk"].append(with_k[key] / nk_k[key])
-        if key in with_k_min and nk_k_min.get(key):
-            c["nk_ratio_min"].append(with_k_min[key] / nk_k_min[key])
+        _ratio(c, "prune", with_k, without_k, key)
+        _ratio(c, "prune_nk", with_k, nk_k, key)
+        _ratio(c, "nk_ratio_min", with_k_min, nk_k_min, key)
         ek = wall.get(key + (subject,))
         row = lt.get(key)
+        otf_nk = wall.get(key + (OTF_NK,))
+        otf = wall.get(key + (EK_SUBJECT,))
+        if otf and otf_nk:
+            c["inproc_speedup"].append(otf_nk[1] / otf[1])
+            _ratio(c, "roots_ratio", roots, roots_nk, key)
+        if otf and key in nk_timeout:
+            c["inproc_bound"].append(sweep["provenance"]["timeout_seconds"] * 1e9 / otf[1])
         if ek:
             c["ek_min"].append(ek[0])
             c["ek_med"].append(ek[1])
@@ -125,6 +129,7 @@ def build_rows(sweep, subject=EK_SUBJECT):
                | {"cells": len(by_n[n]["ek_med"]), "both": len(by_n[n]["speedup_med"]),
                   "total": len(by_n[n]["total"]), "lt_timeouts": len(by_n[n]["lt_timeout"]),
                   "lt_bounded": len(by_n[n]["bound"]),
+                  "nk_bounded": len(by_n[n]["inproc_bound"]),
                   "lt_errors": len(by_n[n]["lt_error"])}
             for n in sorted(by_n)}
         for g, by_n in cells.items()
@@ -189,6 +194,11 @@ def _headline(by_n, timeout_s):
             lines += ["", f"ltlfsynt timed out ({timeout_s} s) at N={n} in "
                           f"{r['lt_bounded']} of {r['total']} cells where EK finished: "
                           f"speedup at least {r['bound']:.2f}x (median lower bound)."]
+        if r["nk_bounded"]:
+            lines += ["", f"{OTF_NK} timed out ({timeout_s} s) at N={n} in "
+                          f"{r['nk_bounded']} of {r['total']} cells where {EK_SUBJECT} finished: "
+                          f"in-process speedup at least {r['inproc_bound']:.2f}x "
+                          "(median lower bound; the figure in the table leaves those cells out)."]
         if r["lt_errors"]:
             lines += ["", f"ltlfsynt errored at N={n} in {r['lt_errors']} of "
                           f"{r['total']} cells: those cells have no speedup."]
@@ -214,6 +224,10 @@ def render(sweep, subject=EK_SUBJECT):
         "Moore-minimized before their states are counted (`product_states_min`); "
         "the completion sink is counted on neither side (a state with no path to "
         "acceptance adds nothing)",
+        f"- in-process speedup: `{OTF_NK}` median over `{EK_SUBJECT}` median, both timed "
+        "in process, whatever --subject says; n/a for a family without a psi_in",
+        f"- explored-roots ratio: `{PRODUCT_MTDFA_ROOTS}` of `{EK_SUBJECT}` over that of "
+        f"`{OTF_NK}`, whatever --subject says; n/a for a family without a psi_in",
         "- a family's figure at N is the median over its cells (arm x realizable); "
         "all slippery-* arms are one family",
         "- a cell with any timed-out or failed repeat, on either side, is left out "
@@ -228,8 +242,8 @@ def render(sweep, subject=EK_SUBJECT):
     for group in sorted(rows):
         out += [f"## {group}", ""]
         out += ["| N | cells | raced | prune ratio | nk-product ratio | minimized nk-product ratio | EK med (ms) | EK min (ms) | "
-                "ltlfsynt med (ms) | speedup (med) | speedup (min) |",
-                "|---|---|---|---|---|---|---|---|---|---|---|"]
+                "ltlfsynt med (ms) | speedup (med) | speedup (min) | in-process speedup | explored-roots ratio |",
+                "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
         for n, r in rows[group].items():
             out.append(
                 f"| {n} | {r['cells']} | {r['both']} | {_fmt(r.get('prune'), '{:.3f}')} "
@@ -239,7 +253,9 @@ def render(sweep, subject=EK_SUBJECT):
                 f"| {_fmt(r.get('ek_min') and r['ek_min'] / 1e6, '{:.2f}')} "
                 f"| {_fmt(r.get('lt_med') and r['lt_med'] / 1e6, '{:.2f}')} "
                 f"| {_fmt(r.get('speedup_med'), '{:.2f}x')} "
-                f"| {_fmt(r.get('speedup_min'), '{:.2f}x')} |")
+                f"| {_fmt(r.get('speedup_min'), '{:.2f}x')} "
+                f"| {_fmt(r.get('inproc_speedup'), '{:.2f}x')} "
+                f"| {_fmt(r.get('roots_ratio'), '{:.3f}')} |")
         out.append("")
         out += _headline(rows[group], prov["timeout_seconds"])
         out.append("")
