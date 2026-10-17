@@ -66,6 +66,12 @@ def _metric_by_cell(structural, subject, metric="product_states"):
     }
 
 
+def _ratio(c, name, num, den, key):
+    """Append num[key] / den[key] to c[name] when both are present and den is nonzero."""
+    if key in num and den.get(key):
+        c[name].append(num[key] / den[key])
+
+
 def build_rows(sweep, subject=EK_SUBJECT):
     """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_bounded', 'lt_errors', 'prune', 'prune_nk', 'nk_ratio_min', 'inproc_speedup', 'roots_ratio', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
     'speedup_med', 'speedup_min', 'bound'}}}; a figure is None when no cell has it."""
@@ -101,19 +107,15 @@ def build_rows(sweep, subject=EK_SUBJECT):
         key = (fam, n, real)
         c = cells[family_group(fam)][n]
         c["total"].append(1)
-        if key in with_k and without_k.get(key):
-            c["prune"].append(with_k[key] / without_k[key])
-        if key in with_k and nk_k.get(key):
-            c["prune_nk"].append(with_k[key] / nk_k[key])
-        if key in with_k_min and nk_k_min.get(key):
-            c["nk_ratio_min"].append(with_k_min[key] / nk_k_min[key])
+        _ratio(c, "prune", with_k, without_k, key)
+        _ratio(c, "prune_nk", with_k, nk_k, key)
+        _ratio(c, "nk_ratio_min", with_k_min, nk_k_min, key)
         ek = wall.get(key + (subject,))
         row = lt.get(key)
         otf_nk = wall.get(key + (OTF_NK,))
         if ek and otf_nk:
             c["inproc_speedup"].append(otf_nk[1] / ek[1])
-        if key in roots and roots_nk.get(key):
-            c["roots_ratio"].append(roots[key] / roots_nk[key])
+            _ratio(c, "roots_ratio", roots, roots_nk, key)
         if ek:
             c["ek_min"].append(ek[0])
             c["ek_med"].append(ek[1])

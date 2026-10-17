@@ -228,15 +228,25 @@ class SweepReport(unittest.TestCase):
 
     def test_explored_roots_ratio_is_ek_roots_over_nk_roots(self):
         rows = sr.build_rows(sweep(
-            timings=[timing("f", 2, True, EK, 1, 1)],
+            timings=[timing("f", 2, True, EK, 1, 1), timing("f", 2, True, sr.OTF_NK, 1, 1)],
             structural_rows=[
                 structural("f", 2, True, EK, 9, sr.PRODUCT_MTDFA_ROOTS),
                 structural("f", 2, True, sr.OTF_NK, 4, sr.PRODUCT_MTDFA_ROOTS)]))
         self.assertEqual(rows["f"][2]["roots_ratio"], 9 / 4)
 
+    def test_explored_roots_ratio_leaves_out_a_cell_that_did_not_finish(self):
+        for ek_stage, nk_stage in (("TIMEOUT", "wall_total"), ("wall_total", "TIMEOUT")):
+            rows = sr.build_rows(sweep(
+                timings=[timing("f", 2, True, EK, 1, 1, stage=ek_stage),
+                         timing("f", 2, True, sr.OTF_NK, 1, 1, stage=nk_stage)],
+                structural_rows=[
+                    structural("f", 2, True, EK, 9, sr.PRODUCT_MTDFA_ROOTS),
+                    structural("f", 2, True, sr.OTF_NK, 4, sr.PRODUCT_MTDFA_ROOTS)]))
+            self.assertIsNone(rows["f"][2].get("roots_ratio"), (ek_stage, nk_stage))
+
     def test_explored_roots_ratio_is_n_a_without_the_nk_roots(self):
         rows = sr.build_rows(sweep(
-            timings=[timing("f", 2, True, EK, 1, 1)],
+            timings=[timing("f", 2, True, EK, 1, 1), timing("f", 2, True, sr.OTF_NK, 1, 1)],
             structural_rows=[structural("f", 2, True, EK, 9, sr.PRODUCT_MTDFA_ROOTS)]))
         self.assertIsNone(rows["f"][2].get("roots_ratio"))
 
