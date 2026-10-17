@@ -1368,7 +1368,8 @@ states](#minimized-product-states), the *minimized nk-product ratio*.
   `translation to MTDFA (1 roots, 0 APs) took 0.004 seconds`): the solver's work without process
   startup. It is missing, never 0, when the stage lines are missing or unparseable or the run
   timed out.
-- **C++:** `LtlfsyntVerbose::internal_ns` (`include/ltlf_ek/ltlfsynt_verbose.hpp`).
+- **C++:** `LtlfsyntVerbose::internal_ns` (`include/ltlf_ek/ltlfsynt_verbose.hpp`), read from
+  the transcript by `parse_ltlfsynt_verbose`, which returns a `LtlfsyntVerbose`.
 - **Do not call it:** ltlfsynt time, which is timed around a subprocess and includes the startup floor.
 
 ### ltlfsynt explored roots

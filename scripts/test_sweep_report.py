@@ -298,6 +298,22 @@ class LtlfsyntVerboseColumns(unittest.TestCase):
             ltlfsynt=[lt_verbose("fam", 2, True, 300, 4)]))
         self.assertEqual(rows["fam"][2]["lt_roots_ratio"], 3.0)
 
+    def test_a_missing_ek_root_count_is_left_out_and_reported(self):
+        s = sweep(timings=[timing("fam", 2, True, EK, 90, 100)],
+                  ltlfsynt=[lt_verbose("fam", 2, True, 300, 4)])
+        r = sr.build_rows(s)["fam"][2]
+        self.assertNotIn("lt_roots_ratio", r)
+        self.assertEqual((r["ek_roots_missing"], r["lt_roots_missing"]), (1, 0))
+        self.assertIn("is missing at N=2 in 1 of 1 cells", sr.render(s))
+
+    def test_a_zero_ltlfsynt_root_count_is_missing_not_a_ratio(self):
+        r = sr.build_rows(sweep(
+            timings=[timing("fam", 2, True, EK, 90, 100)],
+            structural_rows=[structural("fam", 2, True, EK, 12, sr.PRODUCT_MTDFA_ROOTS)],
+            ltlfsynt=[lt_verbose("fam", 2, True, 300, 0)]))["fam"][2]
+        self.assertNotIn("lt_roots_ratio", r)
+        self.assertEqual(r["lt_roots_missing"], 1)
+
     def test_a_missing_internal_time_is_left_out_and_reported_never_zero(self):
         rows = sr.build_rows(sweep(
             timings=[timing("fam", 2, True, EK, 90, 100)],
