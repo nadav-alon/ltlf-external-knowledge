@@ -81,7 +81,7 @@ def build_rows(sweep, subject=EK_SUBJECT):
     nk_k = _metric_by_cell(sweep["structural"], EK_NK)
     with_k_min = _metric_by_cell(sweep["structural"], EK_PRODUCT, PRODUCT_STATES_MIN)
     nk_k_min = _metric_by_cell(sweep["structural"], EK_NK, PRODUCT_STATES_MIN)
-    roots = _metric_by_cell(sweep["structural"], subject, PRODUCT_MTDFA_ROOTS)
+    roots = _metric_by_cell(sweep["structural"], EK_SUBJECT, PRODUCT_MTDFA_ROOTS)
     roots_nk = _metric_by_cell(sweep["structural"], OTF_NK, PRODUCT_MTDFA_ROOTS)
     lt = {
         (r["family"], r["n"], r["realizable"]): r
@@ -113,8 +113,9 @@ def build_rows(sweep, subject=EK_SUBJECT):
         ek = wall.get(key + (subject,))
         row = lt.get(key)
         otf_nk = wall.get(key + (OTF_NK,))
-        if ek and otf_nk:
-            c["inproc_speedup"].append(otf_nk[1] / ek[1])
+        otf = wall.get(key + (EK_SUBJECT,))
+        if otf and otf_nk:
+            c["inproc_speedup"].append(otf_nk[1] / otf[1])
             _ratio(c, "roots_ratio", roots, roots_nk, key)
         if ek:
             c["ek_min"].append(ek[0])
@@ -229,10 +230,10 @@ def render(sweep, subject=EK_SUBJECT):
         "Moore-minimized before their states are counted (`product_states_min`); "
         "the completion sink is counted on neither side (a state with no path to "
         "acceptance adds nothing)",
-        f"- in-process speedup: `{OTF_NK}` median over `{subject}` median, both timed "
-        "in process; n/a for a family without a psi_in",
-        f"- explored-roots ratio: `{PRODUCT_MTDFA_ROOTS}` of `{subject}` over that of "
-        f"`{OTF_NK}`; n/a for a family without a psi_in",
+        f"- in-process speedup: `{OTF_NK}` median over `{EK_SUBJECT}` median, both timed "
+        "in process, whatever --subject says; n/a for a family without a psi_in",
+        f"- explored-roots ratio: `{PRODUCT_MTDFA_ROOTS}` of `{EK_SUBJECT}` over that of "
+        f"`{OTF_NK}`, whatever --subject says; n/a for a family without a psi_in",
         "- a family's figure at N is the median over its cells (arm x realizable); "
         "all slippery-* arms are one family",
         "- a cell with any timed-out or failed repeat, on either side, is left out "

@@ -207,6 +207,16 @@ class SweepReport(unittest.TestCase):
             timing("f", 2, True, EK, 1, 4), timing("f", 2, True, sr.OTF_NK, 1, 10)]))
         self.assertEqual(rows["f"][2]["inproc_speedup"], 10 / 4)
 
+    def test_in_process_speedup_and_roots_ratio_ignore_the_subject_flag(self):
+        s = sweep(
+            timings=[timing("f", 2, True, EK, 1, 4), timing("f", 2, True, sr.OTF_NK, 1, 10),
+                     timing("f", 2, True, "mtdfa-product", 1, 99)],
+            structural_rows=[structural("f", 2, True, EK, 9, sr.PRODUCT_MTDFA_ROOTS),
+                             structural("f", 2, True, sr.OTF_NK, 4, sr.PRODUCT_MTDFA_ROOTS),
+                             structural("f", 2, True, "mtdfa-product", 7, sr.PRODUCT_MTDFA_ROOTS)])
+        self.assertEqual(sr.build_rows(s, "mtdfa-product")["f"][2]["inproc_speedup"], 10 / 4)
+        self.assertEqual(sr.build_rows(s, "mtdfa-product")["f"][2]["roots_ratio"], 9 / 4)
+
     def test_in_process_speedup_is_n_a_without_the_nk_subject(self):
         s = sweep(timings=[timing("f", 2, True, EK, 1, 4)])
         self.assertIsNone(sr.build_rows(s)["f"][2].get("inproc_speedup"))
