@@ -1,5 +1,6 @@
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <memory>
 #include <optional>
 #include <set>
@@ -144,7 +145,8 @@ TEST(SizeMetricName, EveryRegistryValueHasADistinctNonEmptyName) {
   const std::vector<SizeMetric> all = {
       SizeMetric::goal_dfa_states,  SizeMetric::goal_nfa_states,
       SizeMetric::goal_mtdfa_roots, SizeMetric::nfa_product_states,
-      SizeMetric::product_states,   SizeMetric::product_mtdfa_roots,
+      SizeMetric::product_states,   SizeMetric::product_states_min,
+      SizeMetric::product_mtdfa_roots,
       SizeMetric::product_bdd_nodes, SizeMetric::controller_states};
   std::set<std::string> names;
   for (SizeMetric m : all) {
@@ -186,10 +188,33 @@ TEST(BenchScopeSizeMetricEmission, DfaProductEmitsExactlyItsChargeTableRow) {
 
   const std::set<std::string> expected = NamesOf(
       {SizeMetric::goal_dfa_states, SizeMetric::product_states,
-       SizeMetric::controller_states});
+       SizeMetric::product_states_min, SizeMetric::controller_states});
   EXPECT_EQ(CanonicalMetricLabels(report), expected)
       << "PRD B2 charge table, DfaProduct row: exactly {goal_dfa_states, "
-        "product_states, controller_states} -- no extras, no omissions";
+        "product_states, product_states_min, controller_states} -- no extras, "
+        "no omissions";
+}
+
+TEST(BenchScopeSizeMetricEmission, DfaProductMinimizedCountNeverExceedsTheRawCount) {
+  const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  const VariablePartition vars = IoFreeVars();
+  const OutputLabeledTransducer t_in =
+      trivial_transducer(vars, Role::t_in, dict);
+  const OutputLabeledTransducer t_out =
+      trivial_transducer(vars, Role::t_out, dict);
+  DfaProduct method;
+
+  BenchReport report;
+  {
+    BenchScope scope;
+    method.synthesize(Phi("G(i -> o)"), vars, t_in, t_out);
+    report = scope.report();
+  }
+  std::map<std::string, std::uint64_t> value;
+  for (const BenchSizeMetric& m : report.metrics) value[m.label] = m.value;
+  ASSERT_TRUE(value.count("product_states_min"));
+  EXPECT_GT(value.at("product_states_min"), 0u);
+  EXPECT_LE(value.at("product_states_min"), value.at("product_states"));
 }
 
 TEST(BenchScopeSizeMetricEmission, NfaProductEmitsExactlyItsChargeTableRow) {
@@ -361,9 +386,10 @@ TEST(BenchScopeSizeMetricEmission, DfaProductUnrealizableRunOmitsControllerState
       << "PRD 'Edge cases': an unrealizable run emits no controller_states "
         "row -- absent, never a zero value";
   const std::set<std::string> expected_without_controller =
-      NamesOf({SizeMetric::goal_dfa_states, SizeMetric::product_states});
+      NamesOf({SizeMetric::goal_dfa_states, SizeMetric::product_states,
+               SizeMetric::product_states_min});
   EXPECT_EQ(labels, expected_without_controller)
-      << "goal_dfa_states and product_states are charged before the game is "
+      << "goal_dfa_states, product_states and product_states_min are charged before the game is "
         "solved, independent of the verdict";
 }
 

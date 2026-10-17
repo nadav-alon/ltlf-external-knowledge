@@ -1250,8 +1250,8 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   only, and is **not** a PRD-change event. Its counterpart is the **free-form
   label**, for a quantity that is not comparable across methods.
 - **C++:** `enum class SizeMetric { goal_dfa_states, goal_nfa_states,
-  goal_mtdfa_roots, nfa_product_states, product_states, product_mtdfa_roots,
-  product_bdd_nodes, controller_states }` with
+  goal_mtdfa_roots, nfa_product_states, product_states, product_states_min,
+  product_mtdfa_roots, product_bdd_nodes, controller_states }` with
   `size_metric_name(SizeMetric)` → `std::string_view` and
   `record_size_metric(SizeMetric, std::uint64_t)`
   (`include/ltlf_ek/bench.hpp`). Which method charges which value is the **charge
@@ -1334,7 +1334,8 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   while `dfa-product` keeps every reachable tuple, which biases the
   [nk-product ratio](#nk-product-ratio) against the knowledge product.
 - **C++:** `minimized_state_count(const spot::twa_graph_ptr&)`
-  (`include/ltlf_ek/product.hpp`).
+  (`include/ltlf_ek/product.hpp`), charged by `DfaProduct` to the size metric
+  `product_states_min`.
 - **Do not call it:** reduced states, DFA size, product size.
 
 ## Testing & oracles

@@ -36,6 +36,8 @@ std::string_view size_metric_name(SizeMetric m) {
       return "nfa_product_states";
     case SizeMetric::product_states:
       return "product_states";
+    case SizeMetric::product_states_min:
+      return "product_states_min";
     case SizeMetric::product_mtdfa_roots:
       return "product_mtdfa_roots";
     case SizeMetric::product_bdd_nodes:
