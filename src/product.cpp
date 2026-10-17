@@ -376,10 +376,7 @@ void validate_product_inputs(const spot::formula& phi,
 
 std::size_t minimized_state_count(const spot::twa_graph_ptr& product) {
   const unsigned n = product->num_states();
-  auto accepting = [&](unsigned s) {
-    for (const auto& e : product->out(s)) return product->acc().accepting(e.acc);
-    return false;
-  };
+  auto accepting = [&](unsigned s) { return product->state_is_accepting(s); };
 
   // Live = reachable from init and able to reach an accepting state.
   std::vector<bool> reach(n, false);
@@ -389,7 +386,10 @@ std::size_t minimized_state_count(const spot::twa_graph_ptr& product) {
     const unsigned s = stack.back();
     stack.pop_back();
     for (const auto& e : product->out(s))
-      if (e.cond != bddfalse && !reach[e.dst]) reach[e.dst] = true, stack.push_back(e.dst);
+      if (e.cond != bddfalse && !reach[e.dst]) {
+        reach[e.dst] = true;
+        stack.push_back(e.dst);
+      }
   }
   std::vector<bool> live(n, false);
   for (bool changed = true; changed;) {
@@ -399,7 +399,10 @@ std::size_t minimized_state_count(const spot::twa_graph_ptr& product) {
       bool l = accepting(s);
       for (const auto& e : product->out(s))
         if (e.cond != bddfalse && live[e.dst]) l = true;
-      if (l) live[s] = true, changed = true;
+      if (l) {
+        live[s] = true;
+        changed = true;
+      }
     }
   }
 
@@ -411,6 +414,10 @@ std::size_t minimized_state_count(const spot::twa_graph_ptr& product) {
   for (bool first = true;; first = false) {
     using Sig = std::pair<int, std::map<int, int>>;  // (class, dst class -> guard id)
     std::map<Sig, int> ids;
+    // A merged guard is a temporary: BuDDy may collect it and reuse its node
+    // id for another function, so every guard stays referenced until the
+    // round's signatures have been compared.
+    std::vector<bdd> alive;
     std::vector<int> next(n, -1);
     for (unsigned s = 0; s < n; ++s) {
       if (cls[s] < 0) continue;
@@ -421,7 +428,10 @@ std::size_t minimized_state_count(const spot::twa_graph_ptr& product) {
         if (!fresh) it->second |= e.cond;
       }
       Sig sig{cls[s], {}};
-      for (const auto& [c, g] : by_dst) sig.second.emplace(c, g.id());
+      for (const auto& [c, g] : by_dst) {
+        sig.second.emplace(c, g.id());
+        alive.push_back(g);
+      }
       next[s] = ids.emplace(sig, static_cast<int>(ids.size())).first->second;
     }
     const std::size_t now = ids.size();
