@@ -202,6 +202,50 @@ class SweepReport(unittest.TestCase):
         out = sr.render(sweep(timings=[timing("knowledge-chain", 2, True, EK, 1, 1)]))
         self.assertIn("No speedup over ltlfsynt", out)
 
+    def test_in_process_speedup_is_the_nk_median_over_the_ek_median(self):
+        rows = sr.build_rows(sweep(timings=[
+            timing("f", 2, True, EK, 1, 4), timing("f", 2, True, sr.OTF_NK, 1, 10)]))
+        self.assertEqual(rows["f"][2]["inproc_speedup"], 10 / 4)
+
+    def test_in_process_speedup_is_n_a_without_the_nk_subject(self):
+        s = sweep(timings=[timing("f", 2, True, EK, 1, 4)])
+        self.assertIsNone(sr.build_rows(s)["f"][2].get("inproc_speedup"))
+        row = [l for l in sr.render(s).splitlines() if l.startswith("| 2 |")][0]
+        self.assertTrue(row.endswith("| n/a | n/a |"), row)
+
+    def test_a_timed_out_nk_cell_has_no_in_process_speedup(self):
+        for stage in ("TIMEOUT", "PARTIAL_TIMEOUT_wall_total", "FAILED_x"):
+            rows = sr.build_rows(sweep(timings=[
+                timing("f", 2, True, EK, 1, 4),
+                timing("f", 2, True, sr.OTF_NK, 1, 10, stage=stage)]))
+            self.assertIsNone(rows["f"][2].get("inproc_speedup"), stage)
+
+    def test_a_timed_out_ek_cell_has_no_in_process_speedup(self):
+        rows = sr.build_rows(sweep(timings=[
+            timing("f", 2, True, EK, 1, 4, stage="TIMEOUT"),
+            timing("f", 2, True, sr.OTF_NK, 1, 10)]))
+        self.assertIsNone(rows["f"][2].get("inproc_speedup"))
+
+    def test_explored_roots_ratio_is_ek_roots_over_nk_roots(self):
+        rows = sr.build_rows(sweep(
+            timings=[timing("f", 2, True, EK, 1, 1)],
+            structural_rows=[
+                structural("f", 2, True, EK, 9, sr.PRODUCT_MTDFA_ROOTS),
+                structural("f", 2, True, sr.OTF_NK, 4, sr.PRODUCT_MTDFA_ROOTS)]))
+        self.assertEqual(rows["f"][2]["roots_ratio"], 9 / 4)
+
+    def test_explored_roots_ratio_is_n_a_without_the_nk_roots(self):
+        rows = sr.build_rows(sweep(
+            timings=[timing("f", 2, True, EK, 1, 1)],
+            structural_rows=[structural("f", 2, True, EK, 9, sr.PRODUCT_MTDFA_ROOTS)]))
+        self.assertIsNone(rows["f"][2].get("roots_ratio"))
+
+    def test_the_table_has_both_new_columns_and_the_header_defines_them(self):
+        out = sr.render(sweep(timings=[timing("f", 2, True, EK, 1, 1)]))
+        self.assertIn("| in-process speedup | explored-roots ratio |", out)
+        self.assertIn("- in-process speedup:", out)
+        self.assertIn("- explored-roots ratio:", out)
+
 
 if __name__ == "__main__":
     unittest.main()
