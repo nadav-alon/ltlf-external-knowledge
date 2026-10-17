@@ -1255,6 +1255,15 @@ class OtfMtdfaProductSubject final : public BenchSubject {
   }
 };
 
+class OtfMtdfaProductOtfSolveSubject final : public BenchSubject {
+ public:
+  std::string name() const override { return "otf-mtdfa-product-otfsolve"; }
+  void run(const BenchCase& c) const override {
+    OtfMtdfaProduct method(/*otf_solve=*/true);
+    method.synthesize(c.phi, c.vars, c.t_in, c.t_out);
+  }
+};
+
 // ---------------------------------------------------------------------------
 // The no-knowledge column (PRD "engineered-domain-families.md" D7): five
 // `<method>-nk` subjects that run the same five methods on the SAME case but
@@ -1377,6 +1386,17 @@ class OtfMtdfaProductNkSubject final : public BenchSubject {
   }
 };
 
+class OtfMtdfaProductNkOtfSolveSubject final : public BenchSubject {
+ public:
+  std::string name() const override { return "otf-mtdfa-product-nk-otfsolve"; }
+  void run(const BenchCase& c) const override {
+    const auto nk = build_nk_case(c);
+    if (!nk) return;
+    OtfMtdfaProduct method(/*otf_solve=*/true);
+    method.synthesize(nk->goal, nk->vars, nk->t_in, nk->t_out);
+  }
+};
+
 // ---------------------------------------------------------------------------
 // The prune baseline: DfaProduct on the case's own Goal with the knowledge
 // ignored (Iknown/Oknown free, trivial transducers). Its product_states over
@@ -1461,11 +1481,13 @@ const std::vector<std::unique_ptr<BenchSubject>>& bench_subjects() {
     v.push_back(std::make_unique<MtdfaProductSubject>());
     v.push_back(std::make_unique<MtnfaProductSubject>());
     v.push_back(std::make_unique<OtfMtdfaProductSubject>());
+    v.push_back(std::make_unique<OtfMtdfaProductOtfSolveSubject>());
     v.push_back(std::make_unique<DfaProductNkSubject>());
     v.push_back(std::make_unique<NfaProductNkSubject>());
     v.push_back(std::make_unique<MtdfaProductNkSubject>());
     v.push_back(std::make_unique<MtnfaProductNkSubject>());
     v.push_back(std::make_unique<OtfMtdfaProductNkSubject>());
+    v.push_back(std::make_unique<OtfMtdfaProductNkOtfSolveSubject>());
     v.push_back(std::make_unique<DependentInputsExtractionSubject>());
     v.push_back(std::make_unique<DfaProductUnprunedSubject>());
     return v;
