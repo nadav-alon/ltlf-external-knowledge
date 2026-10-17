@@ -30,7 +30,7 @@ EK_SUBJECT = "otf-mtdfa-product"
 EK_UNPRUNED = "dfa-product-unpruned"
 EK_PRODUCT = "dfa-product"
 EK_NK = "dfa-product-nk"
-MINIMIZED = "product_states_min"
+PRODUCT_STATES_MIN = "product_states_min"
 
 
 def family_group(name):
@@ -52,7 +52,7 @@ def _finished_wall(timings):
     return out
 
 
-def _product_states(structural, subject, metric="product_states"):
+def _metric_by_cell(structural, subject, metric="product_states"):
     return {
         (r["family"], r["n"], r["realizable"]): r["value"]
         for r in structural
@@ -61,14 +61,14 @@ def _product_states(structural, subject, metric="product_states"):
 
 
 def build_rows(sweep, subject=EK_SUBJECT):
-    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_bounded', 'lt_errors', 'prune', 'prune_nk', 'prune_nk_min', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
+    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_bounded', 'lt_errors', 'prune', 'prune_nk', 'nk_ratio_min', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
     'speedup_med', 'speedup_min', 'bound'}}}; a figure is None when no cell has it."""
     wall = _finished_wall(sweep["timings"])
-    with_k = _product_states(sweep["structural"], EK_PRODUCT)
-    without_k = _product_states(sweep["structural"], EK_UNPRUNED)
-    nk_k = _product_states(sweep["structural"], EK_NK)
-    with_k_min = _product_states(sweep["structural"], EK_PRODUCT, MINIMIZED)
-    nk_k_min = _product_states(sweep["structural"], EK_NK, MINIMIZED)
+    with_k = _metric_by_cell(sweep["structural"], EK_PRODUCT)
+    without_k = _metric_by_cell(sweep["structural"], EK_UNPRUNED)
+    nk_k = _metric_by_cell(sweep["structural"], EK_NK)
+    with_k_min = _metric_by_cell(sweep["structural"], EK_PRODUCT, PRODUCT_STATES_MIN)
+    nk_k_min = _metric_by_cell(sweep["structural"], EK_NK, PRODUCT_STATES_MIN)
     lt = {
         (r["family"], r["n"], r["realizable"]): r
         for r in sweep["ltlfsynt"]
@@ -98,7 +98,7 @@ def build_rows(sweep, subject=EK_SUBJECT):
         if key in with_k and nk_k.get(key):
             c["prune_nk"].append(with_k[key] / nk_k[key])
         if key in with_k_min and nk_k_min.get(key):
-            c["prune_nk_min"].append(with_k_min[key] / nk_k_min[key])
+            c["nk_ratio_min"].append(with_k_min[key] / nk_k_min[key])
         ek = wall.get(key + (subject,))
         row = lt.get(key)
         if ek:
@@ -182,7 +182,8 @@ def _headline(by_n, timeout_s):
                      f"{r['speedup_med']:.2f}x (median){_stop_reason(by_n, n)}.**")
     else:
         lines.append("**No speedup over ltlfsynt: no cell finished on both sides "
-                     "(ltlfsynt is n/a for a family without a declared psi_in).**")
+                     "(the EK subject has no finished cell, or ltlfsynt has no value: it is n/a "
+                     "for a family without a declared psi_in).**")
     for n, r in by_n.items():
         if r["lt_bounded"]:
             lines += ["", f"ltlfsynt timed out ({timeout_s} s) at N={n} in "
@@ -233,7 +234,7 @@ def render(sweep, subject=EK_SUBJECT):
             out.append(
                 f"| {n} | {r['cells']} | {r['both']} | {_fmt(r.get('prune'), '{:.3f}')} "
                 f"| {_fmt(r.get('prune_nk'), '{:.3f}')} "
-                f"| {_fmt(r.get('prune_nk_min'), '{:.3f}')} "
+                f"| {_fmt(r.get('nk_ratio_min'), '{:.3f}')} "
                 f"| {_fmt(r.get('ek_med') and r['ek_med'] / 1e6, '{:.2f}')} "
                 f"| {_fmt(r.get('ek_min') and r['ek_min'] / 1e6, '{:.2f}')} "
                 f"| {_fmt(r.get('lt_med') and r['lt_med'] / 1e6, '{:.2f}')} "
