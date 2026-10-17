@@ -9,8 +9,12 @@
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
+
+#include <spot/misc/bddlt.hh>
+#include <spot/twaalgos/backprop.hh>
 
 #include "ltlf_ek/bench.hpp"
 #include "ltlf_ek/product.hpp"
@@ -117,12 +121,105 @@ void ForEachCombination(
   }
 }
 
+// The incremental game behind otf_solve_fused: a spot::backprop_graph fed one
+// expanded row at a time, in the shape mtdfa_to_backprop gives a finished
+// mtdfa (Spot's own fused loop, ltlf_to_mtdfa, does the same).
+//   - one vertex per root, with a single edge to the vertex of its MTBDD root;
+//   - one vertex per internal MTBDD node, keyed on the `bdd` handle (never a
+//     raw id, which BuDDy recycles) and owned by the controllability of the
+//     node's variable;
+//   - bddtrue and bddfalse are pre-determined vertices; an accepting terminal
+//     maps to the true vertex and a non-accepting terminal 2j to root j's.
+// A root's vertex is left unfrozen until its row is fed, so an unexpanded
+// state stays undetermined.
+class OnlineGame {
+ public:
+  OnlineGame(const VariablePartition& vars, const spot::bdd_dict_ptr& dict) {
+    // Same controllable set solve_mtdfa installs; computed from the
+    // variables themselves, since bdd_mt_quantify_prepare's buffer is wiped
+    // whenever a BDD variable is created.
+    std::set<std::string> controllable = vars.output_free;
+    const std::set<std::string> known = vars.known();
+    controllable.insert(known.begin(), known.end());
+    for (const std::string& name : controllable)
+      controllable_.insert(dict->varnum(spot::formula::ap(name)));
+
+    true_ = graph_.new_state(true);
+    graph_.set_winner(true_, true);
+    false_ = graph_.new_state(false);
+    graph_.set_winner(false_, false);
+    root_vertex(0);
+  }
+
+  // Feed the expanded row of root `index`.
+  void add_row(unsigned index, const bdd& row) {
+    const unsigned src = root_vertex(index);
+    const unsigned dst = node_vertex(row);
+    graph_.new_edge(src, dst);
+    graph_.freeze_state(src);
+  }
+
+  // new_edge reports a determined vertex 0 only when it is reached as a
+  // predecessor, so a row that decides it directly (bddtrue / bddfalse) is
+  // only visible through is_determined.
+  bool decided() const { return graph_.is_determined(root_vertex_.at(0)); }
+  bool system_wins() const { return graph_.winner(root_vertex_.at(0)); }
+
+ private:
+  unsigned root_vertex(unsigned index) {
+    if (index >= root_vertex_.size()) root_vertex_.resize(index + 1, kNone);
+    if (root_vertex_[index] == kNone)
+      root_vertex_[index] = graph_.new_state(false);
+    return root_vertex_[index];
+  }
+
+  unsigned node_vertex(const bdd& node) {
+    if (node == bddtrue) return true_;
+    if (node == bddfalse) return false_;
+    if (bdd_is_terminal(node)) {
+      const int t = bdd_get_terminal(node);
+      return (t & 1) ? true_ : root_vertex(static_cast<unsigned>(t / 2));
+    }
+    if (auto it = node_vertex_.find(node); it != node_vertex_.end())
+      return it->second;
+    const unsigned v = graph_.new_state(controllable_.count(bdd_var(node)) > 0);
+    // Children first: a vertex is only given edges once both are known.
+    const unsigned lo = node_vertex(bdd_low(node));
+    const unsigned hi = node_vertex(bdd_high(node));
+    node_vertex_.emplace(node, v);
+    graph_.new_edge(v, lo);
+    if (!graph_.is_determined(v)) graph_.new_edge(v, hi);
+    graph_.freeze_state(v);
+    return v;
+  }
+
+  static constexpr unsigned kNone = static_cast<unsigned>(-1);
+  spot::backprop_graph graph_;
+  std::unordered_set<int> controllable_;
+  std::unordered_map<bdd, unsigned, spot::bdd_hash> node_vertex_;
+  std::vector<unsigned> root_vertex_;
+  unsigned true_, false_;
+};
+
+struct ProductBuild {
+  spot::mtdfa_ptr product;
+  std::size_t expanded = 0;
+  // Set only when `solve_online` decided the initial state before the
+  // product was fully built: true = realizable.
+  std::optional<bool> decided;
+};
+
 }  // namespace
 
-spot::mtdfa_ptr otf_product_to_mtdfa(const spot::formula& phi,
-                                     const std::vector<const Transducer*>& taus,
-                                     const VariablePartition& vars,
-                                     const spot::bdd_dict_ptr& dict) {
+// The Phase 1 BFS; with `solve_online` it also feeds an OnlineGame row by row
+// and stops as soon as the initial state is decided, leaving the discovered
+// but unexpanded states padded with bddfalse.
+static ProductBuild BuildProduct(const spot::formula& phi,
+                                 const std::vector<const Transducer*>& taus,
+                                 const VariablePartition& vars,
+                                 const spot::bdd_dict_ptr& dict,
+                                 bool solve_online) {
+  ProductBuild build;
   auto out = std::make_shared<spot::mtdfa>(dict);
 
   // Step 0: out->aps = vars.universe() (NOT phi's bare support): a
@@ -146,6 +243,8 @@ spot::mtdfa_ptr otf_product_to_mtdfa(const spot::formula& phi,
     dict->register_proposition(ap, out.get());
 
   ForwardProgression fp(dict);
+  std::optional<OnlineGame> game;
+  if (solve_online) game.emplace(vars, dict);
 
   // Step 1: seed index 0 with Key{fp.progress_row(phi), q0}, q0[k] =
   // taus[k]->initial_state().  Index 0 must be the initial state ---
@@ -213,29 +312,77 @@ spot::mtdfa_ptr otf_product_to_mtdfa(const spot::formula& phi,
     // Inlined into the assert so the lookup vanishes entirely under NDEBUG.
     assert(state_index.at(key) == out->states.size());
     out->states.push_back(row_out);
+
+    if (game) {
+      game->add_row(static_cast<unsigned>(out->states.size() - 1), row_out);
+      if (game->decided()) {
+        build.decided = game->system_wins();
+        break;
+      }
+    }
   }
 
-  return out;
+  build.expanded = out->states.size();
+  // Pad every interned index, up to the highest one, with a losing row.
+  // Sound for a realizable verdict: the system already wins without them.
+  out->states.resize(state_index.size(), bddfalse);
+  build.product = out;
+  return build;
 }
+
+spot::mtdfa_ptr otf_product_to_mtdfa(const spot::formula& phi,
+                                     const std::vector<const Transducer*>& taus,
+                                     const VariablePartition& vars,
+                                     const spot::bdd_dict_ptr& dict) {
+  return BuildProduct(phi, taus, vars, dict, /*solve_online=*/false).product;
+}
+
+std::optional<Controller> otf_solve_fused(
+    const spot::formula& phi, const std::vector<const Transducer*>& taus,
+    const VariablePartition& vars, const spot::bdd_dict_ptr& dict,
+    std::size_t* states_expanded) {
+  require_turn_order_aps(vars, dict);
+  ProductBuild build;
+  {
+    BenchTimer t(Stage::product_construction);
+    build = BuildProduct(phi, taus, vars, dict, /*solve_online=*/true);
+  }
+  if (states_expanded) *states_expanded = build.expanded;
+  record_size_metric(SizeMetric::product_mtdfa_roots, build.product->num_roots());
+  if (build.decided && !*build.decided) return std::nullopt;
+  // Realizable, or every state expanded without the game deciding: extract
+  // the controller from the (padded) product exactly as the off path does.
+  BenchTimer t(Stage::game_solving);
+  std::optional<Controller> controller = solve_mtdfa(build.product, vars);
+  if (controller)
+    record_size_metric(SizeMetric::controller_states,
+                       controller->strategy->num_states());
+  return controller;
+}
+
 
 std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
                                                        const VariablePartition& vars,
                                                        const Transducer& t_in,
                                                        const Transducer& t_out) {
-  if (otf_solve_)
-    throw std::logic_error(
-        "OtfMtdfaProduct: otf_solve not implemented until Phase 2");
-
   const std::vector<const Transducer*> taus{&t_in, &t_out};
   validate_product_inputs(phi, vars, taus);  // product.hpp preamble
   const spot::bdd_dict_ptr dict = t_in.dict();
   require_turn_order_aps(vars, dict);  // BEFORE any automaton is built
+
+  if (otf_solve_) {
+    std::size_t expanded = 0;
+    auto controller = otf_solve_fused(phi, taus, vars, dict, &expanded);
+    record_size_metric("states_expanded", expanded);
+    return controller;
+  }
 
   spot::mtdfa_ptr product;
   {
     BenchTimer t(Stage::product_construction);
     product = otf_product_to_mtdfa(phi, taus, vars, dict);
   }
+  record_size_metric("states_expanded", product->num_roots());
   // Charge table: OtfMtdfaProduct builds no Goal automaton --- no goal_*
   // metric at all (B2, "Edge cases"). product_mtdfa_roots (the symbolic axis,
   // NOT the explicit product_states) / product_bdd_nodes on the explored

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <vector>
 
@@ -54,6 +55,19 @@ spot::mtdfa_ptr otf_product_to_mtdfa(const spot::formula& phi,
                                      const VariablePartition& vars,
                                      const spot::bdd_dict_ptr& dict);
 
+// Construction and game solving fused: the BFS above feeds a
+// spot::backprop_graph as each row is expanded and stops as soon as the
+// initial state is decided.  nullopt = unrealizable.  When it stops early the
+// discovered but unexpanded states are padded with bddfalse (losing) before
+// the controller is extracted, which never changes a realizable verdict.
+// `states_expanded`, if non-null, receives the number of states whose row was
+// expanded.  Same preconditions as otf_product_to_mtdfa, and it requires the
+// Turn order.
+std::optional<Controller> otf_solve_fused(
+    const spot::formula& phi, const std::vector<const Transducer*>& taus,
+    const VariablePartition& vars, const spot::bdd_dict_ptr& dict,
+    std::size_t* states_expanded = nullptr);
+
 // Method 3.1 (main.tex §otfdfa) in the mtdfa Representation
 // (docs/GLOSSARY.md "The five methods", "Representation") --- a method, not
 // a representation variant of an existing one: the five-methods table's THIRD
@@ -63,15 +77,11 @@ spot::mtdfa_ptr otf_product_to_mtdfa(const spot::formula& phi,
 // which makes this the only implementation of Method 3.1 today.
 class OtfMtdfaProduct final : public Synthesis {
  public:
-  // otf_solve (Phase 2, docs/prd/otf-mtdfa-product.md): fuse game solving
-  // into the construction and abort as soon as the initial state is
+  // otf_solve (docs/prd/otf-mtdfa-product.md Phase 2): solve the game on the
+  // fly (otf_solve_fused) and abort as soon as the initial state is
   // determined.  Default OFF --- the proven build-then-solve path stays the
   // default until the benchmark says otherwise, the same discipline
   // MtdfaProduct's `minimize_mtdfa` knob follows.
-  //
-  // Phase 1: setting this true is NOT a silent fallback to build-then-solve
-  // --- synthesize() throws std::logic_error, so a caller can never
-  // mistake an unimplemented fast path for the slow path having run.
   explicit OtfMtdfaProduct(bool otf_solve = false) : otf_solve_(otf_solve) {}
 
   std::optional<Controller> synthesize(const spot::formula& phi,
