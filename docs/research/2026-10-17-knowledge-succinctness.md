@@ -7,7 +7,7 @@ Hand-written formulas in §3 were checked by brute force (script not kept) again
 ## Framing that decides most of the answer
 
 ψ_in is a formula over the *whole trace*: the free inputs (`a`) **and** the known inputs the transducer emits (`k`) are both visible letters.
-The language of T_in is therefore the DFA over `(a,k)` letters, not the 2-state counter hidden behind it.
+The language of T_in (the *knowledge transducer*, i.e. an external knowledge strategy represented as a `Transducer` `t_in`, per `docs/GLOSSARY.md`) is therefore the DFA over `(a,k)` letters, not the 2-state counter hidden behind it.
 Whatever T_in's state *reveals* through `k` becomes a local check in ψ_in.
 Only state that `k` does not reveal can force ψ_in to count.
 This is why parity, delays and visible-flag counters (§3) are all cheap as formulas.
@@ -131,14 +131,13 @@ Question 4 is therefore **no, as far as the documentation shows**.
 | kill rule | status |
 |---|---|
 | Blowup is known **and** already exploited for synthesis | **Not fired.** The DFA → regex blowup is known (§1); no exploitation for LTLf/LDLf synthesis was found (§2), with the caveat that the search was shallow. The blowup is also not known for LDLf. |
-| No natural family shows it; only contrived alphabets | **Fires**, on the evidence in hand. Natural families (parity, mod-N counter, delay, window) have O(N) or O(1) formulas; the known witnesses are dense-graph constructions (§1). The alphabet itself is not the issue, the family is. |
-| LDLf ψ_in for both parity and counter stays polynomial | **Fires.** Parity: O(1). Counter: O(N). Both checked on small N (§3). |
+| No natural family shows it; only contrived alphabets | **Undecided.** The families whose state `k` exposes (parity, mod-N counter, delay, window) have O(N) or O(1) formulas, and the known witnesses are dense-graph constructions (§1). The ticket's fourth candidate, a tracker of hidden state, is the hidden-top-bit counter (§3), for which I have neither a source nor an argument, so "no natural family shows it" is not established. |
+| LDLf ψ_in for both parity and counter stays polynomial | **Fires, for the visible-flag variants only.** Parity: O(1). Counter: O(N). Both checked on small N (§3). Both families reveal their state through `k` (§3 says that is why they are cheap); whether a parity or counter family with its state hidden behind `k` stays polynomial is open. |
 | Q4 yes | **Not fired.** LydiaSyft documents no automaton-valued assumption (§4). |
 
-Two of four fire, so the recommendation is **thesis-only**: no natural family beats folding the knowledge into the goal on formula size, which agrees with the sweep (nk-product ratio ≈ 1, `docs/runs/2026-10-16-four-family-sweep.md`).
+One of four fires outright (rule 3, for the visible-flag families), rule 2 is undecided, and rules 1 and 4 do not fire. The **thesis-only** recommendation therefore rests on rule 3 alone, and is weaker than a two-rule verdict would be: no family with a visible state beats folding the knowledge into the goal formula φ on formula size, which agrees with the sweep (nk-product ratio ≈ 1, `docs/runs/2026-10-16-four-family-sweep.md`).
 
-**If the advisor wants tier 2 anyway** (LydiaSyft smoke test on the parity family), measure what formula size cannot show:
+**If the advisor wants tier 2 anyway**, the ticket's instance is a LydiaSyft smoke test on the parity family. Run it as specified; I also recommend, for the advisor to decide, a second instance on the hidden-top-bit counter. Parity itself cannot show a win: ψ_in is O(1) there, so folding it in is free. The hidden-top-bit counter is the only open family. Measure what formula size cannot show:
 
-- parity itself is the wrong instance: ψ_in is O(1) there, so folding it in is free. Use the hidden-top-bit counter, the only open family;
-- compare DFA states and wall time of `ψ_in → φ` (determinization of the folded goal) against the goal DFA crossed with T_in, per N. A transducer win, if any, is in construction cost, not in |ψ_in|;
+- compare DFA states and wall time of `ψ_in → φ` (determinization of the folded goal formula) against the goal automaton crossed with T_in, per N. A transducer win, if any, is in construction cost, not in |ψ_in|;
 - report |ψ_in| next to |T_in| so the formula-size claim is checked in the same run.
