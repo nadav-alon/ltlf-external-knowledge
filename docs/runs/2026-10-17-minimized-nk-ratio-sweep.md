@@ -11,7 +11,7 @@ the Oct 16 report's, so the new column sits beside the same raw figures. Raw dat
 # Sweep report
 
 - build `Release`, Spot 2.15.1, commit `cc6090e`, repeat=1, timeout=20 s
-- EK subject: `otf-mtdfa-product` (wall-clock, median of the repeats); ltlfsynt on the monolithic `psi_in -> phi` encoding
+- EK subject: not run in this structural-only rerun (`otf-mtdfa-product` columns read n/a); ltlfsynt on the monolithic `psi_in -> phi` encoding
 - prune ratio: reachable product states with knowledge over without (`dfa-product` / `dfa-product-unpruned`)
 - nk-product ratio: `dfa-product` over `dfa-product-nk` (psi_in folded into the Goal; the same decision problem ltlfsynt is given)
 - minimized nk-product ratio: the nk-product ratio with both products Moore-minimized before their states are counted (`product_states_min`); the completion sink is counted on neither side (a state with no path to acceptance adds nothing)
@@ -30,7 +30,7 @@ the Oct 16 report's, so the new column sits beside the same raw figures. Raw dat
 | 5 | 0 | 0 | 1.234 | 16.449 | 8.736 | n/a | n/a | 2960.50 | n/a | n/a |
 | 6 | 0 | 0 | 1.242 | 32.473 | 16.743 | n/a | n/a | 7.93 | n/a | n/a |
 
-**No speedup over ltlfsynt: no cell finished on both sides (ltlfsynt is n/a for a family without a declared psi_in).**
+**No speedup over ltlfsynt: no cell finished on both sides (the EK subject has no finished cell, or ltlfsynt has no value: it is n/a for a family without a declared psi_in).**
 
 ## cons-prunes
 
@@ -42,7 +42,7 @@ the Oct 16 report's, so the new column sits beside the same raw figures. Raw dat
 | 5 | 0 | 0 | 0.214 | 1.000 | 0.938 | n/a | n/a | 5.65 | n/a | n/a |
 | 6 | 0 | 0 | 0.127 | 1.000 | 0.944 | n/a | n/a | 6.93 | n/a | n/a |
 
-**No speedup over ltlfsynt: no cell finished on both sides (ltlfsynt is n/a for a family without a declared psi_in).**
+**No speedup over ltlfsynt: no cell finished on both sides (the EK subject has no finished cell, or ltlfsynt has no value: it is n/a for a family without a declared psi_in).**
 
 ## knowledge-chain
 
@@ -54,7 +54,7 @@ the Oct 16 report's, so the new column sits beside the same raw figures. Raw dat
 | 5 | 0 | 0 | 0.356 | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 | 6 | 0 | 0 | 0.223 | n/a | n/a | n/a | n/a | n/a | n/a | n/a |
 
-**No speedup over ltlfsynt: no cell finished on both sides (ltlfsynt is n/a for a family without a declared psi_in).**
+**No speedup over ltlfsynt: no cell finished on both sides (the EK subject has no finished cell, or ltlfsynt has no value: it is n/a for a family without a declared psi_in).**
 
 ## slippery
 
@@ -66,5 +66,5 @@ the Oct 16 report's, so the new column sits beside the same raw figures. Raw dat
 | 5 | 0 | 0 | 1024.000 | 1.998 | 1.998 | n/a | n/a | 21.90 | n/a | n/a |
 | 6 | 0 | 0 | 4096.000 | 2.000 | 2.000 | n/a | n/a | 71.67 | n/a | n/a |
 
-**No speedup over ltlfsynt: no cell finished on both sides (ltlfsynt is n/a for a family without a declared psi_in).**
+**No speedup over ltlfsynt: no cell finished on both sides (the EK subject has no finished cell, or ltlfsynt has no value: it is n/a for a family without a declared psi_in).**
 
