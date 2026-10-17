@@ -120,12 +120,12 @@ LydiaSyft (<https://github.com/whitemech/LydiaSyft>, README **[fetched]**):
 
 - `-f` takes the goal as an LTLf formula in TLSF.
 - Environment assumptions come as `-a` (fairness/stability assumption file), `-g` (GR(1) conditions) and `-e` (an LTLf safety specification), selected by the subcommands `fairness`, `stability`, `gr1`.
-- The README mentions **no LDLf input and no direct automaton input**. Not seen, therefore not claimed absent: the source was not read, and the TLSF/`-e` files could embed forms the README does not describe.
+- The README mentions **no LDLf input and no direct automaton input**. The CLI definition (`src/Main.cpp`, `src/cli/base.cpp`, shallow clone **[fetched]**) agrees: subcommands `synthesis`, `maxset`, `fairness`, `stability`, `gr1`, and every file option (`-f`, `-a`, `-g`, `-e`) is a TLSF/formula or GR(1) file, with `-s`/`-S` for the syfco and Slugs paths. I did not read the parsers behind them, so the files could embed forms the options do not describe.
 
-Other tools: Spot's `ltlfsynt` 2.15.1 (the tool this repo wraps): its `--help` lists formula (`-f`, `-F`, `--lbt-input`) and TLSF (`--tlsf`) inputs only, with no option for an environment assumption, let alone an automaton **[fetched]**. No tool with a documented "assumption given as a DFA/transducer" option was found. The Lisa and Zenodo hits in the search (<https://github.com/liyong31/lisa>) were not opened.
+Other tools: Spot's `ltlfsynt` 2.15.1 (the tool this repo wraps): its `--help` lists formula (`-f`, `-F`, `--lbt-input`) and TLSF (`--tlsf`) inputs only, with no option for an environment assumption, let alone an automaton **[fetched]**. No tool with a documented "assumption given as a DFA/transducer" option was found. Lisa-Syntcomp (<https://github.com/liyong31/lisa>, `readme.txt` **[fetched]**) is an LTLf realizability checker with TLSF input; its README documents no assumption input at all, and its source was not read. The Zenodo hits were not opened.
 Unchecked lead: LTLf/LDLf FOND planning (De Giacomo and Rubin, IJCAI 2018, **[memory]**) gives the environment as a nondeterministic domain, a transition system close to an automaton-valued assumption. I did not check whether any such tool accepts it as an environment assumption for synthesis; if it does, Q4 could flip.
 
-Question 4 is therefore **no, as far as the documentation I read shows**; the "any other synthesizer" half (Lisa, FOND tools, LydiaSyft's source) is not covered.
+Question 4 is therefore **no, as far as the documentation I read shows**; the "any other synthesizer" half is only partly covered (FOND tools and the Lisa and LydiaSyft parsers are not read).
 
 ## Verdict
 
