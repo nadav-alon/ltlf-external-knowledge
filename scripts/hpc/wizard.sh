@@ -188,7 +188,13 @@ finish() {
 
 TOTAL_STAGES=5
 ENV_FILE="build/hpc-sweep-wizard.env"
+export ENV_FILE
 mkdir -p build
+# Each stage's work is scripts/hpc/ek-hpc.sh's subcommand of the same name; this
+# wizard only frames it, asks for the values and confirms before acting.
+EK=scripts/hpc/ek-hpc.sh
+# keep KEY re-records KEY from ENV_FILE (written by ek-hpc.sh) for the closing summary.
+keep() { local v; v=$(_existing "$1") && write_env "$1" "$v"; }
 
 banner "HPC sweep: image, submit, collect"
 
@@ -202,22 +208,12 @@ write_env EK_SSH_TARGET "$EK_SSH_TARGET"
 ask EK_REPO_URL "Repo URL the cluster can clone [https://github.com/nadav-alon/ltlf-external-knowledge.git]:"
 EK_REPO_URL="${EK_REPO_URL:-https://github.com/nadav-alon/ltlf-external-knowledge.git}"
 write_env EK_REPO_URL "$EK_REPO_URL"
-git fetch -q origin 2>/dev/null || true
-git status --short | grep -v '^??' && warn "tracked changes are uncommitted; the image records only HEAD's commit" || true
 commit="$(git rev-parse HEAD)"
-git branch -r --contains "$commit" | grep -q . || { warn "$commit is not on any remote branch; push it first"; exit 1; }
 warn "the cluster clones $commit from $EK_REPO_URL, so it must be pushed there"
 BUILD_LOG="ltlf-ek-build.log"
 if confirm "Build $commit on $EK_SSH_TARGET now? (about 20 min)"; then
-  ssh "$EK_SSH_TARGET" true || { warn "cannot ssh to $EK_SSH_TARGET (host, VPN or key); nothing was built"; exit 1; }
-  ssh "$EK_SSH_TARGET" git ls-remote "$EK_REPO_URL" HEAD > /dev/null ||
-    { warn "the login node cannot read $EK_REPO_URL (no network to GitHub, or a private repo); give a URL it can clone, e.g. an ssh one with a deploy key"; exit 1; }
-  if ssh "$EK_SSH_TARGET" "EK_BUILD_LOG=\$HOME/$BUILD_LOG" bash -s -- "$EK_REPO_URL" "$commit" < scripts/hpc/build-image.sh; then
-    write_env EK_IMAGE_SHA "$commit"
-  else
-    warn "the build failed; the log is ~/$BUILD_LOG on the cluster: ssh $EK_SSH_TARGET tail -50 $BUILD_LOG (a missing or old log means it failed before the build started)"
-    exit 1
-  fi
+  "$EK" build "$commit" || exit 1
+  keep EK_IMAGE_SHA
 else
   say "skipped; do it by hand: ssh $EK_SSH_TARGET bash -s -- $EK_REPO_URL $commit < scripts/hpc/build-image.sh"
 fi
@@ -231,7 +227,7 @@ else
   say "Copies scripts/hpc/sweep.sbatch to ~/ on $EK_SSH_TARGET."
 fi
 if confirm "scp now?"; then
-  scp scripts/hpc/sweep.sbatch "$EK_SSH_TARGET:"
+  "$EK" sync || exit 1
 else
   say "skipped; do it by hand: scp scripts/hpc/sweep.sbatch $EK_SSH_TARGET:"
 fi
@@ -241,32 +237,26 @@ say "One task per family group, all pinned to one node so the parts merge."
 step "Pick an idle gold6130 node (the class sweep.sbatch constrains to): ssh $EK_SSH_TARGET \"sinfo -N -t idle -o '%N %c %m %f'\" | grep gold6130"
 ask EK_NODE "Node name (e.g. cn07):"
 confirm "sbatch -w $EK_NODE on $EK_SSH_TARGET?" || exit 0
-EK_JOB=$(ssh "$EK_SSH_TARGET" "sbatch --parsable -w $EK_NODE sweep.sbatch" | cut -d';' -f1)
+"$EK" submit --node "$EK_NODE" || exit 1
+EK_JOB=$(_existing EK_JOB)
 say "submitted array job $EK_JOB"
 write_env EK_JOB "$EK_JOB"
+write_env EK_NODE "$EK_NODE"
 note "Watch it: ssh $EK_SSH_TARGET squeue --me   (the sweep is about 2.5 h)"
 
 stage "Wait, then fetch the parts"
 step "Wait until squeue shows no ek-sweep tasks, and sacct reports COMPLETED for all four."
 note "ssh $EK_SSH_TARGET sacct -j $EK_JOB --format=JobID,State,Elapsed"
 pause "All four tasks COMPLETED?"
-mkdir -p "build/hpc/$EK_JOB"
-scp "$EK_SSH_TARGET:ek-sweep/$EK_JOB/part-*.json" "build/hpc/$EK_JOB/"
-write_env EK_PARTS "build/hpc/$EK_JOB"
+"$EK" fetch || exit 1
+keep EK_PARTS
 
 stage "Merge into the committed report"
 say "merge_sweep.py refuses parts of different machines/commits; sweep_report.py renders the report."
 ask EK_DATE "Run date, YYYY-MM-DD:"
 EK_DATE="${EK_DATE:-$(date +%F)}"
-json="docs/runs/$EK_DATE-four-family-sweep.json"
-md="docs/runs/$EK_DATE-four-family-sweep.md"
-families="$(sed -n 's/^families="\(.*\)"$/\1/p' scripts/run-sweep.sh)"
-python3 scripts/merge_sweep.py --expect-families="$families" build/hpc/"$EK_JOB"/part-*.json > "$json.tmp"
-mv "$json.tmp" "$json"
-python3 scripts/sweep_report.py "$json" > "$md.tmp"
-mv "$md.tmp" "$md"
-write_env EK_REPORT "$md"
-say "wrote $json and $md"
+"$EK" merge --date "$EK_DATE" || exit 1
+keep EK_REPORT
 note "Commit both, then comment on the ticket that asked for the sweep."
 # ──────────────────────────────────────────────────────────────────────────
 
