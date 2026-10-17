@@ -109,9 +109,9 @@ def build_rows(sweep, subject=EK_SUBJECT):
             c["nk_ratio_min"].append(with_k_min[key] / nk_k_min[key])
         ek = wall.get(key + (subject,))
         row = lt.get(key)
-        ek_nk = wall.get(key + (OTF_NK,))
-        if ek and ek_nk:
-            c["inproc_speedup"].append(ek_nk[1] / ek[1])
+        otf_nk = wall.get(key + (OTF_NK,))
+        if ek and otf_nk:
+            c["inproc_speedup"].append(otf_nk[1] / ek[1])
         if key in roots and roots_nk.get(key):
             c["roots_ratio"].append(roots[key] / roots_nk[key])
         if ek:
