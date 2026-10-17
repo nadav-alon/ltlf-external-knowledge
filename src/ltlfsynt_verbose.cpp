@@ -8,7 +8,8 @@
 namespace ltlf_ek {
 
 LtlfsyntVerbose parse_ltlfsynt_verbose(std::string_view stderr_text) {
-  static const std::regex stage_line(R"(\btook (\S+) seconds\s*$)");
+  static const std::regex stage_marker(R"( took )");
+  static const std::regex stage_line(R"( took (\S+) seconds\s*$)");
   static const std::regex roots_line(R"(translation to MTDFA \((\d+) roots,)");
 
   LtlfsyntVerbose out;
@@ -24,7 +25,13 @@ LtlfsyntVerbose parse_ltlfsynt_verbose(std::string_view stderr_text) {
     pos = eol + 1;
 
     std::smatch m;
-    if (std::regex_search(line, m, stage_line)) {
+    if (std::regex_search(line, stage_marker)) {
+      // A line cut after "took", or missing its unit, is a stage line whose
+      // time is unknown: it spoils the sum rather than being skipped.
+      if (!std::regex_search(line, m, stage_line)) {
+        malformed = true;
+        continue;
+      }
       const std::string num = m[1];
       char* end = nullptr;
       const double s = std::strtod(num.c_str(), &end);

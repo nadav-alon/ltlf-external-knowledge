@@ -1,0 +1,9 @@
+using Mealy semantics
+the following signals can be temporarily removed:
+  a := 1
+  b := 1
+new formula: 1
+starting on-the-fly translation with node-based backpropagation, with BFS order, with one-step preprocess
+translation to MTDFA (1 roots, 0 APs) took 0.00354782 seconds
+MTDFA game was solved during translation
+REALIZABLE
