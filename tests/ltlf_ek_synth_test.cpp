@@ -155,6 +155,20 @@ TEST(LtlfEkSynth, EveryWiredMonaFreeMethodFlagIsAcceptedEndToEnd) {
     ExpectMethodFlagReachesItsMethod(flag);
 }
 
+// --otf-solve reaches OtfMtdfaProduct and keeps both verdicts.
+TEST(LtlfEkSynth, OtfSolveFlagKeepsTheVerdictsOfOtfMtdfaProduct) {
+  const CliResult yes = RunCli({"--otf-mtdfa-product", "--otf-solve",
+                                "--formula=G(i -> o)", "--inputs", "i",
+                                "--outputs", "o", "--realizable"});
+  EXPECT_EQ(yes.exit_code, 0) << yes.stderr_text;
+  EXPECT_EQ(yes.stdout_text, "REALIZABLE\n");
+  const CliResult no = RunCli({"--otf-mtdfa-product", "--otf-solve",
+                               "--formula=X[!] i", "--inputs", "i",
+                               "--outputs", "o", "--realizable"});
+  EXPECT_EQ(no.exit_code, 20) << no.stderr_text;
+  EXPECT_EQ(no.stdout_text, "UNREALIZABLE\n");
+}
+
 TEST(LtlfEkSynth, EveryWiredNfaRouteMethodFlagIsAcceptedEndToEnd) {
 #ifndef MONA_FOUND
   GTEST_SKIP() << "mona not found (CMake find_program(mona)); the NFA-route "

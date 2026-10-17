@@ -65,7 +65,10 @@ void print_partition_file(std::ostream& out, const VariablePartition& p);
 // `minimize_mtdfa` (Phase 2, docs/prd/mtdfa-product.md "Benchmarking") is the
 // MtdfaProduct-only knob wired from the CLI's `--minimize-mtdfa` flag; it is
 // forwarded to MtdfaProduct's constructor and ignored by every other method.
+// `otf_solve` (docs/prd/otf-mtdfa-product.md Phase 2) is the CLI's
+// `--otf-solve`, likewise OtfMtdfaProduct-only.
 std::unique_ptr<Synthesis> make_synthesis_method(
-    const std::string& method_flag, bool minimize_mtdfa = false);
+    const std::string& method_flag, bool minimize_mtdfa = false,
+    bool otf_solve = false);
 
 }  // namespace ltlf_ek

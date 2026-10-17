@@ -741,6 +741,22 @@ TEST(OtfMtdfaProductSynthesize, OtfSolveKnobAgreesWithBuildThenSolveAndYieldsAVe
   }
 }
 
+TEST(MakeSynthesisMethod, OtfSolveFlagBuildsAnOtfMtdfaProductWithTheKnob) {
+  OtfSolveFixture f;
+  std::unique_ptr<Synthesis> m =
+      make_synthesis_method("otf-mtdfa-product", false, /*otf_solve=*/true);
+  BenchReport report;
+  {
+    BenchScope scope;
+    ASSERT_TRUE(m->synthesize(Phi("1"), f.vars, f.t_in, f.t_out).has_value());
+    report = scope.report();
+  }
+  bool found = false;
+  for (const auto& metric : report.metrics)
+    if (metric.label == "states_expanded") found = metric.value == 1;
+  EXPECT_TRUE(found);
+}
+
 // Explicit default-false confirmation: the knob is OFF by default (PRD
 // "Interfaces & types": "Default OFF"), so a default-constructed
 // OtfMtdfaProduct must NOT throw and must behave like the plain
