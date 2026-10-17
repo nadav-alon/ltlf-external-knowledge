@@ -2,16 +2,21 @@
 # The four-family sweep as a SLURM job array, one family group per task, on CPU
 # nodes of the `work` partition:
 #
-#   sbatch -w NODE scripts/hpc/sweep.sbatch
+#   sbatch scripts/hpc/sweep.sbatch
 #
-# Pin every task to one node with -w: the parts are merged into a single report
-# and merge_sweep.py refuses parts from different machines. --constraint keeps the
-# node within the gold6130 class (a feature tag, not proof: see the lscpu in each
-# log). The cluster refuses every form of --exclusive, so each task asks for two
-# CPUs instead: the bench is single-threaded, and two CPUs are one physical core
-# with its hyperthread sibling, so no other job shares that core. Other jobs do
-# share the node, so absolute timings carry some noise; each cell's speedup is
-# timed within one task. --mem=16G is the task's reservation; the per-process
+# Submit unpinned: --constraint=gold6130 and the --exclude list below (the GPU and
+# non-gold6130 nodes, as nadav-alon/ltlf-po-benchmarks's sbatch scripts exclude
+# them) let SLURM place the tasks on different nodes, so they run side by side.
+# merge_sweep.py merges parts from different hostnames of one CPU model, and each
+# task times EK and ltlfsynt itself, so a cell's speedup never crosses nodes. The
+# constraint is a feature tag, not proof: see the lscpu in each log, and the
+# cpu_model in each part's provenance. `sbatch -w NODE` pins every task to one
+# node, where they run one after another. The cluster refuses every form of
+# --exclusive, so each task asks for two CPUs instead: the bench is
+# single-threaded, and two CPUs are one physical core with its hyperthread
+# sibling, so no other job shares that core. Other jobs do share the node, so
+# absolute timings carry some noise; each cell's speedup is timed within one
+# task. --mem=16G is the task's reservation; the per-process
 # cap (MEM_KIB, 8 GiB) sits below it.
 #
 # Same settings as scripts/run-sweep.sh (Release, repeat=5, 20 s per-case
@@ -34,6 +39,7 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
 #SBATCH --constraint=gold6130
+#SBATCH --exclude=cn[31-44],gpu[1-4],gpu[6-8]
 #SBATCH --mem=16G
 #SBATCH --time=12:00:00
 #SBATCH --output=%x-%A_%a.log
@@ -72,7 +78,7 @@ fi
 
 # The sweep is CPU-only: refuse a GPU node of the shared partition.
 if scontrol show node "${SLURMD_NODENAME:?run under sbatch}" | grep -qi 'Gres=.*gpu'; then
-  echo "sweep.sbatch: $SLURMD_NODENAME has GPUs; pass a CPU-only gold6130 node to sbatch -w" >&2
+  echo "sweep.sbatch: $SLURMD_NODENAME has GPUs; keep the --exclude list, or pass a CPU-only gold6130 node to sbatch -w" >&2
   exit 1
 fi
 mkdir -p "$out_dir"

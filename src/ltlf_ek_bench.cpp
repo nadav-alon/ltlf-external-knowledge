@@ -878,6 +878,19 @@ std::string Hostname() {
   return buf;
 }
 
+// The CPU model as lscpu's "Model name" reports it, else the first "model name"
+// line of /proc/cpuinfo (lscpu is not guaranteed in the container image): the
+// hardware class that decides whether timings from two hostnames are comparable.
+std::string CpuModel() {
+  std::string model = RunCaptureStdout(
+      "lscpu 2>/dev/null | sed -n 's/^Model name:[[:space:]]*//p' | head -n 1");
+  if (model.empty())
+    model = RunCaptureStdout(
+        "sed -n 's/^model name[[:space:]]*:[[:space:]]*//p' /proc/cpuinfo 2>/dev/null"
+        " | head -n 1");
+  return model.empty() ? "unknown" : model;
+}
+
 // ---------------------------------------------------------------------------
 // JSON writing --- hand-rolled, same escaping discipline as bench.cpp's
 // WriteJsonString (duplicated: that helper is anonymous-namespace-local to
@@ -958,6 +971,7 @@ int main(int argc, char** argv) {
                          " rev-parse HEAD 2>/dev/null");
     const std::string date = IsoDateNow();
     const std::string hostname = Hostname();
+    const std::string cpu_model = CpuModel();
 
     // ---- the sweep ----
     const auto sweep_start = std::chrono::steady_clock::now();
@@ -1279,6 +1293,7 @@ int main(int argc, char** argv) {
     std::ostringstream json;
     json << "{\"provenance\":{";
     json << "\"machine\":"; WriteJsonString(json, hostname);
+    json << ",\"cpu_model\":"; WriteJsonString(json, cpu_model);
     json << ",\"spot_version\":"; WriteJsonString(json, spot_version);
     json << ",\"spot_resolved_path\":"; WriteJsonString(json, spot_resolved_path);
     json << ",\"repo_commit\":"; WriteJsonString(json, repo_commit);
