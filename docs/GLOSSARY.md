@@ -1322,6 +1322,9 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
 - **C++:** computed by `scripts/sweep_report.py`, not stored.
 - **Do not call it:** prune ratio, the `-nk` ratio.
 
+The report prints beside it the same ratio over [minimized product
+states](#minimized-product-states), the *minimized nk-product ratio*.
+
 ### Minimized product states
 - **`main.tex`:** none (implementation-only: a benchmark report quantity).
 - **Definition:** the number of language-equivalence classes of an explicit
