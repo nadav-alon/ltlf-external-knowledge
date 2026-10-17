@@ -756,6 +756,13 @@ the existing term or update this file via `/glossary` — do not let drift happe
   it has no `ProductState`/`ProductGuards`/`materialize_product`, and like the
   Method-1 mtdfa build it needs **no** final terminal-remap pass (the destination
   index is known when the terminal is emitted).
+  **`otf_solve_fused`** (`--otf-solve`, `OtfMtdfaProduct(otf_solve=true)`) is the same
+  BFS with game solving fused in: each expanded row feeds a `spot::backprop_graph`
+  (one vertex per root, one per internal MTBDD node owned by the controllability
+  of its variable) and the build stops as soon as the initial state is decided.
+  Unrealizable ⇒ `nullopt`; realizable ⇒ the discovered but unexpanded states are
+  padded with `bddfalse` and `solve_mtdfa` extracts the controller. main.tex: none
+  (implementation-only).
 - **Do not call it:** composition, join, cross; for the symbolic pieces, not
   `symbolic_product`/`product_symbolic` (build), `GuardMap`/`product_map`
   (`ProductGuards`), `materialize`/`to_twa` (bare, for `materialize_product`);
