@@ -55,9 +55,15 @@ spot::mtdfa_ptr otf_product_to_mtdfa(const spot::formula& phi,
                                      const VariablePartition& vars,
                                      const spot::bdd_dict_ptr& dict);
 
+// Free-form size metric label (docs/GLOSSARY.md) for the number of states whose
+// row was expanded; recorded by OtfMtdfaProduct::synthesize on both paths so
+// they are comparable.
+inline constexpr const char* kStatesExpandedMetric = "states_expanded";
+
 // Construction and game solving fused: the BFS above feeds a
 // spot::backprop_graph as each row is expanded and stops as soon as the
-// initial state is decided.  nullopt = unrealizable.  When it stops early the
+// initial state is decided, or every state is expanded without it being
+// decided (a loss).  nullopt = unrealizable.  When it stops early the
 // discovered but unexpanded states are padded with bddfalse (losing) before
 // the controller is extracted, which never changes a realizable verdict.
 // `states_expanded`, if non-null, receives the number of states whose row was

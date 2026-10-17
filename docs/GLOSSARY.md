@@ -760,9 +760,12 @@ the existing term or update this file via `/glossary` — do not let drift happe
   BFS with game solving fused in: each expanded row feeds a `spot::backprop_graph`
   (one vertex per root, one per internal MTBDD node owned by the controllability
   of its variable) and the build stops as soon as the initial state is decided.
-  Unrealizable ⇒ `nullopt`; realizable ⇒ the discovered but unexpanded states are
+  Unrealizable ⇒ `nullopt` (also when every state is expanded and the initial
+  state is still undecided: a loss through a cycle); realizable ⇒ the discovered but unexpanded states are
   padded with `bddfalse` and `solve_mtdfa` extracts the controller. main.tex: none
-  (implementation-only).
+  (implementation-only). Both paths of `OtfMtdfaProduct::synthesize` record the
+  free-form metric `kStatesExpandedMetric` (`"states_expanded"`, the number of
+  states whose row was expanded), and `product_mtdfa_roots` is that same count.
 - **Do not call it:** composition, join, cross; for the symbolic pieces, not
   `symbolic_product`/`product_symbolic` (build), `GuardMap`/`product_map`
   (`ProductGuards`), `materialize`/`to_twa` (bare, for `materialize_product`);
@@ -859,14 +862,12 @@ the existing term or update this file via `/glossary` — do not let drift happe
     variable order alone, and a violation returns a wrong verdict rather than
     failing.
 
-  Both **solve a product that already exists**. Method 3.1 Phase 2
-  (`docs/prd/otf-mtdfa-product.md`) anticipates a **third** shape — solving *fused
-  into* the construction, feeding `spot::backprop_graph` as rows are discovered and
-  aborting once the initial state is determined, which is what `main.tex:351`'s
-  `\na` calls the missing *"hanging fruit optimization"*. Its C++ name is
-  **not canonical yet** (the PRD's `otf_solve_fused` is explicitly tentative and
-  its design is deferred to that phase's own grill) — recorded here only so no
-  competing name is invented in the meantime.
+  Both **solve a product that already exists**. A **third** shape, built for
+  Method 3.1 (`docs/prd/otf-mtdfa-product.md`), fuses solving *into* the
+  construction: `otf_solve_fused` feeds `spot::backprop_graph` as rows are
+  discovered and aborts once the initial state is determined, which is what
+  `main.tex:351`'s `\na` calls the missing *"hanging fruit optimization"*.
+  See **`otf_solve_fused`** under Method 3.1.
 
   They differ in **where the governed variables are projected**, and that is the
   interesting part: `solve_dfa` projects **arena-side** (`bdd_exist` per edge
@@ -1615,19 +1616,17 @@ is seeded with them:
   the pseudocode itself is untouched, so **Method 3.2 must fix this before it can
   be built** — it is the first method that cannot dodge it.
 - **On-the-fly game solving** — Method 3 builds the product on the fly but still
-  solves at the end; the hanging-fruit on-the-fly *solving* is not done. The same
+  solves at the end unless `otf_solve` is set. The same
   `\na` continues (`main.tex:350`): *"This likely requires adjusting the definitions
   for MTDFA usage"* — i.e. the author anticipates a *Representation* change for
   Method 3. **Updated 2026-07-28** (the old "only Method 2 has one today" went
   stale when `MtnfaProduct` landed): Methods 1, 2 and 3.1 all have mtdfa routes
   now, and `docs/prd/otf-mtdfa-product.md` is the Method-3 adjustment the `\na`
-  anticipated. Its **Phase 2** *would* implement on-the-fly *solving*
-  (`backprop_graph`, early abort) behind a knob, but **Phase 2 is NOT started**
-  (2026-07-29): only the construction half landed, and `OtfMtdfaProduct`'s
-  `otf_solve` knob throws `std::logic_error` rather than silently falling back.
-  So **both** halves of this `\na` stay open — the engineering half is merely
-  scoped, and the **definitional** half is untouched: `main.tex` still solves at
-  the end and still commits to no MTDFA definition. Phase 2 also has a
+  anticipated. Its on-the-fly *solving* (`backprop_graph`, early abort) is built
+  behind the `otf_solve` knob (`otf_solve_fused`).
+  The engineering half of this `\na` is thus built, but the **definitional**
+  half is untouched: `main.tex` still solves at
+  the end and still commits to no MTDFA definition. The knob also has a
   counter-argument on record now: 3.1's benchmark win is already ~5000× *and
   flat* where $\cons$ prunes, so on-the-fly solving would optimize a term that is
   no longer the bottleneck there.

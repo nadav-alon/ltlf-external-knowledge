@@ -39,15 +39,14 @@
 
 #include "support/fixtures.hpp"
 
-// Full suite for docs/prd/otf-mtdfa-product.md PHASE 1 ONLY: ForwardProgression
+// Suite for docs/prd/otf-mtdfa-product.md: ForwardProgression
 // (progression.hpp/.cpp) and otf_product_to_mtdfa / OtfMtdfaProduct
 // (otf_mtdfa_product.hpp/.cpp).  SEQUENTIAL workflow: both landed already
 // (uncommitted on master), so this file compiles and runs against the real
 // code today, unlike the concurrent-workflow test files elsewhere in this
 // project.
 //
-// Phase 2 (otf_solve_fused, --otf-solve) is covered by the OtfSolveFused
-// tests below; its corpus differential is in tests/ltlfsynt_oracle_test.cpp.
+// See the OtfSolveFused tests below for otf_solve_fused / --otf-solve.
 //
 // The cross-method-vs-{MtdfaProduct,DfaProduct,NfaProduct} generated-corpus
 // oracle, the synthesize->verify_controller metamorphic round-trip, and the
@@ -682,6 +681,30 @@ TEST(OtfSolveFused, InitialRowBddfalseDecidesVertexZeroAndStopsAfterOneState) {
   EXPECT_EQ(expanded, 1u);
 }
 
+// Root 0's own row decides it while a successor is already discovered: o | X i
+// is won by o at once, and the not-o branch leads to a state interned but
+// never expanded.
+TEST(OtfSolveFused, InitialRowDecidesVertexZeroWithADiscoveredSuccessor) {
+  OtfSolveFixture f;
+  const spot::formula phi = Phi("o | X i");
+  std::size_t expanded = 0;
+  const auto controller = otf_solve_fused(phi, f.taus(), f.vars, f.dict, &expanded);
+  ASSERT_TRUE(controller.has_value());
+  EXPECT_EQ(expanded, 1u);
+  EXPECT_GT(otf_product_to_mtdfa(phi, f.taus(), f.vars, f.dict)->num_roots(), 1u);
+}
+
+// A game that is fully built and still undecided is lost: nullopt, and every
+// state was expanded.
+TEST(OtfSolveFused, UndecidedAfterFullExpansionIsUnrealizable) {
+  OtfSolveFixture f;
+  const spot::formula phi = Phi("F(i & o)");  // lost through a cycle: env never plays i
+  std::size_t expanded = 0;
+  const auto controller = otf_solve_fused(phi, f.taus(), f.vars, f.dict, &expanded);
+  EXPECT_FALSE(controller.has_value());
+  EXPECT_EQ(expanded, otf_product_to_mtdfa(phi, f.taus(), f.vars, f.dict)->num_roots());
+}
+
 // o is a system choice, so state 0 is won by o at once; the successor state
 // discovered on the not-o branch is never expanded, only padded.
 TEST(OtfSolveFused, RealizableStopsBeforeExpandingADiscoveredSuccessor) {
@@ -753,7 +776,7 @@ TEST(MakeSynthesisMethod, OtfSolveFlagBuildsAnOtfMtdfaProductWithTheKnob) {
   }
   bool found = false;
   for (const auto& metric : report.metrics)
-    if (metric.label == "states_expanded") found = metric.value == 1;
+    if (metric.label == ltlf_ek::kStatesExpandedMetric) found = metric.value == 1;
   EXPECT_TRUE(found);
 }
 

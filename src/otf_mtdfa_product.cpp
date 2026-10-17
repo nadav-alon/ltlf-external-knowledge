@@ -211,7 +211,7 @@ struct ProductBuild {
 
 }  // namespace
 
-// The Phase 1 BFS; with `solve_online` it also feeds an OnlineGame row by row
+// The on-the-fly product BFS; with `solve_online` it also feeds an OnlineGame row by row
 // and stops as soon as the initial state is decided, leaving the discovered
 // but unexpanded states padded with bddfalse.
 static ProductBuild BuildProduct(const spot::formula& phi,
@@ -330,6 +330,33 @@ static ProductBuild BuildProduct(const spot::formula& phi,
   return build;
 }
 
+// Charge table: OtfMtdfaProduct builds no Goal automaton --- no goal_*
+// metric at all (B2, "Edge cases"). product_mtdfa_roots (the symbolic axis,
+// NOT the explicit product_states) / product_bdd_nodes on the product handed
+// to game solving; `roots` is the number of states whose row was expanded.
+static void record_product_metrics(const spot::mtdfa_ptr& product,
+                                   std::size_t roots) {
+  record_size_metric(SizeMetric::product_mtdfa_roots, roots);
+  // get_stats(nodes=true) is a full BDD-node traversal (linear in the
+  // largest structure in the run) --- guard it so it never runs when no
+  // BenchScope is active, matching bench.hpp's no-op contract.
+  if (bench_scope_active())
+    record_size_metric(SizeMetric::product_bdd_nodes,
+                       product->get_stats(/*nodes=*/true, /*paths=*/false).nodes);
+}
+
+// Solves `product` under the game_solving stage; controller_states is
+// absent (not zero) when unrealizable.
+static std::optional<Controller> solve_and_record(const spot::mtdfa_ptr& product,
+                                                  const VariablePartition& vars) {
+  BenchTimer t(Stage::game_solving);
+  std::optional<Controller> controller = solve_mtdfa(product, vars);
+  if (controller)
+    record_size_metric(SizeMetric::controller_states,
+                       controller->strategy->num_states());
+  return controller;
+}
+
 spot::mtdfa_ptr otf_product_to_mtdfa(const spot::formula& phi,
                                      const std::vector<const Transducer*>& taus,
                                      const VariablePartition& vars,
@@ -348,18 +375,12 @@ std::optional<Controller> otf_solve_fused(
     build = BuildProduct(phi, taus, vars, dict, /*solve_online=*/true);
   }
   if (states_expanded) *states_expanded = build.expanded;
-  record_size_metric(SizeMetric::product_mtdfa_roots, build.product->num_roots());
-  if (build.decided && !*build.decided) return std::nullopt;
-  // Realizable, or every state expanded without the game deciding: extract
-  // the controller from the (padded) product exactly as the off path does.
-  BenchTimer t(Stage::game_solving);
-  std::optional<Controller> controller = solve_mtdfa(build.product, vars);
-  if (controller)
-    record_size_metric(SizeMetric::controller_states,
-                       controller->strategy->num_states());
-  return controller;
+  // Every expanded row has been fed, so every root and node vertex is frozen:
+  // a still-undetermined initial state cannot reach `true`, which is a loss.
+  record_product_metrics(build.product, build.expanded);
+  if (!build.decided || !*build.decided) return std::nullopt;
+  return solve_and_record(build.product, vars);
 }
-
 
 std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
                                                        const VariablePartition& vars,
@@ -373,7 +394,7 @@ std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
   if (otf_solve_) {
     std::size_t expanded = 0;
     auto controller = otf_solve_fused(phi, taus, vars, dict, &expanded);
-    record_size_metric("states_expanded", expanded);
+    record_size_metric(kStatesExpandedMetric, expanded);
     return controller;
   }
 
@@ -382,29 +403,9 @@ std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
     BenchTimer t(Stage::product_construction);
     product = otf_product_to_mtdfa(phi, taus, vars, dict);
   }
-  record_size_metric("states_expanded", product->num_roots());
-  // Charge table: OtfMtdfaProduct builds no Goal automaton --- no goal_*
-  // metric at all (B2, "Edge cases"). product_mtdfa_roots (the symbolic axis,
-  // NOT the explicit product_states) / product_bdd_nodes on the explored
-  // product mtdfa handed to game solving.
-  record_size_metric(SizeMetric::product_mtdfa_roots, product->num_roots());
-  // get_stats(nodes=true) is a full BDD-node traversal (linear in the
-  // largest structure in the run) --- guard it so it never runs when no
-  // BenchScope is active, matching bench.hpp's no-op contract.
-  if (bench_scope_active())
-    record_size_metric(SizeMetric::product_bdd_nodes,
-                       product->get_stats(/*nodes=*/true, /*paths=*/false).nodes);
-
-  std::optional<Controller> controller;
-  {
-    BenchTimer t(Stage::game_solving);
-    controller = solve_mtdfa(product, vars);
-  }
-  // Charge table: controller_states, absent (not zero) when unrealizable.
-  if (controller)
-    record_size_metric(SizeMetric::controller_states,
-                       controller->strategy->num_states());
-  return controller;
+  record_size_metric(kStatesExpandedMetric, product->num_roots());
+  record_product_metrics(product, product->num_roots());
+  return solve_and_record(product, vars);
 }
 
 }  // namespace ltlf_ek
