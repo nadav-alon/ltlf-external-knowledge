@@ -1343,6 +1343,25 @@ states](#minimized-product-states), the *minimized nk-product ratio*.
 - **C++:** computed by `scripts/sweep_report.py` (`nk_ratio_min`), not stored.
 - **Do not call it:** prune ratio, minimized prune ratio.
 
+### In-process speedup
+- **`main.tex`:** none (implementation-only: a benchmark report column).
+- **Definition:** for one family at one N, the median over cells of `otf-mtdfa-product-nk`
+  wall-clock median over `otf-mtdfa-product` wall-clock median, both timed in process, so
+  no subprocess startup floor enters either side. Both run the same on-the-fly solver, the
+  `-nk` one on $\psiin \to \varphi$. A cell where the `-nk` subject timed out is left out of
+  the figure and reported as a lower bound in a note. It is n/a for a family without a
+  $\psiin$.
+- **Do not call it:** the speedup, which is over ltlfsynt and timed around a subprocess.
+
+### Explored-roots ratio
+- **`main.tex`:** none (implementation-only: a benchmark report column).
+- **Definition:** for one family at one N, the median over finished cells of
+  `product_mtdfa_roots` of `otf-mtdfa-product` over that of `otf-mtdfa-product-nk`: how much of
+  the arena the on-the-fly solver explores with the knowledge against with $\psiin$ folded
+  into the Goal. It is n/a for a family without a $\psiin$.
+- **Do not call it:** the nk-product ratio, which counts reachable `product_states` of the
+  full products, not the roots an on-the-fly solve explored.
+
 ### Minimized product states
 - **`main.tex`:** none (implementation-only: a benchmark report quantity).
 - **Definition:** the number of language-equivalence classes of an explicit
