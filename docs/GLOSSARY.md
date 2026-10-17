@@ -1362,6 +1362,39 @@ states](#minimized-product-states), the *minimized nk-product ratio*.
 - **Do not call it:** the nk-product ratio, which counts reachable `product_states` of the
   full products, not the roots an on-the-fly solve explored.
 
+### ltlfsynt internal time
+- **`main.tex`:** none (implementation-only: a benchmark quantity).
+- **Definition:** the sum of the stage times `ltlfsynt --verbose` prints on stderr (for example
+  `translation to MTDFA (1 roots, 0 APs) took 0.004 seconds`): the solver's work without process
+  startup. It is missing, never 0, when the stage lines are missing or unparseable or the run
+  timed out.
+- **C++:** `LtlfsyntVerbose::internal_ns` (`include/ltlf_ek/ltlfsynt_verbose.hpp`), read from
+  the transcript by `parse_ltlfsynt_verbose`, which returns a `LtlfsyntVerbose`.
+- **Do not call it:** ltlfsynt time, which is timed around a subprocess and includes the startup floor.
+
+### ltlfsynt explored roots
+- **`main.tex`:** none (implementation-only: a benchmark quantity).
+- **Definition:** the root count in the `translation to MTDFA (R roots, A APs)` line of
+  `ltlfsynt --verbose`: the size of what ltlfsynt explored. Missing, never 0, when the line is.
+- **C++:** `LtlfsyntVerbose::explored_roots`.
+- **Do not call it:** product states.
+
+### ltlfsynt internal speedup
+- **`main.tex`:** none (implementation-only: a benchmark report column).
+- **Definition:** for one family at one N, the median over cells of [ltlfsynt internal
+  time](#ltlfsynt-internal-time) over the EK subject's wall-clock median. A cell without an
+  internal time is left out.
+- **C++:** computed by `scripts/sweep_report.py` (`internal_speedup`), not stored.
+- **Do not call it:** the speedup, which is over ltlfsynt's wall-clock and includes its startup floor.
+
+### ltlfsynt explored-roots ratio
+- **`main.tex`:** none (implementation-only: a benchmark report column).
+- **Definition:** for one family at one N, the median over cells of `product_mtdfa_roots` of the
+  EK subject over [ltlfsynt explored roots](#ltlfsynt-explored-roots). A cell without either is
+  left out.
+- **C++:** computed by `scripts/sweep_report.py` (`lt_roots_ratio`), not stored.
+- **Do not call it:** the explored-roots ratio, which compares two EK subjects.
+
 ### Minimized product states
 - **`main.tex`:** none (implementation-only: a benchmark report quantity).
 - **Definition:** the number of language-equivalence classes of an explicit

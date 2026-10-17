@@ -50,6 +50,7 @@
 #include "ltlf_ek/bench.hpp"
 #include "ltlf_ek/bench_suite.hpp"
 #include "ltlf_ek/detail/util.hpp"
+#include "ltlf_ek/ltlfsynt_verbose.hpp"
 #include "ltlf_ek/variables.hpp"
 
 #ifndef LTLF_EK_REPO_ROOT
@@ -705,8 +706,13 @@ struct LtlfsyntRow {
   std::optional<std::uint64_t> ltlfsynt_ns;         // min over the repeats
   std::optional<std::uint64_t> ltlfsynt_median_ns;  // median over the repeats
   bool verdict_mismatch = false;
-  // Why status is "error": ltlfsynt's stderr head, else its exit code.
+  // Why status is "error": ltlfsynt's stderr without the --verbose lines, else its exit code.
   std::optional<std::string> error;
+  // From --verbose: median over the repeats of the internal time, and the
+  // explored roots of the last repeat (the count is the same on every repeat).
+  // Missing when any repeat lacks one, or a repeat timed out.
+  std::optional<std::uint64_t> ltlfsynt_internal_ns;
+  std::optional<std::uint64_t> ltlfsynt_explored_roots;
 };
 
 // Per (family, subject) running summary state, folded into a SummaryRow at
@@ -755,7 +761,7 @@ std::string ShellQuote(const std::string& s) {
 struct SubprocessResult {
   int exit_code = -1;
   std::string stdout_text;
-  std::string stderr_head;  // first bytes of stderr, for a failure's reason
+  std::string stderr_text;  // all of stderr (ltlfsynt --verbose reports there)
   bool timed_out = false;
 };
 
@@ -788,12 +794,29 @@ SubprocessResult RunSubprocessCaptured(const std::string& binary,
   std::remove(capture_path.c_str());
   {
     std::ifstream err(err_path);
-    char buf[200];
-    err.read(buf, sizeof(buf));
-    result.stderr_head.assign(buf, static_cast<std::size_t>(err.gcount()));
+    std::ostringstream es;
+    es << err.rdbuf();
+    result.stderr_text = es.str();
   }
   std::remove(err_path.c_str());
   return result;
+}
+
+// The stderr lines that are not `ltlfsynt --verbose` stage or progress chatter:
+// what ltlfsynt says when it fails, as it did before --verbose was added.
+std::string StripLtlfsyntVerboseLines(const std::string& stderr_text) {
+  static const char* const chatter[] = {
+      "using ", "formula simplified to", "the following signals",
+      "new formula:", "starting ", "translation to ", "MTDFA game "};
+  std::istringstream in(stderr_text);
+  std::string line, kept;
+  while (std::getline(in, line)) {
+    bool is_chatter = line.rfind("  ", 0) == 0 || line.find(" took ") != std::string::npos;
+    for (const char* prefix : chatter)
+      if (line.rfind(prefix, 0) == 0) is_chatter = true;
+    if (!is_chatter) kept += line + "\n";
+  }
+  return kept;
 }
 
 // Bare "ltlfsynt --version" runnability probe, same idiom as the test suite.
@@ -1162,7 +1185,9 @@ int main(int argc, char** argv) {
           }
 
           std::optional<std::uint64_t> best_ns;
-          std::vector<std::uint64_t> samples_ns;
+          std::vector<std::uint64_t> samples_ns, internal_samples_ns;
+          std::optional<std::uint64_t> explored_roots;
+          bool internal_missing = false, roots_missing = false;
           std::optional<bool> synt_realizable;
           std::string failure_reason;
           bool any_success = false, any_timeout = false;
@@ -1171,7 +1196,7 @@ int main(int argc, char** argv) {
             const SubprocessResult sr = RunSubprocessCaptured(
                 ltlfsynt_binary,
                 {"--ins=" + ins, "--outs=" + outs, "--semantics=Mealy",
-                 "--realizability", "-F", formula_path},
+                 "--realizability", "--verbose", "-F", formula_path},
                 args.timeout_seconds);
             const auto t1 = std::chrono::steady_clock::now();
             if (sr.timed_out) {
@@ -1185,8 +1210,19 @@ int main(int argc, char** argv) {
             samples_ns.push_back(ns);
             if (!best_ns || ns < *best_ns) best_ns = ns;
             synt_realizable = ParseLtlfsyntVerdict(sr);
+            const ltlf_ek::LtlfsyntVerbose verbose =
+                ltlf_ek::parse_ltlfsynt_verbose(sr.stderr_text);
+            if (verbose.internal_ns)
+              internal_samples_ns.push_back(*verbose.internal_ns);
+            else
+              internal_missing = true;
+            if (verbose.explored_roots)
+              explored_roots = verbose.explored_roots;
+            else
+              roots_missing = true;
             if (!synt_realizable) {
-              failure_reason = ltlf_ek::detail::trim(sr.stderr_head);
+              failure_reason = ltlf_ek::detail::trim(
+                  StripLtlfsyntVerboseLines(sr.stderr_text).substr(0, 200));
               if (failure_reason.empty())
                 failure_reason = "exit code " + std::to_string(sr.exit_code);
             }
@@ -1210,6 +1246,10 @@ int main(int argc, char** argv) {
             row.status = any_timeout ? "partial_timeout" : "ok";
             row.ltlfsynt_ns = best_ns;
             row.ltlfsynt_median_ns = Median(samples_ns);
+            if (!any_timeout && !internal_missing)
+              row.ltlfsynt_internal_ns = Median(internal_samples_ns);
+            if (!any_timeout && !roots_missing)
+              row.ltlfsynt_explored_roots = explored_roots;
             row.ltlfsynt_verdict = *synt_realizable ? "REALIZABLE" : "UNREALIZABLE";
             // Stop-list item 4: a verdict disagreement is an O5-class
             // theory finding, recorded prominently, never "fixed" here.
@@ -1345,6 +1385,8 @@ int main(int argc, char** argv) {
       json << ",\"ltlfsynt_verdict\":"; WriteJsonOptStr(json, r.ltlfsynt_verdict);
       json << ",\"ltlfsynt_ns\":"; WriteJsonOptU64(json, r.ltlfsynt_ns);
       json << ",\"ltlfsynt_median_ns\":"; WriteJsonOptU64(json, r.ltlfsynt_median_ns);
+      json << ",\"ltlfsynt_internal_ns\":"; WriteJsonOptU64(json, r.ltlfsynt_internal_ns);
+      json << ",\"ltlfsynt_explored_roots\":"; WriteJsonOptU64(json, r.ltlfsynt_explored_roots);
       json << ",\"verdict_mismatch\":" << (r.verdict_mismatch ? "true" : "false");
       json << ",\"error\":"; WriteJsonOptStr(json, r.error);
       json << "}";
