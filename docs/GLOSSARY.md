@@ -1325,6 +1325,16 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
 The report prints beside it the same ratio over [minimized product
 states](#minimized-product-states), the *minimized nk-product ratio*.
 
+### Minimized nk-product ratio
+- **`main.tex`:** none (implementation-only: a benchmark report column).
+- **Definition:** for one case, `product_states_min` of `dfa-product` over
+  `product_states_min` of `dfa-product-nk`: the [nk-product
+  ratio](#nk-product-ratio) with both products Moore-minimized before their
+  states are counted, the completion sink counted on neither side (see
+  [minimized product states](#minimized-product-states)).
+- **C++:** computed by `scripts/sweep_report.py` (`nk_ratio_min`), not stored.
+- **Do not call it:** prune ratio, minimized prune ratio.
+
 ### Minimized product states
 - **`main.tex`:** none (implementation-only: a benchmark report quantity).
 - **Definition:** the number of language-equivalence classes of an explicit
