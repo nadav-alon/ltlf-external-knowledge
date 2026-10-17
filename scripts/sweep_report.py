@@ -73,7 +73,7 @@ def _ratio(c, name, num, den, key):
 
 
 def build_rows(sweep, subject=EK_SUBJECT):
-    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_bounded', 'lt_errors', 'prune', 'prune_nk', 'nk_ratio_min', 'inproc_speedup', 'roots_ratio', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
+    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_bounded', 'lt_errors', 'prune', 'prune_nk', 'nk_ratio_min', 'inproc_speedup', 'roots_ratio', 'inproc_bound', 'nk_bounded', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
     'speedup_med', 'speedup_min', 'bound'}}}; a figure is None when no cell has it."""
     wall = _finished_wall(sweep["timings"])
     with_k = _metric_by_cell(sweep["structural"], EK_PRODUCT)
@@ -83,6 +83,11 @@ def build_rows(sweep, subject=EK_SUBJECT):
     nk_k_min = _metric_by_cell(sweep["structural"], EK_NK, PRODUCT_STATES_MIN)
     roots = _metric_by_cell(sweep["structural"], EK_SUBJECT, PRODUCT_MTDFA_ROOTS)
     roots_nk = _metric_by_cell(sweep["structural"], OTF_NK, PRODUCT_MTDFA_ROOTS)
+    nk_timeout = {
+        (r["family"], r["n"], r["realizable"])
+        for r in sweep["timings"]
+        if r["subject"] == OTF_NK and r["stage"] in ("TIMEOUT", "PARTIAL_TIMEOUT_wall_total")
+    }
     lt = {
         (r["family"], r["n"], r["realizable"]): r
         for r in sweep["ltlfsynt"]
@@ -117,6 +122,8 @@ def build_rows(sweep, subject=EK_SUBJECT):
         if otf and otf_nk:
             c["inproc_speedup"].append(otf_nk[1] / otf[1])
             _ratio(c, "roots_ratio", roots, roots_nk, key)
+        if otf and key in nk_timeout:
+            c["inproc_bound"].append(sweep["provenance"]["timeout_seconds"] * 1e9 / otf[1])
         if ek:
             c["ek_min"].append(ek[0])
             c["ek_med"].append(ek[1])
@@ -141,6 +148,7 @@ def build_rows(sweep, subject=EK_SUBJECT):
                | {"cells": len(by_n[n]["ek_med"]), "both": len(by_n[n]["speedup_med"]),
                   "total": len(by_n[n]["total"]), "lt_timeouts": len(by_n[n]["lt_timeout"]),
                   "lt_bounded": len(by_n[n]["bound"]),
+                  "nk_bounded": len(by_n[n]["inproc_bound"]),
                   "lt_errors": len(by_n[n]["lt_error"])}
             for n in sorted(by_n)}
         for g, by_n in cells.items()
@@ -205,6 +213,11 @@ def _headline(by_n, timeout_s):
             lines += ["", f"ltlfsynt timed out ({timeout_s} s) at N={n} in "
                           f"{r['lt_bounded']} of {r['total']} cells where EK finished: "
                           f"speedup at least {r['bound']:.2f}x (median lower bound)."]
+        if r["nk_bounded"]:
+            lines += ["", f"{OTF_NK} timed out ({timeout_s} s) at N={n} in "
+                          f"{r['nk_bounded']} of {r['total']} cells where {EK_SUBJECT} finished: "
+                          f"in-process speedup at least {r['inproc_bound']:.2f}x "
+                          "(median lower bound; the figure in the table leaves those cells out)."]
         if r["lt_errors"]:
             lines += ["", f"ltlfsynt errored at N={n} in {r['lt_errors']} of "
                           f"{r['total']} cells: those cells have no speedup."]

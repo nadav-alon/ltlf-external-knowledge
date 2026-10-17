@@ -230,6 +230,18 @@ class SweepReport(unittest.TestCase):
                 timing("f", 2, True, sr.OTF_NK, 1, 10, stage=stage)]))
             self.assertIsNone(rows["f"][2].get("inproc_speedup"), stage)
 
+    def test_a_timed_out_nk_cell_where_ek_finished_gives_a_lower_bound_note(self):
+        out = sr.render(sweep(timings=[
+            timing("f", 2, True, EK, 1, 4), timing("f", 2, True, sr.OTF_NK, 0, None, stage="TIMEOUT"),
+            timing("f", 2, False, EK, 1, 4), timing("f", 2, False, sr.OTF_NK, 1, 10)]))
+        self.assertIn("otf-mtdfa-product-nk timed out (20 s) at N=2 in 1 of 2 cells where "
+                      "otf-mtdfa-product finished: in-process speedup at least ", out)
+
+    def test_no_lower_bound_note_when_the_nk_cell_finished(self):
+        out = sr.render(sweep(timings=[
+            timing("f", 2, True, EK, 1, 4), timing("f", 2, True, sr.OTF_NK, 1, 10)]))
+        self.assertNotIn("in-process speedup at least", out)
+
     def test_a_timed_out_ek_cell_has_no_in_process_speedup(self):
         rows = sr.build_rows(sweep(timings=[
             timing("f", 2, True, EK, 1, 4, stage="TIMEOUT"),
