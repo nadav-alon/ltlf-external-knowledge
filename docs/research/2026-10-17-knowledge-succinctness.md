@@ -17,7 +17,7 @@ This is why parity, delays and visible-flag counters (§3) are all cheap as form
 **Known DFA → regular-expression lower bounds.**
 
 - Ehrenfeucht and Zeiger (1976), *Complexity measures for regular expressions*, JCSS 12(2): a family of n-state DFAs whose every regular expression has size 2^Ω(n). The witness is a dense, complete-digraph automaton over an alphabet of size n² **[memory]**.
-- Gruber and Holzer, *Finite automata, digraph connectivity, and regular expression size* (ICALP 2008) and *Tight bounds on the descriptional complexity of regular expressions* (DLT 2009): the exponential lower bound is strengthened and extended to a **binary** alphabet, which is best possible; the length of any regular expression is exponential in the star height of its language **[snippet]**: <https://www.springerprofessional.de/en/finite-automata-digraph-connectivity-and-regular-expression-size/2759840>. The exact exponent on a binary alphabet was not checked.
+- Gruber and Holzer, *Finite automata, digraph connectivity, and regular expression size* (ICALP 2008) and *Tight bounds on the descriptional complexity of regular expressions* (DLT 2009): the exponential lower bound is strengthened and extended to a **binary** alphabet, which is best possible; the length of any regular expression is at least 2^{Ω(star height)} of its language, a *lower* bound **[snippet]**: <https://www.springerprofessional.de/en/finite-automata-digraph-connectivity-and-regular-expression-size/2759840>. The binary-alphabet exponent was not checked; as recalled it is 2^{Ω(n)} for n-state DFAs over {0,1} **[memory]**.
 
 **Do they need contrived alphabets?**
 Ehrenfeucht–Zeiger does, in the sense that the witness is a dense automaton with n² letters.
@@ -28,7 +28,7 @@ The binary-alphabet result removes the alphabet objection but the witnesses stay
 **Why this does not settle LDLf.**
 LDLf is not plain regular expressions.
 It adds tests, conjunction and negation, so `⟨ρ1⟩end ∧ ⟨ρ2⟩end` is regex intersection and `¬⟨ρ⟩end` is complement (De Giacomo and Vardi, IJCAI 2013, <https://www.ijcai.org/Abstract/13/132>; LDLf satisfiability is PSPACE-complete **[snippet]**).
-Intersection and complement make expressions exponentially *more* succinct than plain regexes (Fürer 1980; Gelade and Neven 2008 **[memory]**).
+Intersection and complement make expressions more succinct than plain regexes: intersection by a double-exponential factor (Gelade and Neven 2008), complement by a non-elementary one; Fürer 1980 is about the complexity of inequivalence for extended regular expressions rather than succinctness as such **[memory, all three; re-check before quoting]**.
 I found no lower bound for DFA → LDLf, and none stating that poly-size LDLf cannot encode every family of N-state DFAs.
 So the lower bounds above are an upper limit on what a reviewer can be told, not a result about LDLf.
 
@@ -47,7 +47,7 @@ The last row is the only candidate for a positive result, and I could not decide
 
 ## 2. Prior work
 
-- LTLf synthesis under environment specifications is studied with the specification given as a **formula** (LTL or LTLf): Aminof, De Giacomo, Di Stasio, Francon, Rubin, Zhu, *LTLf Synthesis Under Environment Specifications for Reachability and Safety Properties*, <https://arxiv.org/abs/2308.15184> **[fetched search result; PDF text not extractable, so the "specified as formulas" reading rests on the abstract]**. Also Aminof, De Giacomo, Rubin, *Best-Effort Synthesis* (assumptions in LTL/LTLf) **[snippet]**.
+- LTLf synthesis under environment specifications is studied with the specification given as a **formula** (LTL or LTLf): Aminof, De Giacomo, Di Stasio, Francon, Rubin, Zhu, *LTLf Synthesis Under Environment Specifications for Reachability and Safety Properties*, <https://arxiv.org/abs/2308.15184> **[snippet]**; the PDF text could not be extracted and the abstract does not say how the specification is represented, so the "specified as formulas" reading is unverified. Also Aminof, De Giacomo, Rubin, *Best-Effort Synthesis* (assumptions in LTL/LTLf) **[snippet]**.
 - De Giacomo and Favorito, *Compositional approach to translate LTLf/LDLf into DFA* (ICAPS 2021), <https://ojs.aaai.org/index.php/ICAPS/article/view/15954>: LDLf is handled by building the DFA, so the automaton is the working object, not the input **[snippet]**.
 - Searched for: a result that exploits DFA-vs-formula succinctness of an *environment assumption* for LTLf/LDLf synthesis. **None found.** Not a proof of absence; the search was two queries plus the tool docs.
 - The reverse direction (formulas exponentially more succinct than DFAs) is the classical one and is what the synthesis literature leans on.
@@ -122,9 +122,10 @@ LydiaSyft (<https://github.com/whitemech/LydiaSyft>, README **[fetched]**):
 - Environment assumptions come as `-a` (fairness/stability assumption file), `-g` (GR(1) conditions) and `-e` (an LTLf safety specification), selected by the subcommands `fairness`, `stability`, `gr1`.
 - The README mentions **no LDLf input and no direct automaton input**. Not seen, therefore not claimed absent: the source was not read, and the TLSF/`-e` files could embed forms the README does not describe.
 
-Other tools: Spot's `ltlfsynt` (the tool this repo wraps) takes formulas; I did not verify that against its docs this session. No tool with a documented "assumption given as a DFA/transducer" option was found. The Lisa and Zenodo hits in the search (<https://github.com/liyong31/lisa>) were not opened.
+Other tools: Spot's `ltlfsynt` 2.15.1 (the tool this repo wraps): its `--help` lists formula (`-f`, `-F`, `--lbt-input`) and TLSF (`--tlsf`) inputs only, with no option for an environment assumption, let alone an automaton **[fetched]**. No tool with a documented "assumption given as a DFA/transducer" option was found. The Lisa and Zenodo hits in the search (<https://github.com/liyong31/lisa>) were not opened.
+Unchecked lead: LTLf/LDLf FOND planning (De Giacomo and Rubin, IJCAI 2018, **[memory]**) gives the environment as a nondeterministic domain, a transition system close to an automaton-valued assumption. I did not check whether any such tool accepts it as an environment assumption for synthesis; if it does, Q4 could flip.
 
-Question 4 is therefore **no, as far as the documentation shows**.
+Question 4 is therefore **no, as far as the documentation I read shows**; the "any other synthesizer" half (Lisa, FOND tools, LydiaSyft's source) is not covered.
 
 ## Verdict
 
