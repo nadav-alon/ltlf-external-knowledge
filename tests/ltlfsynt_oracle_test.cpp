@@ -51,6 +51,8 @@
 #include <spot/twa/bdddict.hh>
 #include <spot/twa/formula2bdd.hh>
 #include <spot/twa/bddprint.hh>
+#include <spot/twaalgos/backprop.hh>
+#include <spot/twaalgos/ltlf2dfa.hh>
 #include <spot/twaalgos/complete.hh>
 #include <spot/twaalgos/isdet.hh>
 #include <spot/twaalgos/powerset.hh>
@@ -3206,6 +3208,52 @@ TEST(GeneratedCorpus, MetamorphicRoundTrip) {
   RecordProperty("levels_reached", static_cast<int>(stats.levels_reached));
   RecordProperty("cases_run", static_cast<int>(stats.cases_run));
   RecordProperty("cases_skipped", static_cast<int>(stats.cases_skipped));
+}
+
+// --otf-solve over the generated corpus (docs/prd/otf-mtdfa-product.md
+// Phase 2 green checkpoint): the fused solver and build-then-solve return the
+// same verdict, expand no more states, hand back a controller the verifier
+// accepts, and agree with Spot's backprop graph over the fully built product.
+TEST(GeneratedCorpus, OtfSolveAgreesWithBuildThenSolve) {
+  const CorpusConfig base = corpus_config_from_env();
+  run_corpus(
+      base, [](const GeneratedCase& c, const CorpusConfig& cfg,
+               unsigned level, std::size_t i) {
+        std::ostringstream phi_os;
+        phi_os << c.phi;
+        SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
+                     ", partition=" + DescribeGeneratedPartition(c.partition) +
+                     ", level=" + std::to_string(level) + " " +
+                     DescribeCorpusConfig(cfg));
+        const std::vector<const Transducer*> taus{&c.t_in, &c.t_out};
+        const spot::bdd_dict_ptr dict = c.t_in.dict();
+
+        std::size_t expanded = 0;
+        const std::optional<Controller> on =
+            ltlf_ek::otf_solve_fused(c.phi, taus, c.partition, dict, &expanded);
+        OtfMtdfaProduct off_method;
+        const std::optional<Controller> off =
+            off_method.synthesize(c.phi, c.partition, c.t_in, c.t_out);
+        const spot::mtdfa_ptr full =
+            ltlf_ek::otf_product_to_mtdfa(c.phi, taus, c.partition, dict);
+
+        EXPECT_EQ(on.has_value(), off.has_value());
+        EXPECT_LE(expanded, full->num_roots());
+        if (on.has_value())
+          EXPECT_TRUE(
+              verify_controller(c.phi, c.partition, c.t_in, c.t_out, *on).ok)
+              << DumpTinForReplay(c.t_in, c.partition)
+              << DumpToutForReplay(c.t_out, c.partition);
+
+        bdd cube = bddtrue;
+        std::set<std::string> controllable = c.partition.output_free;
+        for (const std::string& n : c.partition.known()) controllable.insert(n);
+        for (const std::string& n : controllable)
+          cube &= bdd_ithvar(dict->varnum(spot::formula::ap(n)));
+        full->set_controllable_variables(cube);
+        const spot::backprop_graph g = spot::mtdfa_to_backprop(full, true);
+        EXPECT_EQ(on.has_value(), g.is_determined(0) && g.winner(0));
+      });
 }
 
 // ---------------------------------------------------------------------------

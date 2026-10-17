@@ -12,6 +12,7 @@
 #include "ltlf_ek/bench.hpp"
 #include "ltlf_ek/bench_suite.hpp"
 #include "ltlf_ek/dependent_inputs.hpp"
+#include "ltlf_ek/otf_mtdfa_product.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/variables.hpp"
 
@@ -276,6 +277,47 @@ TEST(BenchSuiteAbsentNeverZero, OtfMtdfaProductEmitsNoGoalMetricAtAllViaTheRegis
   EXPECT_TRUE(RowValue(rows, MetricKey(SizeMetric::product_bdd_nodes)));
   EXPECT_TRUE(RowValue(rows, MetricKey(SizeMetric::controller_states)))
       << "case is realizable, so controller_states must still be charged";
+}
+
+// ---------------------------------------------------------------------------
+// --otf-solve through the registry: on every sweep-family case at the small
+// sizes sweep(2, 4) (a ctest budget; larger sizes are the bench's job), and for both
+// the EK subject and its -nk baseline, the verdict (controller_states is
+// present iff realizable) is the build-then-solve subject's, and no more
+// states are expanded.  No timing is asserted.
+// ---------------------------------------------------------------------------
+
+TEST(BenchSuiteOtfSolve, VerdictAndExpandedStatesAgreeWithBuildThenSolveOnEverySweepFamily) {
+  const std::vector<std::pair<std::string, std::string>> pairs = {
+      {"otf-mtdfa-product", "otf-mtdfa-product-otfsolve"},
+      {"otf-mtdfa-product-nk", "otf-mtdfa-product-nk-otfsolve"}};
+  int compared = 0;
+  int skipped = 0;
+  for (const std::string family :
+       {"slippery-binary", "slippery-onehot", "slippery-binary-compact",
+        "knowledge-chain", "cons-prunes", "co-generated"}) {
+    for (const BenchParams& params : FamilyNamed(family).sweep(2, 4)) {
+      const BenchCase c = FamilyNamed(family).instantiate(params);
+      for (const auto& [off_name, on_name] : pairs) {
+        SCOPED_TRACE(family + " n=" + std::to_string(params.at("n")) +
+                     " realizable=" + std::to_string(params.at("realizable")) +
+                     " " + on_name);
+        const auto off = run_bench_case(c, SubjectNamed(off_name));
+        const auto on = run_bench_case(c, SubjectNamed(on_name));
+        if (RowValue(off, ltlf_ek::kStatesExpandedMetric) == std::nullopt) {  // psi_in absent
+          ++skipped;
+          continue;
+        }
+        ++compared;
+        EXPECT_EQ(RowValue(on, MetricKey(SizeMetric::controller_states)).has_value(),
+                  RowValue(off, MetricKey(SizeMetric::controller_states)).has_value());
+        ASSERT_TRUE(RowValue(on, ltlf_ek::kStatesExpandedMetric));
+        EXPECT_LE(*RowValue(on, ltlf_ek::kStatesExpandedMetric), *RowValue(off, ltlf_ek::kStatesExpandedMetric));
+      }
+    }
+  }
+  EXPECT_GT(compared, 0) << "states_expanded was never recorded: vacuous";
+  EXPECT_GT(compared, skipped);
 }
 
 TEST(BenchSuiteAbsentNeverZero, UnrealizableCaseEmitsNoControllerStatesRowViaTheRegistry) {

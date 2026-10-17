@@ -94,14 +94,14 @@ void print_partition_file(std::ostream& out, const VariablePartition& p) {
 }
 
 std::unique_ptr<Synthesis> make_synthesis_method(
-    const std::string& method_flag, bool minimize_mtdfa) {
+    const std::string& method_flag, bool minimize_mtdfa, bool otf_solve) {
   if (method_flag == "dfa-product") return std::make_unique<DfaProduct>();
   if (method_flag == "mtdfa-product")
     return std::make_unique<MtdfaProduct>(minimize_mtdfa);
   if (method_flag == "nfa-product") return std::make_unique<NfaProduct>();
   if (method_flag == "mtnfa-product") return std::make_unique<MtnfaProduct>();
   if (method_flag == "otf-mtdfa-product")
-    return std::make_unique<OtfMtdfaProduct>();
+    return std::make_unique<OtfMtdfaProduct>(otf_solve);
 
   static const std::set<std::string> kRecognisedNotWired = {
       "otf-dfa-product", "otf-agg-product", "otf-dyn-agg-product"};

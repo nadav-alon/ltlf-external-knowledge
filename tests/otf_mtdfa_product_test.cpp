@@ -21,6 +21,7 @@
 #include <spot/tl/randomltl.hh>
 #include <spot/twa/bdddict.hh>
 #include <spot/twa/twagraph.hh>
+#include <spot/twaalgos/backprop.hh>
 #include <spot/twaalgos/ltlf2dfa.hh>
 
 #include "ltlf_ek/bench.hpp"
@@ -31,21 +32,21 @@
 #include "ltlf_ek/role.hpp"
 #include "ltlf_ek/synthesis.hpp"
 #include "ltlf_ek/transducer.hpp"
+#include "ltlf_ek/solve_mtdfa.hpp"
 #include "ltlf_ek/turn_order.hpp"
+#include "ltlf_ek/verify_controller.hpp"
 #include "ltlf_ek/variables.hpp"
 
 #include "support/fixtures.hpp"
 
-// Full suite for docs/prd/otf-mtdfa-product.md PHASE 1 ONLY: ForwardProgression
+// Suite for docs/prd/otf-mtdfa-product.md: ForwardProgression
 // (progression.hpp/.cpp) and otf_product_to_mtdfa / OtfMtdfaProduct
 // (otf_mtdfa_product.hpp/.cpp).  SEQUENTIAL workflow: both landed already
 // (uncommitted on master), so this file compiles and runs against the real
 // code today, unlike the concurrent-workflow test files elsewhere in this
 // project.
 //
-// Phase 2 (otf_solve_fused, --otf-solve) does not exist and is OUT OF SCOPE
-// here; see OtfMtdfaProduct(true) below for its Phase-1 stub behaviour
-// (throws std::logic_error), which IS in scope.
+// See the OtfSolveFused tests below for otf_solve_fused / --otf-solve.
 //
 // The cross-method-vs-{MtdfaProduct,DfaProduct,NfaProduct} generated-corpus
 // oracle, the synthesize->verify_controller metamorphic round-trip, and the
@@ -61,6 +62,8 @@ using ltlf_ek::ForwardProgression;
 using ltlf_ek::make_synthesis_method;
 using ltlf_ek::OtfMtdfaProduct;
 using ltlf_ek::otf_product_to_mtdfa;
+using ltlf_ek::otf_solve_fused;
+using ltlf_ek::solve_mtdfa;
 using ltlf_ek::OutputLabeledTransducer;
 using ltlf_ek::register_turn_order_aps;
 using ltlf_ek::Role;
@@ -628,24 +631,153 @@ TEST_F(OtfProductDiamondFixture, TwoRunsOnTheSameInputsAreBddEqualStateForState)
 // SECTION D -- OtfMtdfaProduct::synthesize level.
 // ---------------------------------------------------------------------------
 
-// Phase-1 knob behaviour (PRD "Implementation phases" "Phase 1 behaviour of
-// the knob"): OtfMtdfaProduct(true) must throw std::logic_error, NEVER
-// silently fall back to build-then-solve -- a silent fallback would make
-// Phase 2's differential oracle vacuously pass. The throw fires before
-// anything is built (first line of synthesize), so even minimal/trivial
-// arguments are enough to observe it.
-TEST(OtfMtdfaProductSynthesize, OtfSolveKnobThrowsLogicErrorRatherThanSilentlyFallingBack) {
-  const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
-  const VariablePartition vars = IoFreeVars();
-  register_turn_order_aps(vars, dict);
-  const OutputLabeledTransducer t_in = trivial_transducer(vars, Role::t_in, dict);
-  const OutputLabeledTransducer t_out = trivial_transducer(vars, Role::t_out, dict);
+// --otf-solve (docs/prd/otf-mtdfa-product.md Phase 2).  Fixtures use the
+// trivial transducers over IoFreeVars (i input, o output, both free).
+struct OtfSolveFixture {
+  spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  VariablePartition vars = IoFreeVars();
+  OutputLabeledTransducer t_in;
+  OutputLabeledTransducer t_out;
+  OtfSolveFixture()
+      : t_in((register_turn_order_aps(vars, dict),
+              trivial_transducer(vars, Role::t_in, dict))),
+        t_out(trivial_transducer(vars, Role::t_out, dict)) {}
+  std::vector<const Transducer*> taus() const { return {&t_in, &t_out}; }
+};
 
-  OtfMtdfaProduct method(/*otf_solve=*/true);
-  EXPECT_THROW(method.synthesize(Phi("G(i -> o)"), vars, t_in, t_out),
-              std::logic_error)
-      << "Phase 2 (otf_solve_fused) is not implemented; the knob must throw, "
-        "never silently run build-then-solve instead";
+// The oracle: Spot's own backprop graph over the FULLY built product.
+bool BackpropVerdictOnFullProduct(const spot::formula& phi,
+                                  const OtfSolveFixture& f) {
+  const spot::mtdfa_ptr product =
+      otf_product_to_mtdfa(phi, f.taus(), f.vars, f.dict);
+  std::set<std::string> controllable = f.vars.output_free;
+  for (const std::string& n : f.vars.known()) controllable.insert(n);
+  bdd cube = bddtrue;
+  for (const std::string& n : controllable)
+    cube &= bdd_ithvar(f.dict->varnum(spot::formula::ap(n)));
+  product->set_controllable_variables(cube);
+  const spot::backprop_graph g = spot::mtdfa_to_backprop(product, true);
+  return g.is_determined(0) && g.winner(0);
+}
+
+// Initial state decided by its own row: phi=1 makes state 0's row bddtrue and
+// phi=0 makes it bddfalse, so vertex 0 is determined directly --- new_edge
+// never reports it --- and the solver must still stop after that one row.
+TEST(OtfSolveFused, InitialRowBddtrueDecidesVertexZeroAndStopsAfterOneState) {
+  OtfSolveFixture f;
+  std::size_t expanded = 0;
+  const auto controller =
+      otf_solve_fused(Phi("1"), f.taus(), f.vars, f.dict, &expanded);
+  EXPECT_TRUE(controller.has_value());
+  EXPECT_EQ(expanded, 1u);
+}
+
+TEST(OtfSolveFused, InitialRowBddfalseDecidesVertexZeroAndStopsAfterOneState) {
+  OtfSolveFixture f;
+  std::size_t expanded = 0;
+  const auto controller =
+      otf_solve_fused(Phi("0"), f.taus(), f.vars, f.dict, &expanded);
+  EXPECT_FALSE(controller.has_value());
+  EXPECT_EQ(expanded, 1u);
+}
+
+// Root 0's own row decides it while a successor is already discovered: o | X i
+// is won by o at once, and the not-o branch leads to a state interned but
+// never expanded.
+TEST(OtfSolveFused, InitialRowDecidesVertexZeroWithADiscoveredSuccessor) {
+  OtfSolveFixture f;
+  const spot::formula phi = Phi("o | X i");
+  std::size_t expanded = 0;
+  const auto controller = otf_solve_fused(phi, f.taus(), f.vars, f.dict, &expanded);
+  ASSERT_TRUE(controller.has_value());
+  EXPECT_EQ(expanded, 1u);
+  EXPECT_GT(otf_product_to_mtdfa(phi, f.taus(), f.vars, f.dict)->num_roots(), 1u);
+}
+
+// A game that is fully built and still undecided is lost: nullopt, and every
+// state was expanded.
+TEST(OtfSolveFused, UndecidedAfterFullExpansionIsUnrealizable) {
+  OtfSolveFixture f;
+  const spot::formula phi = Phi("F(i & o)");  // lost through a cycle: env never plays i
+  std::size_t expanded = 0;
+  const auto controller = otf_solve_fused(phi, f.taus(), f.vars, f.dict, &expanded);
+  EXPECT_FALSE(controller.has_value());
+  EXPECT_EQ(expanded, otf_product_to_mtdfa(phi, f.taus(), f.vars, f.dict)->num_roots());
+}
+
+// o is a system choice, so state 0 is won by o at once; the successor state
+// discovered on the not-o branch is never expanded, only padded.
+TEST(OtfSolveFused, RealizableStopsBeforeExpandingADiscoveredSuccessor) {
+  OtfSolveFixture f;
+  const spot::formula phi = Phi("o | X(i & X o)");
+  std::size_t expanded = 0;
+  const auto controller = otf_solve_fused(phi, f.taus(), f.vars, f.dict, &expanded);
+  ASSERT_TRUE(controller.has_value());
+  const spot::mtdfa_ptr full = otf_product_to_mtdfa(phi, f.taus(), f.vars, f.dict);
+  EXPECT_LT(expanded, full->num_roots());
+}
+
+// The partial-product invariant: bddfalse rows for every state from the
+// stopping point on leave a realizable verdict realizable.
+TEST(OtfSolveFused, PaddingUnexpandedStatesWithBddfalseKeepsARealizableVerdict) {
+  for (const char* text : {"o | X(i & X o)", "F o", "G(i -> o)", "o | XXi",
+                           "(i -> X o) | F(o & X o)"}) {
+    SCOPED_TRACE(text);
+    OtfSolveFixture f;
+    const spot::formula phi = Phi(text);
+    std::size_t expanded = 0;
+    const auto fused = otf_solve_fused(phi, f.taus(), f.vars, f.dict, &expanded);
+    const spot::mtdfa_ptr product = otf_product_to_mtdfa(phi, f.taus(), f.vars, f.dict);
+    ASSERT_TRUE(solve_mtdfa(product, f.vars).has_value());
+    ASSERT_TRUE(fused.has_value());
+    const spot::mtdfa_ptr padded = otf_product_to_mtdfa(phi, f.taus(), f.vars, f.dict);
+    for (std::size_t k = expanded; k < padded->states.size(); ++k)
+      padded->states[k] = bddfalse;
+    EXPECT_TRUE(solve_mtdfa(padded, f.vars).has_value());
+  }
+}
+
+TEST(OtfSolveFused, AgreesWithBackpropOverTheFullyBuiltProduct) {
+  for (const char* text :
+       {"1", "0", "o", "i", "G o", "F o", "G(i -> o)", "G(i -> X o)",
+        "o | X(i & X o)", "X i", "X o", "G(o <-> X i)", "F(i & o)",
+        "(i U o) & F !o", "G F i -> G F o"}) {
+    SCOPED_TRACE(text);
+    OtfSolveFixture f;
+    const spot::formula phi = Phi(text);
+    const bool fused = otf_solve_fused(phi, f.taus(), f.vars, f.dict).has_value();
+    EXPECT_EQ(fused, BackpropVerdictOnFullProduct(phi, f));
+  }
+}
+
+TEST(OtfMtdfaProductSynthesize, OtfSolveKnobAgreesWithBuildThenSolveAndYieldsAVerifiedController) {
+  for (const char* text : {"1", "0", "G(i -> o)", "o | X(i & X o)", "i & o"}) {
+    SCOPED_TRACE(text);
+    OtfSolveFixture f;
+    const spot::formula phi = Phi(text);
+    OtfMtdfaProduct on(/*otf_solve=*/true);
+    OtfMtdfaProduct off;
+    const auto a = on.synthesize(phi, f.vars, f.t_in, f.t_out);
+    const auto b = off.synthesize(phi, f.vars, f.t_in, f.t_out);
+    EXPECT_EQ(a.has_value(), b.has_value());
+    if (a) EXPECT_TRUE(ltlf_ek::verify_controller(phi, f.vars, f.t_in, f.t_out, *a).ok);
+  }
+}
+
+TEST(MakeSynthesisMethod, OtfSolveFlagBuildsAnOtfMtdfaProductWithTheKnob) {
+  OtfSolveFixture f;
+  std::unique_ptr<Synthesis> m =
+      make_synthesis_method("otf-mtdfa-product", false, /*otf_solve=*/true);
+  BenchReport report;
+  {
+    BenchScope scope;
+    ASSERT_TRUE(m->synthesize(Phi("1"), f.vars, f.t_in, f.t_out).has_value());
+    report = scope.report();
+  }
+  bool found = false;
+  for (const auto& metric : report.metrics)
+    if (metric.label == ltlf_ek::kStatesExpandedMetric) found = metric.value == 1;
+  EXPECT_TRUE(found);
 }
 
 // Explicit default-false confirmation: the knob is OFF by default (PRD

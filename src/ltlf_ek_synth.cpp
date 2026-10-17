@@ -87,6 +87,8 @@ struct CliArgs {
   bool minimize_mtdfa = false;  // --minimize-mtdfa (docs/prd/mtdfa-product.md
                                 // Phase 2); MtdfaProduct-only, ignored by
                                 // every other method.
+  bool otf_solve = false;       // --otf-solve (docs/prd/otf-mtdfa-product.md
+                                // Phase 2); OtfMtdfaProduct-only.
 };
 
 struct Flag {
@@ -141,6 +143,8 @@ CliArgs ParseArgs(int argc, char** argv) {
       args.benchmark_file = need_value();
     } else if (f.name == "minimize-mtdfa") {
       args.minimize_mtdfa = true;
+    } else if (f.name == "otf-solve") {
+      args.otf_solve = true;
     } else {
       throw UsageError("unrecognised flag: --" + f.name);
     }
@@ -268,11 +272,13 @@ void PrintWitness(std::ostream& os, const Witness& w,
 // method's std::logic_error so both call sites in main() can react to a null
 // return with the shared exit-1 "not yet implemented" handling.
 // `minimize_mtdfa` (docs/prd/mtdfa-product.md Phase 2) is forwarded to
-// make_synthesis_method; only MtdfaProduct reads it.
+// make_synthesis_method; only MtdfaProduct reads it.  `otf_solve` likewise
+// reaches only OtfMtdfaProduct.
 std::unique_ptr<Synthesis> BuildMethodOrNull(const std::string& flag,
-                                             bool minimize_mtdfa) {
+                                             bool minimize_mtdfa,
+                                             bool otf_solve) {
   try {
-    return ltlf_ek::make_synthesis_method(flag, minimize_mtdfa);
+    return ltlf_ek::make_synthesis_method(flag, minimize_mtdfa, otf_solve);
   } catch (const std::logic_error& e) {
     std::cerr << e.what() << "\n";
     return nullptr;
@@ -391,7 +397,7 @@ int main(int argc, char** argv) {
         // Self-check: --controller omitted, so the method must synthesize a
         // controller first.
         std::unique_ptr<Synthesis> method = BuildMethodOrNull(
-            args.method_flags.front(), args.minimize_mtdfa);
+            args.method_flags.front(), args.minimize_mtdfa, args.otf_solve);
         if (!method) return 1;
         const std::optional<Controller> result =
             method->synthesize(phi, partition, t_in, t_out);
@@ -419,7 +425,8 @@ int main(int argc, char** argv) {
     }
 
     std::unique_ptr<Synthesis> method =
-        BuildMethodOrNull(args.method_flags.front(), args.minimize_mtdfa);
+        BuildMethodOrNull(args.method_flags.front(), args.minimize_mtdfa,
+                           args.otf_solve);
     if (!method) return 1;
 
     const std::optional<Controller> result =

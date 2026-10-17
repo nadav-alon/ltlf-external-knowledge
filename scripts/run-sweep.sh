@@ -64,9 +64,10 @@ fi
 # Families of the run: the three slippery arms (one family in the report),
 # knowledge-chain, cons-prunes, co-generated.
 families="slippery-binary,slippery-onehot,slippery-binary-compact,knowledge-chain,cons-prunes,co-generated"
-# The EK champion, the explicit product with and without the knowledge (the
+# The EK champion with and without on-the-fly solving, its in-process formula
+# baseline likewise, the explicit product with and without the knowledge (the
 # prune ratio), and the folded no-knowledge product (its second baseline).
-subjects="otf-mtdfa-product,dfa-product,dfa-product-unpruned,dfa-product-nk"
+subjects="otf-mtdfa-product,otf-mtdfa-product-otfsolve,otf-mtdfa-product-nk,otf-mtdfa-product-nk-otfsolve,dfa-product,dfa-product-unpruned,dfa-product-nk"
 
 cmake_args=(-S "$repo" -B "$build_dir" -DCMAKE_BUILD_TYPE=Release)
 cmake_args+=("-DSPOT_ROOT=$spot_root")

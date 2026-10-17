@@ -1248,11 +1248,17 @@ class MtnfaProductSubject final : public BenchSubject {
 
 class OtfMtdfaProductSubject final : public BenchSubject {
  public:
-  std::string name() const override { return "otf-mtdfa-product"; }
+  OtfMtdfaProductSubject(std::string name, bool otf_solve)
+      : name_(std::move(name)), otf_solve_(otf_solve) {}
+  std::string name() const override { return name_; }
   void run(const BenchCase& c) const override {
-    OtfMtdfaProduct method;
+    OtfMtdfaProduct method(otf_solve_);
     method.synthesize(c.phi, c.vars, c.t_in, c.t_out);
   }
+
+ private:
+  std::string name_;
+  bool otf_solve_;
 };
 
 // ---------------------------------------------------------------------------
@@ -1368,13 +1374,19 @@ class MtnfaProductNkSubject final : public BenchSubject {
 
 class OtfMtdfaProductNkSubject final : public BenchSubject {
  public:
-  std::string name() const override { return "otf-mtdfa-product-nk"; }
+  OtfMtdfaProductNkSubject(std::string name, bool otf_solve)
+      : name_(std::move(name)), otf_solve_(otf_solve) {}
+  std::string name() const override { return name_; }
   void run(const BenchCase& c) const override {
     const auto nk = build_nk_case(c);
     if (!nk) return;
-    OtfMtdfaProduct method;
+    OtfMtdfaProduct method(otf_solve_);
     method.synthesize(nk->goal, nk->vars, nk->t_in, nk->t_out);
   }
+
+ private:
+  std::string name_;
+  bool otf_solve_;
 };
 
 // ---------------------------------------------------------------------------
@@ -1460,12 +1472,14 @@ const std::vector<std::unique_ptr<BenchSubject>>& bench_subjects() {
     v.push_back(std::make_unique<NfaProductSubject>());
     v.push_back(std::make_unique<MtdfaProductSubject>());
     v.push_back(std::make_unique<MtnfaProductSubject>());
-    v.push_back(std::make_unique<OtfMtdfaProductSubject>());
+    v.push_back(std::make_unique<OtfMtdfaProductSubject>("otf-mtdfa-product", false));
+    v.push_back(std::make_unique<OtfMtdfaProductSubject>("otf-mtdfa-product-otfsolve", true));
     v.push_back(std::make_unique<DfaProductNkSubject>());
     v.push_back(std::make_unique<NfaProductNkSubject>());
     v.push_back(std::make_unique<MtdfaProductNkSubject>());
     v.push_back(std::make_unique<MtnfaProductNkSubject>());
-    v.push_back(std::make_unique<OtfMtdfaProductNkSubject>());
+    v.push_back(std::make_unique<OtfMtdfaProductNkSubject>("otf-mtdfa-product-nk", false));
+    v.push_back(std::make_unique<OtfMtdfaProductNkSubject>("otf-mtdfa-product-nk-otfsolve", true));
     v.push_back(std::make_unique<DependentInputsExtractionSubject>());
     v.push_back(std::make_unique<DfaProductUnprunedSubject>());
     return v;
