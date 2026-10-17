@@ -115,4 +115,60 @@ TEST(BenchSweep, LtlfsyntFailureRecordsItsReason) {
   EXPECT_TRUE(std::regex_search(json, row));
 }
 
+// Writes a stub ltlfsynt that answers --version and otherwise runs `body`.
+std::string WriteStubLtlfsynt(const std::string& name, const std::string& body) {
+  const std::string stub =
+      std::string(LTLF_EK_REPO_ROOT) + "/build/benchout/" + name;
+  std::ofstream f(stub);
+  f << "#!/bin/sh\n[ \"$1\" = --version ] && exit 0\n" << body;
+  f.close();
+  std::system(("chmod +x '" + stub + "'").c_str());
+  return stub;
+}
+
+// The ltlfsynt rows of a sweep, as JSON text, for one stub's body.
+std::string LtlfsyntRowsWith(const std::string& tag, const std::string& body,
+                             const std::string& timeout = "20") {
+  const std::string stub = WriteStubLtlfsynt(tag + ".sh", body);
+  const std::string json = RunSweep(
+      "bench_sweep_" + tag,
+      "--families=cons-prunes --subjects=dfa-product --n-min=2 --n-max=2 "
+      "--repeat=1 --timeout=" + timeout + " --ltlfsynt=" + stub);
+  std::remove(stub.c_str());
+  const std::size_t at = json.find("\"ltlfsynt\":[");
+  return at == std::string::npos ? "" : json.substr(at);
+}
+
+TEST(BenchSweep, LtlfsyntRowRecordsInternalTimeAndExploredRootsFromVerbose) {
+  const std::string rows = LtlfsyntRowsWith(
+      "verbose_ok",
+      "echo 'translation to MTDFA (5 roots, 0 APs) took 0.25 seconds' >&2\n"
+      "echo 'simplification took 0.5 seconds' >&2\necho REALIZABLE\nexit 0\n");
+  EXPECT_NE(rows.find("\"ltlfsynt_internal_ns\":750000000,"
+                      "\"ltlfsynt_explored_roots\":5,"),
+            std::string::npos);
+}
+
+TEST(BenchSweep, LtlfsyntRowWithoutStageLinesHasNullInternalTimeNotZero) {
+  const std::string rows =
+      LtlfsyntRowsWith("verbose_absent", "echo REALIZABLE\nexit 0\n");
+  EXPECT_NE(rows.find("\"status\":\"ok\""), std::string::npos);
+  EXPECT_NE(rows.find("\"ltlfsynt_internal_ns\":null,"
+                      "\"ltlfsynt_explored_roots\":null,"),
+            std::string::npos);
+}
+
+TEST(BenchSweep, LtlfsyntTimeoutHasNullInternalTimeNotZero) {
+  const std::string rows = LtlfsyntRowsWith(
+      "verbose_timeout",
+      "echo 'translation to MTDFA (5 roots, 0 APs) took 0.25 seconds' >&2\n"
+      "sleep 30\n",
+      "1");
+  EXPECT_NE(rows.find("\"status\":\"timeout\""), std::string::npos);
+  EXPECT_NE(rows.find("\"ltlfsynt_internal_ns\":null,"
+                      "\"ltlfsynt_explored_roots\":null,"),
+            std::string::npos);
+  EXPECT_EQ(rows.find("\"ltlfsynt_internal_ns\":0"), std::string::npos);
+}
+
 }  // namespace

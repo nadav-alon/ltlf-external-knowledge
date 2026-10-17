@@ -279,5 +279,53 @@ class SweepReport(unittest.TestCase):
         self.assertIn("- explored-roots ratio:", out)
 
 
+def lt_verbose(family, n, real, internal, roots, status="ok"):
+    return lt(family, n, real, 400, 500, status) | {
+        "ltlfsynt_internal_ns": internal, "ltlfsynt_explored_roots": roots}
+
+
+class LtlfsyntVerboseColumns(unittest.TestCase):
+    def test_internal_speedup_is_the_internal_time_over_the_ek_median(self):
+        rows = sr.build_rows(sweep(
+            timings=[timing("fam", 2, True, EK, 90, 100)],
+            ltlfsynt=[lt_verbose("fam", 2, True, 300, 4)]))
+        self.assertEqual(rows["fam"][2]["internal_speedup"], 3.0)
+
+    def test_roots_ratio_is_the_ek_roots_over_the_ltlfsynt_roots(self):
+        rows = sr.build_rows(sweep(
+            timings=[timing("fam", 2, True, EK, 90, 100)],
+            structural_rows=[structural("fam", 2, True, EK, 12, sr.PRODUCT_MTDFA_ROOTS)],
+            ltlfsynt=[lt_verbose("fam", 2, True, 300, 4)]))
+        self.assertEqual(rows["fam"][2]["lt_roots_ratio"], 3.0)
+
+    def test_a_missing_internal_time_is_left_out_and_reported_never_zero(self):
+        rows = sr.build_rows(sweep(
+            timings=[timing("fam", 2, True, EK, 90, 100)],
+            ltlfsynt=[lt_verbose("fam", 2, True, None, None)]))
+        r = rows["fam"][2]
+        self.assertNotIn("internal_speedup", r)
+        self.assertNotIn("lt_roots_ratio", r)
+        self.assertEqual((r["internal_missing"], r["lt_roots_missing"]), (1, 1))
+        report = sr.render(sweep(
+            timings=[timing("fam", 2, True, EK, 90, 100)],
+            ltlfsynt=[lt_verbose("fam", 2, True, None, None)]))
+        self.assertIn("internal time is missing at N=2 in 1 of 1 cells", report)
+        self.assertIn("explored roots are missing at N=2 in 1 of 1 cells", report)
+
+    def test_a_timed_out_cell_has_no_internal_speedup(self):
+        rows = sr.build_rows(sweep(
+            timings=[timing("fam", 2, True, EK, 90, 100)],
+            ltlfsynt=[lt_verbose("fam", 2, True, None, None, status="timeout")]))
+        self.assertNotIn("internal_speedup", rows["fam"][2])
+        self.assertEqual(rows["fam"][2]["internal_missing"], 0)
+
+    def test_the_table_carries_both_columns(self):
+        report = sr.render(sweep(
+            timings=[timing("fam", 2, True, EK, 90, 100)],
+            ltlfsynt=[lt_verbose("fam", 2, True, 300, 4)]))
+        self.assertIn("ltlfsynt internal speedup | ltlfsynt explored-roots ratio", report)
+        self.assertIn("3.00x", report)
+
+
 if __name__ == "__main__":
     unittest.main()
