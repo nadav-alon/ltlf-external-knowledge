@@ -3,26 +3,7 @@
 
     python3 scripts/sweep_report.py SWEEP.json [--subject otf-mtdfa-product] > report.md
 
-Every slippery-* arm is one family. Per family and per N the report gives the
-prune ratio (reachable product states with the knowledge over without:
-dfa-product / dfa-product-unpruned; the same over dfa-product-nk is the
-nk-product ratio, the task-equivalent baseline; the minimized nk-product
-ratio is the same over product_states_min, both products Moore-minimized), the EK and ltlfsynt wall-clock,
-and the speedup over ltlfsynt. The cells column counts the cells EK finished,
-the raced column those finished on both sides. A cell is one (arm, realizable)
-pair; the figure for a family at N is the median over its cells. A cell with any timed-out or
-failed repeat, on either side, is not finished: its median would be taken over
-the survivors alone, so it is left out. The headline per family is the speedup
-at the largest N where every cell finished on both sides, else at the largest N
-where some did, with the cell count, and says why it stopped at that N (the first N that
-lost a cell to an ltlfsynt error or timeout, or to an unfinished cell).
-Where ltlfsynt timed out and EK finished, the speedup is reported as a lower
-bound; where it errored, a note names the N and the cell count.
-The in-process speedup is the median of otf-mtdfa-product-nk over that of the EK
-subject, both timed in process (no subprocess startup floor); the explored-roots
-ratio is product_mtdfa_roots of the EK subject over that of otf-mtdfa-product-nk.
-Both are n/a for a family without a psi_in.
-ltlfsynt's startup floor (~4 ms) is not subtracted.
+Column definitions and the handling of unfinished cells are in the legend the report prints.
 """
 import argparse
 import json
