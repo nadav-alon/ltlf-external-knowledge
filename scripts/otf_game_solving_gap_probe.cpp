@@ -5,9 +5,12 @@
 // Deliberately NOT a CMake target (precedent: scripts/slippery_world_cert.cpp).
 // Compile out of tree, against a Release build/libltlf_ek.a:
 //
-//   c++ -std=c++20 -O2 -I include -isystem /usr/local/include scripts/otf_game_solving_gap_probe.cpp build/libltlf_ek.a -lspot -lbddx -o build/otf-gap-probe
+//   c++ -std=c++20 -O2 -I include -isystem ~/opt/spot-2.15.1/include \
+//       scripts/otf_game_solving_gap_probe.cpp build/libltlf_ek.a \
+//       -L ~/opt/spot-2.15.1/lib -lspot -lbddx \
+//       -Wl,-rpath,$HOME/opt/spot-2.15.1/lib -o build/otf-gap-probe
 //
-//   otf-gap-probe N [REPEAT] MODE
+//   otf-gap-probe [N [REPEAT [MODE]]]
 //
 // MODE, by the question it answers:
 //   both | spot | otf   Structure: roots, BDD nodes, sharing, variable-order
@@ -25,7 +28,8 @@
 //                       the build left it.
 // Environment: MALLINFO=1 prints the heap shape just before the solve;
 // CONSOLIDATE=1 frees one 100000-byte block first, TRIM=1 runs malloc_trim(0)
-// first; both consolidate the free lists.
+// first; both consolidate the free lists.  PRINT=1 does a printf first, whose
+// allocation also consolidates them.
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -34,13 +38,13 @@
 
 #include <cstdio>
 #include <cstdlib>
-#include <iostream>
 #include <set>
+#include <string>
 #include <unordered_set>
+#include <vector>
 
 #include <bddx.h>
 #include <spot/twaalgos/ltlf2dfa.hh>
-#include <spot/twaalgos/synthesis.hh>
 
 #include "ltlf_ek/bench.hpp"
 #include "ltlf_ek/bench_suite.hpp"
@@ -49,6 +53,7 @@
 #include "ltlf_ek/otf_mtdfa_product.hpp"
 #include "ltlf_ek/product.hpp"
 #include "ltlf_ek/solve_mtdfa.hpp"
+#include "ltlf_ek/turn_order.hpp"
 
 using namespace ltlf_ek;
 using Clock = std::chrono::steady_clock;
@@ -65,8 +70,7 @@ double ms_since(Clock::time_point t0) {
   return std::chrono::duration<double, std::milli>(Clock::now() - t0).count();
 }
 
-// Distinct internal nodes reachable from all roots (shared nodes counted once),
-// and the sum over roots of each root's own tree-of-DAG size (sharing lost).
+// Adds the distinct internal nodes reachable from `b` to `seen`.
 void walk(const bdd& b, std::unordered_set<int>& seen) {
   if (b == bddtrue || b == bddfalse || bdd_is_terminal(b)) return;
   if (!seen.insert(b.id()).second) return;
@@ -74,8 +78,11 @@ void walk(const bdd& b, std::unordered_set<int>& seen) {
   walk(bdd_low(b), seen);
 }
 
-// CONSOLIDATE=1 frees one 100000-byte block, TRIM=1 runs malloc_trim(0) first; MALLINFO=1 prints the heap shape.
-void heap_note() {
+// Changes the heap before the timed solve (the variable under test), then
+// reports its shape: CONSOLIDATE=1 frees one 100000-byte block, TRIM=1 runs
+// malloc_trim(0), PRINT=1 does a printf; MALLINFO=1 prints the heap shape.
+void prepare_heap_and_report() {
+  if (std::getenv("PRINT")) std::printf("printing before the solve\n");
   if (std::getenv("CONSOLIDATE")) {
     // Freeing a chunk >= 64 KiB (FASTBIN_CONSOLIDATION_THRESHOLD) makes glibc
     // coalesce every fastbin/tcache chunk, without malloc_trim's munmap work.
@@ -119,7 +126,7 @@ void report(const char* tag, const spot::mtdfa_ptr& m, const VariablePartition& 
   // otherwise pre-warm the cache for the first solve.
   double t_first = 1e300;
   {
-    heap_note();
+    prepare_heap_and_report();
     const long f0 = minflt();
     auto t0 = Clock::now();
     auto c = solve_mtdfa(m, vars);
@@ -154,7 +161,8 @@ void report(const char* tag, const spot::mtdfa_ptr& m, const VariablePartition& 
     }
   }
   // synthesize() runs this under an active BenchScope (product_bdd_nodes)
-  // immediately before game_solving; so does the probe.
+  // immediately before game_solving; the probe runs it outside any scope, after
+  // the cold solve above.
   const auto st = m->get_stats(true, false);
   std::printf("[%s] roots=%u nodes=%u terminals=%u distinct_nodes=%zu "
               "sum_per_root_nodes=%zu sharing=%.2fx top_vars={", tag, st.states, st.nodes,
@@ -205,41 +213,47 @@ int main(int argc, char** argv) {
   const BenchFamily* fam = nullptr;
   for (const auto& f : bench_families())
     if (f->name() == "cons-inert") fam = f.get();
+  if (!fam) {
+    std::fprintf(stderr, "no bench family named cons-inert\n");
+    return 1;
+  }
   BenchCase c = fam->instantiate({{"n", n}, {"realizable", 1}});
   const auto dict = c.t_in.dict();
   const std::vector<const Transducer*> taus{&c.t_in, &c.t_out};
 
-  if (mode == "steps-otf") {
-    // OtfMtdfaProduct::synthesize's steps, by hand, no BenchScope.
-    validate_product_inputs(c.phi, c.vars, taus);
-    spot::mtdfa_ptr product = otf_product_to_mtdfa(c.phi, taus, c.vars, dict);
-    (void)product->get_stats(true, false);
-    heap_note();
-    const long f0 = minflt();
-    auto t0 = Clock::now();
-    auto ctl = solve_mtdfa(product, c.vars);
-    const double ms = ms_since(t0);
-    std::printf("[steps-otf] game_solving=%.2f ms, %ld minor page faults\n", ms, minflt() - f0);
-    return 0;
-  }
-  if (mode == "steps-spot") {
-    // MtdfaProduct::synthesize's steps, by hand, no BenchScope: `goal` stays
-    // alive to the end, the two agreement mtdfas die at the end of the
-    // product block, exactly as in src/mtdfa_product.cpp.
-    spot::mtdfa_ptr goal = spot::ltlf_to_mtdfa(c.phi, dict);
+  spot::mtdfa_ptr goal;  // stays alive to the end of main, as in synthesize
+  const auto build_spot = [&] {
+    goal = spot::ltlf_to_mtdfa(c.phi, dict);
     spot::mtdfa_ptr product;
     {
+      // The two agreement mtdfas die at the end of this block, as they do in
+      // src/mtdfa_product.cpp.
       auto in_a = spot::twadfa_to_mtdfa(emits_dfa(c.t_in, dict));
       auto out_a = spot::twadfa_to_mtdfa(emits_dfa(c.t_out, dict));
       product = spot::product(spot::product(goal, in_a), out_a);
     }
+    return product;
+  };
+  const auto build_otf = [&] { return otf_product_to_mtdfa(c.phi, taus, c.vars, dict); };
+  // The timed solve of the steps-* modes: nothing printed before the timer.
+  const auto timed_solve = [&](const char* tag, const spot::mtdfa_ptr& product) {
     (void)product->get_stats(true, false);
-    heap_note();
+    prepare_heap_and_report();
     const long f0 = minflt();
     auto t0 = Clock::now();
     auto ctl = solve_mtdfa(product, c.vars);
     const double ms = ms_since(t0);
-    std::printf("[steps-spot] game_solving=%.2f ms, %ld minor page faults\n", ms, minflt() - f0);
+    std::printf("[%s] game_solving=%.2f ms, %ld minor page faults\n", tag, ms, minflt() - f0);
+  };
+
+  if (mode == "steps-otf" || mode == "steps-spot") {
+    // synthesize's steps by hand, no BenchScope.  Both paths run the same
+    // pre-solve validation as src/mtdfa_product.cpp and
+    // src/otf_mtdfa_product.cpp.
+    validate_product_inputs(c.phi, c.vars, taus);
+    require_turn_order_aps(c.vars, dict);
+    if (mode == "steps-otf") timed_solve("steps-otf", build_otf());
+    else timed_solve("steps-spot", build_spot());
     return 0;
   }
   if (mode == "synth-spot" || mode == "synth-otf") {
@@ -251,13 +265,6 @@ int main(int argc, char** argv) {
                   std::chrono::duration<double, std::milli>(sp.duration).count());
     return 0;
   }
-  const auto build_spot = [&] {
-    auto goal = spot::ltlf_to_mtdfa(c.phi, dict);
-    auto in_a = spot::twadfa_to_mtdfa(emits_dfa(c.t_in, dict));
-    auto out_a = spot::twadfa_to_mtdfa(emits_dfa(c.t_out, dict));
-    return spot::product(spot::product(goal, in_a), out_a);
-  };
-  const auto build_otf = [&] { return otf_product_to_mtdfa(c.phi, taus, c.vars, dict); };
   if (mode == "spot-then-otf" || mode == "otf-then-spot") {
     const bool spot_first = mode == "spot-then-otf";
     {
