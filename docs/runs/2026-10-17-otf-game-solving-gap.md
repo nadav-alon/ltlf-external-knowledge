@@ -1,21 +1,25 @@
 # Why `OtfMtdfaProduct`'s `game_solving` is ~2x `MtdfaProduct`'s (2026-10-17)
 
-**Verdict: not the rows, the heap.** The two product mtdfas are structurally identical (same
-node count, no sharing difference, same variable order). `OtfMtdfaProduct` is slow in
-`solve_mtdfa` because `otf_product_to_mtdfa` returns with ~2.4 million small freed chunks sitting
-unconsolidated in glibc's free lists (the teardown of its build-local containers), and the solver's
-first allocations are carved out of that. Consolidating the free lists before the timed solve
-halves `game_solving`, but the consolidation itself costs as much as the saving, so the gap is
-*deferred* cost, not avoided cost. The fix is to stop producing that garbage.
+**Verdict: the rows are not what differs; the heap state at the start of the solve is the
+strongest candidate, not a proven mechanism.** On this family the two product mtdfas have the same
+node count, no sharing difference and the same variable order (a degenerate shape, see below).
+Consolidating glibc's free lists before the timed solve takes `OtfMtdfaProduct`'s `game_solving`
+from ~550 ms to ~280 ms, so the slowdown goes away after a heap consolidation. What is *not*
+established is why: `MtdfaProduct`'s path also starts its solve with ~2M free chunks and is fast,
+so the free-chunk count does not predict the slowdown, and the experiments do not separate
+free-list layout from the cache, TLB and page-fault side effects of a 320 ms heap walk. The
+consolidation costs as much as the saving, so the gap is *deferred* cost, not avoided cost. The
+fix below removes the small-chunk garbage `otf_product_to_mtdfa` leaves; whether that restores
+parity is a hypothesis to test, not a result.
 
 Instance: `cons-inert` (family B of `docs/prd/otf-mtdfa-product.md`, `k` in `Ofree`, trivial
-transducers), realizable. Release build, Spot 2.15.1 at `/usr/local`, commit `ab08322`, i7-13700,
+transducers), realizable. Release build, Spot 2.15.1 (installed at `/usr/local` on the measuring machine), commit `ab08322`, i7-13700,
 glibc malloc, one process per measurement unless stated.
 
 ## Reproduction
 
 ```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSPOT_ROOT=~/opt/spot-2.15.1
 cmake --build build -j --target ltlf-ek-bench
 mkdir -p build/out
 build/ltlf-ek-bench --families=cons-inert --subjects=mtdfa-product,otf-mtdfa-product \
@@ -29,9 +33,10 @@ solver returns immediately, so the gap is in the winning-strategy computation.)
 The probe, `scripts/otf_game_solving_gap_probe.cpp`, reproduces it without the sweep runner:
 
 ```sh
-c++ -std=c++20 -O2 -I include -isystem /usr/local/include \
+c++ -std=c++20 -O2 -I include -isystem ~/opt/spot-2.15.1/include \
     scripts/otf_game_solving_gap_probe.cpp build/libltlf_ek.a \
-    -lspot -lbddx -o build/otf-gap-probe
+    -L ~/opt/spot-2.15.1/lib -lspot -lbddx \
+    -Wl,-rpath,$HOME/opt/spot-2.15.1/lib -o build/otf-gap-probe
 build/otf-gap-probe 20 1 synth-spot    # real MtdfaProduct::synthesize, BenchScope span
 build/otf-gap-probe 20 1 synth-otf     # real OtfMtdfaProduct::synthesize
 ```
@@ -51,10 +56,15 @@ build/otf-gap-probe 20 1 synth-otf     # real OtfMtdfaProduct::synthesize
 | fused (`otf_product_to_mtdfa`) | 1048576 | 1048576 | 1048576 | 1.00 | 0 |
 
 Every row is one decision node on `k` (variable 0) over two terminal leaves; no node is shared
-between rows on either path, and no path descends to a variable at or above its parent's. Spot's
+between rows on either path, and no path descends to a variable at or above its parent's. That
+is true by construction in this family (and the inversion check skips edges into terminals), so
+this table only confirms the two products are equal here; it says nothing about "no sharing
+difference, same variable order" for a family with nontrivial rows, such as #25's. Spot's
 product has one extra root (the accepting sink), which the fused build collapses to `bddtrue`,
 so the fused product is if anything smaller. Row order (root-to-next-root BuDDy id stride) differs
-(`LAYOUT` was measured at n=18: 2.8e5 fused vs 2.4e5 Spot) but is not what is slow: see below.
+(`LAYOUT` was measured at n=18 only: 2.8e5 fused vs 2.4e5 Spot). Layout is not ruled out:
+every consolidated run below changes only the heap, so nothing here tests row layout separately,
+and the stride has not been measured at n=20.
 
 Inside the solve the time is all `mtdfa_winning_strategy` (`strategy_to_mealy` is ~0.02 ms).
 The solve allocates no BDD nodes (BuDDy `produced` and GC count are unchanged across it).
@@ -72,21 +82,30 @@ before the timer:
 | `steps-otf`, `TRIM=1` (`malloc_trim(0)` first) | 122 | 276.9, 281.7, 283.6 |
 | `steps-otf`, `CONSOLIDATE=1` (free one 100000-byte block first) | 122 | 254.7, 247.5, 241.7 |
 
+Not yet measured: the minor-page-fault column (the probe prints it for every `steps-*` run, but it
+was not recorded for these rows), `steps-spot` with `TRIM=1` or `CONSOLIDATE=1` (so whether Spot's
+path also pays a heap-state cost is unknown, and parity with `MtdfaProduct` may be the wrong
+target: `steps-otf` consolidated runs at 241-254 ms, below plain `steps-spot`), and a control that
+touches the same memory without consolidating (a read-only walk of the product).
+
 - Consolidating the free lists takes `steps-otf` from 2x to parity with, or better than, Spot's.
-  It is the same product; only the heap differs. The same flip happens at n=18 by merely
-  printing before the solve (a `printf` allocation triggers consolidation).
+  It is the same product; only the heap differs. The same flip was observed at n=18 by merely
+  printing before the solve (a `printf` allocation triggers consolidation); `PRINT=1` now
+  reproduces that in the probe, but it has not been re-run at n=18 since it was added.
 - Consolidation is not free: `malloc_trim(0)` took 330 ms and the 100000-byte free took 320-330
   ms at n=20. Total `build-end -> solve-end` is therefore about the same, ~600 ms either way.
   The slow solve is where the unpaid bill lands, not a solver inefficiency.
 - The 2.4M chunks come from the build's *teardown*. With a temporary `mallinfo2()` print in
-  `otf_product_to_mtdfa` (reverted, not committed): 32 763 free chunks just before `return out;`,
+  `otf_product_to_mtdfa`: 32 763 free chunks just before `return out;`,
   2 406 952 once it has returned. What is destroyed on return is `state_index` (a `std::map<Key,
   unsigned>` whose every node owns a heap `std::vector<unsigned>` for `Key::q`, so ~2 chunks per
   state), plus `pending` and the other locals. At 1M states that is the whole count.
-- `MtdfaProduct`'s path also ends with ~2M free chunks (table above), yet its solve is fast and
-  `TRIM=1` does not change it. So the count alone does not predict the slowdown; what differs is
-  the layout those chunks have (the fused build's are all freed in one teardown, in map order).
-  Why that matters to the solver is not established here.
+- `MtdfaProduct`'s path also ends with ~2M free chunks (table above), yet its solve is fast. So
+  the count alone does not predict the slowdown. One guess is that it is the layout of those
+  chunks (the fused build's are all freed in one teardown, in map order), but nothing here
+  tells the two apart: a measurement of the teardown's free order, or a probe that frees ~2.4M
+  chunks in map order before the Spot solve and checks whether it slows down, would. Why the
+  layout would matter to the solver is not established here.
 
 What was *not* measured: cache misses or TLB behaviour (`perf` is not installed here), so the
 step from "2.4M unconsolidated chunks" to "the solver's allocations are scattered" is inferred
@@ -105,12 +124,13 @@ effect:
 2. A monotonic arena under the `std::map` nodes and the `deque`: removes the other, and makes
    teardown O(1).
 
-Estimated effect, for the fused-build row of the `cons-inert` table: `game_solving` 550 -> ~250-280
-ms at n=20 (parity with `MtdfaProduct`, the consolidated rows above), with no consolidation cost
-paid because no small chunks are freed. The estimate rests on the consolidated runs and on
-the assumption that the teardown garbage is the whole cause; it is not verified: the acceptance check for the fix is `steps-otf` reporting a few
-hundred free chunks before the solve and `game_solving` within noise of `steps-spot`, with no
-`TRIM`/`CONSOLIDATE`.
+Estimated effect, for the fused-build row of the `cons-inert` table: `game_solving` 550 ->
+~250-280 ms at n=20, which is where the consolidated rows land. This is an upper bound on what the
+fix can buy, not a prediction: it assumes the teardown garbage is the whole cause, and the caveats
+above (free-chunk count not predictive, heap-walk side effects not separated) are exactly where
+that assumption is weak. The acceptance check is the end-to-end one: `steps-otf` `game_solving`
+within noise of `steps-spot`, with no `TRIM`/`CONSOLIDATE`. The free-chunk count before the
+solve is a diagnostic to report beside it, not the pass criterion.
 
 This applies unchanged to #25's on-the-fly solve: it will build the same `Key` table, so it
 should take the same layout rather than inherit the hazard. It is independent of variable order,
