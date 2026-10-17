@@ -604,6 +604,7 @@ const std::set<std::string>& CanonicalMetricNames() {
       std::string(size_metric_name(SizeMetric::goal_mtdfa_roots)),
       std::string(size_metric_name(SizeMetric::nfa_product_states)),
       std::string(size_metric_name(SizeMetric::product_states)),
+      std::string(size_metric_name(SizeMetric::product_states_min)),
       std::string(size_metric_name(SizeMetric::product_mtdfa_roots)),
       std::string(size_metric_name(SizeMetric::product_bdd_nodes)),
       std::string(size_metric_name(SizeMetric::controller_states)),

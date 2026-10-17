@@ -6,7 +6,8 @@
 Every slippery-* arm is one family. Per family and per N the report gives the
 prune ratio (reachable product states with the knowledge over without:
 dfa-product / dfa-product-unpruned; the same over dfa-product-nk is the
-nk-product ratio, the task-equivalent baseline), the EK and ltlfsynt wall-clock,
+nk-product ratio, the task-equivalent baseline; the minimized nk-product
+ratio is the same over product_states_min, both products Moore-minimized), the EK and ltlfsynt wall-clock,
 and the speedup over ltlfsynt. The cells column counts the cells EK finished,
 the raced column those finished on both sides. A cell is one (arm, realizable)
 pair; the figure for a family at N is the median over its cells. A cell with any timed-out or
@@ -29,6 +30,7 @@ EK_SUBJECT = "otf-mtdfa-product"
 EK_UNPRUNED = "dfa-product-unpruned"
 EK_PRODUCT = "dfa-product"
 EK_NK = "dfa-product-nk"
+PRODUCT_STATES_MIN = "product_states_min"
 
 
 def family_group(name):
@@ -50,21 +52,23 @@ def _finished_wall(timings):
     return out
 
 
-def _product_states(structural, subject):
+def _metric_by_cell(structural, subject, metric="product_states"):
     return {
         (r["family"], r["n"], r["realizable"]): r["value"]
         for r in structural
-        if r["subject"] == subject and r["metric"] == "product_states"
+        if r["subject"] == subject and r["metric"] == metric
     }
 
 
 def build_rows(sweep, subject=EK_SUBJECT):
-    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_bounded', 'lt_errors', 'prune', 'prune_nk', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
+    """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_bounded', 'lt_errors', 'prune', 'prune_nk', 'nk_ratio_min', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
     'speedup_med', 'speedup_min', 'bound'}}}; a figure is None when no cell has it."""
     wall = _finished_wall(sweep["timings"])
-    with_k = _product_states(sweep["structural"], EK_PRODUCT)
-    without_k = _product_states(sweep["structural"], EK_UNPRUNED)
-    nk_k = _product_states(sweep["structural"], EK_NK)
+    with_k = _metric_by_cell(sweep["structural"], EK_PRODUCT)
+    without_k = _metric_by_cell(sweep["structural"], EK_UNPRUNED)
+    nk_k = _metric_by_cell(sweep["structural"], EK_NK)
+    with_k_min = _metric_by_cell(sweep["structural"], EK_PRODUCT, PRODUCT_STATES_MIN)
+    nk_k_min = _metric_by_cell(sweep["structural"], EK_NK, PRODUCT_STATES_MIN)
     lt = {
         (r["family"], r["n"], r["realizable"]): r
         for r in sweep["ltlfsynt"]
@@ -93,6 +97,8 @@ def build_rows(sweep, subject=EK_SUBJECT):
             c["prune"].append(with_k[key] / without_k[key])
         if key in with_k and nk_k.get(key):
             c["prune_nk"].append(with_k[key] / nk_k[key])
+        if key in with_k_min and nk_k_min.get(key):
+            c["nk_ratio_min"].append(with_k_min[key] / nk_k_min[key])
         ek = wall.get(key + (subject,))
         row = lt.get(key)
         if ek:
@@ -176,7 +182,8 @@ def _headline(by_n, timeout_s):
                      f"{r['speedup_med']:.2f}x (median){_stop_reason(by_n, n)}.**")
     else:
         lines.append("**No speedup over ltlfsynt: no cell finished on both sides "
-                     "(ltlfsynt is n/a for a family without a declared psi_in).**")
+                     "(the EK subject has no finished cell, or ltlfsynt has no value: it is n/a "
+                     "for a family without a declared psi_in).**")
     for n, r in by_n.items():
         if r["lt_bounded"]:
             lines += ["", f"ltlfsynt timed out ({timeout_s} s) at N={n} in "
@@ -203,6 +210,10 @@ def render(sweep, subject=EK_SUBJECT):
         "(`dfa-product` / `dfa-product-unpruned`)",
         "- nk-product ratio: `dfa-product` over `dfa-product-nk` (psi_in folded into "
         "the Goal; the same decision problem ltlfsynt is given)",
+        "- minimized nk-product ratio: the nk-product ratio with both products "
+        "Moore-minimized before their states are counted (`product_states_min`); "
+        "the completion sink is counted on neither side (a state with no path to "
+        "acceptance adds nothing)",
         "- a family's figure at N is the median over its cells (arm x realizable); "
         "all slippery-* arms are one family",
         "- a cell with any timed-out or failed repeat, on either side, is left out "
@@ -216,13 +227,14 @@ def render(sweep, subject=EK_SUBJECT):
                     "and the largest N rows are partial.**", ""]
     for group in sorted(rows):
         out += [f"## {group}", ""]
-        out += ["| N | cells | raced | prune ratio | nk-product ratio | EK med (ms) | EK min (ms) | "
+        out += ["| N | cells | raced | prune ratio | nk-product ratio | minimized nk-product ratio | EK med (ms) | EK min (ms) | "
                 "ltlfsynt med (ms) | speedup (med) | speedup (min) |",
-                "|---|---|---|---|---|---|---|---|---|---|"]
+                "|---|---|---|---|---|---|---|---|---|---|---|"]
         for n, r in rows[group].items():
             out.append(
                 f"| {n} | {r['cells']} | {r['both']} | {_fmt(r.get('prune'), '{:.3f}')} "
                 f"| {_fmt(r.get('prune_nk'), '{:.3f}')} "
+                f"| {_fmt(r.get('nk_ratio_min'), '{:.3f}')} "
                 f"| {_fmt(r.get('ek_med') and r['ek_med'] / 1e6, '{:.2f}')} "
                 f"| {_fmt(r.get('ek_min') and r['ek_min'] / 1e6, '{:.2f}')} "
                 f"| {_fmt(r.get('lt_med') and r['lt_med'] / 1e6, '{:.2f}')} "

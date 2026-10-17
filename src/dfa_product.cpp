@@ -51,6 +51,11 @@ std::optional<Controller> DfaProduct::synthesize(const spot::formula& phi,
   // Charge table: DfaProduct charges product_states to the materialized
   // product's num_states() --- the structure handed to game solving.
   record_size_metric(SizeMetric::product_states, product->num_states());
+  // The minimization is a measurement, not a stage: outside every timed span,
+  // and skipped when nothing is recording.
+  if (bench_scope_active())
+    record_size_metric(SizeMetric::product_states_min,
+                       minimized_state_count(product));
 
   // --- SolveDfa: solve the product game and lift the controller. ---
   std::optional<Controller> controller;

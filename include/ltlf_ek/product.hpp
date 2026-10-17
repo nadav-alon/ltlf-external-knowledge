@@ -198,4 +198,20 @@ spot::twa_graph_ptr materialize_product(const ProductGuards& pg,
                                         const spot::bdd_dict_ptr& dict,
                                         const VariablePartition& vars);
 
+// Moore minimization of an explicit product, counted (docs/GLOSSARY.md
+// "Minimized product states"): the number of language-equivalence classes of
+// states that can still reach an accepting state, taking the initial state's
+// reachable part only.  Edges are symbolic, so two states are merged when they
+// agree on acceptance and, per destination class, on the OR of their guards.
+// The completion sink is counted on neither side of any comparison: a state
+// from which no accepting state is reachable (an explicit sink, or a letter
+// with no edge) is the same implicit rejecting class, and is not counted.
+// Reads acceptance through `twa_graph::state_is_accepting`, so a product from
+// `materialize_product` is read correctly.  An initial state that cannot reach
+// acceptance gives 0.
+// Hand-rolled rather than Spot's `twadfa_to_mtdfa` + `minimize_mtdfa` or
+// `minimize_wdba`: those minimize a complete automaton and would count the
+// completion sink as a state, which this count must leave out on both sides.
+std::size_t minimized_state_count(const spot::twa_graph_ptr& product);
+
 }  // namespace ltlf_ek

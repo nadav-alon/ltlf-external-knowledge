@@ -187,6 +187,28 @@ TEST(ComparabilityTierName, RejectsAnOutOfRangeValue) {
 }
 
 // ---------------------------------------------------------------------------
+// Unit: the minimized product count is emitted by both sides of the
+// nk-product ratio, by the same procedure (minimized_state_count: completion
+// sink counted on neither side), so it never exceeds the raw count.
+// ---------------------------------------------------------------------------
+
+TEST(BenchProductStatesMin, BothSidesOfTheNkRatioEmitItWithTheSinkLeftOut) {
+  const BenchCase c = FamilyNamed("co-generated").instantiate(Params(2, true));
+  for (const char* name : {"dfa-product", "dfa-product-nk"}) {
+    SCOPED_TRACE(name);
+    const std::vector<BenchRow> rows = run_bench_case(c, SubjectNamed(name));
+    const std::optional<std::uint64_t> raw =
+        RowValue(rows, MetricKey(SizeMetric::product_states));
+    const std::optional<std::uint64_t> min =
+        RowValue(rows, MetricKey(SizeMetric::product_states_min));
+    ASSERT_TRUE(raw.has_value());
+    ASSERT_TRUE(min.has_value());
+    EXPECT_GT(*min, 0u);
+    EXPECT_LE(*min, *raw);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Unit: the sweep floor ("Edge cases": "n=0/n=1 degenerate ... a family must
 // reject a parameter below its own floor rather than emit a malformed
 // formula").

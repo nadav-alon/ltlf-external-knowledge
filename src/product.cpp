@@ -2,10 +2,13 @@
 
 #include <cassert>
 #include <cstddef>
+#include <map>
 #include <queue>
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "ltlf_ek/consistency.hpp"
 #include "ltlf_ek/detail/acceptance.hpp"
@@ -369,6 +372,74 @@ void validate_product_inputs(const spot::formula& phi,
       throw std::invalid_argument(
           "validate_product_inputs: all transducers must share one "
           "bdd_dict");
+}
+
+std::size_t minimized_state_count(const spot::twa_graph_ptr& product) {
+  const unsigned n = product->num_states();
+  auto accepting = [&](unsigned s) { return product->state_is_accepting(s); };
+
+  // Live = reachable from init and able to reach an accepting state.
+  std::vector<bool> reach(n, false);
+  std::vector<unsigned> stack{product->get_init_state_number()};
+  reach[stack.back()] = true;
+  while (!stack.empty()) {
+    const unsigned s = stack.back();
+    stack.pop_back();
+    for (const auto& e : product->out(s))
+      if (e.cond != bddfalse && !reach[e.dst]) {
+        reach[e.dst] = true;
+        stack.push_back(e.dst);
+      }
+  }
+  std::vector<bool> live(n, false);
+  for (bool changed = true; changed;) {
+    changed = false;
+    for (unsigned s = 0; s < n; ++s) {
+      if (!reach[s] || live[s]) continue;
+      bool l = accepting(s);
+      for (const auto& e : product->out(s))
+        if (e.cond != bddfalse && live[e.dst]) l = true;
+      if (l) {
+        live[s] = true;
+        changed = true;
+      }
+    }
+  }
+
+  // Partition refinement; class -1 marks a dead or unreachable state.
+  std::vector<int> cls(n, -1);
+  for (unsigned s = 0; s < n; ++s)
+    if (reach[s] && live[s]) cls[s] = accepting(s) ? 1 : 0;
+  std::size_t count = 0;
+  for (bool first = true;; first = false) {
+    using Sig = std::pair<int, std::map<int, int>>;  // (class, dst class -> guard id)
+    std::map<Sig, int> ids;
+    // A merged guard is a temporary: BuDDy may collect it and reuse its node
+    // id for another function, so every guard stays referenced until the
+    // round's signatures have been compared.
+    std::vector<bdd> alive;
+    std::vector<int> next(n, -1);
+    for (unsigned s = 0; s < n; ++s) {
+      if (cls[s] < 0) continue;
+      std::map<int, bdd> by_dst;
+      for (const auto& e : product->out(s)) {
+        if (e.cond == bddfalse || cls[e.dst] < 0) continue;
+        auto [it, fresh] = by_dst.emplace(cls[e.dst], e.cond);
+        if (!fresh) it->second |= e.cond;
+      }
+      Sig sig{cls[s], {}};
+      for (const auto& [c, g] : by_dst) {
+        sig.second.emplace(c, g.id());
+        alive.push_back(g);
+      }
+      next[s] = ids.emplace(sig, static_cast<int>(ids.size())).first->second;
+    }
+    const std::size_t now = ids.size();
+    cls = std::move(next);
+    if (!first && now == count) break;
+    count = now;
+  }
+  return count;
 }
 
 }  // namespace ltlf_ek

@@ -1250,8 +1250,8 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   only, and is **not** a PRD-change event. Its counterpart is the **free-form
   label**, for a quantity that is not comparable across methods.
 - **C++:** `enum class SizeMetric { goal_dfa_states, goal_nfa_states,
-  goal_mtdfa_roots, nfa_product_states, product_states, product_mtdfa_roots,
-  product_bdd_nodes, controller_states }` with
+  goal_mtdfa_roots, nfa_product_states, product_states, product_states_min,
+  product_mtdfa_roots, product_bdd_nodes, controller_states }` with
   `size_metric_name(SizeMetric)` → `std::string_view` and
   `record_size_metric(SizeMetric, std::uint64_t)`
   (`include/ltlf_ek/bench.hpp`). Which method charges which value is the **charge
@@ -1321,6 +1321,35 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   model lives in $\Tin$.
 - **C++:** computed by `scripts/sweep_report.py`, not stored.
 - **Do not call it:** prune ratio, the `-nk` ratio.
+
+The report prints beside it the same ratio over [minimized product
+states](#minimized-product-states), the *minimized nk-product ratio*.
+
+### Minimized nk-product ratio
+- **`main.tex`:** none (implementation-only: a benchmark report column).
+- **Definition:** for one case, `product_states_min` of `dfa-product` over
+  `product_states_min` of `dfa-product-nk`: the [nk-product
+  ratio](#nk-product-ratio) with both products Moore-minimized before their
+  states are counted, the completion sink counted on neither side (see
+  [minimized product states](#minimized-product-states)).
+- **C++:** computed by `scripts/sweep_report.py` (`nk_ratio_min`), not stored.
+- **Do not call it:** prune ratio, minimized prune ratio.
+
+### Minimized product states
+- **`main.tex`:** none (implementation-only: a benchmark report quantity).
+- **Definition:** the number of language-equivalence classes of an explicit
+  product's states, by Moore minimization, that can still reach an accepting
+  state. Two states are merged when they agree on acceptance and, per destination
+  class, on the union of their guards. The **completion sink is counted on neither
+  side**: a state with no path to acceptance, and a letter with no edge, are the
+  same implicit rejecting class and add nothing. It exists because the raw
+  `product_states` of `dfa-product-nk` has Spot merge equivalent formula states
+  while `dfa-product` keeps every reachable tuple, which biases the
+  [nk-product ratio](#nk-product-ratio) against the knowledge product.
+- **C++:** `minimized_state_count(const spot::twa_graph_ptr&)`
+  (`include/ltlf_ek/product.hpp`), charged by `DfaProduct` to the size metric
+  `product_states_min`.
+- **Do not call it:** reduced states, DFA size, product size.
 
 ## Testing & oracles
 

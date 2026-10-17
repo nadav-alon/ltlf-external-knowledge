@@ -54,6 +54,7 @@ enum class SizeMetric {
   goal_mtdfa_roots,     // symbolic Goal mtdfa (mtdfa::num_roots)
   nfa_product_states,
   product_states,       // explicit product    (twa_graph::num_states)
+  product_states_min,   // explicit product, Moore-minimized (minimized_state_count)
   product_mtdfa_roots,  // symbolic product    (mtdfa::num_roots)
   product_bdd_nodes,
   controller_states,

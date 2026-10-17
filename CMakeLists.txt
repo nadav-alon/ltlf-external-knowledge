@@ -154,6 +154,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/product_test.cpp
     tests/product_build_equivalence_test.cpp
     tests/dfa_product_test.cpp
+    tests/minimized_state_count_test.cpp
     tests/nfa_product_test.cpp
     tests/nfa_bench_test.cpp
     tests/emits_dfa_test.cpp

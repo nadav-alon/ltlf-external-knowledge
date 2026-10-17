@@ -10,9 +10,17 @@ def timing(family, n, real, subject, ns, med, stage="wall_total"):
             "stage": stage, "ns": ns, "median_ns": med, "timed_out": False}
 
 
-def structural(family, n, real, subject, value):
+def structural(family, n, real, subject, value, metric="product_states"):
     return {"family": family, "n": n, "realizable": real, "subject": subject,
-            "metric": "product_states", "value": value}
+            "metric": metric, "value": value}
+
+
+# One cell: raw nk-product ratio 7/2, minimized 3/2.
+_RAW_AND_MINIMIZED = [
+    structural("fam", 2, True, sr.EK_PRODUCT, 7),
+    structural("fam", 2, True, sr.EK_NK, 2),
+    structural("fam", 2, True, sr.EK_PRODUCT, 3, sr.PRODUCT_STATES_MIN),
+    structural("fam", 2, True, sr.EK_NK, 2, sr.PRODUCT_STATES_MIN)]
 
 
 def lt(family, n, real, ns, med, status="ok"):
@@ -66,6 +74,32 @@ class SweepReport(unittest.TestCase):
                              structural("cons-prunes", 3, True, sr.EK_NK, 4)]))
         self.assertEqual(rows["cons-prunes"][3]["prune"], 0.5)
         self.assertEqual(rows["cons-prunes"][3]["prune_nk"], 1.25)
+
+    def test_minimized_nk_ratio_is_the_nk_ratio_over_the_minimized_counts(self):
+        rows = sr.build_rows(sweep(
+            timings=[timing("fam", 2, True, EK, 1, 1)],
+            structural_rows=_RAW_AND_MINIMIZED))
+        self.assertEqual(rows["fam"][2]["prune_nk"], 3.5)
+        self.assertEqual(rows["fam"][2]["nk_ratio_min"], 1.5)
+
+    def test_minimized_ratio_is_n_a_without_the_minimized_counts(self):
+        rows = sr.build_rows(sweep(
+            timings=[timing("fam", 2, True, EK, 1, 1)],
+            structural_rows=[structural("fam", 2, True, sr.EK_PRODUCT, 7),
+                             structural("fam", 2, True, sr.EK_NK, 2)]))
+        self.assertIsNone(rows["fam"][2].get("nk_ratio_min"))
+
+    def test_the_table_prints_the_minimized_ratio_beside_the_raw_one(self):
+        out = sr.render(sweep(
+            timings=[timing("fam", 2, True, EK, 1, 1)],
+            structural_rows=_RAW_AND_MINIMIZED))
+        self.assertIn("| nk-product ratio | minimized nk-product ratio |", out)
+        self.assertIn("| 3.500 | 1.500 |", out)
+
+    def test_the_header_defines_the_minimized_ratio_and_its_sink_treatment(self):
+        header = sr.render(sweep()).split("## ")[0]
+        self.assertIn("minimized nk-product ratio", header)
+        self.assertIn("completion sink is counted on neither side", header)
 
     def test_a_timed_out_ek_cell_is_not_a_finished_cell(self):
         rows = sr.build_rows(sweep(
