@@ -64,12 +64,22 @@ Variables: free input `a`, known input `k`. `X` is strong next, `X^m` its m-fold
 ψ_N   = (k ↔ a) ∧ α_{N-1} ∧ G( X^N⊤ → ( X^N k ⊕ X^{N-1} k ↔ X^N a ⊕ a ) )
 ```
 
-- N = 1: `ψ_1 = (k ↔ a) ∧ G(X⊤ → (X⊤ → …))` collapses to `G(k ↔ a)`.
+- N = 1: with `α_0 = ⊤`, `ψ_1 = (k ↔ a) ∧ G(X⊤ → (Xk ⊕ k ↔ Xa ⊕ a))`, which collapses to `G(k ↔ a)`.
 - N = 2: `ψ_2 = (k ↔ a) ∧ (X⊤ → ((k ⊕ Xk ↔ Xa) ∧ X⊤)) ∧ G(XX⊤ → (XXk ⊕ Xk ↔ XXa ⊕ a))`.
 - N = 3: `ψ_3 = (k ↔ a) ∧ α_2 ∧ G(XXX⊤ → (XXXk ⊕ XXk ↔ XXXa ⊕ a))`, with `α_2 = X⊤ → ((k ⊕ Xk ↔ Xa) ∧ X(X⊤ → ((k ⊕ Xk ↔ Xa) ∧ X⊤)))`.
 
-Sizes: |ψ_N| = Θ(N) in LTLf; LDLf embeds LTLf linearly, so |ψ_N^LDLf| = O(N). Pure parity (window = whole prefix) is `(k ↔ a) ∧ G(X⊤ → (Xk ↔ k ⊕ Xa))`, size O(1).
-|T_in| = Θ(2^N): after t ≥ N−1 steps the residual language depends on all of `a_{t-N+1..t}` (the next constraint reads `a_{t+1-N}`), giving 2^N Myhill–Nerode classes; the warm-up adds fewer than 2^N more.
+Sizes: |ψ_N| = O(N) in LTLf (an upper bound, not the smallest formula).
+LDLf ψ_in, by the linear LTLf → LDLf translation (De Giacomo and Vardi, IJCAI 2013) with `X φ ↦ ⟨true⟩φ` and `G φ ↦ [true*]φ`, so `X^m φ ↦ ⟨true; …; true⟩φ` (m steps):
+Written out for N = 2, with `p@m` the atom `p` read after m steps, i.e. `⟨true^m⟩p` under that translation:
+```
+ψ_2^LDLf = (k ↔ a) ∧ (⟨true⟩tt → ((k ⊕ k@1 ↔ a@1) ∧ ⟨true⟩tt))
+         ∧ [true*]( ⟨true;true⟩tt → ( k@2 ⊕ k@1 ↔ a@2 ⊕ a ) )
+```
+and for N = 3 the same shape with `α_2` as above and the guard `⟨true;true;true⟩tt`, with each `X^m p` read as `p@m`.
+These are the translations, not hand-optimised LDLf; I found no LDLf formula for window parity shorter than the LTLf one (a regex-test version would still need the window's `a_{t-N}` bit, which costs a path of length N). The LDLf formulas were not run through a checker, only derived from the checked LTLf ones.
+|ψ_N^LDLf| = O(N). Pure parity (window = whole prefix) is `(k ↔ a) ∧ G(X⊤ → (Xk ↔ k ⊕ Xa))`, size O(1).
+|T_in| = Θ(2^N): as a Mealy transducer it must remember the whole window `a_{t-N+1..t}`, because `k_{t+1}` reads `a_{t+1-N}`, so 2^N states.
+The language over `(a,k)` letters, which is what ψ_in describes, has 2^{N-1} Myhill–Nerode classes once the current `k_t` is known (`k_t` already carries `a_{t-N+1}`, so the future depends only on `a_{t-N+2..t}`); at N = 1, `G(k ↔ a)` has one live state. The warm-up adds fewer than 2^{N-1} more. Both are Θ(2^N).
 A smaller LTLf formula for this language cannot be ruled out here, but the language has a Θ(N) one, which is what matters for the kill rule.
 
 **Mod-N counter**: `k_t = 1` iff `#{s ≤ t : a_s} ≡ 0 (mod N)`, N ≥ 2.
@@ -84,11 +94,19 @@ A smaller LTLf formula for this language cannot be ruled out here, but the langu
 ```
 
 - N = 2: `ψ_2 = (k ↔ ¬a) ∧ G(X⊤ → (¬Xa → (Xk ↔ k))) ∧ G(k → A^w(¬k ∧ A^w(k))) ∧ (a → A^w(k))`.
-- N = 3 differs only in `Θ_3 = A^w(¬k ∧ A^w(¬k ∧ A^w(k)))` and `Θ_2` in the last conjunct.
+- N = 3, written out, with `A^w(φ) = ¬X(¬a U a) ∨ X(¬a U (a ∧ φ))`:
+```
+ψ_3 = (k ↔ ¬a)
+    ∧ G( X⊤ → ( ¬Xa → (Xk ↔ k) ) )
+    ∧ G( k → A^w(¬k ∧ A^w(¬k ∧ A^w(k))) )
+    ∧ ( a → A^w(¬k ∧ A^w(k)) )
+```
+- Delay: `k_t = a_{t-N}` for t ≥ N, `k_t = 0` for t < N. With `β_0 = ⊤`, `β_m = ¬k ∧ (X⊤ → X β_{m-1})`:
+  `ψ_N^delay = β_N ∧ G( X^N⊤ → (X^N k ↔ a) )`, size O(N); checked by brute force like the others (N ≤ 4, traces of length ≤ 8). N = 1: `¬k ∧ G(X⊤ → (Xk ↔ a))`. The LDLf version is the same translation, O(N).
 
-|ψ_N| = Θ(N) in LTLf and LDLf (the counter is never hidden: `k` re-anchors it at every flag).
+|ψ_N| = O(N) in LTLf and LDLf (an upper bound; the counter is never hidden: `k` re-anchors it at every flag).
 |T_in| = N.
-The mod-N counter is aperiodic once `k` is visible: an element of the transition monoid that permutes two counter states needs both to emit the same flags over a whole cycle, which makes them Myhill–Nerode equivalent. Hence the language is star-free and LTLf can express it. This argument is for the unary-increment counter only.
+That the mod-N counter language is star-free, once `k` is visible, is witnessed by ψ_N above being an LTLf formula.
 
 **What is not decided.** The families above fail the positive result for one reason: `k` reveals the state.
 The remaining candidate is a counter of N bits (period 2^N) with only the top bit visible: `k` toggles exactly every 2^{N-1} `a`-steps. T_in has 2^N states.
