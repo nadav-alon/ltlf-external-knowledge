@@ -1322,6 +1322,21 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
 - **C++:** computed by `scripts/sweep_report.py`, not stored.
 - **Do not call it:** prune ratio, the `-nk` ratio.
 
+### Minimized product states
+- **`main.tex`:** none (implementation-only: a benchmark report quantity).
+- **Definition:** the number of language-equivalence classes of an explicit
+  product's states, by Moore minimization, that can still reach an accepting
+  state. Two states are merged when they agree on acceptance and, per destination
+  class, on the union of their guards. The **completion sink is counted on neither
+  side**: a state with no path to acceptance, and a letter with no edge, are the
+  same implicit rejecting class and add nothing. It exists because the raw
+  `product_states` of `dfa-product-nk` has Spot merge equivalent formula states
+  while `dfa-product` keeps every reachable tuple, which biases the
+  [nk-product ratio](#nk-product-ratio) against the knowledge product.
+- **C++:** `minimized_state_count(const spot::twa_graph_ptr&)`
+  (`include/ltlf_ek/product.hpp`).
+- **Do not call it:** reduced states, DFA size, product size.
+
 ## Testing & oracles
 
 ### ltlfsynt reductions
