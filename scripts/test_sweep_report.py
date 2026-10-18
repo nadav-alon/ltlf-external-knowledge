@@ -203,8 +203,23 @@ class SweepReport(unittest.TestCase):
         self.assertIn("STOPPED EARLY", sr.render(s).splitlines()[2])
 
     def test_a_family_ltlfsynt_cannot_encode_says_so_instead_of_a_speedup(self):
-        out = sr.render(sweep(timings=[timing("knowledge-chain", 2, True, EK, 1, 1)]))
-        self.assertIn("No speedup over ltlfsynt", out)
+        out = sr.render(sweep(timings=[timing("knowledge-chain", 2, True, EK, 1, 1)],
+                              ltlfsynt=[lt("knowledge-chain", 2, True, None, None,
+                                           status="n/a -- by expressibility")]))
+        self.assertIn("Not raced against ltlfsynt: the family declares no psi_in", out)
+        self.assertIn("EK finished 1 of 1 cells", out)
+
+    def test_a_raced_family_with_no_cell_finished_on_both_sides_does_not_blame_psi_in(self):
+        out = sr.render(sweep(timings=[timing("f", 2, True, EK, 1, 1)],
+                              ltlfsynt=[lt("f", 2, True, None, None, status="timeout")]))
+        self.assertIn("No speedup over ltlfsynt: no cell finished on both sides.", out)
+        self.assertNotIn("psi_in, so", out)
+
+    def test_a_partially_timed_out_nk_cell_enters_the_in_process_lower_bound(self):
+        rows = sr.build_rows(sweep(timings=[
+            timing("f", 2, True, EK, 1, 1e9),
+            timing("f", 2, True, sr.OTF_NK, 0, None, stage="PARTIAL_TIMEOUT_3_of_5")]))
+        self.assertEqual(rows["f"][2]["nk_bounded"], 1)
 
     def test_in_process_speedup_is_the_nk_median_over_the_ek_median(self):
         rows = sr.build_rows(sweep(timings=[

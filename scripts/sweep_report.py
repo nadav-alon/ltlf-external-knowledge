@@ -67,7 +67,8 @@ def build_rows(sweep, subject=EK_SUBJECT):
     nk_timeout = {
         (r["family"], r["n"], r["realizable"])
         for r in sweep["timings"]
-        if r["subject"] == OTF_NK and r["stage"] in ("TIMEOUT", "PARTIAL_TIMEOUT_wall_total")
+        if r["subject"] == OTF_NK
+        and (r["stage"] == "TIMEOUT" or r["stage"].startswith("PARTIAL_TIMEOUT_"))
     }
     lt = {
         (r["family"], r["n"], r["realizable"]): r
@@ -85,6 +86,12 @@ def build_rows(sweep, subject=EK_SUBJECT):
         (r["family"], r["n"], r["realizable"])
         for r in sweep["ltlfsynt"]
         if r["status"] == "error"
+    }
+
+    lt_na = {
+        (r["family"], r["n"], r["realizable"])
+        for r in sweep["ltlfsynt"]
+        if r["status"].startswith("n/a")
     }
 
     cells = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
@@ -120,6 +127,8 @@ def build_rows(sweep, subject=EK_SUBJECT):
                 c["internal_speedup"].append(row["ltlfsynt_internal_ns"] / ek[1])
         if key in lt_error:
             c["lt_error"].append(1)
+        if key in lt_na:
+            c["lt_na"].append(1)
         if key in lt_timeout:
             c["lt_timeout"].append(1)
         if ek and key in lt_timeout:
@@ -135,6 +144,7 @@ def build_rows(sweep, subject=EK_SUBJECT):
                   "lt_bounded": len(by_n[n]["bound"]),
                   "nk_bounded": len(by_n[n]["inproc_bound"]),
                   "lt_errors": len(by_n[n]["lt_error"]),
+                  "lt_na": len(by_n[n]["lt_na"]),
                   "internal_missing": len(by_n[n]["internal_missing"])}
             for n in sorted(by_n)}
         for g, by_n in cells.items()
@@ -190,10 +200,14 @@ def _headline(by_n, timeout_s):
         lines.append(f"**Speedup over ltlfsynt at the largest N finished "
                      f"(N={n}, {r['both']} of {r['total']} cells): "
                      f"{r['speedup_med']:.2f}x (median){_stop_reason(by_n, n)}.**")
+    elif all(r["lt_na"] == r["total"] for r in by_n.values()):
+        done = sum(r["cells"] for r in by_n.values())
+        total = sum(r["total"] for r in by_n.values())
+        lines.append("**Not raced against ltlfsynt: the family declares no psi_in, so ltlfsynt "
+                     f"has no encoding of it (n/a by expressibility). EK finished {done} of "
+                     f"{total} cells.**")
     else:
-        lines.append("**No speedup over ltlfsynt: no cell finished on both sides "
-                     "(the EK subject has no finished cell, or ltlfsynt has no value: it is n/a "
-                     "for a family without a declared psi_in).**")
+        lines.append("**No speedup over ltlfsynt: no cell finished on both sides.**")
     for n, r in by_n.items():
         if r["lt_bounded"]:
             lines += ["", f"ltlfsynt timed out ({timeout_s} s) at N={n} in "
