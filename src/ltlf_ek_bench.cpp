@@ -609,6 +609,8 @@ const std::set<std::string>& CanonicalMetricNames() {
       std::string(size_metric_name(SizeMetric::product_mtdfa_roots)),
       std::string(size_metric_name(SizeMetric::product_bdd_nodes)),
       std::string(size_metric_name(SizeMetric::controller_states)),
+      ltlf_ek::kTInStatesMetric,
+      ltlf_ek::kPsiInSizeMetric,
   };
   return names;
 }

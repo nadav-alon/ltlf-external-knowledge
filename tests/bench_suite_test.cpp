@@ -591,6 +591,10 @@ TEST(BenchSuiteCrossMethodAgreement, AllFiveMethodsAgreeWithEachOtherAndTheDecla
           if (subject->name() == "dependent-inputs-extraction") {
             continue;
           }
+          // knowledge-sizes only records |T_in| and |psi_in|: no method runs.
+          if (subject->name() == "knowledge-sizes") {
+            continue;
+          }
           // dfa-product-unpruned decides the knowledge-free game, whose
           // verdict is not the case's.
           if (subject->name() == "dfa-product-unpruned") {

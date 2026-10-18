@@ -1274,7 +1274,11 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   emission plumbing (`BenchSizeMetric`, the collector) and the benchmark registry
   types (`BenchFamily`, `BenchSubject`, `BenchCase`, `BenchParams`, `BenchRow`) are
   **infra, not domain concepts**, so — like `BenchScope`/`BenchTimer` and the
-  `cli.hpp` plumbing — they get **no** glossary entry.
+  `cli.hpp` plumbing — they get **no** glossary entry. The `knowledge-sizes`
+  subject records two free-form labels that size a case's inputs rather than a
+  method's work: `kTInStatesMetric` (`"t_in_states"`, $\lvert\Tin\rvert$ as the
+  delta's state count) and `kPsiInSizeMetric` (`"psi_in_size"`,
+  $\lvert\psiin\rvert$ as `formula_node_count`, the formula read as a tree).
 - **Do not call it:** metric or measurement **bare** (that is the recorded datum,
   per *Canonical benchmarking stage* above); size *stage* (a stage is the time
   axis); state count (too narrow — `product_bdd_nodes` counts no states);

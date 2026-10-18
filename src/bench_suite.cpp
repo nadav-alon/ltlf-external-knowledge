@@ -1552,6 +1552,19 @@ class DependentInputsExtractionSubject final : public BenchSubject {
   }
 };
 
+// Records the size of what a case is given rather than a method's work:
+// |T_in| always, |psi_in| iff the family declares one. Runs no method, so a
+// report can print the two next to each other for any family.
+class KnowledgeSizesSubject final : public BenchSubject {
+ public:
+  std::string name() const override { return "knowledge-sizes"; }
+  void run(const BenchCase& c) const override {
+    record_size_metric(kTInStatesMetric, c.t_in.delta_dfa()->num_states());
+    if (c.psi_in.has_value())
+      record_size_metric(kPsiInSizeMetric, formula_node_count(parse_or_throw(*c.psi_in)));
+  }
+};
+
 // Depth-first flatten of a BenchReport's span tree into rows: one row per
 // BenchSpan encountered, root or nested (PRD "the row key is generic", B6
 // "per-*stage* nanoseconds"). A span's own `label` is already either a
@@ -1568,6 +1581,12 @@ void flatten_spans(const std::vector<BenchSpan>& spans, const std::string& famil
 }
 
 }  // namespace
+
+std::uint64_t formula_node_count(const spot::formula& f) {
+  std::uint64_t nodes = 1;
+  for (const spot::formula child : f) nodes += formula_node_count(child);
+  return nodes;
+}
 
 const std::vector<std::unique_ptr<BenchFamily>>& bench_families() {
   static const std::vector<std::unique_ptr<BenchFamily>> families = [] {
@@ -1608,6 +1627,7 @@ const std::vector<std::unique_ptr<BenchSubject>>& bench_subjects() {
     v.push_back(std::make_unique<OtfMtdfaProductNkSubject>("otf-mtdfa-product-nk-otfsolve-simp", /*otf_solve=*/true, /*simplify_formula=*/true));
     v.push_back(std::make_unique<DependentInputsExtractionSubject>());
     v.push_back(std::make_unique<DfaProductUnprunedSubject>());
+    v.push_back(std::make_unique<KnowledgeSizesSubject>());
     return v;
   }();
   return subjects;

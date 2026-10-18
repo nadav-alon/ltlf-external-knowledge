@@ -108,4 +108,25 @@ TEST(HiddenCounter, LtlfsyntDecidesTheDeclaredVerdictForNOneToFour) {
     }
 }
 
+TEST(HiddenCounter, KnowledgeSizesRecordsTinStatesAndPsiInSizePerCell) {
+  for (std::int64_t n = 1; n <= 4; ++n) {
+    const BenchCase c = Cell(n, true);
+    const std::vector<BenchRow> rows =
+        ltlf_ek::run_bench_case(c, SubjectNamed("knowledge-sizes"));
+    EXPECT_EQ(RowValue(rows, ltlf_ek::kTInStatesMetric),
+              std::optional<std::uint64_t>(1u << n));
+    EXPECT_EQ(RowValue(rows, ltlf_ek::kPsiInSizeMetric),
+              std::optional<std::uint64_t>(
+                  ltlf_ek::formula_node_count(
+                      spot::parse_infix_psl(*c.psi_in).f)));
+  }
+}
+
+TEST(FormulaNodeCount, CountsEveryOccurrenceOfEveryOperatorAndLeaf) {
+  EXPECT_EQ(ltlf_ek::formula_node_count(spot::parse_infix_psl("a").f), 1u);
+  // G, ->, a, X, b
+  EXPECT_EQ(ltlf_ek::formula_node_count(spot::parse_infix_psl("G(a -> X b)").f),
+            5u);
+}
+
 }  // namespace
