@@ -15,8 +15,6 @@ struct LtlfsyntVerbose {
   // such line does not match that form. Other lines, such as "game solved in",
   // are not summed.
   std::optional<std::uint64_t> internal_ns;
-  // The root count of the "translation to MTDFA (R roots, A APs)" line.
-  std::optional<std::uint64_t> explored_roots;
 };
 
 LtlfsyntVerbose parse_ltlfsynt_verbose(std::string_view stderr_text);

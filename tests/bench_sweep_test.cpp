@@ -153,13 +153,12 @@ TEST(BenchSweep, LtlfsyntFailureReasonSkipsSynthesisVerboseLines) {
   EXPECT_TRUE(std::regex_search(rows, row));
 }
 
-TEST(BenchSweep, LtlfsyntRowRecordsInternalTimeAndExploredRootsFromVerbose) {
+TEST(BenchSweep, LtlfsyntRowRecordsInternalTimeFromVerbose) {
   const std::string rows = LtlfsyntRowsWith(
       "verbose_ok",
       "echo 'translation to MTDFA (5 roots, 0 APs) took 0.25 seconds' >&2\n"
       "echo 'simplification took 0.5 seconds' >&2\necho REALIZABLE\nexit 0\n");
-  EXPECT_NE(rows.find("\"ltlfsynt_internal_ns\":750000000,"
-                      "\"ltlfsynt_explored_roots\":5,"),
+  EXPECT_NE(rows.find("\"ltlfsynt_internal_ns\":750000000,"),
             std::string::npos);
 }
 
@@ -167,8 +166,7 @@ TEST(BenchSweep, LtlfsyntRowWithoutStageLinesHasNullInternalTimeNotZero) {
   const std::string rows =
       LtlfsyntRowsWith("verbose_absent", "echo REALIZABLE\nexit 0\n");
   EXPECT_NE(rows.find("\"status\":\"ok\""), std::string::npos);
-  EXPECT_NE(rows.find("\"ltlfsynt_internal_ns\":null,"
-                      "\"ltlfsynt_explored_roots\":null,"),
+  EXPECT_NE(rows.find("\"ltlfsynt_internal_ns\":null,"),
             std::string::npos);
 }
 
@@ -179,8 +177,7 @@ TEST(BenchSweep, LtlfsyntTimeoutHasNullInternalTimeNotZero) {
       "sleep 30\n",
       "1");
   EXPECT_NE(rows.find("\"status\":\"timeout\""), std::string::npos);
-  EXPECT_NE(rows.find("\"ltlfsynt_internal_ns\":null,"
-                      "\"ltlfsynt_explored_roots\":null,"),
+  EXPECT_NE(rows.find("\"ltlfsynt_internal_ns\":null,"),
             std::string::npos);
   EXPECT_EQ(rows.find("\"ltlfsynt_internal_ns\":0"), std::string::npos);
 }

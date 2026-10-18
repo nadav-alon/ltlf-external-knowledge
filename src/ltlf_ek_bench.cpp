@@ -708,11 +708,9 @@ struct LtlfsyntRow {
   bool verdict_mismatch = false;
   // Why status is "error": ltlfsynt's stderr without the --verbose lines, else its exit code.
   std::optional<std::string> error;
-  // From --verbose: median over the repeats of the internal time, and the
-  // explored roots of the last repeat (the count is the same on every repeat).
-  // Missing when any repeat lacks one, or a repeat timed out.
+  // From --verbose: median over the repeats of the internal time. Missing when
+  // any repeat lacks one, or a repeat timed out.
   std::optional<std::uint64_t> ltlfsynt_internal_ns;
-  std::optional<std::uint64_t> ltlfsynt_explored_roots;
 };
 
 // Per (family, subject) running summary state, folded into a SummaryRow at
@@ -1183,8 +1181,7 @@ int main(int argc, char** argv) {
 
           std::optional<std::uint64_t> best_ns;
           std::vector<std::uint64_t> samples_ns, internal_samples_ns;
-          std::optional<std::uint64_t> explored_roots;
-          bool internal_missing = false, roots_missing = false;
+          bool internal_missing = false;
           std::optional<bool> synt_realizable;
           std::string failure_reason;
           bool any_success = false, any_timeout = false;
@@ -1214,10 +1211,6 @@ int main(int argc, char** argv) {
               internal_samples_ns.push_back(*verbose.internal_ns);
             else
               internal_missing = true;
-            if (verbose.explored_roots)
-              explored_roots = verbose.explored_roots;
-            else
-              roots_missing = true;
             if (!synt_realizable) {
               failure_reason = ltlf_ek::detail::trim(
                   StripLtlfsyntVerboseLines(sr.stderr_text).substr(0, 200));
@@ -1246,8 +1239,6 @@ int main(int argc, char** argv) {
             row.ltlfsynt_median_ns = Median(samples_ns);
             if (!any_timeout && !internal_missing)
               row.ltlfsynt_internal_ns = Median(internal_samples_ns);
-            if (!any_timeout && !roots_missing)
-              row.ltlfsynt_explored_roots = explored_roots;
             row.ltlfsynt_verdict = *synt_realizable ? "REALIZABLE" : "UNREALIZABLE";
             // Stop-list item 4: a verdict disagreement is an O5-class
             // theory finding, recorded prominently, never "fixed" here.
@@ -1384,7 +1375,6 @@ int main(int argc, char** argv) {
       json << ",\"ltlfsynt_ns\":"; WriteJsonOptU64(json, r.ltlfsynt_ns);
       json << ",\"ltlfsynt_median_ns\":"; WriteJsonOptU64(json, r.ltlfsynt_median_ns);
       json << ",\"ltlfsynt_internal_ns\":"; WriteJsonOptU64(json, r.ltlfsynt_internal_ns);
-      json << ",\"ltlfsynt_explored_roots\":"; WriteJsonOptU64(json, r.ltlfsynt_explored_roots);
       json << ",\"verdict_mismatch\":" << (r.verdict_mismatch ? "true" : "false");
       json << ",\"error\":"; WriteJsonOptStr(json, r.error);
       json << "}";
