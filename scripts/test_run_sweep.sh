@@ -52,3 +52,18 @@ tmpd="$repo/build/ek-run-sweep-tmpdir-$$"
 rc=0
 TMPDIR="$tmpd" PATH="$work/bin:$PATH" bash "$here/run-sweep.sh" "$tmpd/sweep" > "$work/tmpdir.log" 2>&1 || rc=$?
 expect_refused "$work/tmpdir.log" 'must not resolve under $TMPDIR' "$tmpd/sweep"
+
+# A clone with no build/ gets past configuring: the cmake log is written. The
+# fake clone sits under the repo's build/ (not /tmp, not $TMPDIR) so its OUT_DIR
+# passes the checks; the stub cmake builds nothing, so the run ends at the
+# missing bench, after the point where the log is written.
+fakeroot="$repo/build/ek-run-sweep-fresh-$$"
+trap 'rm -rf "$work" ${fake:+"$fake"} "$fakeroot"' EXIT
+mkdir -p "$fakeroot/scripts" "$fakeroot/spot/bin"
+cp "$here/run-sweep.sh" "$fakeroot/scripts/"
+printf '#!/bin/sh\n' > "$fakeroot/spot/bin/ltlfsynt"
+chmod +x "$fakeroot/spot/bin/ltlfsynt"
+rc=0
+env -u TMPDIR SPOT_ROOT="$fakeroot/spot" PATH="$work/bin:$PATH" \
+  bash "$fakeroot/scripts/run-sweep.sh" > "$work/fresh.log" 2>&1 || rc=$?
+[[ -f "$fakeroot/build/release.cmake.log" ]] || { echo "no cmake log in a clone without build/"; cat "$work/fresh.log"; exit 1; }
