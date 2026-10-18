@@ -13,6 +13,9 @@ fail() { echo "$1"; exit 1; }
 # A repo with ek-hpc.sh and stand-ins for what it calls, pushed to a bare origin.
 repo="$work/repo"; mkdir -p "$repo/scripts/hpc" "$repo/docs/runs" "$work/bin" "$work/home"
 cp "$here/ek-hpc.sh" "$here/build-image.sh" "$here/sweep.sbatch" "$repo/scripts/hpc/"
+# The array's task ids, as sweep.sbatch declares them.
+tasks=$(seq 0 "$(sed -n 's/^#SBATCH --array=0-\([0-9]*\)$/\1/p' "$here/sweep.sbatch")")
+n=$(wc -w <<<"$tasks")
 echo 'families="a,b"' > "$repo/scripts/run-sweep.sh"
 echo 'import sys; print("{\"parts\": %d}" % (len(sys.argv) - 2))' > "$repo/scripts/merge_sweep.py"
 echo 'import sys; print("# report of " + sys.argv[1])' > "$repo/scripts/sweep_report.py"
@@ -114,22 +117,22 @@ printf '4242_0|COMPLETED|1:00\n4242_1|RUNNING|0:30\n' > "$work/home/sacct.txt"
 rc=0; ek status > /dev/null || rc=$?; [[ $rc == 2 ]] || fail "status of a running job exited $rc, not 2"
 printf '4242_0|COMPLETED|1:00\n4242_1|TIMEOUT|12:00:00\n' > "$work/home/sacct.txt"
 rc=0; ek status > /dev/null 2>&1 || rc=$?; [[ $rc == 1 ]] || fail "status of a timed-out job exited $rc, not 1"
-printf '4242_%s|COMPLETED|1:00\n' 0 1 2 3 > "$work/home/sacct.txt"
+printf '4242_%s|COMPLETED|1:00\n' $tasks > "$work/home/sacct.txt"
 ek status > /dev/null || fail "status of a completed job did not exit 0"
 m=$(mark); ek status > /dev/null
 remote_since "$m" | grep -q . && fail "a second status went remote"
 
 # fetch: copies every part, then is a no-op.
 mkdir -p "$work/home/ek-sweep/4242"
-for i in 0 1 2 3; do echo "{}" > "$work/home/ek-sweep/4242/part-$i.json"; done
+for i in $tasks; do echo "{}" > "$work/home/ek-sweep/4242/part-$i.json"; done
 ek fetch > /dev/null
-[[ $(ls "$repo/build/hpc/4242" | wc -l) == 4 ]] || fail "fetch did not bring all four parts"
+[[ $(ls "$repo/build/hpc/4242" | wc -l) == "$n" ]] || fail "fetch did not bring all $n parts"
 m=$(mark); ek fetch > /dev/null
 remote_since "$m" | grep -q . && fail "a second fetch went remote"
 
 # merge: dated by the job's end in sacct, then a no-op; --date and --name name the files.
 ek merge > /dev/null
-grep -q '"parts": 4' "$repo/docs/runs/2026-10-17-four-family-sweep.json" || fail "merge did not write the dated report from all parts"
+grep -q "\"parts\": $n" "$repo/docs/runs/2026-10-17-four-family-sweep.json" || fail "merge did not write the dated report from all parts"
 [[ -f "$repo/docs/runs/2026-10-17-four-family-sweep.md" ]] || fail "merge did not render the report"
 m=$(mark); ek merge > /dev/null
 remote_since "$m" | grep -q . && fail "a second merge went remote"
