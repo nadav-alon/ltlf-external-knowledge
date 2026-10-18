@@ -243,7 +243,8 @@ def render(sweep, subject=EK_SUBJECT):
         f"commit `{prov['repo_commit'][:7]}`, repeat={prov['repeat']}, "
         f"timeout={prov['timeout_seconds']} s",
         f"- EK subject: `{subject}` (wall-clock, median of the repeats); "
-        "ltlfsynt on the monolithic `psi_in -> phi` encoding",
+        "ltlfsynt on the monolithic `psi_in -> phi` encoding, run as full synthesis "
+        "(it builds a strategy, not `--realizability`)",
         "- prune ratio: reachable product states with knowledge over without "
         "(`dfa-product` / `dfa-product-unpruned`)",
         "- nk-product ratio: `dfa-product` over `dfa-product-nk` (psi_in folded into "
