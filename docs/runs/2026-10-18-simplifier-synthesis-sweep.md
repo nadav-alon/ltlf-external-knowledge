@@ -187,5 +187,7 @@ ltlfsynt timed out (20 s) at N=6 in 1 of 2 cells where EK finished: speedup at l
 
 **Speedup over ltlfsynt at the largest N finished (N=6, 6 of 6 cells): 0.93x (median); every cell finished.**
 
+otf-mtdfa-product-nk timed out (20 s) at N=5 in 1 of 6 cells where otf-mtdfa-product finished: in-process speedup at least 187.64x (median lower bound; the figure in the table leaves those cells out).
+
 otf-mtdfa-product-nk timed out (20 s) at N=6 in 4 of 6 cells where otf-mtdfa-product finished: in-process speedup at least 77.11x (median lower bound; the figure in the table leaves those cells out).
 

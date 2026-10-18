@@ -67,7 +67,8 @@ def build_rows(sweep, subject=EK_SUBJECT):
     nk_timeout = {
         (r["family"], r["n"], r["realizable"])
         for r in sweep["timings"]
-        if r["subject"] == OTF_NK and r["stage"] in ("TIMEOUT", "PARTIAL_TIMEOUT_wall_total")
+        if r["subject"] == OTF_NK
+        and (r["stage"] == "TIMEOUT" or r["stage"].startswith("PARTIAL_TIMEOUT_"))
     }
     lt = {
         (r["family"], r["n"], r["realizable"]): r
