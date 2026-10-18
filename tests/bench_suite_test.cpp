@@ -221,13 +221,24 @@ TEST(BenchFamilyNFloor, EveryFamilyRejectsNBelowTheSweepFloorRatherThanInstantia
     EXPECT_THROW(family->instantiate(Params(0, true)), std::invalid_argument)
         << "n=0 degenerates: X[!]^0 == phi itself";
     EXPECT_THROW(family->instantiate(Params(0, false)), std::invalid_argument);
-    // hidden-counter's floor is N = 1 (a one-bit counter is a full cell),
-    // and its own tests pin that floor.
-    if (family->name() == "hidden-counter") continue;
-    EXPECT_THROW(family->instantiate(Params(1, true)), std::invalid_argument);
-    EXPECT_THROW(family->sweep(1, 3), std::invalid_argument)
+    // Each family declares its own floor: the smallest n it instantiates.
+    std::int64_t floor = 1;
+    while (floor < 8) {
+      try {
+        family->instantiate(Params(floor, true));
+        break;
+      } catch (const std::invalid_argument&) {
+        ++floor;
+      }
+    }
+    ASSERT_LT(floor, 8) << "no floor found";
+    if (floor > 1)
+      EXPECT_THROW(family->instantiate(Params(floor - 1, false)),
+                   std::invalid_argument);
+    EXPECT_THROW(family->sweep(floor - 1, floor + 1), std::invalid_argument)
         << "sweep(n_min below the floor) must also reject, not silently "
           "clamp to a valid range";
+    EXPECT_NO_THROW(family->sweep(floor, floor));
   }
 }
 
