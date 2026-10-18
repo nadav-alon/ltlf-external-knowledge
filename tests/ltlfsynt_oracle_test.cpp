@@ -3256,6 +3256,35 @@ TEST(GeneratedCorpus, OtfSolveAgreesWithBuildThenSolve) {
       });
 }
 
+// --simplify-formula over the generated corpus: the verdict with the knob on
+// equals the verdict with it off, for both solve paths, and a controller it
+// yields passes the verifier.
+TEST(GeneratedCorpus, SimplifyFormulaKeepsTheVerdict) {
+  const CorpusConfig base = corpus_config_from_env();
+  run_corpus(
+      base, [](const GeneratedCase& c, const CorpusConfig& cfg,
+               unsigned level, std::size_t i) {
+        std::ostringstream phi_os;
+        phi_os << c.phi;
+        SCOPED_TRACE("case " + std::to_string(i) + ": phi=" + phi_os.str() +
+                     ", partition=" + DescribeGeneratedPartition(c.partition) +
+                     ", level=" + std::to_string(level) + " " +
+                     DescribeCorpusConfig(cfg));
+        for (const bool otf_solve : {false, true}) {
+          OtfMtdfaProduct on(otf_solve, /*simplify_formula=*/true);
+          OtfMtdfaProduct off(otf_solve);
+          const auto a = on.synthesize(c.phi, c.partition, c.t_in, c.t_out);
+          const auto b = off.synthesize(c.phi, c.partition, c.t_in, c.t_out);
+          EXPECT_EQ(a.has_value(), b.has_value());
+          if (a.has_value())
+            EXPECT_TRUE(
+                verify_controller(c.phi, c.partition, c.t_in, c.t_out, *a).ok)
+                << DumpTinForReplay(c.t_in, c.partition)
+                << DumpToutForReplay(c.t_out, c.partition);
+        }
+      });
+}
+
 // ---------------------------------------------------------------------------
 // NfaProduct cross-method realizability oracle + metamorphic round-trip
 // (docs/prd/nfa-product.md "Test oracles", Phase 2's green checkpoint): for
