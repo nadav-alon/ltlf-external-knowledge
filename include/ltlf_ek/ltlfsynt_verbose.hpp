@@ -19,4 +19,9 @@ struct LtlfsyntVerbose {
 
 LtlfsyntVerbose parse_ltlfsynt_verbose(std::string_view stderr_text);
 
+// The verdict of a full-synthesis `ltlfsynt` run: true for exit code 0 with
+// stdout opening "REALIZABLE" (the strategy follows it), false for exit code 1
+// with stdout exactly "UNREALIZABLE". nullopt for anything else.
+std::optional<bool> parse_ltlfsynt_verdict(int exit_code, std::string_view stdout_text);
+
 }  // namespace ltlf_ek

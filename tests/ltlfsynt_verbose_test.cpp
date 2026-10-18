@@ -1,4 +1,5 @@
 #include <fstream>
+#include <optional>
 #include <sstream>
 #include <string>
 
@@ -113,6 +114,32 @@ TEST(LtlfsyntVerbose, TranscriptCutInsideTheStageLineHasNothingNotZero) {
   const auto v = parse_ltlfsynt_verbose("translation to MTDFA (3 ro");
   EXPECT_FALSE(v.internal_ns);
   EXPECT_FALSE(v.explored_roots);
+}
+
+}  // namespace
+
+namespace {
+
+TEST(LtlfsyntVerdict, RealizableSynthesisStdoutCarriesAStrategyAfterTheVerdict) {
+  EXPECT_EQ(ltlf_ek::parse_ltlfsynt_verdict(
+                0, read_fixture("ltlfsynt/synthesis-realizable-2.15.1.stdout.txt")),
+            std::optional<bool>(true));
+}
+
+TEST(LtlfsyntVerdict, UnrealizableSynthesisStdoutIsJustTheVerdict) {
+  EXPECT_EQ(ltlf_ek::parse_ltlfsynt_verdict(
+                1, read_fixture("ltlfsynt/synthesis-unrealizable-2.15.1.stdout.txt")),
+            std::optional<bool>(false));
+}
+
+TEST(LtlfsyntVerdict, AVerdictWordWithTheWrongExitCodeIsNoVerdict) {
+  EXPECT_FALSE(ltlf_ek::parse_ltlfsynt_verdict(1, "REALIZABLE\nHOA: v1\n"));
+  EXPECT_FALSE(ltlf_ek::parse_ltlfsynt_verdict(0, "UNREALIZABLE\n"));
+}
+
+TEST(LtlfsyntVerdict, NoVerdictWordIsNoVerdict) {
+  EXPECT_FALSE(ltlf_ek::parse_ltlfsynt_verdict(0, ""));
+  EXPECT_FALSE(ltlf_ek::parse_ltlfsynt_verdict(0, "HOA: v1\n"));
 }
 
 }  // namespace

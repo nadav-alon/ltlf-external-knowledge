@@ -844,12 +844,6 @@ std::string ResolveLtlfsyntBinary(const std::optional<std::string>& flag) {
   return "";
 }
 
-std::optional<bool> ParseLtlfsyntVerdict(const SubprocessResult& r) {
-  if (r.exit_code == 0 && r.stdout_text == "REALIZABLE\n") return true;
-  if (r.exit_code == 1 && r.stdout_text == "UNREALIZABLE\n") return false;
-  return std::nullopt;
-}
-
 // ---------------------------------------------------------------------------
 // Provenance (PRD "Phase 2 (cont.)": machine, ldd-resolved Spot version,
 // repo commit, timeout, repetition count, date, plus the CMake build type
@@ -1196,7 +1190,7 @@ int main(int argc, char** argv) {
             const SubprocessResult sr = RunSubprocessCaptured(
                 ltlfsynt_binary,
                 {"--ins=" + ins, "--outs=" + outs, "--semantics=Mealy",
-                 "--realizability", "--verbose", "-F", formula_path},
+                 "--verbose", "-F", formula_path},
                 args.timeout_seconds);
             const auto t1 = std::chrono::steady_clock::now();
             if (sr.timed_out) {
@@ -1209,7 +1203,8 @@ int main(int argc, char** argv) {
                     .count());
             samples_ns.push_back(ns);
             if (!best_ns || ns < *best_ns) best_ns = ns;
-            synt_realizable = ParseLtlfsyntVerdict(sr);
+            synt_realizable =
+                ltlf_ek::parse_ltlfsynt_verdict(sr.exit_code, sr.stdout_text);
             const ltlf_ek::LtlfsyntVerbose verbose =
                 ltlf_ek::parse_ltlfsynt_verbose(sr.stderr_text);
             if (verbose.internal_ns)

@@ -50,4 +50,10 @@ LtlfsyntVerbose parse_ltlfsynt_verbose(std::string_view stderr_text) {
   return out;
 }
 
+std::optional<bool> parse_ltlfsynt_verdict(int exit_code, std::string_view stdout_text) {
+  if (exit_code == 0 && stdout_text.rfind("REALIZABLE\n", 0) == 0) return true;
+  if (exit_code == 1 && stdout_text == "UNREALIZABLE\n") return false;
+  return std::nullopt;
+}
+
 }  // namespace ltlf_ek
