@@ -96,6 +96,10 @@ class SweepReport(unittest.TestCase):
         self.assertIn("| nk-product ratio | minimized nk-product ratio |", out)
         self.assertIn("| 3.500 | 1.500 |", out)
 
+    def test_the_header_says_ltlfsynt_runs_as_full_synthesis(self):
+        header = sr.render(sweep()).split("## ")[0]
+        self.assertIn("run as full synthesis", header)
+
     def test_the_header_defines_the_minimized_ratio_and_its_sink_treatment(self):
         header = sr.render(sweep()).split("## ")[0]
         self.assertIn("minimized nk-product ratio", header)

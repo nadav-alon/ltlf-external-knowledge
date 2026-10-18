@@ -807,11 +807,14 @@ SubprocessResult RunSubprocessCaptured(const std::string& binary,
 std::string StripLtlfsyntVerboseLines(const std::string& stderr_text) {
   static const char* const chatter[] = {
       "using ", "formula simplified to", "the following signals",
-      "new formula:", "starting ", "translation to ", "MTDFA game "};
+      "new formula:", "starting ", "translation to ", "translation produced ",
+      "MTDFA game "};
   std::istringstream in(stderr_text);
   std::string line, kept;
   while (std::getline(in, line)) {
-    bool is_chatter = line.rfind("  ", 0) == 0 || line.find(" took ") != std::string::npos;
+    bool is_chatter = line.rfind("  ", 0) == 0 ||
+                      line.find(" took ") != std::string::npos ||
+                      line.find(" created in ") != std::string::npos;
     for (const char* prefix : chatter)
       if (line.rfind(prefix, 0) == 0) is_chatter = true;
     if (!is_chatter) kept += line + "\n";
@@ -842,12 +845,6 @@ std::string ResolveLtlfsyntBinary(const std::optional<std::string>& flag) {
 #endif
   if (IsRunnable("ltlfsynt")) return "ltlfsynt";
   return "";
-}
-
-std::optional<bool> ParseLtlfsyntVerdict(const SubprocessResult& r) {
-  if (r.exit_code == 0 && r.stdout_text == "REALIZABLE\n") return true;
-  if (r.exit_code == 1 && r.stdout_text == "UNREALIZABLE\n") return false;
-  return std::nullopt;
 }
 
 // ---------------------------------------------------------------------------
@@ -1196,7 +1193,7 @@ int main(int argc, char** argv) {
             const SubprocessResult sr = RunSubprocessCaptured(
                 ltlfsynt_binary,
                 {"--ins=" + ins, "--outs=" + outs, "--semantics=Mealy",
-                 "--realizability", "--verbose", "-F", formula_path},
+                 "--verbose", "-F", formula_path},
                 args.timeout_seconds);
             const auto t1 = std::chrono::steady_clock::now();
             if (sr.timed_out) {
@@ -1209,7 +1206,8 @@ int main(int argc, char** argv) {
                     .count());
             samples_ns.push_back(ns);
             if (!best_ns || ns < *best_ns) best_ns = ns;
-            synt_realizable = ParseLtlfsyntVerdict(sr);
+            synt_realizable =
+                ltlf_ek::parse_ltlfsynt_verdict(sr.exit_code, sr.stdout_text);
             const ltlf_ek::LtlfsyntVerbose verbose =
                 ltlf_ek::parse_ltlfsynt_verbose(sr.stderr_text);
             if (verbose.internal_ns)
