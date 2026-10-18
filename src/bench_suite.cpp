@@ -1,5 +1,6 @@
 #include "ltlf_ek/bench_suite.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <sstream>
 #include <stdexcept>
@@ -1277,11 +1278,13 @@ class HiddenCounterFamily final : public BenchFamily {
 
     // The controller wins a LTLf play by reaching an accepting state, so a
     // bare G(...) is satisfied by a trace of length one and both cells would
-    // be realizable.  The length floor X[!]^(2^N)(1) keeps the play going long
-    // enough for the environment to drive the count to a top-bit boundary and
-    // then pick the `a` the unrealizable goal reads ahead of the controller.
+    // be realizable.  The length floor X[!]^max(2, 2^(N-1))(1) is the shortest
+    // that keeps the play going until the count can reach its first top-bit
+    // toggle, where the unrealizable goal reads an `a` ahead of the
+    // controller.  It sits in phi, so the T_in and psi_in sides share it.
+    const std::int64_t floor_steps = std::max<std::int64_t>(2, std::int64_t{1} << (n - 1));
     const std::string phi_text =
-        x_bang_wrap(std::int64_t{1} << n, "1") + " & " +
+        x_bang_wrap(floor_steps, "1") + " & " +
         (realizable ? "G(X[!](1) -> (o <-> X[!](k)))"
                     : "G(X[!](X[!](1)) -> (o <-> X[!](X[!](k))))");
 
