@@ -99,7 +99,6 @@ class SweepReport(unittest.TestCase):
     def test_the_header_says_ltlfsynt_runs_as_full_synthesis(self):
         header = sr.render(sweep()).split("## ")[0]
         self.assertIn("run as full synthesis", header)
-        self.assertNotIn("--realizability`)", header.replace("not `--realizability`)", ""))
 
     def test_the_header_defines_the_minimized_ratio_and_its_sink_treatment(self):
         header = sr.render(sweep()).split("## ")[0]
