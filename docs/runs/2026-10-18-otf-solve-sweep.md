@@ -25,7 +25,7 @@ Largest N, per family:
 | slippery | 6 | 1.54x over the 2 slippery-binary-compact cells only. The formula side timed out in both slippery-binary cells (EK 128 and 153 ms) and both slippery-onehot cells (EK about 1.0 and 1.1 s). Lower bound ≥ 19.19x over all 6 cells. | 1.000 |
 | knowledge-chain | not raced: no ψ_in | | |
 
-Regenerate the tables with `python3 scripts/sweep_pairs.py docs/runs/2026-10-18-otf-solve-sweep.json otf-mtdfa-product-otfsolve otf-mtdfa-product-nk-otfsolve [--arms]`. The script is added in #188 (PR #188); these tables are its output.
+Regenerate the tables with `python3 scripts/sweep_pairs.py docs/runs/2026-10-18-otf-solve-sweep.json otf-mtdfa-product-otfsolve otf-mtdfa-product-nk-otfsolve [--arms]`. The script is added by #178's PR #188; these tables are its output.
 
 EK `otf-mtdfa-product-otfsolve` vs formula `otf-mtdfa-product-nk-otfsolve`, both timed in process; ltlfsynt is its summed `--verbose` stage time.
 
