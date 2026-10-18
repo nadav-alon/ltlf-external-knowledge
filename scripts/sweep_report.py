@@ -247,7 +247,7 @@ def render(sweep, subject=EK_SUBJECT):
         "stage lines are missing or unparseable is left out and counted in a note; a cell that "
         "timed out is left out and counted in the ltlfsynt-timeout note",
         "- ltlfsynt reports no explored size: the `k` in its `translation to MTDFA (k roots, ...)` "
-        "line counts the formulas it started from, so there is no ltlfsynt explored-roots column",
+        "line counts the formulas it started from",
         "- ltlfsynt startup floor (~4 ms) is noted, not subtracted, in the wall-clock columns",
         f"- verdict mismatches: {prov['verdict_mismatch_count']}",
         "",
