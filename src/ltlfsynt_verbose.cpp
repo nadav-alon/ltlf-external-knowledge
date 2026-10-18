@@ -11,7 +11,6 @@ LtlfsyntVerbose parse_ltlfsynt_verbose(std::string_view stderr_text) {
   static const std::regex stage_marker(R"( (?:took|created in|found in) )");
   static const std::regex stage_line(
       R"( (?:took|created in|found in) (\S+) seconds\s*$)");
-  static const std::regex roots_line(R"(translation to MTDFA \((\d+) roots,)");
 
   LtlfsyntVerbose out;
   double total_seconds = 0;
@@ -43,8 +42,6 @@ LtlfsyntVerbose parse_ltlfsynt_verbose(std::string_view stderr_text) {
         any_stage = true;
       }
     }
-    if (std::regex_search(line, m, roots_line))
-      out.explored_roots = std::stoull(m[1]);
   }
   if (any_stage && !malformed)
     out.internal_ns = static_cast<std::uint64_t>(std::llround(total_seconds * 1e9));

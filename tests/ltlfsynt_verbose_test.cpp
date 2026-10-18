@@ -28,21 +28,17 @@ std::string read_fixture(const std::string& relative_path) {
 // 2.15.1, one per verdict (the realizable one also prints the signal-removal
 // lines); the only stage-time line that version prints in either is the MTDFA
 // translation. The `synthesis-*` transcripts below are full synthesis.
-TEST(LtlfsyntVerbose, SpotTranscriptYieldsTheTranslationTimeAndRoots) {
+TEST(LtlfsyntVerbose, SpotTranscriptYieldsTheTranslationTime) {
   const auto v = parse_ltlfsynt_verbose(read_fixture("ltlfsynt/verbose-2.15.1.txt"));
   ASSERT_TRUE(v.internal_ns);
   EXPECT_EQ(*v.internal_ns, 652407u);
-  ASSERT_TRUE(v.explored_roots);
-  EXPECT_EQ(*v.explored_roots, 1u);
 }
 
-TEST(LtlfsyntVerbose, RealizableSpotTranscriptYieldsTheTranslationTimeAndRoots) {
+TEST(LtlfsyntVerbose, RealizableSpotTranscriptYieldsTheTranslationTime) {
   const auto v =
       parse_ltlfsynt_verbose(read_fixture("ltlfsynt/verbose-realizable-2.15.1.txt"));
   ASSERT_TRUE(v.internal_ns);
   EXPECT_EQ(*v.internal_ns, 3547820u);
-  ASSERT_TRUE(v.explored_roots);
-  EXPECT_EQ(*v.explored_roots, 1u);
 }
 
 // Full synthesis (no --realizability) adds a strategy-extraction stage when
@@ -52,7 +48,6 @@ TEST(LtlfsyntVerbose, SynthesisTranscriptSumsTheStrategyExtractionStage) {
       read_fixture("ltlfsynt/synthesis-realizable-2.15.1.stderr.txt"));
   ASSERT_TRUE(v.internal_ns);
   EXPECT_EQ(*v.internal_ns, 627116u + 3259u);
-  EXPECT_EQ(*v.explored_roots, 1u);
 }
 
 TEST(LtlfsyntVerbose, UnrealizableSynthesisTranscriptHasOnlyTheTranslationTime) {
@@ -60,7 +55,6 @@ TEST(LtlfsyntVerbose, UnrealizableSynthesisTranscriptHasOnlyTheTranslationTime) 
       read_fixture("ltlfsynt/synthesis-unrealizable-2.15.1.stderr.txt"));
   ASSERT_TRUE(v.internal_ns);
   EXPECT_EQ(*v.internal_ns, 666867u);
-  EXPECT_EQ(*v.explored_roots, 1u);
 }
 
 TEST(LtlfsyntVerbose, StageTimesAreSummed) {
@@ -69,26 +63,22 @@ TEST(LtlfsyntVerbose, StageTimesAreSummed) {
       "simplification took 0.25 seconds\n");
   ASSERT_TRUE(v.internal_ns);
   EXPECT_EQ(*v.internal_ns, 750000000u);
-  EXPECT_EQ(*v.explored_roots, 7u);
 }
 
 TEST(LtlfsyntVerbose, EmptyTranscriptHasNothingNotZero) {
   const auto v = parse_ltlfsynt_verbose("");
   EXPECT_FALSE(v.internal_ns);
-  EXPECT_FALSE(v.explored_roots);
 }
 
 TEST(LtlfsyntVerbose, TranscriptWithoutStageLinesHasNothingNotZero) {
   const auto v = parse_ltlfsynt_verbose("using Mealy semantics\nREALIZABLE\n");
   EXPECT_FALSE(v.internal_ns);
-  EXPECT_FALSE(v.explored_roots);
 }
 
 TEST(LtlfsyntVerbose, UnparseableStageTimeHasNoInternalTime) {
   const auto v = parse_ltlfsynt_verbose(
       "translation to MTDFA (3 roots, 0 APs) took soon seconds\n");
   EXPECT_FALSE(v.internal_ns);
-  EXPECT_EQ(*v.explored_roots, 3u);
 }
 
 TEST(LtlfsyntVerbose, OneUnparseableStageTimeSpoilsTheSum) {
@@ -123,7 +113,6 @@ TEST(LtlfsyntVerbose, StageLineMissingItsUnitSpoilsTheSum) {
 TEST(LtlfsyntVerbose, TranscriptCutInsideTheStageLineHasNothingNotZero) {
   const auto v = parse_ltlfsynt_verbose("translation to MTDFA (3 ro");
   EXPECT_FALSE(v.internal_ns);
-  EXPECT_FALSE(v.explored_roots);
 }
 
 TEST(LtlfsyntVerdict, RealizableSynthesisStdoutCarriesAStrategyAfterTheVerdict) {
