@@ -287,10 +287,12 @@ TEST(BenchSuiteAbsentNeverZero, OtfMtdfaProductEmitsNoGoalMetricAtAllViaTheRegis
 // states are expanded.  No timing is asserted.
 // ---------------------------------------------------------------------------
 
-TEST(BenchSuiteOtfSolve, VerdictAndExpandedStatesAgreeWithBuildThenSolveOnEverySweepFamily) {
-  const std::vector<std::pair<std::string, std::string>> pairs = {
-      {"otf-mtdfa-product", "otf-mtdfa-product-otfsolve"},
-      {"otf-mtdfa-product-nk", "otf-mtdfa-product-nk-otfsolve"}};
+// For every (off, on) subject pair, on every sweep-family case at sweep(2, 4):
+// the verdict agrees, and when `bound_expanded` the `on` subject expands no more
+// states than `off`.
+void ExpectPairsAgreeOnEverySweepFamily(
+    const std::vector<std::pair<std::string, std::string>>& pairs,
+    bool bound_expanded) {
   int compared = 0;
   int skipped = 0;
   for (const std::string family :
@@ -312,12 +314,29 @@ TEST(BenchSuiteOtfSolve, VerdictAndExpandedStatesAgreeWithBuildThenSolveOnEveryS
         EXPECT_EQ(RowValue(on, MetricKey(SizeMetric::controller_states)).has_value(),
                   RowValue(off, MetricKey(SizeMetric::controller_states)).has_value());
         ASSERT_TRUE(RowValue(on, ltlf_ek::kStatesExpandedMetric));
-        EXPECT_LE(*RowValue(on, ltlf_ek::kStatesExpandedMetric), *RowValue(off, ltlf_ek::kStatesExpandedMetric));
+        if (bound_expanded)
+          EXPECT_LE(*RowValue(on, ltlf_ek::kStatesExpandedMetric), *RowValue(off, ltlf_ek::kStatesExpandedMetric));
       }
     }
   }
   EXPECT_GT(compared, 0) << "states_expanded was never recorded: vacuous";
   EXPECT_GT(compared, skipped);
+}
+
+TEST(BenchSuiteOtfSolve, VerdictAndExpandedStatesAgreeWithBuildThenSolveOnEverySweepFamily) {
+  ExpectPairsAgreeOnEverySweepFamily(
+      {{"otf-mtdfa-product", "otf-mtdfa-product-otfsolve"},
+       {"otf-mtdfa-product-nk", "otf-mtdfa-product-nk-otfsolve"}},
+      /*bound_expanded=*/true);
+}
+
+// Simplifying phi can change the state count either way, so only the verdict
+// is compared.
+TEST(BenchSuiteSimplifyFormula, SimplifyFormulaKeepsTheVerdictOnEverySweepFamily) {
+  ExpectPairsAgreeOnEverySweepFamily(
+      {{"otf-mtdfa-product-otfsolve", "otf-mtdfa-product-otfsolve-simp"},
+       {"otf-mtdfa-product-nk-otfsolve", "otf-mtdfa-product-nk-otfsolve-simp"}},
+      /*bound_expanded=*/false);
 }
 
 TEST(BenchSuiteAbsentNeverZero, UnrealizableCaseEmitsNoControllerStatesRowViaTheRegistry) {

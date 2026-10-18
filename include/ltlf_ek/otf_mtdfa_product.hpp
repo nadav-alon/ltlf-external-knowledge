@@ -60,6 +60,11 @@ spot::mtdfa_ptr otf_product_to_mtdfa(const spot::formula& phi,
 // they are comparable.
 inline constexpr const char* kStatesExpandedMetric = "states_expanded";
 
+// Spot's LTLf formula simplifier (spot::ltlf_simplifier, the one
+// `ltlfsynt --simplify-formula` runs) applied to `phi`.  The result is
+// equivalent to `phi` over finite traces.
+spot::formula simplify_ltlf_formula(const spot::formula& phi);
+
 // Construction and game solving fused: the BFS above feeds a
 // spot::backprop_graph as each row is expanded and stops as soon as the
 // initial state is decided, or every state is expanded without it being
@@ -88,7 +93,12 @@ class OtfMtdfaProduct final : public Synthesis {
   // determined.  Default OFF --- the proven build-then-solve path stays the
   // default until the benchmark says otherwise, the same discipline
   // MtdfaProduct's `minimize_mtdfa` knob follows.
-  explicit OtfMtdfaProduct(bool otf_solve = false) : otf_solve_(otf_solve) {}
+  //
+  // simplify_formula: run simplify_ltlf_formula on phi before progression.
+  // Default OFF; it rewrites phi alone and keeps its meaning, so it is sound
+  // under any transducer.
+  explicit OtfMtdfaProduct(bool otf_solve = false, bool simplify_formula = false)
+      : otf_solve_(otf_solve), simplify_formula_(simplify_formula) {}
 
   std::optional<Controller> synthesize(const spot::formula& phi,
                                        const VariablePartition& vars,
@@ -97,6 +107,7 @@ class OtfMtdfaProduct final : public Synthesis {
 
  private:
   bool otf_solve_;
+  bool simplify_formula_;
 };
 
 }  // namespace ltlf_ek

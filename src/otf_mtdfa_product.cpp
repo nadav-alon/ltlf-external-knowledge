@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <spot/misc/bddlt.hh>
+#include <spot/tl/ltlf.hh>
 #include <spot/twaalgos/backprop.hh>
 
 #include "ltlf_ek/bench.hpp"
@@ -382,6 +383,11 @@ std::optional<Controller> otf_solve_fused(
   return solve_and_record(build.product, vars);
 }
 
+spot::formula simplify_ltlf_formula(const spot::formula& phi) {
+  spot::ltlf_simplifier simplifier;
+  return simplifier.simplify(phi);
+}
+
 std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
                                                        const VariablePartition& vars,
                                                        const Transducer& t_in,
@@ -390,10 +396,12 @@ std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
   validate_product_inputs(phi, vars, taus);  // product.hpp preamble
   const spot::bdd_dict_ptr dict = t_in.dict();
   require_turn_order_aps(vars, dict);  // BEFORE any automaton is built
+  const spot::formula goal =
+      simplify_formula_ ? simplify_ltlf_formula(phi) : phi;
 
   if (otf_solve_) {
     std::size_t expanded = 0;
-    auto controller = otf_solve_fused(phi, taus, vars, dict, &expanded);
+    auto controller = otf_solve_fused(goal, taus, vars, dict, &expanded);
     record_size_metric(kStatesExpandedMetric, expanded);
     return controller;
   }
@@ -401,7 +409,7 @@ std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
   spot::mtdfa_ptr product;
   {
     BenchTimer t(Stage::product_construction);
-    product = otf_product_to_mtdfa(phi, taus, vars, dict);
+    product = otf_product_to_mtdfa(goal, taus, vars, dict);
   }
   record_size_metric(kStatesExpandedMetric, product->num_roots());
   record_product_metrics(product, product->num_roots());
