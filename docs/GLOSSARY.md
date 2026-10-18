@@ -1365,7 +1365,8 @@ states](#minimized-product-states), the *minimized nk-product ratio*.
 ### ltlfsynt internal time
 - **`main.tex`:** none (implementation-only: a benchmark quantity).
 - **Definition:** the sum of the stage times `ltlfsynt --verbose` prints on stderr (for example
-  `translation to MTDFA (1 roots, 0 APs) took 0.004 seconds`): the solver's work without process
+  `translation to MTDFA (1 roots, 0 APs) took 0.004 seconds`, and in full synthesis of a realizable
+  spec `Mealy machine (1 states) created in 0.001 seconds`): the solver's work without process
   startup. It is missing, never 0, when the stage lines are missing or unparseable or the run
   timed out.
 - **C++:** `LtlfsyntVerbose::internal_ns` (`include/ltlf_ek/ltlfsynt_verbose.hpp`), read from

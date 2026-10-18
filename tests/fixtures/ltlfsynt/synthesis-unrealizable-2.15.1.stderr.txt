@@ -1,0 +1,4 @@
+using Mealy semantics
+starting on-the-fly translation with node-based backpropagation, with BFS order, with one-step preprocess
+translation to MTDFA (1 roots, 2 APs) took 0.000666867 seconds
+translation produced a strategy already

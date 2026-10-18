@@ -8,8 +8,8 @@
 namespace ltlf_ek {
 
 LtlfsyntVerbose parse_ltlfsynt_verbose(std::string_view stderr_text) {
-  static const std::regex stage_marker(R"( took )");
-  static const std::regex stage_line(R"( took (\S+) seconds\s*$)");
+  static const std::regex stage_marker(R"( (?:took|created in) )");
+  static const std::regex stage_line(R"( (?:took|created in) (\S+) seconds\s*$)");
   static const std::regex roots_line(R"(translation to MTDFA \((\d+) roots,)");
 
   LtlfsyntVerbose out;

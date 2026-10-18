@@ -42,6 +42,24 @@ TEST(LtlfsyntVerbose, RealizableSpotTranscriptYieldsTheTranslationTimeAndRoots) 
   EXPECT_EQ(*v.explored_roots, 1u);
 }
 
+// Full synthesis (no --realizability) adds a strategy-extraction stage when
+// the spec is realizable: "Mealy machine (N states) created in S seconds".
+TEST(LtlfsyntVerbose, SynthesisTranscriptSumsTheStrategyExtractionStage) {
+  const auto v = parse_ltlfsynt_verbose(
+      read_fixture("ltlfsynt/synthesis-realizable-2.15.1.stderr.txt"));
+  ASSERT_TRUE(v.internal_ns);
+  EXPECT_EQ(*v.internal_ns, 627116u + 3259u);
+  EXPECT_EQ(*v.explored_roots, 1u);
+}
+
+TEST(LtlfsyntVerbose, UnrealizableSynthesisTranscriptHasOnlyTheTranslationTime) {
+  const auto v = parse_ltlfsynt_verbose(
+      read_fixture("ltlfsynt/synthesis-unrealizable-2.15.1.stderr.txt"));
+  ASSERT_TRUE(v.internal_ns);
+  EXPECT_EQ(*v.internal_ns, 666867u);
+  EXPECT_EQ(*v.explored_roots, 1u);
+}
+
 TEST(LtlfsyntVerbose, StageTimesAreSummed) {
   const auto v = parse_ltlfsynt_verbose(
       "translation to MTDFA (7 roots, 0 APs) took 0.5 seconds\n"
