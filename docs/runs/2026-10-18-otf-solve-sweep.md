@@ -7,69 +7,94 @@ The four Oct 16 families (the three slippery arms as one, knowledge-chain, cons-
 - verdict mismatches across all subjects: **0**
 - raw data: `2026-10-18-otf-solve-sweep.json`
 
+> **Superseded in part by `2026-10-18-simplifier-synthesis-sweep.md` (#178):** this run's formula side had no LTLf simplifier. With it, the in-process wins below disappear on cons-prunes and on two of slippery's three arms. The numbers here are correct as measured.
+
 ## 1. On-the-fly-solve EK vs on-the-fly-solve formula, in process
 
 Both sides use the same `OtfMtdfaProduct` solver with `--otf-solve`, in the same process, with no startup floor. EK is `otf-mtdfa-product-otfsolve` (φ × T_in); the formula baseline is `otf-mtdfa-product-nk-otfsolve` (ψ_in → φ, trivial transducers).
-- in-process speedup = formula median / EK median
-- explored-roots ratio = EK `product_mtdfa_roots` / formula `product_mtdfa_roots`, so below 1 means EK explored less
-- each figure is the median over the family's cells
 
-Largest N at which both finished:
+Every figure is a median over the cells in brackets. A lower bound also counts the cells where EK finished and the formula side did not, at timeout / EK median.
 
-| family | N | cells | in-process speedup | explored-roots ratio |
-|---|---|---|---|---|
-| co-generated | 6 | 2 of 2 | 9.59x | 0.508 |
-| cons-prunes | 6 | 2 of 2 | 0.99x | 0.625 |
-| slippery | 5 | 6 of 6 | 158.68x | 1.000 |
-| slippery | 6 | 2 of 6: the formula side timed out (20 s) in the other 4, where EK took ~150 ms | 1.54x (survivors only) | 1.000 |
-| knowledge-chain | n/a: no ψ_in | | | |
+Largest N, per family:
 
-Per N:
+| family | N | in-process speedup | explored-roots ratio |
+|---|---|---|---|
+| co-generated | 6 | 9.59x (2 of 2 cells) | 0.508 |
+| cons-prunes | 6 | 0.99x (2 of 2) | 0.625 |
+| slippery | 5 | 158.68x (6 of 6) | 1.000 |
+| slippery | 6 | 1.54x over the 2 slippery-binary-compact cells only. The formula side timed out in both slippery-binary cells (EK 128 and 153 ms) and both slippery-onehot cells (EK about 1.0 and 1.1 s). Lower bound ≥ 19.19x over all 6 cells. | 1.000 |
+| knowledge-chain | not raced: no ψ_in | | |
 
-| family | N | EK otf-solve med (ms) | formula otf-solve med (ms) | in-process speedup (otf-solve) | explored-roots ratio (otf-solve) | formula timeouts (EK finished) | ltlfsynt explored roots (median) |
-|---|---|---|---|---|---|---|---|
-| co-generated | 2 | 0.69 | 0.77 | 1.11x | 0.591 | 0 | 1 |
-| co-generated | 3 | 0.70 | 0.97 | 1.38x | 0.553 | 0 | 1 |
-| co-generated | 4 | 0.76 | 1.33 | 1.76x | 0.529 | 0 | 1 |
-| co-generated | 5 | 0.73 | 3.09 | 4.30x | 0.515 | 0 | 1 |
-| co-generated | 6 | 0.97 | 9.29 | 9.59x | 0.508 | 0 | 1 |
-| cons-prunes | 2 | 0.67 | 0.61 | 0.92x | 0.750 | 0 | 1 |
-| cons-prunes | 3 | 0.72 | 0.70 | 0.98x | 0.700 | 0 | 1 |
-| cons-prunes | 4 | 0.71 | 0.73 | 1.03x | 0.667 | 0 | 1 |
-| cons-prunes | 5 | 0.74 | 0.71 | 0.96x | 0.643 | 0 | 1 |
-| cons-prunes | 6 | 0.96 | 0.93 | 0.99x | 0.625 | 0 | 1 |
-| knowledge-chain | 2 | 0.70 | n/a | n/a | n/a | 0 | n/a |
-| knowledge-chain | 3 | 0.71 | n/a | n/a | n/a | 0 | n/a |
-| knowledge-chain | 4 | 0.69 | n/a | n/a | n/a | 0 | n/a |
-| knowledge-chain | 5 | 0.75 | n/a | n/a | n/a | 0 | n/a |
-| knowledge-chain | 6 | 0.96 | n/a | n/a | n/a | 0 | n/a |
-| slippery | 2 | 1.43 | 4.26 | 2.57x | 1.000 | 0 | 1 |
-| slippery | 3 | 3.24 | 21.90 | 6.59x | 1.000 | 0 | 1 |
-| slippery | 4 | 8.24 | 305.92 | 32.73x | 1.000 | 0 | 1 |
-| slippery | 5 | 38.23 | 10608.15 | 158.68x | 1.000 | 0 | 1 |
-| slippery | 6 | 149.93 | 219.40 | 1.54x | 1.000 | 4 | 1 |
+Regenerate the tables with `python3 scripts/sweep_pairs.py docs/runs/2026-10-18-otf-solve-sweep.json otf-mtdfa-product-otfsolve otf-mtdfa-product-nk-otfsolve [--arms]`. The script is added in #188 (PR #188); these tables are its output.
+
+EK `otf-mtdfa-product-otfsolve` vs formula `otf-mtdfa-product-nk-otfsolve`, both timed in process; ltlfsynt is its summed `--verbose` stage time.
+
+| family | N | cells (EK finished / all) | EK med (ms) | formula med (ms) | speedup, cells both finished | speedup lower bound, unfinished at timeout | explored-roots ratio | ltlfsynt internal speedup (cells) | ltlfsynt lower bound, timeouts at timeout |
+|---|---|---|---|---|---|---|---|---|---|
+| co-generated | 2 | 2 / 2 | 0.69 | 0.77 | 1.11x (2) | — | 0.591 | 0.93x (2) | — |
+| co-generated | 3 | 2 / 2 | 0.70 | 0.97 | 1.38x (2) | — | 0.553 | 1.05x (2) | — |
+| co-generated | 4 | 2 / 2 | 0.76 | 1.33 | 1.76x (2) | — | 0.529 | 1.91x (2) | — |
+| co-generated | 5 | 2 / 2 | 0.73 | 3.09 | 4.30x (2) | — | 0.515 | 3982.84x (2) | — |
+| co-generated | 6 | 2 / 2 | 0.97 | 9.29 | 9.59x (2) | — | 0.508 | 0.70x (1) | ≥ 10338.45x (1 timed out) |
+| cons-prunes | 2 | 2 / 2 | 0.67 | 0.61 | 0.92x (2) | — | 0.750 | 0.91x (2) | — |
+| cons-prunes | 3 | 2 / 2 | 0.72 | 0.70 | 0.98x (2) | — | 0.700 | 0.84x (2) | — |
+| cons-prunes | 4 | 2 / 2 | 0.71 | 0.73 | 1.03x (2) | — | 0.667 | 0.84x (2) | — |
+| cons-prunes | 5 | 2 / 2 | 0.74 | 0.71 | 0.96x (2) | — | 0.643 | 0.76x (2) | — |
+| cons-prunes | 6 | 2 / 2 | 0.96 | 0.93 | 0.99x (2) | — | 0.625 | 0.69x (2) | — |
+| knowledge-chain | 2 | 2 / 2 | 0.70 | n/a | n/a | — | n/a | n/a | — |
+| knowledge-chain | 3 | 2 / 2 | 0.71 | n/a | n/a | — | n/a | n/a | — |
+| knowledge-chain | 4 | 2 / 2 | 0.69 | n/a | n/a | — | n/a | n/a | — |
+| knowledge-chain | 5 | 2 / 2 | 0.75 | n/a | n/a | — | n/a | n/a | — |
+| knowledge-chain | 6 | 2 / 2 | 0.96 | n/a | n/a | — | n/a | n/a | — |
+| slippery | 2 | 6 / 6 | 1.43 | 4.26 | 2.57x (6) | — | 1.000 | 0.74x (6) | — |
+| slippery | 3 | 6 / 6 | 3.24 | 21.90 | 6.59x (6) | — | 1.000 | 0.66x (6) | — |
+| slippery | 4 | 6 / 6 | 8.24 | 305.92 | 32.73x (6) | — | 1.000 | 0.51x (6) | — |
+| slippery | 5 | 6 / 6 | 38.23 | 10608.15 | 158.68x (6) | — | 1.000 | 0.36x (6) | — |
+| slippery | 6 | 6 / 6 | 149.93 | 219.40 | 1.54x (2) | ≥ 19.19x (4 unfinished) | 1.000 | 0.42x (6) | — |
+
+slippery by arm:
+
+| family | N | cells (EK finished / all) | EK med (ms) | formula med (ms) | speedup, cells both finished | speedup lower bound, unfinished at timeout | explored-roots ratio | ltlfsynt internal speedup (cells) | ltlfsynt lower bound, timeouts at timeout |
+|---|---|---|---|---|---|---|---|---|---|
+| slippery-binary | 2 | 2 / 2 | 1.33 | 4.28 | 3.24x (2) | — | 1.000 | 0.76x (2) | — |
+| slippery-binary | 3 | 2 / 2 | 3.08 | 21.90 | 7.14x (2) | — | 1.000 | 0.69x (2) | — |
+| slippery-binary | 4 | 2 / 2 | 7.79 | 305.92 | 39.40x (2) | — | 1.000 | 0.53x (2) | — |
+| slippery-binary | 5 | 2 / 2 | 33.30 | 10608.15 | 320.54x (2) | — | 1.000 | 0.36x (2) | — |
+| slippery-binary | 6 | 2 / 2 | 140.39 | n/a | n/a | ≥ 143.62x (2 unfinished) | n/a | 0.40x (2) | — |
+| slippery-binary-compact | 2 | 2 / 2 | 1.34 | 1.92 | 1.44x (2) | — | 1.000 | 0.74x (2) | — |
+| slippery-binary-compact | 3 | 2 / 2 | 3.13 | 4.05 | 1.29x (2) | — | 1.000 | 0.64x (2) | — |
+| slippery-binary-compact | 4 | 2 / 2 | 7.61 | 11.10 | 1.47x (2) | — | 1.000 | 0.55x (2) | — |
+| slippery-binary-compact | 5 | 2 / 2 | 36.81 | 47.47 | 1.29x (2) | — | 1.000 | 0.30x (2) | — |
+| slippery-binary-compact | 6 | 2 / 2 | 142.50 | 219.40 | 1.54x (2) | — | 1.000 | 0.35x (2) | — |
+| slippery-onehot | 2 | 2 / 2 | 1.74 | 4.48 | 2.57x (2) | — | 1.000 | 0.74x (2) | — |
+| slippery-onehot | 3 | 2 / 2 | 4.14 | 28.50 | 6.90x (2) | — | 1.000 | 0.65x (2) | — |
+| slippery-onehot | 4 | 2 / 2 | 17.13 | 558.65 | 32.73x (2) | — | 1.000 | 0.50x (2) | — |
+| slippery-onehot | 5 | 2 / 2 | 111.61 | 17678.44 | 158.68x (2) | — | 1.000 | 0.72x (2) | — |
+| slippery-onehot | 6 | 2 / 2 | 1043.07 | n/a | n/a | ≥ 19.19x (2 unfinished) | n/a | 1.48x (2) | — |
 
 ## 2. On-the-fly-solve EK vs ltlfsynt
 
-This is the report rendered with `--subject otf-mtdfa-product-otfsolve`, given in full in section 4. The column to read is **ltlfsynt internal speedup**: the sum of the stage times ltlfsynt reports, over the EK median, with no process startup on either side. N=2→6:
+Read **ltlfsynt internal speedup** in the tables above: the sum of the stage times ltlfsynt reports, over the EK median, with no process startup on either side.
 
-| family | ltlfsynt internal speedup | wall-clock speedup (floor included) |
-|---|---|---|
-| co-generated | 0.93x, 1.05x, 1.91x, 3982.84x, 0.70x (the N=5 cell is ltlfsynt's erratic 2.8 s cell, as on Oct 12 and Oct 16) | 15.05x → 11.25x |
-| cons-prunes | 0.91x → 0.69x | 9.42x → 7.11x |
-| slippery | 0.74x → 0.42x | 4.99x → 0.62x |
+- Overall, ltlfsynt is faster in **43 of the 49** cells where both finished.
+- **slippery:** 0.74x → 0.36x (N=5) → 0.42x (N=6), so ltlfsynt is up to about 2.8x faster at the family median and about 3.4x in the worst cell (0.29x). The gap narrows slightly from N=5 to N=6, and **slippery-onehot N=6 has EK faster (1.48x)**.
+- **cons-prunes:** 0.91x → 0.69x, so ltlfsynt is up to about 1.45x faster.
+- **co-generated:** mixed, with EK faster in 4 of 9 cells.
+  - N=4 is 1.91x.
+  - N=5 is ltlfsynt's erratic cell (3982.84x).
+  - N=6 is 0.70x in the realizable cell. ltlfsynt timed out in the unrealizable cell, where EK took about 1 ms (≥ 10338x counting it at the timeout).
 
-Floor-free, ltlfsynt is faster than on-the-fly-solve EK in almost every cell, and the gap widens with N. The wall-clock "speedups" come from ltlfsynt's process startup.
-
-**Caveat, unverified:** ltlfsynt's explored-roots count, parsed from its `translation to MTDFA (k roots, …)` line by #149, is **1 in every cell**, including slippery N=6 at 85 ms. Either ltlfsynt's preprocessing decides at the root, or the parser reads only the first of several such lines. The "ltlfsynt explored-roots ratio" columns below should not be used until that is checked.
+The wall-clock "speedups" in section 4 come mostly from ltlfsynt's process startup.
 
 ## 3. Reading
 
-- **Against our own formula solver**, the transducer wins once both solve on the fly:
-  - EK explores about half the roots on co-generated (0.51–0.59, falling) and cons-prunes (0.63–0.75, falling);
-  - EK is up to 159x faster on slippery and 9.6x faster on co-generated;
+- **Against our own formula solver (no simplifier)**, the transducer wins once both solve on the fly:
+  - EK explores fewer roots on co-generated (0.51–0.59, falling with N) and cons-prunes (0.63–0.75, falling with N);
+  - EK is faster on slippery (up to 159x at N=5) and on co-generated (9.6x at N=6);
   - cons-prunes is at parity on time.
-- **Against ltlfsynt** it does not: floor-free, ltlfsynt is 1.1–2.4x faster on cons-prunes and slippery, and the gap grows with N. The formula baseline's weakness relative to ltlfsynt (slippery N=5: 10.6 s vs 26 ms) points at ltlfsynt's preprocessing (#158) or solver, not at the transducer.
+- **Against ltlfsynt** it mostly does not, as section 2 shows.
+- The formula baseline is far weaker than ltlfsynt here: slippery N=5 takes 10.6 s in process, against ltlfsynt's 11–83 ms of internal stage time on the same cells.
+- #178 traces that weakness to the missing LTLf simplifier, not to ltlfsynt's other preprocessing.
 
 ## 4. Full reports
 
