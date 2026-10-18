@@ -14,6 +14,7 @@
 #include <vector>
 
 #include <spot/misc/bddlt.hh>
+#include <spot/tl/ltlf.hh>
 #include <spot/twaalgos/backprop.hh>
 
 #include "ltlf_ek/bench.hpp"
@@ -382,14 +383,21 @@ std::optional<Controller> otf_solve_fused(
   return solve_and_record(build.product, vars);
 }
 
-std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
+spot::formula simplify_ltlf_formula(const spot::formula& phi) {
+  spot::ltlf_simplifier simplifier;
+  return simplifier.simplify(phi);
+}
+
+std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi_in,
                                                        const VariablePartition& vars,
                                                        const Transducer& t_in,
                                                        const Transducer& t_out) {
   const std::vector<const Transducer*> taus{&t_in, &t_out};
-  validate_product_inputs(phi, vars, taus);  // product.hpp preamble
+  validate_product_inputs(phi_in, vars, taus);  // product.hpp preamble
   const spot::bdd_dict_ptr dict = t_in.dict();
   require_turn_order_aps(vars, dict);  // BEFORE any automaton is built
+  const spot::formula phi =
+      simplify_formula_ ? simplify_ltlf_formula(phi_in) : phi_in;
 
   if (otf_solve_) {
     std::size_t expanded = 0;

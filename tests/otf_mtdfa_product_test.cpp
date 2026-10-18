@@ -17,11 +17,13 @@
 #include <spot/misc/optionmap.hh>
 #include <spot/tl/defaultenv.hh>
 #include <spot/tl/formula.hh>
+#include <spot/tl/ltlf.hh>
 #include <spot/tl/parse.hh>
 #include <spot/tl/randomltl.hh>
 #include <spot/twa/bdddict.hh>
 #include <spot/twa/twagraph.hh>
 #include <spot/twaalgos/backprop.hh>
+#include <spot/twaalgos/contains.hh>
 #include <spot/twaalgos/ltlf2dfa.hh>
 
 #include "ltlf_ek/bench.hpp"
@@ -761,6 +763,37 @@ TEST(OtfMtdfaProductSynthesize, OtfSolveKnobAgreesWithBuildThenSolveAndYieldsAVe
     const auto b = off.synthesize(phi, f.vars, f.t_in, f.t_out);
     EXPECT_EQ(a.has_value(), b.has_value());
     if (a) EXPECT_TRUE(ltlf_ek::verify_controller(phi, f.vars, f.t_in, f.t_out, *a).ok);
+  }
+}
+
+TEST(SimplifyLtlfFormula, ResultIsLtlfEquivalentToTheInput) {
+  for (const char* text :
+       {"G(i -> o)", "o | X(i & X o)", "F(i & X[!] o) & G(F i)", "X(X(o & 1))",
+        "(i U o) & (i U o)", "!(G !i) | X[!] 0", "G(F(i & o) | (o U i))"}) {
+    SCOPED_TRACE(text);
+    const spot::formula phi = Phi(text);
+    const spot::formula simplified = ltlf_ek::simplify_ltlf_formula(phi);
+    // from_ltlf encodes finite-trace semantics as LTL over `alive`, so LTL
+    // equivalence of the encodings is LTLf equivalence.
+    EXPECT_TRUE(spot::are_equivalent(spot::from_ltlf(phi),
+                                     spot::from_ltlf(simplified)));
+  }
+}
+
+TEST(OtfMtdfaProductSynthesize, SimplifyFormulaKnobKeepsTheVerdictAndYieldsAVerifiedController) {
+  for (const char* text : {"1", "0", "G(i -> o)", "o | X(i & X o)", "i & o",
+                           "X[!] i", "F(i & o) & G(o | i)"}) {
+    SCOPED_TRACE(text);
+    OtfSolveFixture f;
+    const spot::formula phi = Phi(text);
+    for (const bool otf_solve : {false, true}) {
+      OtfMtdfaProduct on(otf_solve, /*simplify_formula=*/true);
+      OtfMtdfaProduct off(otf_solve);
+      const auto a = on.synthesize(phi, f.vars, f.t_in, f.t_out);
+      const auto b = off.synthesize(phi, f.vars, f.t_in, f.t_out);
+      EXPECT_EQ(a.has_value(), b.has_value());
+      if (a) EXPECT_TRUE(ltlf_ek::verify_controller(phi, f.vars, f.t_in, f.t_out, *a).ok);
+    }
   }
 }
 

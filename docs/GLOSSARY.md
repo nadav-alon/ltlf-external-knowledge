@@ -766,6 +766,13 @@ the existing term or update this file via `/glossary` — do not let drift happe
   (implementation-only). Both paths of `OtfMtdfaProduct::synthesize` record the
   free-form metric `kStatesExpandedMetric` (`"states_expanded"`, the number of
   states whose row was expanded), and `product_mtdfa_roots` is that same count.
+  **`simplify_ltlf_formula`** (`--simplify-formula`,
+  `OtfMtdfaProduct(…, simplify_formula=true)`) rewrites $\varphi$ alone with Spot's
+  LTLf formula simplifier (`spot::ltlf_simplifier`, what `ltlfsynt --simplify-formula`
+  runs) before progression; the result is LTLf-equivalent to $\varphi$, so it is sound
+  with any transducer. main.tex: none (implementation-only). The bench subjects
+  `otf-mtdfa-product-otfsolve-simp` and `otf-mtdfa-product-nk-otfsolve-simp` are the
+  `--otf-solve` subjects with the knob on.
 - **Do not call it:** composition, join, cross; for the symbolic pieces, not
   `symbolic_product`/`product_symbolic` (build), `GuardMap`/`product_map`
   (`ProductGuards`), `materialize`/`to_twa` (bare, for `materialize_product`);
