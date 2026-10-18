@@ -43,9 +43,9 @@ namespace {
 
 // The sweep floor (PRD "Edge cases": X[!]^0 degenerates to phi itself; the
 // sweep starts at n=2, and a family must reject a parameter below its own
-// floor rather than emit a malformed formula). Uniform across all five
-// families --- none of B4's phi_n shapes are malformed below 2, but the
-// policy is declared once here rather than re-derived per family.
+// floor rather than emit a malformed formula). The default for every family
+// except hidden-counter, which declares its own floor of 1 (check_floor and
+// default_sweep take the floor as a parameter).
 constexpr std::int64_t kNFloor = 2;
 
 // n applications of the strong-next operator X[!] around `inner` (main.tex's
@@ -64,11 +64,12 @@ std::int64_t require_param(const BenchParams& params, const std::string& key) {
   return it->second;
 }
 
-void check_floor(const std::string& family, std::int64_t n) {
-  if (n < kNFloor)
+void check_floor(const std::string& family, std::int64_t n,
+                 std::int64_t floor = kNFloor) {
+  if (n < floor)
     throw std::invalid_argument(family + ": n=" + std::to_string(n) +
                                 " is below the sweep floor (" +
-                                std::to_string(kNFloor) +
+                                std::to_string(floor) +
                                 "); a family must reject a parameter below "
                                 "its own floor rather than emit a malformed "
                                 "formula (PRD \"Edge cases\")");
@@ -77,11 +78,12 @@ void check_floor(const std::string& family, std::int64_t n) {
 // Common sweep: every n in [n_min, n_max], both polarities (PRD B4: "all
 // with a single sweep axis n and a realizable flag"). n_min below the floor
 // is rejected up front, same rule as instantiate().
-std::vector<BenchParams> default_sweep(std::int64_t n_min, std::int64_t n_max) {
-  if (n_min < kNFloor)
+std::vector<BenchParams> default_sweep(std::int64_t n_min, std::int64_t n_max,
+                                       std::int64_t floor = kNFloor) {
+  if (n_min < floor)
     throw std::invalid_argument(
         "bench_suite: sweep n_min=" + std::to_string(n_min) +
-        " is below the sweep floor (" + std::to_string(kNFloor) + ")");
+        " is below the sweep floor (" + std::to_string(floor) + ")");
   std::vector<BenchParams> out;
   for (std::int64_t n = n_min; n <= n_max; ++n)
     for (std::int64_t realizable = 0; realizable <= 1; ++realizable)
@@ -896,7 +898,7 @@ std::string compact_min1(char axis, std::int64_t n) {
   return compact_conj(terms);
 }
 
-// D5's Keep: every bit unchanged, weak X (D6). Two things to keep straight
+// D5's Keep: every bit unchanged, weak X (docs/prd/engineered-domain-families.md D6). Two things to keep straight
 // about the operator here, because they changed on 2026-08-22:
 //   - Historically, X[!] in this body was FATAL: with no guard conjunct the
 //     antecedents were total, so some class fired at the last position, the
@@ -1206,7 +1208,8 @@ class CoGeneratedFamily final : public BenchFamily {
 // seen j a-steps": it holds k = v until the next a-step, which moves to
 // Chain_{j+1}(v), and the h-th a-step hands over to k = !v (weak X, so a
 // trace may stop anywhere).  The G-rules restart the chain after every change
-// of k, with X[!] in the guard and weak X in the body (D6).
+// of k, with X[!] in the guard and weak X in the body
+// (docs/prd/engineered-domain-families.md D6).
 constexpr std::int64_t kHiddenCounterFloor = 1;
 
 std::string hidden_counter_chain(std::int64_t h, bool v) {
@@ -1252,24 +1255,13 @@ class HiddenCounterFamily final : public BenchFamily {
 
   std::vector<BenchParams> sweep(std::int64_t n_min,
                                  std::int64_t n_max) const override {
-    if (n_min < kHiddenCounterFloor)
-      throw std::invalid_argument(
-          "bench_suite: hidden-counter sweep n_min=" + std::to_string(n_min) +
-          " is below its floor (" + std::to_string(kHiddenCounterFloor) + ")");
-    std::vector<BenchParams> out;
-    for (std::int64_t n = n_min; n <= n_max; ++n)
-      for (std::int64_t realizable = 0; realizable <= 1; ++realizable)
-        out.push_back(BenchParams{{"n", n}, {"realizable", realizable}});
-    return out;
+    return default_sweep(n_min, n_max, kHiddenCounterFloor);
   }
 
   BenchCase instantiate(const BenchParams& params) const override {
     const std::int64_t n = require_param(params, "n");
     const bool realizable = require_param(params, "realizable") != 0;
-    if (n < kHiddenCounterFloor)
-      throw std::invalid_argument(
-          name() + ": n=" + std::to_string(n) + " is below its floor (" +
-          std::to_string(kHiddenCounterFloor) + ")");
+    check_floor(name(), n, kHiddenCounterFloor);
 
     VariablePartition vars;
     vars.input_free = {"a"};
