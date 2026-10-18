@@ -1373,6 +1373,15 @@ states](#minimized-product-states), the *minimized nk-product ratio*.
   the transcript by `parse_ltlfsynt_verbose`, which returns a `LtlfsyntVerbose`.
 - **Do not call it:** ltlfsynt time, which is timed around a subprocess and includes the startup floor.
 
+### ltlfsynt verdict
+- **`main.tex`:** none (implementation-only: a benchmark quantity).
+- **Definition:** whether a full-synthesis `ltlfsynt` run found the spec realizable, read from its exit
+  code and stdout: `REALIZABLE` first on stdout with exit code 0 (the strategy follows), or exactly
+  `UNREALIZABLE` with exit code 1. Missing for any other combination.
+- **C++:** `parse_ltlfsynt_verdict` (`include/ltlf_ek/ltlfsynt_verbose.hpp`), returning
+  `std::optional<bool>`.
+- **Do not call it:** ltlfsynt internal time, which comes from stderr.
+
 ### ltlfsynt explored roots
 - **`main.tex`:** none (implementation-only: a benchmark quantity).
 - **Definition:** the root count in the `translation to MTDFA (R roots, A APs)` line of
