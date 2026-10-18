@@ -67,7 +67,7 @@ families="slippery-binary,slippery-onehot,slippery-binary-compact,knowledge-chai
 # The EK champion with and without on-the-fly solving, its in-process formula
 # baseline likewise, the explicit product with and without the knowledge (the
 # prune ratio), and the folded no-knowledge product (its second baseline).
-subjects="otf-mtdfa-product,otf-mtdfa-product-otfsolve,otf-mtdfa-product-nk,otf-mtdfa-product-nk-otfsolve,dfa-product,dfa-product-unpruned,dfa-product-nk"
+subjects="otf-mtdfa-product,otf-mtdfa-product-otfsolve,otf-mtdfa-product-otfsolve-simp,otf-mtdfa-product-nk,otf-mtdfa-product-nk-otfsolve,otf-mtdfa-product-nk-otfsolve-simp,dfa-product,dfa-product-unpruned,dfa-product-nk"
 
 cmake_args=(-S "$repo" -B "$build_dir" -DCMAKE_BUILD_TYPE=Release)
 cmake_args+=("-DSPOT_ROOT=$spot_root")

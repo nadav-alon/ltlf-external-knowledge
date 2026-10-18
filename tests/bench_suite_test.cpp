@@ -290,7 +290,9 @@ TEST(BenchSuiteAbsentNeverZero, OtfMtdfaProductEmitsNoGoalMetricAtAllViaTheRegis
 TEST(BenchSuiteOtfSolve, VerdictAndExpandedStatesAgreeWithBuildThenSolveOnEverySweepFamily) {
   const std::vector<std::pair<std::string, std::string>> pairs = {
       {"otf-mtdfa-product", "otf-mtdfa-product-otfsolve"},
-      {"otf-mtdfa-product-nk", "otf-mtdfa-product-nk-otfsolve"}};
+      {"otf-mtdfa-product-nk", "otf-mtdfa-product-nk-otfsolve"},
+      {"otf-mtdfa-product-otfsolve", "otf-mtdfa-product-otfsolve-simp"},
+      {"otf-mtdfa-product-nk-otfsolve", "otf-mtdfa-product-nk-otfsolve-simp"}};
   int compared = 0;
   int skipped = 0;
   for (const std::string family :
@@ -312,7 +314,10 @@ TEST(BenchSuiteOtfSolve, VerdictAndExpandedStatesAgreeWithBuildThenSolveOnEveryS
         EXPECT_EQ(RowValue(on, MetricKey(SizeMetric::controller_states)).has_value(),
                   RowValue(off, MetricKey(SizeMetric::controller_states)).has_value());
         ASSERT_TRUE(RowValue(on, ltlf_ek::kStatesExpandedMetric));
-        EXPECT_LE(*RowValue(on, ltlf_ek::kStatesExpandedMetric), *RowValue(off, ltlf_ek::kStatesExpandedMetric));
+        // Simplifying phi can change the state count either way; only the
+        // otf-solve vs build-then-solve pairs bound it.
+        if (on_name.find("-simp") == std::string::npos)
+          EXPECT_LE(*RowValue(on, ltlf_ek::kStatesExpandedMetric), *RowValue(off, ltlf_ek::kStatesExpandedMetric));
       }
     }
   }
