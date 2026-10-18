@@ -183,7 +183,7 @@ finish() {
 # ──────────────────────────────────────────────────────────────────────────
 # STAGES: the developer's half of the HPC sweep: build the Release image on the
 # cluster's login node, copy the sbatch script, submit the job array, bring the parts back and merge
-# them into the four-family report. Run from the repo root.
+# them into the sweep report. Run from the repo root.
 # ──────────────────────────────────────────────────────────────────────────
 
 TOTAL_STAGES=5
@@ -247,7 +247,7 @@ write_env EK_JOB "$EK_JOB"
 note "Watch it: ssh $EK_SSH_TARGET squeue --me   (the sweep is about 2.5 h)"
 
 stage "Wait, then fetch the parts"
-step "Wait until squeue shows no ek-sweep tasks, and sacct reports COMPLETED for all four."
+step "Wait until squeue shows no ek-sweep tasks, and sacct reports COMPLETED for all array tasks."
 note "ssh $EK_SSH_TARGET sacct -j $EK_JOB --format=JobID,State,Elapsed"
 pause "All array tasks COMPLETED?"
 mkdir -p "build/hpc/$EK_JOB"
