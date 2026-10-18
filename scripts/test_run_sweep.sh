@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
 # run-sweep.sh refuses an OUT_DIR outside the clone, under /tmp, or under
 # $TMPDIR, naming the constraint and the path, before it configures or builds
-# anything. The /tmp case needs a writable /tmp and is skipped otherwise.
+# anything. The /tmp case needs a writable /tmp and is skipped otherwise. It
+# also checks that a clone with no build/ gets past configuring.
 # Run by ctest.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 work="$(mktemp -d "${TMPDIR:-/tmp}/ek_run_sweep.XXXXXX")"
 fake=""
-trap 'rm -rf "$work" ${fake:+"$fake"}' EXIT
+fakeroot="$(cd "$here/.." && pwd -P)/build/ek-run-sweep-fresh-$$"
+trap 'rm -rf "$work" ${fake:+"$fake"} "$fakeroot"' EXIT
 
 # A cmake stub that records being run: every refusal must come before it.
 mkdir "$work/bin"
@@ -57,8 +59,6 @@ expect_refused "$work/tmpdir.log" 'must not resolve under $TMPDIR' "$tmpd/sweep"
 # fake clone sits under the repo's build/ (not /tmp, not $TMPDIR) so its OUT_DIR
 # passes the checks; the stub cmake builds nothing, so the run ends at the
 # missing bench, after the point where the log is written.
-fakeroot="$repo/build/ek-run-sweep-fresh-$$"
-trap 'rm -rf "$work" ${fake:+"$fake"} "$fakeroot"' EXIT
 mkdir -p "$fakeroot/scripts" "$fakeroot/spot/bin"
 cp "$here/run-sweep.sh" "$fakeroot/scripts/"
 printf '#!/bin/sh\n' > "$fakeroot/spot/bin/ltlfsynt"
@@ -66,4 +66,5 @@ chmod +x "$fakeroot/spot/bin/ltlfsynt"
 rc=0
 env -u TMPDIR SPOT_ROOT="$fakeroot/spot" PATH="$work/bin:$PATH" \
   bash "$fakeroot/scripts/run-sweep.sh" > "$work/fresh.log" 2>&1 || rc=$?
+[[ $rc -ne 0 ]] || { echo "fresh-clone run unexpectedly succeeded"; exit 1; }
 [[ -f "$fakeroot/build/release.cmake.log" ]] || { echo "no cmake log in a clone without build/"; cat "$work/fresh.log"; exit 1; }
