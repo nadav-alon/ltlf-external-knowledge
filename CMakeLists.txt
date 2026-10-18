@@ -185,6 +185,7 @@ if(LTLF_EK_BUILD_TESTS)
     tests/bench_runner_isolation_test.cpp
     tests/bench_sweep_test.cpp
     tests/ltlfsynt_verbose_test.cpp
+    tests/hidden_counter_test.cpp
   )
   target_link_libraries(unit_tests PRIVATE ltlf_ek GTest::gtest_main)
   # tests/ltlf_ek_synth_test.cpp drives the built ltlf-ek-synth binary as a

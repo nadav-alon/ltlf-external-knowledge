@@ -609,6 +609,8 @@ const std::set<std::string>& CanonicalMetricNames() {
       std::string(size_metric_name(SizeMetric::product_mtdfa_roots)),
       std::string(size_metric_name(SizeMetric::product_bdd_nodes)),
       std::string(size_metric_name(SizeMetric::controller_states)),
+      ltlf_ek::kTInStatesMetric,
+      ltlf_ek::kPsiInSizeMetric,
   };
   return names;
 }
@@ -1061,6 +1063,7 @@ int main(int argc, char** argv) {
             // Bucket the min-of-K values into timing (Stage) vs structural
             // (SizeMetric) rows.
             std::uint64_t wall_total = 0;
+            bool any_timing = false;
             for (const auto& [key, value] : rr.min_values) {
               if (CanonicalMetricNames().count(key)) {
                 structural_rows.push_back(
@@ -1071,10 +1074,13 @@ int main(int argc, char** argv) {
                                                 subject->name(), key, value,
                                                 false,
                                                 rr.median_values.at(key)});
+                any_timing = true;
                 if (CanonicalStageNames().count(key)) wall_total += value;
               }
             }
-            if (!rr.min_values.empty()) {
+            // A subject that records only structural metrics (knowledge-sizes)
+            // measured no time: no wall_total row rather than a zero one.
+            if (any_timing) {
               timing_rows.push_back(TimingRow{family->name(), n, realizable,
                                               subject->name(), "wall_total",
                                               wall_total, false,

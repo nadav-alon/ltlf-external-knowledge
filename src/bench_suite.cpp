@@ -1,5 +1,6 @@
 #include "ltlf_ek/bench_suite.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <sstream>
 #include <stdexcept>
@@ -42,9 +43,9 @@ namespace {
 
 // The sweep floor (PRD "Edge cases": X[!]^0 degenerates to phi itself; the
 // sweep starts at n=2, and a family must reject a parameter below its own
-// floor rather than emit a malformed formula). Uniform across all five
-// families --- none of B4's phi_n shapes are malformed below 2, but the
-// policy is declared once here rather than re-derived per family.
+// floor rather than emit a malformed formula). The default for every family
+// except hidden-counter, which declares its own floor of 1 (check_floor and
+// default_sweep take the floor as a parameter).
 constexpr std::int64_t kNFloor = 2;
 
 // n applications of the strong-next operator X[!] around `inner` (main.tex's
@@ -63,11 +64,12 @@ std::int64_t require_param(const BenchParams& params, const std::string& key) {
   return it->second;
 }
 
-void check_floor(const std::string& family, std::int64_t n) {
-  if (n < kNFloor)
+void check_floor(const std::string& family, std::int64_t n,
+                 std::int64_t floor = kNFloor) {
+  if (n < floor)
     throw std::invalid_argument(family + ": n=" + std::to_string(n) +
                                 " is below the sweep floor (" +
-                                std::to_string(kNFloor) +
+                                std::to_string(floor) +
                                 "); a family must reject a parameter below "
                                 "its own floor rather than emit a malformed "
                                 "formula (PRD \"Edge cases\")");
@@ -76,11 +78,12 @@ void check_floor(const std::string& family, std::int64_t n) {
 // Common sweep: every n in [n_min, n_max], both polarities (PRD B4: "all
 // with a single sweep axis n and a realizable flag"). n_min below the floor
 // is rejected up front, same rule as instantiate().
-std::vector<BenchParams> default_sweep(std::int64_t n_min, std::int64_t n_max) {
-  if (n_min < kNFloor)
+std::vector<BenchParams> default_sweep(std::int64_t n_min, std::int64_t n_max,
+                                       std::int64_t floor = kNFloor) {
+  if (n_min < floor)
     throw std::invalid_argument(
         "bench_suite: sweep n_min=" + std::to_string(n_min) +
-        " is below the sweep floor (" + std::to_string(kNFloor) + ")");
+        " is below the sweep floor (" + std::to_string(floor) + ")");
   std::vector<BenchParams> out;
   for (std::int64_t n = n_min; n <= n_max; ++n)
     for (std::int64_t realizable = 0; realizable <= 1; ++realizable)
@@ -895,7 +898,7 @@ std::string compact_min1(char axis, std::int64_t n) {
   return compact_conj(terms);
 }
 
-// D5's Keep: every bit unchanged, weak X (D6). Two things to keep straight
+// D5's Keep: every bit unchanged, weak X (docs/prd/engineered-domain-families.md D6). Two things to keep straight
 // about the operator here, because they changed on 2026-08-22:
 //   - Historically, X[!] in this body was FATAL: with no guard conjunct the
 //     antecedents were total, so some class fired at the last position, the
@@ -1190,6 +1193,113 @@ class CoGeneratedFamily final : public BenchFamily {
   }
 };
 
+// The hidden-top-bit counter: T_in counts the a-steps mod 2^N and shows only
+// the count's top bit, as `k`.  State q is the number of `a`-true steps
+// strictly BEFORE the current step (the repo's table-T_in reading, see
+// window_tin_file: lambda is read at the state a step starts in), so
+// k_0 = 0 and k_{t+1} = top bit of the count through step t.  That makes
+// k_{t+1} a function of a_0..a_t, which a Mealy controller has seen by step
+// t: the realizable goal reads one step ahead, the unrealizable one two.
+//
+// psi_in is the smallest formula written for the produced-trace language, an
+// O(2^N) counting chain: k only changes after exactly h = 2^(N-1) a-steps in
+// a segment of constant k, and the count restarts at each change, so no
+// auxiliary variable is needed.  Chain_j(v) is "k = v and this segment has
+// seen j a-steps": it holds k = v until the next a-step, which moves to
+// Chain_{j+1}(v), and the h-th a-step hands over to k = !v (weak X, so a
+// trace may stop anywhere).  The G-rules restart the chain after every change
+// of k, with X[!] in the guard and weak X in the body
+// (docs/prd/engineered-domain-families.md D6).
+constexpr std::int64_t kHiddenCounterFloor = 1;
+
+std::string hidden_counter_chain(std::int64_t h, bool v) {
+  const std::string kv = v ? "k" : "!k";
+  const std::string flipped = v ? "!k" : "k";
+  std::string tail = "X(" + flipped + ")";
+  for (std::int64_t j = h; j >= 1; --j) {
+    const std::string stay = "(" + kv + " & !a)";
+    const std::string step = "(" + kv + " & a & " + tail + ")";
+    tail = "(" + stay + " W " + step + ")";
+    if (j > 1) tail = "X(" + tail + ")";
+  }
+  return tail;
+}
+
+std::string hidden_counter_psi_in(std::int64_t n_bits) {
+  const std::int64_t h = std::int64_t{1} << (n_bits - 1);
+  return hidden_counter_chain(h, false) + " & G((k & X[!](!k)) -> X(" +
+         hidden_counter_chain(h, false) + ")) & G((!k & X[!](k)) -> X(" +
+         hidden_counter_chain(h, true) + "))";
+}
+
+std::string hidden_counter_tin_file(std::int64_t n_bits) {
+  const std::int64_t states = std::int64_t{1} << n_bits;
+  const std::int64_t h = states / 2;
+  std::ostringstream os;
+  os << "HOA: v1\nStates: " << states
+     << "\nStart: 0\nAP: 2 \"a\" \"k\"\nacc-name: all\n"
+        "Acceptance: 0 t\n--BODY--\n";
+  for (std::int64_t q = 0; q < states; ++q)
+    os << "State: " << q << "\n  [!0] " << q << "\n  [0] "
+       << (q + 1) % states << "\n";
+  os << "--END--\n%%LAMBDA\n";
+  for (std::int64_t q = 0; q < states; ++q)
+    os << "state " << q << ": (a & " << (q >= h ? "k" : "!k") << ") | (!a & "
+       << (q >= h ? "k" : "!k") << ")\n";
+  return os.str();
+}
+
+class HiddenCounterFamily final : public BenchFamily {
+ public:
+  std::string name() const override { return "hidden-counter"; }
+
+  std::vector<BenchParams> sweep(std::int64_t n_min,
+                                 std::int64_t n_max) const override {
+    return default_sweep(n_min, n_max, kHiddenCounterFloor);
+  }
+
+  BenchCase instantiate(const BenchParams& params) const override {
+    const std::int64_t n = require_param(params, "n");
+    const bool realizable = require_param(params, "realizable") != 0;
+    check_floor(name(), n, kHiddenCounterFloor);
+
+    VariablePartition vars;
+    vars.input_free = {"a"};
+    vars.input_known = {"k"};
+    vars.output_free = {"o"};
+
+    // The controller wins a LTLf play by reaching an accepting state, so a
+    // bare G(...) is satisfied by a trace of length one and both cells would
+    // be realizable.  The length floor X[!]^max(2, 2^(N-1))(1) is the shortest
+    // that keeps the play going until the count can reach its first top-bit
+    // toggle, where the unrealizable goal reads an `a` ahead of the
+    // controller.  It sits in phi, so the T_in and psi_in sides share it.
+    const std::int64_t floor_steps = std::max<std::int64_t>(2, std::int64_t{1} << (n - 1));
+    const std::string phi_text =
+        x_bang_wrap(floor_steps, "1") + " & " +
+        (realizable ? "G(X[!](1) -> (o <-> X[!](k)))"
+                    : "G(X[!](X[!](1)) -> (o <-> X[!](X[!](k))))");
+
+    const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+    register_turn_order_aps(vars, dict);
+
+    std::istringstream tin_text(hidden_counter_tin_file(n));
+    OutputLabeledTransducer t_in =
+        parse_transducer(tin_text, vars, Role::t_in, dict);
+    OutputLabeledTransducer t_out = trivial_transducer(vars, Role::t_out, dict);
+
+    return BenchCase{name(),
+                     params,
+                     parse_or_throw(phi_text),
+                     vars,
+                     std::move(t_in),
+                     std::move(t_out),
+                     ComparabilityTier::t1,
+                     std::optional<std::string>(hidden_counter_psi_in(n)),
+                     realizable};
+  }
+};
+
 // True iff `mona` resolves on PATH (the MONA_FOUND ctest gate's runtime
 // analogue: this file lives in the ltlf_ek library, not the unit_tests
 // target, so the compile-time MONA_FOUND define is not available here).
@@ -1437,6 +1547,19 @@ class DependentInputsExtractionSubject final : public BenchSubject {
   }
 };
 
+// Records the size of what a case is given rather than a method's work:
+// |T_in| always, |psi_in| iff the family declares one. Runs no method, so a
+// report can print the two next to each other for any family.
+class KnowledgeSizesSubject final : public BenchSubject {
+ public:
+  std::string name() const override { return "knowledge-sizes"; }
+  void run(const BenchCase& c) const override {
+    record_size_metric(kTInStatesMetric, c.t_in.delta_dfa()->num_states());
+    if (c.psi_in.has_value())
+      record_size_metric(kPsiInSizeMetric, formula_node_count(parse_or_throw(*c.psi_in)));
+  }
+};
+
 // Depth-first flatten of a BenchReport's span tree into rows: one row per
 // BenchSpan encountered, root or nested (PRD "the row key is generic", B6
 // "per-*stage* nanoseconds"). A span's own `label` is already either a
@@ -1454,6 +1577,12 @@ void flatten_spans(const std::vector<BenchSpan>& spans, const std::string& famil
 
 }  // namespace
 
+std::uint64_t formula_node_count(const spot::formula& f) {
+  std::uint64_t nodes = 1;
+  for (const spot::formula child : f) nodes += formula_node_count(child);
+  return nodes;
+}
+
 const std::vector<std::unique_ptr<BenchFamily>>& bench_families() {
   static const std::vector<std::unique_ptr<BenchFamily>> families = [] {
     std::vector<std::unique_ptr<BenchFamily>> v;
@@ -1468,6 +1597,7 @@ const std::vector<std::unique_ptr<BenchFamily>>& bench_families() {
     v.push_back(std::make_unique<SlipperyOnehotFamily>());
     v.push_back(std::make_unique<SlipperyBinaryCompactFamily>());
     v.push_back(std::make_unique<CoGeneratedFamily>());
+    v.push_back(std::make_unique<HiddenCounterFamily>());
     return v;
   }();
   return families;
@@ -1492,6 +1622,7 @@ const std::vector<std::unique_ptr<BenchSubject>>& bench_subjects() {
     v.push_back(std::make_unique<OtfMtdfaProductNkSubject>("otf-mtdfa-product-nk-otfsolve-simp", /*otf_solve=*/true, /*simplify_formula=*/true));
     v.push_back(std::make_unique<DependentInputsExtractionSubject>());
     v.push_back(std::make_unique<DfaProductUnprunedSubject>());
+    v.push_back(std::make_unique<KnowledgeSizesSubject>());
     return v;
   }();
   return subjects;

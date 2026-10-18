@@ -62,13 +62,13 @@ if [[ -z "$spot_root" || ! -x "$spot_root/bin/ltlfsynt" ]]; then
 fi
 
 # Families of the run: the three slippery arms (one family in the report),
-# knowledge-chain, cons-prunes, co-generated.
-families="slippery-binary,slippery-onehot,slippery-binary-compact,knowledge-chain,cons-prunes,co-generated"
+# knowledge-chain, cons-prunes, co-generated, hidden-counter.
+families="slippery-binary,slippery-onehot,slippery-binary-compact,knowledge-chain,cons-prunes,co-generated,hidden-counter"
 # The EK champion with and without on-the-fly solving, its in-process formula
 # baseline likewise, each also with Spot's LTLf formula simplifier run on phi
 # (the -simp subjects), the explicit product with and without the knowledge (the
 # prune ratio), and the folded no-knowledge product (its second baseline).
-subjects="otf-mtdfa-product,otf-mtdfa-product-otfsolve,otf-mtdfa-product-otfsolve-simp,otf-mtdfa-product-nk,otf-mtdfa-product-nk-otfsolve,otf-mtdfa-product-nk-otfsolve-simp,dfa-product,dfa-product-unpruned,dfa-product-nk"
+subjects="otf-mtdfa-product,otf-mtdfa-product-otfsolve,otf-mtdfa-product-otfsolve-simp,otf-mtdfa-product-nk,otf-mtdfa-product-nk-otfsolve,otf-mtdfa-product-nk-otfsolve-simp,dfa-product,dfa-product-unpruned,dfa-product-nk,knowledge-sizes"
 
 cmake_args=(-S "$repo" -B "$build_dir" -DCMAKE_BUILD_TYPE=Release)
 cmake_args+=("-DSPOT_ROOT=$spot_root")

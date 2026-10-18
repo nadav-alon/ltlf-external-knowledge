@@ -80,6 +80,19 @@ class BenchSubject {
   virtual void run(const BenchCase& c) const = 0;   // called under a live BenchScope
 };
 
+// The number of nodes of `f` read as a tree (a repeated subformula counts each
+// time it occurs): the formula size |psi_in| is reported in.
+std::uint64_t formula_node_count(const spot::formula& f);
+
+// The structural-metric labels the `knowledge-sizes` subject records: |T_in|
+// (delta states) and |psi_in| (formula_node_count of the declared psi_in).
+// Free-form labels, not SizeMetric values: they size the case's inputs, not
+// any method's work.  The runner routes them to the structural table through
+// CanonicalMetricNames() (ltlf_ek_bench.cpp), which therefore means "keys that
+// go to structural rows", not "SizeMetric values".
+inline constexpr const char* kTInStatesMetric = "t_in_states";
+inline constexpr const char* kPsiInSizeMetric = "psi_in_size";
+
 const std::vector<std::unique_ptr<BenchFamily>>& bench_families();
 const std::vector<std::unique_ptr<BenchSubject>>& bench_subjects();
 
