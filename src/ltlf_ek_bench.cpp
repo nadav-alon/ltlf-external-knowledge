@@ -807,11 +807,14 @@ SubprocessResult RunSubprocessCaptured(const std::string& binary,
 std::string StripLtlfsyntVerboseLines(const std::string& stderr_text) {
   static const char* const chatter[] = {
       "using ", "formula simplified to", "the following signals",
-      "new formula:", "starting ", "translation to ", "MTDFA game "};
+      "new formula:", "starting ", "translation to ", "translation produced ",
+      "MTDFA game "};
   std::istringstream in(stderr_text);
   std::string line, kept;
   while (std::getline(in, line)) {
-    bool is_chatter = line.rfind("  ", 0) == 0 || line.find(" took ") != std::string::npos;
+    bool is_chatter = line.rfind("  ", 0) == 0 ||
+                      line.find(" took ") != std::string::npos ||
+                      line.find(" created in ") != std::string::npos;
     for (const char* prefix : chatter)
       if (line.rfind(prefix, 0) == 0) is_chatter = true;
     if (!is_chatter) kept += line + "\n";

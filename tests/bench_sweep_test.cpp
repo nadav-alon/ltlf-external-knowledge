@@ -140,6 +140,19 @@ TEST(BenchSweep, LtlfsyntFailureReasonSkipsVerboseLines) {
   EXPECT_TRUE(std::regex_search(rows, row));
 }
 
+// Full synthesis adds "translation produced a strategy already" and
+// "Mealy machine (N states) created in S seconds" to the --verbose lines.
+TEST(BenchSweep, LtlfsyntFailureReasonSkipsSynthesisVerboseLines) {
+  const std::string fixtures =
+      std::string(LTLF_EK_REPO_ROOT) + "/tests/fixtures/ltlfsynt/";
+  const std::string rows = LtlfsyntRowsWith(
+      "failing_synthesis_ltlfsynt",
+      "cat '" + fixtures + "synthesis-realizable-2.15.1.stderr.txt' >&2\n"
+      "echo 'stub: out of memory' >&2\nexit 2\n");
+  const std::regex row("\"status\":\"error\"[^}]*\"error\":\"stub: out of memory\"");
+  EXPECT_TRUE(std::regex_search(rows, row));
+}
+
 TEST(BenchSweep, LtlfsyntRowRecordsInternalTimeAndExploredRootsFromVerbose) {
   const std::string rows = LtlfsyntRowsWith(
       "verbose_ok",
