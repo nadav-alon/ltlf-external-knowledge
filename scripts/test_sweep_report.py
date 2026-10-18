@@ -314,12 +314,11 @@ class LtlfsyntVerboseColumns(unittest.TestCase):
         self.assertNotIn("internal_speedup", rows["fam"][2])
         self.assertEqual(rows["fam"][2]["internal_missing"], 0)
 
-    def test_the_table_has_no_ltlfsynt_explored_roots_column_and_says_why(self):
+    def test_the_table_ends_at_the_internal_speedup_and_notes_ltlfsynt_has_no_explored_size(self):
         report = sr.render(sweep(
             timings=[timing("fam", 2, True, EK, 90, 100)],
             ltlfsynt=[lt_verbose("fam", 2, True, 300)]))
         self.assertIn("| ltlfsynt internal speedup |\n", report)
-        self.assertNotIn("ltlfsynt explored-roots ratio", report)
         self.assertIn("ltlfsynt reports no explored size", report)
         self.assertIn("3.00x", report)
 
