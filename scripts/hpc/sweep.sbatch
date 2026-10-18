@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The four-family sweep as a SLURM job array, one family group per task, on CPU
+# The family sweep as a SLURM job array, one family group per task, on CPU
 # nodes of the `work` partition:
 #
 #   sbatch -w NODE scripts/hpc/sweep.sbatch
@@ -29,7 +29,7 @@
 #SBATCH --job-name=ek-sweep
 #SBATCH --partition=work
 #SBATCH --account=rg-fried
-#SBATCH --array=0-3
+#SBATCH --array=0-4
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
@@ -46,6 +46,7 @@ case "${SLURM_ARRAY_TASK_ID:?run under sbatch --array}" in
   1) families="knowledge-chain" ;;
   2) families="cons-prunes" ;;
   3) families="co-generated" ;;
+  4) families="hidden-counter" ;;
   *) echo "sweep.sbatch: no family group for task $SLURM_ARRAY_TASK_ID" >&2; exit 1 ;;
 esac
 subjects="otf-mtdfa-product,otf-mtdfa-product-otfsolve,otf-mtdfa-product-otfsolve-simp,otf-mtdfa-product-nk,otf-mtdfa-product-nk-otfsolve,otf-mtdfa-product-nk-otfsolve-simp,dfa-product,dfa-product-unpruned,dfa-product-nk"

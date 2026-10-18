@@ -221,6 +221,9 @@ TEST(BenchFamilyNFloor, EveryFamilyRejectsNBelowTheSweepFloorRatherThanInstantia
     EXPECT_THROW(family->instantiate(Params(0, true)), std::invalid_argument)
         << "n=0 degenerates: X[!]^0 == phi itself";
     EXPECT_THROW(family->instantiate(Params(0, false)), std::invalid_argument);
+    // hidden-counter's floor is N = 1 (a one-bit counter is a full cell),
+    // and its own tests pin that floor.
+    if (family->name() == "hidden-counter") continue;
     EXPECT_THROW(family->instantiate(Params(1, true)), std::invalid_argument);
     EXPECT_THROW(family->sweep(1, 3), std::invalid_argument)
         << "sweep(n_min below the floor) must also reject, not silently "
@@ -705,7 +708,8 @@ TEST(BenchSuiteTierDeclaration, ExactlyTheDeclaredT1FamiliesAreT1AndParityT3IsT3
                                              "slippery-binary",
                                              "slippery-onehot",
                                              "slippery-binary-compact",
-                                             "co-generated"};
+                                             "co-generated",
+                                             "hidden-counter"};
   EXPECT_EQ(t1_names, expected_t1);
   EXPECT_EQ(t3_names, std::set<std::string>({"parity-t3"}));
   // The two knowledge-size families are t2: their T_in is aperiodic (a

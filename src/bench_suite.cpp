@@ -1190,6 +1190,121 @@ class CoGeneratedFamily final : public BenchFamily {
   }
 };
 
+// The hidden-top-bit counter: T_in counts the a-steps mod 2^N and shows only
+// the count's top bit, as `k`.  State q is the number of `a`-true steps
+// strictly BEFORE the current step (the repo's table-T_in reading, see
+// window_tin_file: lambda is read at the state a step starts in), so
+// k_0 = 0 and k_{t+1} = top bit of the count through step t.  That makes
+// k_{t+1} a function of a_0..a_t, which a Mealy controller has seen by step
+// t: the realizable goal reads one step ahead, the unrealizable one two.
+//
+// psi_in is the smallest formula written for the produced-trace language, an
+// O(2^N) counting chain: k only changes after exactly h = 2^(N-1) a-steps in
+// a segment of constant k, and the count restarts at each change, so no
+// auxiliary variable is needed.  Chain_j(v) is "k = v and this segment has
+// seen j a-steps": it holds k = v until the next a-step, which moves to
+// Chain_{j+1}(v), and the h-th a-step hands over to k = !v (weak X, so a
+// trace may stop anywhere).  The G-rules restart the chain after every change
+// of k, with X[!] in the guard and weak X in the body (D6).
+constexpr std::int64_t kHiddenCounterFloor = 1;
+
+std::string hidden_counter_chain(std::int64_t h, bool v) {
+  const std::string kv = v ? "k" : "!k";
+  const std::string flipped = v ? "!k" : "k";
+  std::string tail = "X(" + flipped + ")";
+  for (std::int64_t j = h; j >= 1; --j) {
+    const std::string stay = "(" + kv + " & !a)";
+    const std::string step = "(" + kv + " & a & " + tail + ")";
+    tail = "(" + stay + " W " + step + ")";
+    if (j > 1) tail = "X(" + tail + ")";
+  }
+  return tail;
+}
+
+std::string hidden_counter_psi_in(std::int64_t n_bits) {
+  const std::int64_t h = std::int64_t{1} << (n_bits - 1);
+  return hidden_counter_chain(h, false) + " & G((k & X[!](!k)) -> X(" +
+         hidden_counter_chain(h, false) + ")) & G((!k & X[!](k)) -> X(" +
+         hidden_counter_chain(h, true) + "))";
+}
+
+std::string hidden_counter_tin_file(std::int64_t n_bits) {
+  const std::int64_t states = std::int64_t{1} << n_bits;
+  const std::int64_t h = states / 2;
+  std::ostringstream os;
+  os << "HOA: v1\nStates: " << states
+     << "\nStart: 0\nAP: 2 \"a\" \"k\"\nacc-name: all\n"
+        "Acceptance: 0 t\n--BODY--\n";
+  for (std::int64_t q = 0; q < states; ++q)
+    os << "State: " << q << "\n  [!0] " << q << "\n  [0] "
+       << (q + 1) % states << "\n";
+  os << "--END--\n%%LAMBDA\n";
+  for (std::int64_t q = 0; q < states; ++q)
+    os << "state " << q << ": (a & " << (q >= h ? "k" : "!k") << ") | (!a & "
+       << (q >= h ? "k" : "!k") << ")\n";
+  return os.str();
+}
+
+class HiddenCounterFamily final : public BenchFamily {
+ public:
+  std::string name() const override { return "hidden-counter"; }
+
+  std::vector<BenchParams> sweep(std::int64_t n_min,
+                                 std::int64_t n_max) const override {
+    if (n_min < kHiddenCounterFloor)
+      throw std::invalid_argument(
+          "bench_suite: hidden-counter sweep n_min=" + std::to_string(n_min) +
+          " is below its floor (" + std::to_string(kHiddenCounterFloor) + ")");
+    std::vector<BenchParams> out;
+    for (std::int64_t n = n_min; n <= n_max; ++n)
+      for (std::int64_t realizable = 0; realizable <= 1; ++realizable)
+        out.push_back(BenchParams{{"n", n}, {"realizable", realizable}});
+    return out;
+  }
+
+  BenchCase instantiate(const BenchParams& params) const override {
+    const std::int64_t n = require_param(params, "n");
+    const bool realizable = require_param(params, "realizable") != 0;
+    if (n < kHiddenCounterFloor)
+      throw std::invalid_argument(
+          name() + ": n=" + std::to_string(n) + " is below its floor (" +
+          std::to_string(kHiddenCounterFloor) + ")");
+
+    VariablePartition vars;
+    vars.input_free = {"a"};
+    vars.input_known = {"k"};
+    vars.output_free = {"o"};
+
+    // The controller wins a LTLf play by reaching an accepting state, so a
+    // bare G(...) is satisfied by a trace of length one and both cells would
+    // be realizable.  The length floor X[!]^(2^N)(1) keeps the play going long
+    // enough for the environment to drive the count to a top-bit boundary and
+    // then pick the `a` the unrealizable goal reads ahead of the controller.
+    const std::string phi_text =
+        x_bang_wrap(std::int64_t{1} << n, "1") + " & " +
+        (realizable ? "G(X[!](1) -> (o <-> X[!](k)))"
+                    : "G(X[!](X[!](1)) -> (o <-> X[!](X[!](k))))");
+
+    const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+    register_turn_order_aps(vars, dict);
+
+    std::istringstream tin_text(hidden_counter_tin_file(n));
+    OutputLabeledTransducer t_in =
+        parse_transducer(tin_text, vars, Role::t_in, dict);
+    OutputLabeledTransducer t_out = trivial_transducer(vars, Role::t_out, dict);
+
+    return BenchCase{name(),
+                     params,
+                     parse_or_throw(phi_text),
+                     vars,
+                     std::move(t_in),
+                     std::move(t_out),
+                     ComparabilityTier::t1,
+                     std::optional<std::string>(hidden_counter_psi_in(n)),
+                     realizable};
+  }
+};
+
 // True iff `mona` resolves on PATH (the MONA_FOUND ctest gate's runtime
 // analogue: this file lives in the ltlf_ek library, not the unit_tests
 // target, so the compile-time MONA_FOUND define is not available here).
@@ -1468,6 +1583,7 @@ const std::vector<std::unique_ptr<BenchFamily>>& bench_families() {
     v.push_back(std::make_unique<SlipperyOnehotFamily>());
     v.push_back(std::make_unique<SlipperyBinaryCompactFamily>());
     v.push_back(std::make_unique<CoGeneratedFamily>());
+    v.push_back(std::make_unique<HiddenCounterFamily>());
     return v;
   }();
   return families;
