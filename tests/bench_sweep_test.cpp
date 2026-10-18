@@ -185,4 +185,27 @@ TEST(BenchSweep, LtlfsyntTimeoutHasNullInternalTimeNotZero) {
   EXPECT_EQ(rows.find("\"ltlfsynt_internal_ns\":0"), std::string::npos);
 }
 
+// Provenance names the CPU model beside the hostname, as lscpu reports it.
+TEST(BenchSweep, ProvenanceRecordsTheCpuModelBesideTheMachine) {
+  const std::string json = RunSweep(
+      "bench_sweep_cpu_model",
+      "--families=cons-prunes --subjects=dfa-product --n-min=2 --n-max=2 "
+      "--repeat=1 --timeout=20 --ltlfsynt=/nonexistent");
+  const std::regex field("\"cpu_model\":\"([^\"]+)\"");
+  std::smatch m;
+  ASSERT_TRUE(std::regex_search(json, m, field));
+  const std::string got = m[1].str();
+  EXPECT_EQ(got.front() == ' ' || got.back() == ' ', false) << "unstripped: '" << got << "'";
+  EXPECT_EQ(got.find("Model name"), std::string::npos) << "label leaked into the value: " << got;
+  // Wherever the kernel reports a model name, the bench must have found one.
+  std::ifstream cpuinfo("/proc/cpuinfo");
+  std::string line;
+  while (std::getline(cpuinfo, line)) {
+    if (line.rfind("model name", 0) != 0) continue;
+    EXPECT_NE(got, "unknown");
+    EXPECT_NE(line.find(got), std::string::npos) << got << " vs " << line;
+    break;
+  }
+}
+
 }  // namespace
