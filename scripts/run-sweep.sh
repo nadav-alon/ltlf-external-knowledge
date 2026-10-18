@@ -65,7 +65,8 @@ fi
 # knowledge-chain, cons-prunes, co-generated.
 families="slippery-binary,slippery-onehot,slippery-binary-compact,knowledge-chain,cons-prunes,co-generated"
 # The EK champion with and without on-the-fly solving, its in-process formula
-# baseline likewise, the explicit product with and without the knowledge (the
+# baseline likewise, each also with Spot's LTLf formula simplifier run on phi
+# (the -simp subjects), the explicit product with and without the knowledge (the
 # prune ratio), and the folded no-knowledge product (its second baseline).
 subjects="otf-mtdfa-product,otf-mtdfa-product-otfsolve,otf-mtdfa-product-otfsolve-simp,otf-mtdfa-product-nk,otf-mtdfa-product-nk-otfsolve,otf-mtdfa-product-nk-otfsolve-simp,dfa-product,dfa-product-unpruned,dfa-product-nk"
 
