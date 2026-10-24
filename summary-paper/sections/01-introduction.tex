@@ -4,11 +4,22 @@
 \guide{Why $\LTLf$ synthesis matters (planning, robotics, business processes). Why classic
 synthesis treats the environment as fully adversarial, and why that is often too pessimistic or
 too expensive. One concrete scenario where something is \emph{known} about inputs or outputs.}
+Reactive LTL synthesis is a problem in which we are given a specification $\varphi$ in Linear Temporal Logic (LTL) and we want to construct a controller that interacts with every environment such that the resulting trace satisfies the specification.
+
+The TACAS'24 paper introduced the ideas of variable dependencies in LTL synthesis, which allows us to classify some variables as dependent on others, and reduce the size of the problem. This result is restricted to output variables; attempting to apply the definition to input variables found none. This makes intuitive sense; the definition given in the paper is one that assumes control of the variable is the system's and not the environment, so formulas that do have such dependencies are likely to be valid and uninteresting, so they do not exist in benchmarks.
+
+We wanted to generalize the idea of dependencies to input variables as well, and ended up with an even more general idea, in which we solve the synthesis problem with the help of an outside helper that decides the values of some variables.
 
 \subsection{External Knowledge}
+
 \guide{The idea in plain words: part of the inputs and/or outputs is governed by a known
 component, given as a transducer. What this buys: realizability that would otherwise fail, and
 smaller search spaces. Preview the running example.}
+
+Given a specification $\varphi$, we want to be able to incorporate external knowledge about some variables. For that we model the knowledge as a transducer which according to the history of the other variables decides the values of the variables.
+When solving the synthesis problem, we consult the transducer to determine the values of the variables it controls to limit the traces to the allowed ones.
+
+This idea can be used to incorporate knowledge inherent to the formula itself (output dependencies) or to change the problem to a different one (similarly to fairness assumptions).
 
 \subsection{Contributions}
 \guide{Bullet list. Problem formulation; the five methods (NFA product, DFA product, three
@@ -16,9 +27,11 @@ on-the-fly variants); knowledge extraction from dependencies; implementation on 
 suite and results. Mark which items are done vs.\ in progress.}
 
 \begin{itemize}
-  \item \guide{contribution 1}
-  \item \guide{contribution 2}
+  \item Definitions of \begin{itemize}
+    \item External knowledge
+    \item $\LTLf$ synthesis with external knowledge
+    \item $\LTLf$ synthesis with input dependencies
+  \end{itemize}
+  \item Several benchmark families to test the problem
+  \item Implementation of methods to solve the problem, comparisons between them, and a comparison against the state of the art.
 \end{itemize}
-
-\subsection{Roadmap}
-\guide{One sentence per section.}
