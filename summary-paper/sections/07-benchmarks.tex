@@ -1,0 +1,50 @@
+\section{Benchmarks}\label{sec:benchmarks}
+
+\subsection{Research Questions}
+\guide{What the experiments answer. E.g.\ RQ1: do the methods agree and verify? RQ2: how much does
+knowledge shrink the product? RQ3: speed vs.\ \tool{ltlfsynt}? RQ4: which method wins where?}
+
+\begin{enumerate}
+  \item[RQ1] \guide{question}
+  \item[RQ2] \guide{question}
+\end{enumerate}
+
+\subsection{Metrics}
+\guide{Structural (state counts, deterministic, committed) vs.\ timing (wall clock, median of
+repeats). Prune ratio; nk-product ratio; speedup. Why state counts are the decisive number.}
+
+\subsection{Baselines}
+\guide{\tool{ltlfsynt} on the $\psiin\rightarrow\varphi$ encoding; the no-knowledge product;
+the unpruned product. Comparability tiers: which families admit a fair external comparison.}
+
+\subsection{Benchmark Families}
+\guide{One paragraph per family: $\varphi_n$, knowledge, tier, what it isolates. Then the
+summary table.}
+
+\subsubsection{Parametric Families}
+\guide{cons-prunes, cons-inert, mirror-small, mirror-degenerate, parity-t3, knowledge-chain(-inert),
+co-generated, \ldots}
+
+\subsubsection{Engineered Domain Families}
+\guide{Domain-inspired instances (e.g.\ slippery world, hidden counters).}
+
+\subsubsection{External Suites}
+\guide{SYNTCOMP finite-trace instances; what fraction carries usable knowledge.}
+
+\subsubsection{Generated Corpus}
+\guide{Random instances used for oracle soak testing.}
+
+\begin{table}[H]
+\centering
+\caption{Benchmark families.}\label{tab:families}
+\begin{tabular}{lllll}
+\toprule
+Family & $\varphi_n$ & Knowledge & Tier & Purpose \\
+\midrule
+ & & & & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Experimental Setup}
+\guide{Machine, build type, Spot version, commit, repeats, timeout, budget.}
