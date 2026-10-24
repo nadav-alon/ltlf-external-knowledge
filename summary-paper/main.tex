@@ -1,0 +1,74 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{float}
+\usepackage{subcaption}
+\usepackage{tikz}
+\usetikzlibrary{automata,positioning,arrows.meta}
+\usepackage{hyperref}
+\usepackage{cleveref}
+% \usepackage[disable]{todonotes}
+\usepackage{todonotes}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\newtheorem{example}{Example}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\algrenewcommand{\algorithmicrequire}{\textbf{Input:}}
+\algrenewcommand{\algorithmicensure}{\textbf{Output:}}
+
+\input{macros}
+% \guidesfalse % uncomment to hide every writing guide
+
+\title{LTLf Synthesis with External Knowledge:\\ A Progress Summary}
+\author{Nadav Alon}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\guide{One paragraph, 150--200 words. Problem in one sentence; the idea (external
+knowledge as transducers $\Tin,\Tout$); the methods; the headline benchmark result with one
+number; the status and next step.}
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\input{sections/01-introduction}
+\input{sections/02-background}
+\input{sections/03-problem}
+\input{sections/04-algorithms}
+\input{sections/05-dependencies}
+\input{sections/06-implementation}
+\input{sections/07-benchmarks}
+\input{sections/08-results}
+\input{sections/09-related-work}
+\input{sections/10-future}
+\input{sections/11-conclusion}
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\appendix
+\input{sections/A-proofs}
+\input{sections/B-full-results}
+\input{sections/C-reproducibility}
+
+\end{document}

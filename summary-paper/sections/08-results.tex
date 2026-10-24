@@ -1,0 +1,40 @@
+\section{Results}\label{sec:results}
+
+\guide{One subsection per research question. Lead each with the claim, then the evidence.}
+
+\subsection{Correctness: Agreement and Verification}
+\guide{Cross-method agreement, controller verification, verdict mismatches vs.\ \tool{ltlfsynt}.}
+
+\subsection{Effect of Knowledge on Product Size}
+\guide{Prune ratio and nk-product ratio per family as $n$ grows. Figure.}
+
+\begin{figure}[H]
+\centering
+% \includegraphics[width=.8\linewidth]{figures/prune-ratio}
+\guide{figure: product size with vs.\ without knowledge}
+\caption{}\label{fig:prune}
+\end{figure}
+
+\subsection{Runtime against \tool{ltlfsynt}}
+\guide{Speedup per family; where \tool{ltlfsynt} times out. Figure + table.}
+
+\begin{figure}[H]
+\centering
+% \includegraphics[width=.8\linewidth]{figures/speedup}
+\guide{figure: speedup vs.\ $n$}
+\caption{}\label{fig:speedup}
+\end{figure}
+
+\subsection{Comparison Between Methods}
+\guide{Which method wins on which family, and why (NFA vs.\ DFA vs.\ on-the-fly; explicit vs.\
+mtdfa).}
+
+\subsection{Where Time Goes}
+\guide{Stage breakdown: automaton construction, product, game solving. The on-the-fly
+game-solving gap.}
+
+\subsection{Negative and Surprising Results}
+\guide{Degenerate families, non-reproductions, cases with no gain. Keep them; they are findings.}
+
+\subsection{Threats to Validity}
+\guide{Family selection bias, small $n$, timeouts, the tier assumptions, single machine.}
