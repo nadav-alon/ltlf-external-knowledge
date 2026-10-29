@@ -232,6 +232,8 @@ TEST(BenchFamilyNFloor, EveryFamilyRejectsNBelowTheSweepFloorRatherThanInstantia
       }
     }
     ASSERT_LT(floor, 8) << "no floor found";
+    EXPECT_EQ(family->n_floor(), floor)
+        << "n_floor() must match the floor instantiate() enforces";
     if (floor > 1)
       EXPECT_THROW(family->instantiate(Params(floor - 1, false)),
                    std::invalid_argument);

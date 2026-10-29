@@ -70,6 +70,19 @@ TEST(BenchSweep, NMinBelowAFamilysFloorStartsThatFamilyAtItsFloor) {
             std::string::npos);
 }
 
+TEST(BenchSweep, DefaultNMinEmitsNEqualsOneOnlyForHiddenCounter) {
+  const std::string json = RunSweep(
+      "bench_sweep_default_n_min",
+      "--families=all --subjects=dfa-product --n-max=1 --repeat=1 "
+      "--timeout=20 --ltlfsynt=/nonexistent");
+  EXPECT_NE(json.find("\"family\":\"hidden-counter\",\"n\":1,"),
+            std::string::npos);
+  const std::regex n1("\"family\":\"([a-z0-9-]+)\",\"n\":1,");
+  for (auto it = std::sregex_iterator(json.begin(), json.end(), n1);
+       it != std::sregex_iterator(); ++it)
+    EXPECT_EQ((*it)[1], "hidden-counter");
+}
+
 TEST(BenchSweep, LtlfsyntRowCarriesAMedianNotBelowItsMin) {
   if (std::system("command -v ltlfsynt >/dev/null 2>&1") != 0)
     GTEST_SKIP() << "no ltlfsynt on PATH";
