@@ -3,8 +3,10 @@
 #include <algorithm>
 #include <cassert>
 #include <deque>
+#include <array>
 #include <map>
 #include <memory>
+#include <memory_resource>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -42,15 +44,34 @@ namespace {
 // bdd_to_state is unordered_map<bdd, int, bdd_hash>.  `bdd` has no usable
 // operator< of its own (its operator< is a BDD-implication operator, not a
 // total order), so the comparator below orders on .id() explicitly.
+//
+// `q` is an inline fixed-capacity array, not a heap vector, and the index and
+// the queue live on a monotonic arena (StateIndex, Pending): the build
+// returns a few large blocks instead of freeing one small chunk per state,
+// which would fragment the heap for the game solve that follows
+// (docs/runs/2026-10-17-otf-game-solving-gap.md).
+constexpr std::size_t kMaxTaus = 4;
+
 struct Key {
   bdd row;
-  std::vector<unsigned> q;
+  std::size_t size = 0;
+  std::array<unsigned, kMaxTaus> q{};
+
+  Key() = default;
+  Key(bdd r, const std::vector<unsigned>& states)
+      : row(std::move(r)), size(states.size()) {
+    std::copy(states.begin(), states.end(), q.begin());
+  }
 };
 
 bool operator<(const Key& a, const Key& b) {
   if (a.row.id() != b.row.id()) return a.row.id() < b.row.id();
-  return a.q < b.q;
+  return std::lexicographical_compare(a.q.begin(), a.q.begin() + a.size,
+                                      b.q.begin(), b.q.begin() + b.size);
 }
+
+using StateIndex = std::pmr::map<Key, unsigned>;
+using Pending = std::pmr::deque<Key>;
 
 // Relabel ("The BFS, pinned" step 5): a unary, memoized MTBDD map from a
 // row (masked to one delta_edges combination's guard, from the enclosing
@@ -64,8 +85,8 @@ bool operator<(const Key& a, const Key& b) {
 // handle is released, so a memo hoisted to member/loop scope to "amortize
 // across combinations" would be UNSOUND, not a perf tweak (F4 again).
 bdd Relabel(const bdd& node, ForwardProgression& fp,
-           const std::vector<unsigned>& d, std::map<Key, unsigned>& state_index,
-           std::deque<Key>& pending, std::unordered_map<int, bdd>& memo) {
+           const std::vector<unsigned>& d, StateIndex& state_index,
+           Pending& pending, std::unordered_map<int, bdd>& memo) {
   if (auto it = memo.find(node.id()); it != memo.end()) return it->second;
 
   bdd result;
@@ -80,7 +101,7 @@ bdd Relabel(const bdd& node, ForwardProgression& fp,
     result = bddtrue;
   } else if (bdd_is_terminal(node)) {
     const auto [psi_prime, b] = fp.decode(bdd_get_terminal(node));
-    Key key{fp.progress_row(psi_prime), d};
+    Key key(fp.progress_row(psi_prime), d);
     unsigned j;
     if (auto found = state_index.find(key); found != state_index.end()) {
       j = found->second;
@@ -243,19 +264,26 @@ static ProductBuild BuildProduct(const spot::formula& phi,
   for (const spot::formula& ap : out->aps)
     dict->register_proposition(ap, out.get());
 
-  ForwardProgression fp(dict);
+  // Owned by the returned product (see the end of this function), not by
+  // this frame.
+  const auto fp_owner = std::make_shared<ForwardProgression>(dict);
+  ForwardProgression& fp = *fp_owner;
   std::optional<OnlineGame> game;
   if (solve_online) game.emplace(vars, dict);
 
   // Step 1: seed index 0 with Key{fp.progress_row(phi), q0}, q0[k] =
   // taus[k]->initial_state().  Index 0 must be the initial state ---
   // solve_mtdfa and Spot both assume it.
-  std::map<Key, unsigned> state_index;
-  std::deque<Key> pending;
-  Key k0;
-  k0.row = fp.progress_row(phi);
-  k0.q.reserve(taus.size());
-  for (const Transducer* tau : taus) k0.q.push_back(tau->initial_state());
+  if (taus.size() > kMaxTaus)
+    throw std::invalid_argument("otf_product_to_mtdfa: at most " +
+                                std::to_string(kMaxTaus) + " transducers");
+  std::pmr::monotonic_buffer_resource arena(std::size_t{1} << 20);
+  StateIndex state_index(&arena);
+  Pending pending(&arena);
+  std::vector<unsigned> q0;
+  q0.reserve(taus.size());
+  for (const Transducer* tau : taus) q0.push_back(tau->initial_state());
+  const Key k0(fp.progress_row(phi), q0);
   state_index.emplace(k0, 0u);
   pending.push_back(k0);
 
@@ -263,7 +291,7 @@ static ProductBuild BuildProduct(const spot::formula& phi,
     const Key key = std::move(pending.front());
     pending.pop_front();
     const bdd& row = key.row;
-    const std::vector<unsigned>& q = key.q;
+    const unsigned* q = key.q.data();
 
     // Step 2: cons = AND_k taus[k]->emits_region(q[k]).  If bddfalse, no
     // letter is consistent here (the partiality clause, not an error); push
@@ -327,7 +355,12 @@ static ProductBuild BuildProduct(const spot::formula& phi,
   // Pad every interned index, up to the highest one, with a losing row.
   // Sound for a realizable verdict: the system already wins without them.
   out->states.resize(state_index.size(), bddfalse);
-  build.product = out;
+  // Tie fp's lifetime to the product's.  fp's translator caches millions of
+  // small heap chunks on a big build; freeing them here, between the build and
+  // the game solve, leaves a fragmented free list that makes the solve ~2x
+  // slower (docs/runs/2026-10-17-otf-game-solving-gap.md).  Held until the
+  // caller drops the product, they are freed after the solve instead.
+  build.product = spot::mtdfa_ptr(out.get(), [out, fp_owner](spot::mtdfa*) {});
   return build;
 }
 
