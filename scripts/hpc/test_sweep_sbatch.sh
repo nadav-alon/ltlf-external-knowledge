@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # The array tasks of sweep.sbatch together cover exactly the families of
 # run-sweep.sh, each once, every task has a part file of its own, and the subjects,
-# repeat and timeout are run-sweep.sh's, the header carries --constraint=gold6130 and
-# --mem=16G and two CPUs but never --exclusive, hostname and lscpu are logged before the bench, and the wizard's recon
-# lists idle gold6130 nodes with their features. Run by ctest.
+# repeat and timeout are run-sweep.sh's, the header carries --constraint=gold6130, the
+# --exclude list and --mem=16G and two CPUs but never --exclusive and pins no node, hostname and lscpu are logged before
+# the bench, and the wizard's recon lists idle gold6130 nodes with their features. Run by ctest.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 want="$(sed -n 's/^families="\(.*\)"$/\1/p' "$here/../run-sweep.sh" | tr ',' '\n' | sort)"
@@ -27,8 +27,8 @@ got="$(sort <<<"$got" | sed '/^$/d')"
 if SLURM_ARRAY_TASK_ID=$((last + 1)) EK_DRY_RUN=1 "$here/sweep.sbatch" 2>/dev/null; then
   echo "task past the array was accepted"; exit 1
 fi
-for d in --constraint=gold6130 --mem=16G --cpus-per-task=2; do
-  grep -q -- "^#SBATCH $d$" "$here/sweep.sbatch" || { echo "sweep.sbatch lacks $d"; exit 1; }
+for d in --constraint=gold6130 '--exclude=cn[31-44],gpu[1-4],gpu[6-8]' --mem=16G --cpus-per-task=2; do
+  grep -qxF -- "#SBATCH $d" "$here/sweep.sbatch" || { echo "sweep.sbatch lacks $d"; exit 1; }
 done
 # The cluster rejects every form of --exclusive at submission.
 grep -q -- '^#SBATCH --exclusive' "$here/sweep.sbatch" && { echo "sweep.sbatch asks for --exclusive, which the cluster refuses"; exit 1; }
@@ -43,4 +43,7 @@ for part in '%f' '-t idle' gold6130; do
 done
 [[ -n "$recon" ]] \
   || { echo "wizard.sh recon does not list idle gold6130 nodes"; exit 1; }
+if grep -qE '^#SBATCH[[:space:]]+(-w|--nodelist)' "$here/sweep.sbatch"; then
+  echo "sweep.sbatch pins a node"; exit 1
+fi
 echo ok
