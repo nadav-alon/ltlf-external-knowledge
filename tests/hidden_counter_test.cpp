@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
@@ -76,6 +77,24 @@ TEST(HiddenCounter, PsiInIsProducedTraceEquivalentToTinForNOneToFour) {
         c.t_in, spot::parse_infix_psl(*c.psi_in).f, c.vars, Role::t_in);
     EXPECT_TRUE(r.equivalent_on_nonempty) << "N=" << n;
   }
+}
+
+TEST(HiddenCounter, PhiFloorIsMaxOfTwoAndTwoToTheNMinusOneStrongNexts) {
+  for (std::int64_t n = 1; n <= 4; ++n)
+    for (bool realizable : {true, false}) {
+      const BenchCase c = Cell(n, realizable);
+      std::int64_t depth = 0;
+      for (const spot::formula conjunct : c.phi) {
+        if (conjunct.is(spot::op::G)) continue;
+        spot::formula f = conjunct;
+        while (f.is(spot::op::strong_X)) {
+          ++depth;
+          f = f[0];
+        }
+      }
+      EXPECT_EQ(depth, std::max<std::int64_t>(2, std::int64_t{1} << (n - 1)))
+          << "N=" << n << " realizable=" << realizable;
+    }
 }
 
 TEST(HiddenCounter, EkDecidesTheDeclaredVerdictForNOneToFour) {
