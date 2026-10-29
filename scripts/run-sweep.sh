@@ -88,7 +88,7 @@ json="$out_dir/sweep.json"
 (
   ulimit -v "${MEM_KIB:-8388608}"
   "$build_dir/ltlf-ek-bench" --families="$families" --subjects="$subjects" \
-    --n-min=2 --n-max="${N_MAX:-6}" --repeat=5 --timeout=20 \
+    --n-min=1 --n-max="${N_MAX:-6}" --repeat=5 --timeout=20 \
     --budget="${BUDGET:-4000000000}" --ltlfsynt="$ltlfsynt" --out="$json"
 )
 python3 "$repo/scripts/sweep_report.py" "$json" > "$out_dir/report.md"

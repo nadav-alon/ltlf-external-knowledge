@@ -1028,6 +1028,8 @@ int main(int argc, char** argv) {
         const BenchParams params{{"n", n}, {"realizable", realizable_i}};
 
         for (const BenchFamily* family : families) {
+          // A family starts at max(--n-min, its own floor).
+          if (n < family->n_floor()) continue;
           if (std::chrono::steady_clock::now() >= deadline) {
             stopped_early = true;
             break;

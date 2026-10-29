@@ -1253,6 +1253,8 @@ class HiddenCounterFamily final : public BenchFamily {
  public:
   std::string name() const override { return "hidden-counter"; }
 
+  std::int64_t n_floor() const override { return kHiddenCounterFloor; }
+
   std::vector<BenchParams> sweep(std::int64_t n_min,
                                  std::int64_t n_max) const override {
     return default_sweep(n_min, n_max, kHiddenCounterFloor);
