@@ -78,6 +78,30 @@ TEST(HiddenCounter, PsiInIsProducedTraceEquivalentToTinForNOneToFour) {
   }
 }
 
+TEST(HiddenCounter, PhiLengthFloorIsMaxOfTwoAndTwoToTheNMinusOneStrongNexts) {
+  constexpr std::int64_t kExpectedDepth[] = {0, 2, 2, 4, 8};
+  for (std::int64_t n = 1; n <= 4; ++n)
+    for (bool realizable : {true, false}) {
+      const BenchCase c = Cell(n, realizable);
+      ASSERT_TRUE(c.phi.is(spot::op::And)) << "N=" << n;
+      int chains = 0;
+      for (const spot::formula conjunct : c.phi) {
+        if (conjunct.is(spot::op::G)) continue;
+        ++chains;
+        std::int64_t depth = 0;
+        spot::formula f = conjunct;
+        while (f.is(spot::op::strong_X)) {
+          ++depth;
+          f = f[0];
+        }
+        EXPECT_TRUE(f.is_tt()) << "N=" << n << " realizable=" << realizable;
+        EXPECT_EQ(depth, kExpectedDepth[n])
+            << "N=" << n << " realizable=" << realizable;
+      }
+      EXPECT_EQ(chains, 1) << "N=" << n << " realizable=" << realizable;
+    }
+}
+
 TEST(HiddenCounter, EkDecidesTheDeclaredVerdictForNOneToFour) {
   for (std::int64_t n = 1; n <= 4; ++n)
     for (bool realizable : {true, false}) {
