@@ -1,13 +1,14 @@
 #include "ltlf_ek/otf_mtdfa_product.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <deque>
-#include <array>
 #include <map>
 #include <memory>
 #include <memory_resource>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <unordered_map>
@@ -60,6 +61,7 @@ struct Key {
   Key() = default;
   Key(bdd r, const std::vector<unsigned>& states)
       : row(std::move(r)), size(states.size()) {
+    assert(states.size() <= kMaxTaus);
     std::copy(states.begin(), states.end(), q.begin());
   }
 };
@@ -223,6 +225,15 @@ class OnlineGame {
   unsigned true_, false_;
 };
 
+// What the returned mtdfa_ptr keeps alive: the product and the
+// ForwardProgression whose translator caches back its rows.  Members are
+// destroyed in reverse declaration order, so `out` (declared last) unregisters
+// from the dict before `fp` does.
+struct ProductOwner {
+  std::shared_ptr<ForwardProgression> fp;
+  std::shared_ptr<spot::mtdfa> out;
+};
+
 struct ProductBuild {
   spot::mtdfa_ptr product;
   std::size_t expanded = 0;
@@ -241,6 +252,10 @@ static ProductBuild BuildProduct(const spot::formula& phi,
                                  const VariablePartition& vars,
                                  const spot::bdd_dict_ptr& dict,
                                  bool solve_online) {
+  // Reject before any work: Key holds at most kMaxTaus transducer states.
+  if (taus.size() > kMaxTaus)
+    throw std::invalid_argument("otf_product_to_mtdfa: at most " +
+                                std::to_string(kMaxTaus) + " transducers");
   ProductBuild build;
   auto out = std::make_shared<spot::mtdfa>(dict);
 
@@ -258,8 +273,8 @@ static ProductBuild BuildProduct(const spot::formula& phi,
   // AP ownership (step 0, "Dropped from the interview sketch" in the PRD):
   // register THIS mtdfa's own stake in every AP it references FIRST, before
   // any row is built, so it outlives the ForwardProgression below (whose own
-  // translator unregisters ITS registrations when it is destroyed at
-  // function return) without a later register_ap recycling the variable
+  // translator unregisters ITS registrations when it is destroyed, which is
+  // when the last copy of the returned product is dropped) without a later register_ap recycling the variable
   // numbers already baked into the rows below.
   for (const spot::formula& ap : out->aps)
     dict->register_proposition(ap, out.get());
@@ -274,9 +289,6 @@ static ProductBuild BuildProduct(const spot::formula& phi,
   // Step 1: seed index 0 with Key{fp.progress_row(phi), q0}, q0[k] =
   // taus[k]->initial_state().  Index 0 must be the initial state ---
   // solve_mtdfa and Spot both assume it.
-  if (taus.size() > kMaxTaus)
-    throw std::invalid_argument("otf_product_to_mtdfa: at most " +
-                                std::to_string(kMaxTaus) + " transducers");
   std::pmr::monotonic_buffer_resource arena(std::size_t{1} << 20);
   StateIndex state_index(&arena);
   Pending pending(&arena);
@@ -291,7 +303,7 @@ static ProductBuild BuildProduct(const spot::formula& phi,
     const Key key = std::move(pending.front());
     pending.pop_front();
     const bdd& row = key.row;
-    const unsigned* q = key.q.data();
+    const std::span<const unsigned> q(key.q.data(), key.size);
 
     // Step 2: cons = AND_k taus[k]->emits_region(q[k]).  If bddfalse, no
     // letter is consistent here (the partiality clause, not an error); push
@@ -360,7 +372,10 @@ static ProductBuild BuildProduct(const spot::formula& phi,
   // the game solve, leaves a fragmented free list that makes the solve ~2x
   // slower (docs/runs/2026-10-17-otf-game-solving-gap.md).  Held until the
   // caller drops the product, they are freed after the solve instead.
-  build.product = spot::mtdfa_ptr(out.get(), [out, fp_owner](spot::mtdfa*) {});
+  // The teardown is timed by the caller: solve_and_record drops the product
+  // inside the game_solving stage.
+  const auto owner = std::make_shared<ProductOwner>(ProductOwner{fp_owner, out});
+  build.product = spot::mtdfa_ptr(owner, owner->out.get());
   return build;
 }
 
@@ -381,13 +396,16 @@ static void record_product_metrics(const spot::mtdfa_ptr& product,
 
 // Solves `product` under the game_solving stage; controller_states is
 // absent (not zero) when unrealizable.
-static std::optional<Controller> solve_and_record(const spot::mtdfa_ptr& product,
+// Takes the product by value and drops it inside the stage: the teardown of
+// the ForwardProgression it owns is charged to game_solving, not lost.
+static std::optional<Controller> solve_and_record(spot::mtdfa_ptr product,
                                                   const VariablePartition& vars) {
   BenchTimer t(Stage::game_solving);
   std::optional<Controller> controller = solve_mtdfa(product, vars);
   if (controller)
     record_size_metric(SizeMetric::controller_states,
                        controller->strategy->num_states());
+  product.reset();
   return controller;
 }
 
@@ -412,8 +430,12 @@ std::optional<Controller> otf_solve_fused(
   // Every expanded row has been fed, so every root and node vertex is frozen:
   // a still-undetermined initial state cannot reach `true`, which is a loss.
   record_product_metrics(build.product, build.expanded);
-  if (!build.decided || !*build.decided) return std::nullopt;
-  return solve_and_record(build.product, vars);
+  if (!build.decided || !*build.decided) {
+    BenchTimer t(Stage::game_solving);  // charge the product's teardown
+    build.product.reset();
+    return std::nullopt;
+  }
+  return solve_and_record(std::move(build.product), vars);
 }
 
 spot::formula simplify_ltlf_formula(const spot::formula& phi) {
@@ -446,7 +468,7 @@ std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
   }
   record_size_metric(kStatesExpandedMetric, product->num_roots());
   record_product_metrics(product, product->num_roots());
-  return solve_and_record(product, vars);
+  return solve_and_record(std::move(product), vars);
 }
 
 }  // namespace ltlf_ek

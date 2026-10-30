@@ -46,6 +46,11 @@ namespace ltlf_ek {
 //   - every tau is deterministic (delta_edges guards pairwise disjoint) ---
 //     CHECKED, throws std::runtime_error, same wording as
 //     mtnfa_product_to_mtdfa / build_product_symbolic
+//   - at most 4 transducers (the product state's inline key capacity; every
+//     caller passes 2, 4 is headroom, not a derived bound) --- CHECKED before
+//     any work, throws std::invalid_argument
+// The returned product also owns the ForwardProgression whose caches back its
+// rows; they are freed when the last copy is dropped, not on return.
 // Does NOT check the Turn order contract: that is solve_mtdfa's
 // precondition, discharged by OtfMtdfaProduct::synthesize.
 //

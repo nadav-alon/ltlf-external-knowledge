@@ -1,4 +1,7 @@
+#include <cstdlib>  // defines __GLIBC__ on glibc
+#if defined(__GLIBC__)
 #include <malloc.h>
+#endif
 
 #include <algorithm>
 #include <cstdint>
@@ -999,7 +1002,10 @@ TEST(BenchScopeIntegration, OtfMtdfaProductEmitsExactlyProductConstructionAndGam
 // The build must not leave a freed small chunk per product state behind: the
 // game solve that follows runs ~2x slower on that fragmented heap
 // (docs/runs/2026-10-17-otf-game-solving-gap.md).  The product is held live,
-// so what counts is the free-list growth across the build.
+// so what counts is the free-list growth across the build.  A diagnostic, not
+// the acceptance criterion (that is otf-gap-probe game_solving parity with
+// steps-spot).  Process-wide, so earlier tests' heap state can shift it.
+#if defined(__GLIBC__) && __GLIBC_PREREQ(2, 33) && !defined(__SANITIZE_ADDRESS__)
 TEST(OtfProductToMtdfa, BuildLeavesFewFreeHeapChunksForTheSolve) {
   const ltlf_ek::BenchFamily* family = nullptr;
   for (const auto& f : ltlf_ek::bench_families())
@@ -1021,12 +1027,14 @@ TEST(OtfProductToMtdfa, BuildLeavesFewFreeHeapChunksForTheSolve) {
   EXPECT_LT(after > before ? after - before : 0, product->num_roots() / 10)
       << "free chunks before " << before << ", after " << after;
 }
+#endif  // glibc >= 2.33 without ASan: mallinfo2 is meaningful
 
 TEST(OtfProductToMtdfa, MoreTransducersThanTheStateKeyHoldsThrows) {
   const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
   const VariablePartition vars = IoFreeVars();
   const OutputLabeledTransducer t = trivial_transducer(vars, Role::t_in, dict);
-  const std::vector<const Transducer*> taus(5, &t);
+  constexpr std::size_t kOverCap = 5;  // kMaxTaus + 1
+  const std::vector<const Transducer*> taus(kOverCap, &t);
   EXPECT_THROW(otf_product_to_mtdfa(Phi("a"), taus, vars, dict),
                std::invalid_argument);
 }
