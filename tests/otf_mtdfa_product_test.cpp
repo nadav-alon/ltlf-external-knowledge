@@ -1,3 +1,8 @@
+#include <cstdlib>  // defines __GLIBC__ on glibc
+#if defined(__GLIBC__)
+#include <malloc.h>
+#endif
+
 #include <algorithm>
 #include <cstdint>
 #include <deque>
@@ -27,6 +32,7 @@
 #include <spot/twaalgos/ltlf2dfa.hh>
 
 #include "ltlf_ek/bench.hpp"
+#include "ltlf_ek/bench_suite.hpp"
 #include "ltlf_ek/cli.hpp"
 #include "ltlf_ek/otf_mtdfa_product.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
@@ -991,6 +997,46 @@ TEST(BenchScopeIntegration, OtfMtdfaProductEmitsExactlyProductConstructionAndGam
         << "no nested sub-span anywhere under either root";
   }
   EXPECT_GT(report.total.count(), 0);
+}
+
+// The build must not leave a freed small chunk per product state behind: the
+// game solve that follows runs ~2x slower on that fragmented heap
+// (docs/runs/2026-10-17-otf-game-solving-gap.md).  The product is held live,
+// so what counts is the free-list growth across the build.  A diagnostic, not
+// the acceptance criterion (that is otf-gap-probe game_solving parity with
+// steps-spot).  Process-wide, so earlier tests' heap state can shift it.
+#if defined(__GLIBC__) && __GLIBC_PREREQ(2, 33) && !defined(__SANITIZE_ADDRESS__)
+TEST(OtfProductToMtdfa, BuildLeavesFewFreeHeapChunksForTheSolve) {
+  const ltlf_ek::BenchFamily* family = nullptr;
+  for (const auto& f : ltlf_ek::bench_families())
+    if (f->name() == "cons-inert") family = f.get();
+  ASSERT_NE(family, nullptr);
+  ltlf_ek::BenchCase c = family->instantiate({{"n", 16}, {"realizable", 1}});
+  const std::vector<const Transducer*> taus{&c.t_in, &c.t_out};
+
+  const auto free_chunks = [] {
+    const struct mallinfo2 m = mallinfo2();
+    return m.ordblks + m.smblks;
+  };
+  const std::size_t before = free_chunks();
+  const spot::mtdfa_ptr product =
+      otf_product_to_mtdfa(c.phi, taus, c.vars, c.t_in.dict());
+  const std::size_t after = free_chunks();
+
+  ASSERT_GT(product->num_roots(), 1000u) << "fixture too small to fragment the heap";
+  EXPECT_LT(after > before ? after - before : 0, product->num_roots() / 10)
+      << "free chunks before " << before << ", after " << after;
+}
+#endif  // glibc >= 2.33 without ASan: mallinfo2 is meaningful
+
+TEST(OtfProductToMtdfa, MoreTransducersThanTheStateKeyHoldsThrows) {
+  const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  const VariablePartition vars = IoFreeVars();
+  const OutputLabeledTransducer t = trivial_transducer(vars, Role::t_in, dict);
+  constexpr std::size_t kOverCap = 5;  // kMaxTaus + 1
+  const std::vector<const Transducer*> taus(kOverCap, &t);
+  EXPECT_THROW(otf_product_to_mtdfa(Phi("a"), taus, vars, dict),
+               std::invalid_argument);
 }
 
 }  // namespace

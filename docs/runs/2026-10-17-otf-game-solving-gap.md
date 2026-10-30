@@ -138,3 +138,21 @@ which is not implicated.
 
 Not recommended: a `malloc_trim(0)` between build and solve. It moves the cost (330 ms) into the
 build and returns memory to the OS only to page it back in (35k faults).
+
+## Addendum (#163): what the fix measured
+
+The `Key`/arena hypothesis above was only partly right. Measured on `cons-inert` n=20
+(`steps-otf`, `game_solving`; `steps-spot` ~260 ms, baseline ~550 ms):
+
+| change | `game_solving` | free chunks |
+|---|---|---|
+| baseline | ~550 ms | ~2.2M |
+| inline `Key::q` + pmr arena only | ~520 ms | ~2.2M |
+| `ForwardProgression` kept alive only | ~260 ms | 2 |
+| `ForwardProgression` freed at return, with `Key`/arena | ~400 ms | ~556k |
+| both (shipped) | parity with `steps-spot` | few |
+
+The larger cause was the teardown of Spot's `ltlf_translator` caches between build and solve.
+The returned product now owns the `ForwardProgression`; its teardown is charged to
+`game_solving` (the product is dropped inside that stage), so per-stage totals stay comparable
+with `steps-spot`.
