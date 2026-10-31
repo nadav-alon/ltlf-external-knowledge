@@ -1,0 +1,59 @@
+\section{Algorithms}\label{sec:algorithms}
+
+\guide{Shared interface: every method takes $(\varphi,\mathcal{I},\mathcal{O},\Tin,\Tout)$ and returns
+a controller or ``unrealizable''. State the common correctness claim once here.}
+
+\subsection{Method 1: NFA Product}\label{sec:nfa}
+\subsubsection{From \texorpdfstring{$\LTLf$}{LTLf} to a Small NFA}
+\guide{Formula mirror, reversal; size theorem.}
+\subsubsection{Product Construction}
+\guide{Product of the Goal NFA with $\Tin$, $\Tout$; how consistency prunes.}
+\subsubsection{Solving}
+\guide{Subset/game construction on the product; extracting $T_C$.}
+\subsubsection{Correctness and Complexity}
+\guide{Theorem statement; proof sketch here, full proof in \cref{app:proofs}.}
+
+\begin{algorithm}[H]
+\caption{NFA product}\label{alg:nfa}
+\begin{algorithmic}[1]
+\Require $\varphi$, $\mathcal{I}$, $\mathcal{O}$, $\Tin$, $\Tout$
+\Ensure controller $T_C$ or \textsc{Unrealizable}
+\State \guide{pseudocode}
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Method 2: DFA Product}\label{sec:dfa}
+\subsubsection{Construction}
+\guide{Full DFA for $\varphi$, product with the transducers, game solve.}
+\subsubsection{Correctness and Complexity}
+\guide{Theorem, proof sketch.}
+
+\subsection{Method 3: On-the-Fly DFA Products}\label{sec:otf}
+\guide{Why on-the-fly: build only the part of the product the game reaches.}
+\subsubsection{Method 3.1: No Aggregation}
+\guide{Construction; what is explored; early termination.}
+\subsubsection{Method 3.2: Aggregation}
+\guide{What is aggregated; soundness (implication, not equality, vs.\ the non-aggregating
+methods). Status: not implemented.}
+\subsubsection{Method 3.3: Dynamic Aggregation}
+\guide{Construction; when it aggregates. Status: not implemented.}
+
+\subsection{Explicit vs.\ Symbolic Representations}
+\guide{Which methods exist in which representation (explicit, mtdfa, mtnfa). Table.}
+
+\subsection{Comparison of the Methods}
+\begin{table}[H]
+\centering
+\caption{Methods at a glance.}\label{tab:methods}
+\begin{tabular}{llllll}
+\toprule
+Method & Goal automaton & Representation(s) & Worst-case size & Status \\
+\midrule
+1 NFA product      & & & & \\
+2 DFA product      & & & & \\
+3.1 OTF, no agg.   & & & & \\
+3.2 OTF, agg.      & & & & \\
+3.3 OTF, dyn.\ agg. & & & & \\
+\bottomrule
+\end{tabular}
+\end{table}

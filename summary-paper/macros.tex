@@ -1,0 +1,28 @@
+% Notation, kept in step with latex/main.tex so the two documents read alike.
+\newcommand{\Ifree}{\mathcal{I}_{f}}
+\newcommand{\Iknown}{\mathcal{I}_{k}}
+\newcommand{\Ofree}{\mathcal{O}_{f}}
+\newcommand{\Oknown}{\mathcal{O}_{k}}
+\newcommand{\Tin}{T_{\mathit{Inp}}}
+\newcommand{\Tout}{T_{\mathit{Out}}}
+\newcommand{\psiin}{\psi_{\mathit{Inp}}}  % LTLf language of \Tin (assumption)
+\newcommand{\psiout}{\psi_{\mathit{Out}}} % LTLf language of \Tout (guarantee)
+\newcommand{\Sin}{S_{\mathit{Inp}}}
+\newcommand{\Sout}{S_{\mathit{Out}}}
+\newcommand{\cons}{\mathrm{cons}}
+\newcommand{\mirror}[1]{\widetilde{#1}} % past-LTLf mirror of a future formula
+\newcommand{\rev}[1]{#1^{\mathrm{R}}}   % reversal of a word / automaton / language
+\newcommand{\Xdep}{\mathcal{X}}         % dependent output set
+\newcommand{\Ydep}{\mathcal{Y}}         % set \Xdep is dependent on
+\newcommand{\LTLf}{\text{LTL}_f}
+\newcommand{\algname}[1]{\textbf{\textsc{#1}}}
+\newcommand{\tool}[1]{\texttt{#1}}
+
+% Review notes: one colour per author.
+\newcommand{\na}[2][]{\todo[color=cyan,#1]{NA: {#2}}}
+\newcommand{\cl}[2][]{\todo[color=green!30,#1]{CL: {#2}}}
+
+% \guide{...}: what a section should hold. Delete each one once its section is written,
+% or set \guidesfalse in main.tex to hide them all at once.
+\newif\ifguides\guidestrue
+\newcommand{\guide}[1]{\ifguides{\small\itshape\color{gray!70!black}[Guide: #1]}\fi}
