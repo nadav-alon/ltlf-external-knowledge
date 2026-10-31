@@ -14,12 +14,12 @@
       \node[state, initial, initial text=] (s0) {$\begin{array}{c}s_0\\\neg k\end{array}$};
       \node[state, right=of s0] (s1) {$\begin{array}{c}s_1\\k\end{array}$};
       \path
-        (s0) edge[loop above] node[lbl] {$\neg i$} ()
-        (s0) edge[bend left] node[lbl] {$i$} (s1)
-        (s1) edge[loop above] node[lbl] {$i$} ()
-        (s1) edge[bend left] node[lbl] {$\neg i$} (s0);
+        (s0) edge[loop above] node[lbl] {$\neg r$} ()
+        (s0) edge[bend left] node[lbl] {$r$} (s1)
+        (s1) edge[loop above] node[lbl] {$r$} ()
+        (s1) edge[bend left] node[lbl] {$\neg r$} (s0);
     \end{tikzpicture}
-    \caption{$\Tin$: $k$ echoes $i$ one step late.}
+    \caption{$\Tin$: $k$ echoes $r$ one step late.}
     \label{fig:running-tin}
   \end{subfigure}
   \hfill
@@ -38,10 +38,10 @@
     \begin{tikzpicture}[auto]
       \node[state, initial, initial text=] (c0) {$c_0$};
       \path
-        (c0) edge[loop above] node[lbl] {$i / o$} ()
-        (c0) edge[loop below] node[lbl] {$\neg i / \neg o$} ();
+        (c0) edge[loop above] node[lbl] {$r / o$} ()
+        (c0) edge[loop below] node[lbl] {$\neg r / \neg o$} ();
     \end{tikzpicture}
-    \caption{$T_C$: copy $i$ to $o$.}
+    \caption{$T_C$: copy $r$ to $o$.}
     \label{fig:running-tc}
   \end{subfigure}
   \caption{The running example (\cref{ex:running}).
