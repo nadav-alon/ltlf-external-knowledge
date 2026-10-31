@@ -1,0 +1,51 @@
+% Transducers of the running example (ex:running).
+% Knowledge transducers show lambda inside the state, since here it ignores the visible letter;
+% edges are labelled by the free-variable condition delta reads.
+\begin{figure}[htbp]
+  \centering
+  \tikzset{
+    every state/.style={minimum size=11mm, inner sep=1pt},
+    every edge/.style={draw, -{Stealth[length=2mm]}},
+    lbl/.style={font=\small},
+  }
+  \begin{subfigure}[b]{0.42\textwidth}
+    \centering
+    \begin{tikzpicture}[node distance=26mm, auto]
+      \node[state, initial, initial text=] (s0) {$\begin{array}{c}s_0\\\neg k\end{array}$};
+      \node[state, right=of s0] (s1) {$\begin{array}{c}s_1\\k\end{array}$};
+      \path
+        (s0) edge[loop above] node[lbl] {$\neg i$} ()
+        (s0) edge[bend left] node[lbl] {$i$} (s1)
+        (s1) edge[loop above] node[lbl] {$i$} ()
+        (s1) edge[bend left] node[lbl] {$\neg i$} (s0);
+    \end{tikzpicture}
+    \caption{$\Tin$: $k$ echoes $i$ one step late.}
+    \label{fig:running-tin}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.22\textwidth}
+    \centering
+    \begin{tikzpicture}[auto]
+      \node[state, initial, initial text=] (u0) {$\begin{array}{c}u_0\\\emptyset\end{array}$};
+      \path (u0) edge[loop above] node[lbl] {$\top$} ();
+    \end{tikzpicture}
+    \caption{$\Tout$: trivial.}
+    \label{fig:running-tout}
+  \end{subfigure}
+  \hfill
+  \begin{subfigure}[b]{0.30\textwidth}
+    \centering
+    \begin{tikzpicture}[auto]
+      \node[state, initial, initial text=] (c0) {$c_0$};
+      \path
+        (c0) edge[loop above] node[lbl] {$i / o$} ()
+        (c0) edge[loop below] node[lbl] {$\neg i / \neg o$} ();
+    \end{tikzpicture}
+    \caption{$T_C$: copy $i$ to $o$.}
+    \label{fig:running-tc}
+  \end{subfigure}
+  \caption{The running example (\cref{ex:running}).
+  Each knowledge-transducer state shows the valuation $\lambda$ assigns to the known variables there.
+  The controller's edges read $\textit{input} / \textit{output}$.}
+  \label{fig:running}
+\end{figure}
