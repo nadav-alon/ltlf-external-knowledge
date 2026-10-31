@@ -44,8 +44,10 @@ namespace {
 // The sweep floor (PRD "Edge cases": X[!]^0 degenerates to phi itself; the
 // sweep starts at n=2, and a family must reject a parameter below its own
 // floor rather than emit a malformed formula). The default for every family
-// except hidden-counter, which declares its own floor of 1 (check_floor and
-// default_sweep take the floor as a parameter).
+// except hidden-counter, which declares its own floor of 1. A family's floor is
+// stated by BenchFamily::n_floor(), which the runner reads to start each family
+// at max(--n-min, n_floor()); check_floor and default_sweep take the floor as
+// a parameter, and a test pins n_floor() to what instantiate() enforces.
 constexpr std::int64_t kNFloor = 2;
 
 // n applications of the strong-next operator X[!] around `inner` (main.tex's
@@ -1252,6 +1254,8 @@ std::string hidden_counter_tin_file(std::int64_t n_bits) {
 class HiddenCounterFamily final : public BenchFamily {
  public:
   std::string name() const override { return "hidden-counter"; }
+
+  std::int64_t n_floor() const override { return kHiddenCounterFloor; }
 
   std::vector<BenchParams> sweep(std::int64_t n_min,
                                  std::int64_t n_max) const override {

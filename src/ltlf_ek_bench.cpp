@@ -95,7 +95,8 @@ class UsageError : public std::runtime_error {
 //   ltlf-ek-bench --families=<csv|all> --subjects=<csv|all> --n-min=N
 //                 --n-max=N --repeat=K --timeout=SECONDS --out=FILE
 //                 [--ltlfsynt=PATH] [--xlsx=FILE] [--budget=SECONDS]
-// --budget is this developer's naming of the "stated wall-clock ceiling,
+// --n-min is raised, per family, to that family's own floor
+// (BenchFamily::n_floor()). --budget is this developer's naming of the "stated wall-clock ceiling,
 // default 2h, overridable by a flag" B6 asks for without pinning a flag
 // name; recorded in the PRD's Developer comments.
 // ---------------------------------------------------------------------------
@@ -103,7 +104,7 @@ class UsageError : public std::runtime_error {
 struct CliArgs {
   std::string families = "all";
   std::string subjects = "all";
-  std::int64_t n_min = 2;
+  std::int64_t n_min = 1;  // each family starts at max(n_min, its floor)
   std::int64_t n_max = 6;
   int repeat = 3;                 // PRD default
   unsigned timeout_seconds = 20;  // PRD default
@@ -1028,6 +1029,8 @@ int main(int argc, char** argv) {
         const BenchParams params{{"n", n}, {"realizable", realizable_i}};
 
         for (const BenchFamily* family : families) {
+          // A family starts at max(--n-min, its own floor).
+          if (n < family->n_floor()) continue;
           if (std::chrono::steady_clock::now() >= deadline) {
             stopped_early = true;
             break;

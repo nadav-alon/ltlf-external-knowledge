@@ -68,7 +68,7 @@ part="part-${SLURM_ARRAY_TASK_ID}.json"
 # part directory is bound under it.
 inner="ulimit -v ${MEM_KIB:-8388608}; export TMPDIR=\$(mktemp -d);
 exec /src/build/ltlf-ek-bench --families=$families --subjects=$subjects \
-  --n-min=2 --n-max=${N_MAX:-6} --repeat=5 --timeout=20 --budget=4000000000 \
+  --n-min=1 --n-max=${N_MAX:-6} --repeat=5 --timeout=20 --budget=4000000000 \
   --ltlfsynt=\$(readlink -f /usr/local/bin/ltlfsynt) --out=/src/sweep-out/$part"
 
 cmd=(apptainer exec --cleanenv --bind "$out_dir:/src/sweep-out" "$image" bash -c "$inner")

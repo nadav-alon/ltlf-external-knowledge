@@ -65,6 +65,9 @@ class BenchFamily {
  public:
   virtual ~BenchFamily() = default;
   virtual std::string name() const = 0;
+  // The smallest n instantiate() accepts; the runner starts the family at
+  // max(--n-min, n_floor()).
+  virtual std::int64_t n_floor() const { return 2; }
   virtual std::vector<BenchParams> sweep(std::int64_t n_min,
                                          std::int64_t n_max) const = 0;
   virtual BenchCase instantiate(const BenchParams& params) const = 0;

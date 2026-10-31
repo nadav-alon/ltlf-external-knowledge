@@ -28,6 +28,17 @@ class MergeSweep(unittest.TestCase):
         self.assertEqual(m["provenance"]["verdict_mismatch_count"], 2)
         self.assertEqual(m["provenance"]["sweep_wall_seconds"], 14)
 
+    def test_parts_with_n_min_one_and_n_equals_one_rows_merge(self):
+        a, b = part("a", n_min=1), part("hidden-counter", n_min=1)
+        b["timings"] = [{"family": "hidden-counter", "n": 1}]
+        m = ms.merge([a, b])
+        self.assertEqual(m["provenance"]["n_min"], 1)
+        self.assertEqual(m["timings"][1]["n"], 1)
+
+    def test_parts_from_before_and_after_the_n_min_change_are_refused(self):
+        with self.assertRaisesRegex(ValueError, "n_min"):
+            ms.merge([part("a", n_min=2), part("b", n_min=1)])
+
     def test_parts_of_different_sweeps_are_refused(self):
         with self.assertRaisesRegex(ValueError, "repeat"):
             ms.merge([part("a"), part("b", repeat=1)])
