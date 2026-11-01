@@ -1,0 +1,17 @@
+\section{Implementation}\label{sec:implementation}
+
+\subsection{Architecture}
+\guide{C++20 on Spot; thin wrappers; custom lambda-split transducer and NFA types; one
+\texttt{Synthesis} interface. Diagram optional.}
+
+\subsection{Tools}
+\guide{\tool{ltlf-ek-synth} (CLI), \tool{ltlf-ek-bench} (benchmark runner), dependency tools.
+Input formats (HOA transducers, formula files).}
+
+\subsection{Verification Strategy}
+\guide{The oracle layers: unit fixtures, cross-method equivalence, controller verifier, external
+\tool{ltlfsynt} oracle. What each catches. Test-suite size.}
+
+\subsection{Engineering Lessons}
+\guide{Optional. Anything non-obvious that shaped the results (e.g.\ degenerate families,
+timing vs.\ state counts).}

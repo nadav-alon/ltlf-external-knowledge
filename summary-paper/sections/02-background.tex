@@ -1,0 +1,21 @@
+\section{Background}\label{sec:background}
+
+\subsection{\texorpdfstring{$\LTLf$}{LTLf}}
+\guide{Syntax and finite-trace semantics; strong/weak next ($X[!]$ vs.\ $X$); notation for
+traces over $2^{\mathcal{I}\cup\mathcal{O}}$. Cite \cite{DeGiacomoVardi2013}.}
+
+\subsection{Automata on Finite Words}
+\guide{NFA, DFA, determinisation blow-up, minimisation. Past-$\LTLf$ and the reverse/mirror
+construction that gives a small NFA (needed for Method 1).}
+
+\subsection{Reactive Synthesis on Finite Traces}
+\guide{Controller as a transducer; realizability; DFA game, attractor/fixpoint solving.
+Turn order (who moves first). Cite \cite{PnueliRosner1989,DeGiacomoVardi2015}.}
+
+\subsection{Symbolic Representations}
+\guide{BDDs, multi-terminal DFAs (MTDFA) in Spot; why an mtdfa representation is a second
+implementation of a method, not a new method. Cite \cite{Spot2022}.}
+
+\subsection{Baseline Tool: \tool{ltlfsynt}}
+\guide{What Spot's \tool{ltlfsynt} does, and how it is used here: as a baseline and as an
+external realizability oracle.}

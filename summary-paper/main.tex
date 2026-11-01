@@ -1,0 +1,73 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{float}
+\usepackage{subcaption}
+\usepackage{tikz}
+\usetikzlibrary{automata,positioning,arrows.meta}
+\usepackage{hyperref}
+\usepackage{cleveref}
+% \usepackage[disable]{todonotes}
+\usepackage{todonotes}
+
+\theoremstyle{plain}
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\theoremstyle{definition}
+\newtheorem{definition}{Definition}
+\newtheorem{example}{Example}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\algrenewcommand{\algorithmicrequire}{\textbf{Input:}}
+\algrenewcommand{\algorithmicensure}{\textbf{Output:}}
+
+\input{macros}
+% \guidesfalse % uncomment to hide every writing guide
+
+\title{LTLf Synthesis with External Knowledge}
+\author{Nadav Alon}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Progress report on $\LTLf$ with external knowledge work. The problem is synthesis of an $\LTLf$ formula $\varphi$ assuming the possible traces are limited to those consistent with transducers $\Tin$ and $\Tout$, for input and output respectively. This idea was motivated by the TACAS'24 paper on output dependencies; this generalizes the idea to input dependencies. The method we suggest uses MTDFA with on-the-fly formula progression and game solving, which hopefully prunes out enough paths that the original formula considers possible to outweigh the cost of the product.
+In practice, trying to apply this to input transducers has resulted in suboptimal results; at problems that are large enough to cost Spot's \tool{ltlfsynt} tool an hour we only gain a 3x speedup, not significant enough, while in smaller problems we lose outright. A comparison with output dependencies is difficult to make, as the output dependencies results are for LTL and would need revising to compare.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\input{sections/01-introduction}
+\input{sections/02-background}
+\input{sections/03-problem}
+\input{sections/04-algorithms}
+\input{sections/05-dependencies}
+\input{sections/06-implementation}
+\input{sections/07-benchmarks}
+\input{sections/08-results}
+\input{sections/09-related-work}
+\input{sections/10-future}
+\input{sections/11-conclusion}
+
+\bibliographystyle{plain}
+\bibliography{refs}
+
+\appendix
+\input{sections/A-proofs}
+\input{sections/B-full-results}
+\input{sections/C-reproducibility}
+
+\end{document}

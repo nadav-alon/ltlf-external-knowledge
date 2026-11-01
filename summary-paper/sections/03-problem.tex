@@ -1,0 +1,39 @@
+\section{Problem Definition}\label{sec:problem}
+
+\subsection{Setting}
+\guide{Variables $\mathcal{I}=\Ifree\cup\Iknown$, $\mathcal{O}=\Ofree\cup\Oknown$. Goal
+$\varphi$. Who controls what.}
+
+\subsection{Knowledge as Transducers}
+\guide{Define $\Tin$ (states $\Sin$) and $\Tout$ (states $\Sout$), their input/output alphabets,
+and the lambda split. Small figure of each.}
+
+\begin{definition}[External-knowledge transducer]\label{def:ek-transducer}
+\guide{formal definition}
+\end{definition}
+
+\subsection{Consistency}
+\guide{When a trace agrees with $\Tin$, $\Tout$ and $T_C$; the $\cons$ predicate.}
+
+\begin{definition}[Consistency]\label{def:consistency}
+\guide{formal definition}
+\end{definition}
+
+\subsection{The Synthesis Problem}
+\begin{definition}[Synthesis with external knowledge]\label{def:problem}
+\guide{Given $(\varphi,\mathcal{I},\mathcal{O},\Tin,\Tout)$, find $T_C$ such that every consistent
+trace satisfies $\varphi$, or report unrealizable.}
+\end{definition}
+
+\subsection{Running Example}
+\begin{example}\label{ex:running}
+\guide{One small instance used throughout: realizable with knowledge, unrealizable without.}
+\end{example}
+
+\subsection{Relation to Assume--Guarantee Synthesis}
+\guide{When $\Tin$ has an $\LTLf$ language $\psiin$, the problem reduces to
+$\psiin \rightarrow \varphi$ (and $\psiout$ as a guarantee). When it does not
+(non-star-free $\Tin$), the reduction is unavailable. Introduce comparability tiers T1/T2/T3.}
+
+\subsection{Complexity}
+\guide{Known bounds, or what is open. Keep to what is proved.}
