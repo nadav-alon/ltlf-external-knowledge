@@ -894,7 +894,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
 The terms below belong to a **separate binary**, `ltlf-ek-deps`
 (`docs/prd/output-dependencies-tool.md`), not to any `Synthesis` method: it
 *produces* the external knowledge the five methods *consume*. The notion is
-adapted from *Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
+adapted from *On Dependent Variables in Reactive Synthesis* (arXiv:2401.11290, tool
 `DepSynt`) from infinite-word LTL to $\text{LTL}_f$; both `main.tex` anchors are
 **unproved lemmas** (see *Open theory questions*).
 
