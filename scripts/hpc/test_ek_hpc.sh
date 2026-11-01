@@ -101,7 +101,7 @@ grep -qx EK_JOB=4242 "$ENV_FILE" || fail "submit did not record EK_JOB"
 m=$(mark); ek submit --node cn07 > /dev/null
 remote_since "$m" | grep -q sbatch && fail "a second submit submitted again"
 out=$(ek submit --force 2>&1)
-grep -qi 'refuses\|different nodes' <<<"$out" && fail "unpinned submit warns that merge refuses its parts: $out"
+grep -qiE 'merge.*(refus|reject|cannot|can.t|won.t)' <<<"$out" && fail "unpinned submit warns that merge refuses its parts: $out"
 remote_since "$m" | grep -q 'sbatch --parsable --exclude=' || fail "unpinned submit lacks the exclude list"
 
 # A refused sbatch is an error that says so, and records no job.
