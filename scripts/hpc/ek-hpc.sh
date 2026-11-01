@@ -110,7 +110,6 @@ cmd_submit() {
     place="-w $node"
   else
     place="--exclude=$EXCLUDE"
-    warn "unpinned: tasks may land on different nodes, and merge_sweep.py refuses parts from different machines until #136; pin with --node"
   fi
   job=$(remote "sbatch --parsable $place sweep.sbatch") || die "sbatch on $t refused the job (its error is above)"
   job=${job%%;*}
