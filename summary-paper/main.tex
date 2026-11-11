@@ -43,13 +43,13 @@
 \maketitle
 
 \begin{abstract}
-Progress report on $\LTLf$ with external knowledge work. The problem is synthesis of an $\LTLf$ formula $\varphi$ assuming the possible traces are limited to those consistent with transducers $\Tin$ and $\Tout$, for input and output respectively. This idea was motivated by the TACAS'24 paper on output dependencies; this generalizes the idea to input dependencies. The method we suggest uses MTDFA with on-the-fly formula progression and game solving, which hopefully prunes out enough paths that the original formula considers possible to outweigh the cost of the product.
+Progress report on $\LTLf$ with external knowledge work. The problem is synthesis of an $\LTLf$ formula $\varphi$ assuming the possible traces are limited to those consistent with transducers $\Tin$ and $\Tout$, for input and output respectively. This idea was motivated by the TACAS'24 paper on output dependencies~\cite{AkshayBasaChakrabortyFried2024}; this generalizes the idea to input dependencies. The method we suggest uses MTDFA with on-the-fly formula progression and game solving, which hopefully prunes out enough paths that the original formula considers possible to outweigh the cost of the product.
 In practice, trying to apply this to input transducers has mostly not paid off.
 Against Spot's \tool{ltlfsynt} (full synthesis, internal time; speedups are \tool{ltlfsynt} time over ours), the one win against both \tool{ltlfsynt} and the simplified folded formula in the 2026-10-18 simplifier sweep (\url{docs/runs/2026-10-18-simplifier-synthesis-sweep.md}) is the slippery one-hot arm at $N=6$, at $2.39\times$ (about 1.2 s for our method).
 On cons-prunes and the other slippery arms \tool{ltlfsynt} is faster, at $0.41$--$0.71\times$ for $N=6$.
 Co-generated is the exception: against \tool{ltlfsynt} it is $2.05\times$ at $N=4$ and $3861\times$ at $N=5$, but mixed at $N=6$, at $0.60\times$ in the realizable cell, with the unrealizable cell a timeout of \tool{ltlfsynt}.
 Against the simplified folded formula, the simplifier blows up on co-generated: $2256\times$ at $N=5$ and at least $16057\times$ at $N=6$, where the formula side did not finish.
-A comparison with output dependencies is difficult to make, as the output dependencies results are for LTL and would need revising to compare.
+A comparison with output dependencies is difficult to make, as the output dependencies results~\cite{AkshayBasaChakrabortyFried2024} are for LTL and would need revising to compare.
 \end{abstract}
 
 \tableofcontents
