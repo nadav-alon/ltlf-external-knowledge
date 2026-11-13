@@ -3,45 +3,83 @@
 \subsection{Research Questions}
 \guide{What the experiments answer. E.g.\ RQ1: do the methods agree and verify? RQ2: how much does
 knowledge shrink the product? RQ3: speed vs.\ \tool{ltlfsynt}? RQ4: which method wins where?}
+We aim to answer the following research questions in our experiments:
 
 \begin{enumerate}
-  \item[RQ1] \guide{question}
-  \item[RQ2] \guide{question}
+  \item[RQ1] Verify equivalence of methods in terms of realizability and correctness of the synthesized controller.
+  \item[RQ2] Quantify the impact of external knowledge on solve time, compared to itself without knowledge and a baseline tool.
 \end{enumerate}
 
 \subsection{Metrics}
 \guide{Structural (state counts, deterministic, committed) vs.\ timing (wall clock, median of
 repeats). Prune ratio; nk-product ratio; speedup. Why state counts are the decisive number.}
 
+We compare the following metrics in our experiments:
+\begin{itemize}
+  \item State counts of the automata
+  \item Wall clock time for synthesis
+  \item Amount of pruning achieved by the knowledge transducers, as compared to the unpruned product
+\end{itemize}
+
 \subsection{Baselines}
 \guide{\tool{ltlfsynt} on the $\psiin\rightarrow\varphi$ encoding; the no-knowledge product;
-the unpruned product. Comparability tiers: which families admit a fair external comparison.}
+the unpruned product.}
+
+The ltlfsynt tool from Spot is used as a baseline for comparison, as well as the no-knowledge product and the unpruned product.
 
 \subsection{Benchmark Families}
-\guide{One paragraph per family: $\varphi_n$, knowledge, tier, what it isolates. Then the
+\guide{One paragraph per family: $\varphi_n$, knowledge, what it isolates. Then the
 summary table.}
+
+We compared only input knowledge; as such, every family has trivial $\Tout$. Every family also comes in a realizable and an unrealizable variant.
 
 \subsubsection{Parametric Families}
 \guide{cons-prunes, cons-inert, mirror-small, mirror-degenerate, parity-t3, knowledge-chain(-inert),
 co-generated, \ldots}
 
+\textbf{\texttt{cons-prunes}} fixes the known input $k$ to true, so $\cons$ cuts an exponential goal to $n+1$ states; \textbf{\texttt{cons-inert}} makes $k$ a free output, the no-pruning control.
+\textbf{\texttt{mirror-small}} and \textbf{\texttt{mirror-degenerate}} have no knowledge and separate the NFA and MTDFA routes, in favour of the NFA and against it.
+\textbf{\texttt{knowledge-chain}} and \textbf{\texttt{knowledge-chain-inert}} grow $|\Tin|$ to $n$, with and without pruning; the inert one hits $|\text{product}| = |\Tin| \cdot |\text{goal}|$.
+\textbf{\texttt{parity-t3}} uses a parity $\Tin$, which no $\LTLf$ formula expresses.
+\textbf{\texttt{co-generated}} uses a $2^n$-state delay line $k_t = a_{t-n}$ that $\varphi_n$ needs to be realizable.
+
 \subsubsection{Engineered Domain Families}
 \guide{Domain-inspired instances (e.g.\ slippery world, hidden counters).}
 
+\textbf{\texttt{slippery-*}}: reach a corner of a $2^n \times 2^n$ grid where a free input $\mathit{slip}$ doubles a move; $\Tin$ tracks the known position, and the three variants differ only in how $\psiin$ encodes it.
+\textbf{\texttt{hidden-counter}}: $\Tin$ counts $a$'s modulo $2^n$ and reveals the top bit as $k$, which the output must predict one step ahead (realizable) or two (unrealizable).
+
 \subsubsection{External Suites}
-Of the 430 instances with at most 16 propositions, 388 could be analysed and 6 of those carry output dependencies; a seventh, with 26 propositions, lies above that bound.
+SYNTCOMP \texttt{tlsf-fin}: $1717$ instances with no knowledge of their own.
+Dependency extraction (\cref{sec:dependencies}) finds knowledge in $6$ of the $388$ that could be analysed among the $430$ instances with at most $16$ propositions, all unrealizable; a seventh, with $26$ propositions, lies above that bound.
 
 \subsubsection{Generated Corpus}
 \guide{Random instances used for oracle soak testing.}
 
+Fixed-seed random $(\varphi, \text{partition}, \Tin)$ triples, untimed, checked for agreement with \tool{ltlfsynt} and by model-checking each controller (RQ1).
+
 \begin{table}[H]
 \centering
+\small
 \caption{Benchmark families.}\label{tab:families}
-\begin{tabular}{lllll}
+\begin{tabular}{lllp{3.5cm}}
 \toprule
-Family & $\varphi_n$ & Knowledge & Tier & Purpose \\
+Family & $\varphi_n$ & $\Tin$ & Purpose \\
 \midrule
- & & & & \\
+\texttt{cons-prunes} & $F(k \wedge X[!]^n k)$ & 1 state, $G\,k$ & best-case pruning \\
+\texttt{cons-inert} & $F(k \wedge X[!]^n k)$, $k \in \Ofree$ & trivial & product overhead, no pruning \\
+\texttt{mirror-small} & $F(v \wedge X[!]^n \neg X[!]\top)$ & trivial & NFA route wins \\
+\texttt{mirror-degenerate} & $F(v \wedge X[!]^n v)$ & trivial & NFA route loses \\
+\texttt{knowledge-chain} & $F(k \wedge X[!]^n k)$ & $n$-state chain & knowledge size, pruned \\
+\texttt{knowledge-chain-inert} & $F(v \wedge X[!]^n v)$ & $n$-state counter & knowledge size, unpruned \\
+\texttt{parity-t3} & $F(k \wedge X[!]^n k)$ & 2-state parity & beyond \tool{ltlfsynt} \\
+\texttt{co-generated} & $G(a_0 \rightarrow X^n k \wedge \ldots)$ & $2^n$-state delay & load-bearing knowledge \\
+\midrule
+\texttt{slippery-*} & $F(\text{cell})$ & grid position & size of $\psiin$ encoding \\
+\texttt{hidden-counter} & $o \leftrightarrow X[!]\,k$ & $2^n$-state counter & exponential knowledge, Mealy timing \\
+\midrule
+SYNTCOMP \texttt{tlsf-fin} & 1717 instances & extracted & real specifications \\
+Generated corpus & random & random & oracle soak (RQ1) \\
 \bottomrule
 \end{tabular}
 \end{table}
