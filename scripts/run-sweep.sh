@@ -62,9 +62,8 @@ if [[ -z "$spot_root" || ! -x "$spot_root/bin/ltlfsynt" ]]; then
 fi
 
 # Families of the run: the three slippery arms (one family in the report),
-# knowledge-chain, cons-prunes, co-generated, hidden-counter, and the four inert
-# and mirror families (cons-inert, mirror-small, mirror-degenerate,
-# knowledge-chain-inert).
+# knowledge-chain, cons-prunes, co-generated, hidden-counter, and the inert and
+# mirror families of summary-paper §7.
 families="slippery-binary,slippery-onehot,slippery-binary-compact,knowledge-chain,cons-prunes,co-generated,hidden-counter,cons-inert,mirror-small,mirror-degenerate,knowledge-chain-inert"
 # The EK champion with and without on-the-fly solving, its in-process formula
 # baseline likewise, each also with Spot's LTLf formula simplifier run on phi
