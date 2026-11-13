@@ -62,13 +62,16 @@ if [[ -z "$spot_root" || ! -x "$spot_root/bin/ltlfsynt" ]]; then
 fi
 
 # Families of the run: the three slippery arms (one family in the report),
-# knowledge-chain, cons-prunes, co-generated, hidden-counter.
-families="slippery-binary,slippery-onehot,slippery-binary-compact,knowledge-chain,cons-prunes,co-generated,hidden-counter"
+# knowledge-chain, cons-prunes, co-generated, hidden-counter, and the four inert
+# and mirror families (cons-inert, mirror-small, mirror-degenerate,
+# knowledge-chain-inert).
+families="slippery-binary,slippery-onehot,slippery-binary-compact,knowledge-chain,cons-prunes,co-generated,hidden-counter,cons-inert,mirror-small,mirror-degenerate,knowledge-chain-inert"
 # The EK champion with and without on-the-fly solving, its in-process formula
 # baseline likewise, each also with Spot's LTLf formula simplifier run on phi
 # (the -simp subjects), the explicit product with and without the knowledge (the
-# prune ratio), and the folded no-knowledge product (its second baseline).
-subjects="otf-mtdfa-product,otf-mtdfa-product-otfsolve,otf-mtdfa-product-otfsolve-simp,otf-mtdfa-product-nk,otf-mtdfa-product-nk-otfsolve,otf-mtdfa-product-nk-otfsolve-simp,dfa-product,dfa-product-unpruned,dfa-product-nk,knowledge-sizes"
+# prune ratio), the folded no-knowledge product (its second baseline), and the
+# explicit NFA and MTDFA/MTNFA products, each with and without the knowledge.
+subjects="otf-mtdfa-product,otf-mtdfa-product-otfsolve,otf-mtdfa-product-otfsolve-simp,otf-mtdfa-product-nk,otf-mtdfa-product-nk-otfsolve,otf-mtdfa-product-nk-otfsolve-simp,dfa-product,dfa-product-unpruned,dfa-product-nk,knowledge-sizes,nfa-product,mtdfa-product,mtnfa-product,nfa-product-nk,mtdfa-product-nk,mtnfa-product-nk"
 
 # The logs sit next to build_dir, not inside it, so its parent must exist.
 mkdir -p "$(dirname "$build_dir")"
