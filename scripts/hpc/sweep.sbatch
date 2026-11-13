@@ -34,7 +34,7 @@
 #SBATCH --job-name=ek-sweep
 #SBATCH --partition=work
 #SBATCH --account=rg-fried
-#SBATCH --array=0-4
+#SBATCH --array=0-6
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=2
@@ -53,9 +53,11 @@ case "${SLURM_ARRAY_TASK_ID:?run under sbatch --array}" in
   2) families="cons-prunes" ;;
   3) families="co-generated" ;;
   4) families="hidden-counter" ;;
+  5) families="cons-inert,knowledge-chain-inert" ;;
+  6) families="mirror-small,mirror-degenerate" ;;
   *) echo "sweep.sbatch: no family group for task $SLURM_ARRAY_TASK_ID" >&2; exit 1 ;;
 esac
-subjects="otf-mtdfa-product,otf-mtdfa-product-otfsolve,otf-mtdfa-product-otfsolve-simp,otf-mtdfa-product-nk,otf-mtdfa-product-nk-otfsolve,otf-mtdfa-product-nk-otfsolve-simp,dfa-product,dfa-product-unpruned,dfa-product-nk,knowledge-sizes"
+subjects="otf-mtdfa-product,otf-mtdfa-product-otfsolve,otf-mtdfa-product-otfsolve-simp,otf-mtdfa-product-nk,otf-mtdfa-product-nk-otfsolve,otf-mtdfa-product-nk-otfsolve-simp,dfa-product,dfa-product-unpruned,dfa-product-nk,knowledge-sizes,nfa-product,mtdfa-product,mtnfa-product,nfa-product-nk,mtdfa-product-nk,mtnfa-product-nk"
 
 image="${EK_IMAGE:-$HOME/ltlf-ek.sif}"
 out_dir="${EK_OUT:-$HOME/ek-sweep/${SLURM_ARRAY_JOB_ID:-local}}"
