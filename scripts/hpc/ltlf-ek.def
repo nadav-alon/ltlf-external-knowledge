@@ -6,13 +6,16 @@ From: debian:bookworm-slim
 # Build it from the repo root, on a machine with apptainer (wizard.sh builds it on the
 # cluster's login node, via build-image.sh):
 #
-#   apptainer build ltlf-ek.sif scripts/hpc/ltlf-ek.def
+#   apptainer build [--build-arg jobs=N] ltlf-ek.sif scripts/hpc/ltlf-ek.def
 #
 # The Spot version is the one .sandbox/Dockerfile and ci.yml pin; bump all
 # three together. .git is copied so the sweep JSON records the commit.
 #
 # Spot (so ltlfsynt) and ltlf-ek-bench are compiled with the same baseline,
 # FLAGS = -O3 -march=x86-64-v3, so the comparison between them stays fair.
+
+%arguments
+    jobs=8
 
 %files
     CMakeLists.txt /src/CMakeLists.txt
@@ -26,6 +29,8 @@ From: debian:bookworm-slim
     set -eu
     SPOT_VERSION=2.15.1
     FLAGS='-O3 -march=x86-64-v3'
+    # The build's job count, from `apptainer build --build-arg jobs=N`: the SLURM job's CPUs.
+    export MAKEFLAGS="--jobs={{ jobs }}"
     apt-get update
     apt-get install -y --no-install-recommends \
         ca-certificates curl g++ make cmake pkg-config python3 git mona
@@ -34,7 +39,7 @@ From: debian:bookworm-slim
     cd "/tmp/spot-${SPOT_VERSION}"
     ./configure --prefix=/usr/local --disable-python --disable-devel --disable-static \
         CXXFLAGS="$FLAGS"
-    make -j8
+    make
     make install-strip
     ldconfig
     cd /
@@ -43,7 +48,7 @@ From: debian:bookworm-slim
     cmake -S /src -B /src/build -DCMAKE_BUILD_TYPE=Release \
         -DCMAKE_CXX_FLAGS_RELEASE="$FLAGS -DNDEBUG" \
         -DSPOT_ROOT=/usr/local -DLTLF_EK_BUILD_TESTS=OFF
-    cmake --build /src/build -j8 --target ltlf-ek-bench
+    cmake --build /src/build --target ltlf-ek-bench
 
 %environment
     export LC_ALL=C
