@@ -812,4 +812,87 @@ TEST(PrintTransducer, ThrowsWhenTheStreamFailsPartWayThrough) {
   EXPECT_THROW(print_transducer(out, t), std::ios_base::failure);
 }
 
+// The shared-DAG form of %%LAMBDA (docs/GLOSSARY.md "transducer file format"):
+// `node` lines define BDD nodes, a state entry may name one, and the
+// one-formula form still parses.
+TEST(ParseTransducer, LambdaReadsSharedDagForm) {
+  const std::string text = R"(HOA: v1
+States: 1
+Start: 0
+AP: 2 "a" "k"
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0
+  [t] 0
+--END--
+%%LAMBDA
+node @0: k ? true : false
+node @1: a ? @0 : false
+state 0: @1
+)";
+  auto dict = spot::make_bdd_dict();
+  const OutputLabeledTransducer t = Parse(text, InFreeKnown(), Role::t_in, dict);
+  const spot::twa_graph_ptr probe = spot::make_twa_graph(dict);
+  EXPECT_EQ(t.emits_region(0), VarBdd(probe, "a") & VarBdd(probe, "k"));
+}
+
+TEST(ParseTransducer, RejectsDagReferenceToUndefinedNode) {
+  const std::string text = R"(HOA: v1
+States: 1
+Start: 0
+AP: 2 "a" "k"
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0
+  [t] 0
+--END--
+%%LAMBDA
+state 0: @7
+)";
+  auto dict = spot::make_bdd_dict();
+  EXPECT_THROW(Parse(text, InFreeKnown(), Role::t_in, dict),
+               std::invalid_argument);
+}
+
+// A parity chain has a linear BDD and an exponential sum of products: the
+// shape that made the old writer produce gigabyte files and a parser crash.
+TEST(RoundTrip, ParityOverSixteenInputsStaysLinearAndRoundTrips) {
+  constexpr int n = 16;
+  std::set<std::string> inputs;
+  std::ostringstream hoa;
+  hoa << "HOA: v1\nStates: 1\nStart: 0\nAP: " << n + 1;
+  for (int i = 0; i < n; ++i) {
+    inputs.insert("x" + std::to_string(i));
+    hoa << " \"x" << i << "\"";
+  }
+  hoa << " \"y\"\nacc-name: all\nAcceptance: 0 t\n--BODY--\nState: 0\n"
+         "  [t] 0\n--END--\n%%LAMBDA\n";
+  // y <-> parity(x0..x15), built as a two-nodes-per-level chain over the xs.
+  std::string even = "true", odd = "false";  // y-cofactor for parity so far
+  int id = 0;
+  for (int i = n - 1; i >= 0; --i) {
+    const std::string x = "x" + std::to_string(i);
+    const std::string e = "@" + std::to_string(id++);
+    const std::string o = "@" + std::to_string(id++);
+    hoa << "node " << e << ": " << x << " ? " << odd << " : " << even << "\n";
+    hoa << "node " << o << ": " << x << " ? " << even << " : " << odd << "\n";
+    even = e;
+    odd = o;
+  }
+  // `even` is the BDD of "parity of x0..x15 is even"; y holds iff it is odd.
+  hoa << "node @y: y ? " << odd << " : " << even << "\nstate 0: @y\n";
+
+  const VariablePartition part =
+      VariablePartition::split(inputs, {"y"}, /*governed=*/{"y"});
+  auto dict = spot::make_bdd_dict();
+  const OutputLabeledTransducer t = Parse(hoa.str(), part, Role::t_out, dict);
+  ExpectRoundTrips(t, part, Role::t_out, dict);
+
+  std::ostringstream printed;
+  print_transducer(printed, t);
+  EXPECT_LT(printed.str().size(), 10000u);
+}
+
 }  // namespace

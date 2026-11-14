@@ -353,7 +353,10 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Definition:** one self-contained on-disk transducer: a Spot **HOA** automaton
   for $\delta$ (acceptance ignored), then — after HOA's `--END--` — a **`%%LAMBDA`
   block** giving $\lambda$ as one boolean formula per HOA state
-  (`state <n>: <formula>`, `false` = undefined there). $\Sigma_0/\Sigma_1$ are
+  (`state <n>: <formula>`, `false` = undefined there). The writer emits $\lambda$
+  as a shared BDD DAG: `node @<id>: <ap> ? <hi> : <lo>` lines (children `true`,
+  `false` or an earlier `@<id>`) and `state <n>: @<id>`; the reader accepts both
+  forms. $\Sigma_0/\Sigma_1$ are
   **not** stored; they are derived from role + partition. See
   `docs/prd/transducer-file-format.md`.
 - **C++:** the format read by `parse_transducer`; no dedicated type.
