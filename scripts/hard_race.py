@@ -14,20 +14,21 @@ hand-written compact Tout exists) is run under four arms, each a cell of the JSO
   ek-derived-fixed, ek-compact-fixed
                the same two, with --fix-dependent-outputs (experimental): the known outputs leave
                the controller's choice. A fixed cell that finishes REALIZABLE is run again with
-               --model-check, which verifies its controller against the formula (verify_s); a
-               controller that is not verified makes the cell an error. A fixed cell that finishes
-               takes its instance into the bar (below), and a verdict that differs from NK's or
-               ltlfsynt's fails the run.
+               --model-check, which verifies its controller against the formula (verify_s). An
+               unsafe controller makes the cell an error; an unverifiable one (the verifier ran out
+               of time or memory, recorded in verify_limit) leaves the cell ok. A fixed cell that
+               finishes takes its instance into the bar (below), and a verdict that differs from
+               NK's or ltlfsynt's fails the run.
 
 ltlf-ek-synth runs --otf-mtdfa-product --otf-solve --simplify-formula --realizable in every EK and
 NK cell; --realizable only suppresses printing the controller, which is still built. A
 cell names its arm and ends as ok (verdict REALIZABLE / UNREALIZABLE), timeout, error, or none
 (ek-derived only: no output dependency found, so there is no Tout to race). The run's
 verdict_mismatches lists every instance on which two finished arms disagree, and its `bar` says
-whether #243's bar is met: on at least one hard family (mux n>=16, shift n>=20), a fixed arm is
+whether the bar is met: on at least one hard family (mux n>=16, shift n>=20), a fixed arm is
 at least 2x faster than both NK and ltlfsynt (geometric mean over the family's instances where
-that fixed arm finished; a baseline that timed out counts as its timeout, a lower bound), with
-0 verdict mismatches in the run.
+that fixed arm finished; a baseline that timed out counts as its timeout, a lower bound; an
+instance whose baseline errored is left out), with 0 verdict mismatches and 0 fixed failures.
 """
 import argparse
 import datetime
@@ -98,14 +99,14 @@ def synth_cell(arm, synth, formula, args, timeout, flags=()):
 
 def verification(rc, out):
     """`--model-check`'s outcome: verified (SAFE), unsafe (a counterexample), else unverifiable (the verifier
-    itself ran out of time or memory: shift-20's product exceeds 8 GiB for any controller, flag or not)."""
+    itself ran out of time or memory)."""
     if rc == 0 and out.strip() == "SAFE":
         return "verified"
     return "unsafe" if out.startswith("UNSAFE") else "unverifiable"
 
 
 def verified_cell(arm, synth, formula, args, timeout):
-    """A fixed arm: the timed synthesis, then (on REALIZABLE) an untimed --model-check of its controller."""
+    """A fixed arm: the timed synthesis, then (on REALIZABLE) a --model-check of its controller under the same timeout."""
     got = synth_cell(arm, synth, formula, args, timeout, [FIX_FLAG])
     if got["status"] != "ok" or got["verdict"] != "REALIZABLE":
         return got
@@ -113,6 +114,8 @@ def verified_cell(arm, synth, formula, args, timeout):
     rc, out, verify = run([synth, *flags, "--formula", formula, *args], timeout)
     got["verify_s"] = verify
     got["controller"] = verification(rc, out)
+    if got["controller"] == "unverifiable":
+        got["verify_limit"] = "timeout" if rc is None else "rc %d" % rc
     if got["controller"] == "unsafe":
         got.update(status="error", rc=rc)
     return got
@@ -134,11 +137,11 @@ def derived_cell(build, formula, part_path, scratch, timeout):
     rc, out, extract = run([os.path.join(build, "ltlf-ek-deps"), "--direction", "out", "--formula", formula,
                             "--part-file", part_path, "--emit-part", emitted, "--transducer", tout], timeout)
     if rc is None:
-        return cell("ek-derived", "timeout", extract, extract_s=extract)
+        return [cell("ek-derived", "timeout", extract, extract_s=extract)]
     if rc != 0:
-        return cell("ek-derived", "error", extract, extract_s=extract, rc=rc)
+        return [cell("ek-derived", "error", extract, extract_s=extract, rc=rc)]
     if not os.path.exists(tout):
-        return cell("ek-derived", "none", extract, extract_s=extract)
+        return [cell("ek-derived", "none", extract, extract_s=extract)]
     synth = os.path.join(build, "ltlf-ek-synth")
     args = ["--part-file", emitted, "--known-output-transducer", tout]
     cells = []
@@ -170,7 +173,7 @@ def race_instance(name, specs, build, ltlfsynt, timeout):
              ltlfsynt_cell(ltlfsynt, formula, part, timeout)]
     with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as scratch:
         got = derived_cell(build, formula, base + ".part", scratch, timeout)
-        cells += got if isinstance(got, list) else [got]
+        cells += got
         if os.path.exists(base + ".tout"):
             cells += compact_cell(build, formula, part, base + ".tout", scratch, timeout)
     return [dict(c, instance=name, family=family, n=n) for c in cells]
@@ -189,11 +192,13 @@ def geomean(xs):
     return math.exp(sum(math.log(x) for x in xs) / len(xs))
 
 
-def bar(cells, timeout, mismatches):
-    """Whether #243's bar is met, with the evidence per (fixed arm, hard family).
+def bar(cells, timeout, mismatches, failures):
+    """Whether the bar is met, with the evidence per (fixed arm, hard family).
 
     speedup of an instance = min(NK wall, ltlfsynt wall) / fixed wall, a timed-out baseline counting as
-    `timeout`; a family's speedup is the geometric mean over the instances where the fixed arm finished.
+    `timeout` and an instance with an errored baseline left out; a family's speedup is the geometric mean
+    over the instances where the fixed arm finished. `unverifiable` counts the evidence instances whose
+    controller the verifier could not finish, and `fixed_unfinished` the family's instances the arm did not finish.
     """
     by = {}
     for c in cells:
@@ -201,20 +206,28 @@ def bar(cells, timeout, mismatches):
     evidence = []
     for arm in ("ek-derived-fixed", "ek-compact-fixed"):
         for family, n_min in HARD_FAMILIES.items():
-            speedups = []
+            speedups, unverifiable, unfinished = [], 0, 0
             for inst, got in by.items():
                 fam, n = instance_key(inst)
                 fixed = got.get(arm)
-                if fam != family or n < n_min or not fixed or fixed["status"] != "ok":
+                if fam != family or n is None or n < n_min or not fixed:
                     continue
-                base = [got[a]["wall_s"] if got.get(a) and got[a]["status"] == "ok" else timeout
-                        for a in ("nk", "ltlfsynt")]
+                if fixed["status"] != "ok":
+                    unfinished += 1
+                    continue
+                base_cells = [got.get(a) for a in ("nk", "ltlfsynt")]
+                if any(not b or b["status"] not in ("ok", "timeout") for b in base_cells):
+                    continue
+                base = [b["wall_s"] if b["status"] == "ok" else timeout for b in base_cells]
+                unverifiable += fixed.get("controller") == "unverifiable"
                 speedups.append(min(base) / max(fixed["wall_s"], 1e-3))
             if speedups:
                 evidence.append({"arm": arm, "family": family, "instances": len(speedups),
-                                 "speedup_geomean": geomean(speedups)})
-    met = not mismatches and any(e["speedup_geomean"] >= BAR_SPEEDUP for e in evidence)
-    return {"met": met, "required_speedup": BAR_SPEEDUP, "mismatches": len(mismatches), "evidence": evidence}
+                                 "speedup_geomean": geomean(speedups),
+                                 "unverifiable": unverifiable, "fixed_unfinished": unfinished})
+    met = not mismatches and not failures and any(e["speedup_geomean"] >= BAR_SPEEDUP for e in evidence)
+    return {"met": met, "required_speedup": BAR_SPEEDUP, "mismatches": len(mismatches), "fixed_failures": len(failures),
+            "evidence": evidence}
 
 
 def fixed_failures(cells):
@@ -265,7 +278,7 @@ def main(argv=None):
         "verdict_mismatches": verdict_mismatches(cells),
         "fixed_failures": fixed_failures(cells),
     }
-    result["bar"] = bar(cells, args.timeout, result["verdict_mismatches"])
+    result["bar"] = bar(cells, args.timeout, result["verdict_mismatches"], result["fixed_failures"])
     with open(args.out, "w") as f:
         json.dump(result, f, indent=1)
         f.write("\n")

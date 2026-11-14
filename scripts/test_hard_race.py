@@ -49,15 +49,18 @@ class HardRace(unittest.TestCase):
             return [dict(cell("mux-16", "nk", "REALIZABLE", nk_status), wall_s=nk_wall),
                     dict(cell("mux-16", "ltlfsynt", "REALIZABLE"), wall_s=8.0),
                     dict(cell("mux-16", "ek-compact-fixed", "REALIZABLE"), wall_s=fixed_wall)]
-        self.assertTrue(hr.bar(cells(4.0), 60, {})["met"])
-        self.assertFalse(hr.bar(cells(4.1), 60, {})["met"])
-        self.assertFalse(hr.bar(cells(1.0), 60, {"mux-16": {}})["met"])
-        self.assertTrue(hr.bar(cells(3.9, nk_wall=99.0, nk_status="timeout"), 60, {})["met"])
+        self.assertTrue(hr.bar(cells(4.0), 60, {}, [])["met"])
+        self.assertFalse(hr.bar(cells(4.1), 60, {}, [])["met"])
+        self.assertFalse(hr.bar(cells(1.0), 60, {"mux-16": {}}, [])["met"])
+        self.assertTrue(hr.bar(cells(3.9, nk_wall=99.0, nk_status="timeout"), 60, {}, [])["met"])
+        self.assertFalse(hr.bar(cells(1.0), 60, {}, ["mux-16:ek-compact-fixed"])["met"])
+        self.assertFalse(hr.bar(cells(1.0, nk_wall=99.0, nk_status="error"), 60, {}, [])["met"])
+        self.assertEqual(hr.bar(cells(1.0, nk_status="error"), 60, {}, [])["evidence"], [])
 
     def test_the_bar_ignores_instances_below_the_hard_range(self):
         cells = [dict(cell("mux-8", "nk", "REALIZABLE"), wall_s=10.0), dict(cell("mux-8", "ltlfsynt", "REALIZABLE"), wall_s=10.0),
                  dict(cell("mux-8", "ek-compact-fixed", "REALIZABLE"), wall_s=0.1)]
-        self.assertEqual(hr.bar(cells, 60, {})["evidence"], [])
+        self.assertEqual(hr.bar(cells, 60, {}, [])["evidence"], [])
 
     def test_a_verifier_that_runs_out_of_memory_leaves_the_controller_unverifiable_not_unsafe(self):
         self.assertEqual(hr.verification(0, "SAFE\n"), "verified")
