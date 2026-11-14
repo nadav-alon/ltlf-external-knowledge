@@ -38,6 +38,7 @@
 #include "ltlf_ek/cli.hpp"
 #include "ltlf_ek/dependent_outputs.hpp"
 #include "ltlf_ek/detail/util.hpp"
+#include "ltlf_ek/transducer_io.hpp"
 #include "ltlf_ek/variables.hpp"
 
 #ifndef LTLF_EK_SYNTH_BINARY
@@ -52,7 +53,9 @@ namespace {
 using ltlf_ek::dependent_outputs;
 using ltlf_ek::DependentOutputs;
 using ltlf_ek::parse_partition_file;
+using ltlf_ek::parse_transducer;
 using ltlf_ek::print_partition_file;
+using ltlf_ek::Role;
 using ltlf_ek::VariablePartition;
 
 // ---------------------------------------------------------------------------
@@ -550,11 +553,11 @@ TEST(LtlfEkDepsExitCodes, UnsatisfiableFormulaExitsThreeAndWritesNothing) {
       << "unsatisfiable phi must write no artifacts";
 }
 
-// A transducer whose %%LAMBDA line outgrows Spot's n-ary formula limit (the
-// sum-of-products of an 18-input parity, as on SYNTCOMP `shift` n>=16) makes
-// emission throw "too many children for formula".  That is an internal error
-// and must exit 1 with nothing installed, never 0 with the artifacts missing.
-TEST(LtlfEkDepsExitCodes, OversizedTransducerEmissionExitsOneAndWritesNothing) {
+// An 18-input parity (as on SYNTCOMP `shift` n>=16) once made emission throw
+// "too many children for formula": its %%LAMBDA sum of products outgrew Spot's
+// n-ary formula limit.  Written as a shared BDD DAG it is linear, so emission
+// now succeeds and the transducer it writes parses back.
+TEST(LtlfEkDepsExitCodes, ParityTransducerEmissionSucceedsAndParses) {
   std::string inputs, parity;
   for (int i = 1; i <= 18; ++i) {
     inputs += (i > 1 ? ",a" : "a") + std::to_string(i);
@@ -566,12 +569,13 @@ TEST(LtlfEkDepsExitCodes, OversizedTransducerEmissionExitsOneAndWritesNothing) {
       RunEkDeps({"--formula=G(x <-> (" + parity + "))", "--inputs", inputs,
                  "--outputs", "x", "--emit-part", emit_part.path(),
                  "--transducer", transducer.path()});
-  EXPECT_EQ(deps.exit_code, 1) << deps.stderr_text;
-  EXPECT_NE(deps.stderr_text.find("too many children"), std::string::npos)
-      << deps.stderr_text;
-  EXPECT_EQ(std::ifstream(emit_part.path()).peek(), -1)
-      << "the part file must not be written when the transducer cannot be";
-  EXPECT_EQ(std::ifstream(transducer.path()).peek(), -1);
+  ASSERT_EQ(deps.exit_code, 0) << deps.stderr_text;
+
+  std::ifstream emitted_in(emit_part.path());
+  const VariablePartition emitted = parse_partition_file(emitted_in);
+  std::ifstream transducer_in(transducer.path());
+  EXPECT_NO_THROW(parse_transducer(transducer_in, emitted, Role::t_out,
+                                   spot::make_bdd_dict()));
 }
 
 // ---------------------------------------------------------------------------
