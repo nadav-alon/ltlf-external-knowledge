@@ -108,10 +108,10 @@ class OtfMtdfaProduct final : public Synthesis {
   // outputs leave the controller's choice; the product substitutes
   // X_dep := lambda_Tout(state), so the game is solved over output_free only.
   // The controller already carries no known output, so the verifier still
-  // composes it with Tout.  No soundness lemma exists yet (def:outdep is a
-  // placeholder in main.tex); a verdict may differ from the default's, and
-  // the race checks it against NK and ltlfsynt.  A Tout whose lambda does not
-  // fix a known output makes synthesize throw std::runtime_error.
+  // composes it with Tout.  TODO[#243]: a lemma that the substitution
+  // preserves realizability; until then the tests and the race compare its
+  // verdicts with the default's, NK's and ltlfsynt's.  A Tout whose lambda
+  // does not fix a known output makes synthesize throw std::runtime_error.
   explicit OtfMtdfaProduct(bool otf_solve = false, bool simplify_formula = false,
                            bool fix_dependent_outputs = false)
       : otf_solve_(otf_solve),

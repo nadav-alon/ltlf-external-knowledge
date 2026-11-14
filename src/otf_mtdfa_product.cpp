@@ -131,8 +131,9 @@ bdd Relabel(const bdd& node, ForwardProgression& fp,
 // cofactors by taking the one that is not bddfalse.  Two different non-false
 // leaves meeting means lambda does not fix X_dep (a non-functional Tout), and
 // the substitution is undefined: it throws rather than pick one.
-// Experimental, no soundness lemma yet (docs/prd has none; def:outdep is a
-// placeholder in main.tex).
+// Experimental.  TODO[#243]: a lemma that substituting X_dep := lambda_Tout
+// preserves realizability (def:outdep, lem:outdep-diagonal and
+// lem:outdep-transducer in main.tex do not state it).
 class DependentOutputs {
  public:
   explicit DependentOutputs(std::unordered_set<int> dep)
@@ -174,11 +175,12 @@ class DependentOutputs {
           "lambda (two letters of one input agree with it)");
     const int la = is_leaf(a) ? bdd_varnum() : bdd_var2level(bdd_var(a));
     const int lb = is_leaf(b) ? bdd_varnum() : bdd_var2level(bdd_var(b));
-    const int v = bdd_level2var(std::min(la, lb));
-    const bdd a_lo = la == std::min(la, lb) ? bdd_low(a) : a;
-    const bdd a_hi = la == std::min(la, lb) ? bdd_high(a) : a;
-    const bdd b_lo = lb == std::min(la, lb) ? bdd_low(b) : b;
-    const bdd b_hi = lb == std::min(la, lb) ? bdd_high(b) : b;
+    const int top = std::min(la, lb);
+    const int v = bdd_level2var(top);
+    const bdd a_lo = la == top ? bdd_low(a) : a;
+    const bdd a_hi = la == top ? bdd_high(a) : a;
+    const bdd b_lo = lb == top ? bdd_low(b) : b;
+    const bdd b_hi = lb == top ? bdd_high(b) : b;
     const bdd lo = Merge(a_lo, b_lo);
     const bdd hi = Merge(a_hi, b_hi);
     result = bdd_ite(bdd_ithvarpp(v), hi, lo);  // a, b hold no dep node

@@ -1097,6 +1097,53 @@ TEST(FixDependentOutputs, KeepsTheVerdictAndYieldsAVerifiedController) {
   }
 }
 
+// A fixed-seed corpus past the hand-picked formulas: three free inputs, nested
+// temporal operators, and a two-state Tout whose lambda depends on the state
+// (d <-> i2 in state 0, d <-> !i3 in state 1; i1 moves 0 -> 1, then back).
+TEST(FixDependentOutputs, SeededCorpusWithAStateDependentToutKeepsTheVerdict) {
+  const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  VariablePartition vars =
+      VariablePartition::split({"i1", "i2", "i3"}, {"o"}, {});
+  vars.output_known = {"d"};
+  const OutputLabeledTransducer t_in = (register_turn_order_aps(vars, dict),
+                                        trivial_transducer(vars, Role::t_in, dict));
+  auto g = spot::make_twa_graph(dict);
+  const bdd i1 = bdd_ithvar(g->register_ap("i1"));
+  const bdd i2 = bdd_ithvar(g->register_ap("i2"));
+  const bdd i3 = bdd_ithvar(g->register_ap("i3"));
+  const bdd o = bdd_ithvar(g->register_ap("o"));
+  const bdd d = bdd_ithvar(g->register_ap("d"));
+  g->new_states(2);
+  g->set_init_state(0);
+  g->new_edge(0, 1, i1);
+  g->new_edge(0, 0, !i1);
+  g->new_edge(1, 0, bddtrue);
+  const OutputLabeledTransducer t_out(
+      g, {bdd_biimp(i2, d), bdd_biimp(!i3, d)}, /*sigma0=*/i1 & i2 & i3 & o,
+      /*sigma1=*/d);
+
+  std::mt19937 rng(20261114);
+  std::size_t realizable = 0, unrealizable = 0;
+  for (int case_idx = 0; case_idx < 24; ++case_idx) {
+    const spot::formula phi = GenerateRandomFormula(
+        {"i1", "i2", "i3", "o", "d"}, rng, /*tree_size_max=*/10);
+    SCOPED_TRACE("case " + std::to_string(case_idx) + ": phi=" + FormulaStr(phi));
+    for (const bool otf_solve : {false, true}) {
+      OtfMtdfaProduct fixed(otf_solve, false, /*fix_dependent_outputs=*/true);
+      OtfMtdfaProduct plain(otf_solve);
+      const auto a = fixed.synthesize(phi, vars, t_in, t_out);
+      const auto b = plain.synthesize(phi, vars, t_in, t_out);
+      EXPECT_EQ(a.has_value(), b.has_value());
+      if (a)
+        EXPECT_TRUE(ltlf_ek::verify_controller(phi, vars, t_in, t_out, *a).ok);
+      (b ? realizable : unrealizable) += 1;
+    }
+  }
+  // The corpus must exercise both verdicts, or the comparison proves nothing.
+  EXPECT_GT(realizable, 0u);
+  EXPECT_GT(unrealizable, 0u);
+}
+
 TEST(FixDependentOutputs, NoRowOfTheProductMentionsTheKnownOutput) {
   DependentOutputFixture f;
   const bdd d = bdd_ithvar(f.dict->varnum(spot::formula::ap("d")));
