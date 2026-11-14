@@ -47,9 +47,9 @@
 \begin{abstract}
 Progress report on $\LTLf$ with external knowledge work. The problem is synthesis of an $\LTLf$ formula $\varphi$ assuming the possible traces are limited to those consistent with transducers $\Tin$ and $\Tout$, for input and output respectively. This idea was motivated by the TACAS'24 paper on output dependencies~\cite{AkshayBasaChakrabortyFried2024}; this generalizes the idea to input dependencies. The method we suggest uses MTDFA with on-the-fly formula progression and game solving, which hopefully prunes out enough paths that the original formula considers possible to outweigh the cost of the product.
 In practice, trying to apply this to input transducers has mostly not paid off.
-Against Spot's \tool{ltlfsynt} (full synthesis, median wall time at $N=6$ in the 2026-11-14 HPC sweep of \cref{sec:results}; speedups are \tool{ltlfsynt} time over ours), our method is ahead on every family except slippery, from $2.56\times$ (hidden-counter) to $20.43\times$ (co-generated) (\cref{fig:speedup}).
+Against Spot's \tool{ltlfsynt} (full synthesis, median wall time at $N=6$ in the 2026-11-14 HPC sweep of \cref{sec:results}; speed-ups are \tool{ltlfsynt} time over \tool{otf-solve-simp}), \tool{otf-solve-simp} is ahead on every family with an \tool{ltlfsynt} time except slippery, from $2.56\times$ (hidden-counter) to $20.43\times$ (co-generated, where \tool{ltlfsynt} times out in one of the two cells) (\cref{fig:speedup}).
 On the slippery family \tool{ltlfsynt} is slightly faster, at $0.88\times$ in aggregate; only the one-hot arm is ahead of it, at about $2\times$.
-Knowledge itself buys little under the simplifier: knowledge against no knowledge is within $0.55$--$1.13\times$ on every family with a finite no-knowledge time, the exception being co-generated, where the no-knowledge side times out (\cref{tab:rq2}).
+Knowledge itself buys little under the simplifier: knowledge against no knowledge is within $0.55$--$1.17\times$ on every family with a finite no-knowledge time, the exception being co-generated, where the no-knowledge side times out (\cref{tab:rq2}).
 A comparison with output dependencies is difficult to make, as the output dependencies results~\cite{AkshayBasaChakrabortyFried2024} are for LTL and would need revising to compare.
 \end{abstract}
 
