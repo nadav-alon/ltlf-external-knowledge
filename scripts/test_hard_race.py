@@ -45,17 +45,58 @@ class HardRace(unittest.TestCase):
         self.assertIn("TwoCountersDisButAC", names)
 
     def test_the_bar_is_met_when_a_fixed_arm_is_twice_as_fast_as_both_baselines(self):
-        def cells(fixed_wall, nk_wall=10.0, nk_status="ok"):
+        def mux16_cells(fixed_wall, nk_wall=10.0, nk_status="ok"):
             return [dict(cell("mux-16", "nk", "REALIZABLE", nk_status), wall_s=nk_wall),
                     dict(cell("mux-16", "ltlfsynt", "REALIZABLE"), wall_s=8.0),
                     dict(cell("mux-16", "ek-compact-fixed", "REALIZABLE"), wall_s=fixed_wall)]
-        self.assertTrue(hr.bar(cells(4.0), 60, {}, [])["met"])
-        self.assertFalse(hr.bar(cells(4.1), 60, {}, [])["met"])
-        self.assertFalse(hr.bar(cells(1.0), 60, {"mux-16": {}}, [])["met"])
-        self.assertTrue(hr.bar(cells(3.9, nk_wall=99.0, nk_status="timeout"), 60, {}, [])["met"])
-        self.assertFalse(hr.bar(cells(1.0), 60, {}, ["mux-16:ek-compact-fixed"])["met"])
-        self.assertFalse(hr.bar(cells(1.0, nk_wall=99.0, nk_status="error"), 60, {}, [])["met"])
-        self.assertEqual(hr.bar(cells(1.0, nk_status="error"), 60, {}, [])["evidence"], [])
+        self.assertTrue(hr.bar(mux16_cells(4.0), 60, {}, [])["met"])
+        self.assertFalse(hr.bar(mux16_cells(4.1), 60, {}, [])["met"])
+        self.assertFalse(hr.bar(mux16_cells(1.0), 60, {"mux-16": {}}, [])["met"])
+        self.assertTrue(hr.bar(mux16_cells(3.9, nk_wall=99.0, nk_status="timeout"), 60, {}, [])["met"])
+        self.assertFalse(hr.bar(mux16_cells(1.0), 60, {}, ["mux-16:ek-compact-fixed"])["met"])
+        self.assertFalse(hr.bar(mux16_cells(1.0, nk_wall=99.0, nk_status="error"), 60, {}, [])["met"])
+        self.assertEqual(hr.bar(mux16_cells(1.0, nk_status="error"), 60, {}, [])["evidence"], [])
+
+    def test_unchecked_instances_report_beside_the_checked_and_never_make_the_bar_met(self):
+        def shift21_cells(controller=None, fixed_verdict="REALIZABLE"):
+            return [dict(cell("shift-21", "nk", None, "timeout"), wall_s=60.0),
+                    dict(cell("shift-21", "ltlfsynt", None, "timeout"), wall_s=60.0),
+                    dict(cell("shift-21", "ek-compact-fixed", fixed_verdict), wall_s=1.0, controller=controller)]
+        unchecked = hr.bar(shift21_cells("unverifiable"), 60, {}, [])
+        self.assertFalse(unchecked["met"])
+        e = unchecked["evidence"][0]
+        self.assertEqual((e["instances"], e["checked"], e["unchecked"]), (1, 0, 1))
+        self.assertAlmostEqual(e["speedup_geomean"], 60.0)
+        self.assertIsNone(e["checked_speedup_geomean"])
+        verified = hr.bar(shift21_cells("verified"), 60, {}, [])
+        self.assertTrue(verified["met"])
+        self.assertEqual(verified["evidence"][0]["checked"], 1)
+        # no mismatch is recorded, yet NK finished and disagrees: the unverifiable controller leaves it unchecked
+        unchecked_despite_a_finished_baseline = [dict(cell("mux-16", "nk", "UNREALIZABLE"), wall_s=10.0),
+                       dict(cell("mux-16", "ltlfsynt", None, "timeout"), wall_s=60.0),
+                       dict(cell("mux-16", "ek-compact-fixed", "REALIZABLE"), wall_s=1.0, controller="unverifiable")]
+        self.assertFalse(hr.bar(unchecked_despite_a_finished_baseline, 60, {}, [])["met"])
+
+    def test_a_verifier_exit_that_is_neither_safe_nor_unsafe_is_unverifiable(self):
+        self.assertEqual(hr.verification(2, "usage: ...\n"), "unverifiable")
+        self.assertEqual(hr.verification(0, ""), "unverifiable")
+
+    def test_a_crashed_model_check_leaves_the_cell_ok_with_its_exit_code_and_the_instance_unchecked(self):
+        calls = []
+
+        def fake_run(cmd, timeout):
+            calls.append(cmd)
+            return (0, "", 1.0) if len(calls) == 1 else (2, "usage: ...\n", 0.5)
+        real, hr.run = hr.run, fake_run
+        try:
+            got = hr.verified_cell("ek-compact-fixed", "synth", "F a", [], 60)
+        finally:
+            hr.run = real
+        self.assertEqual((got["status"], got["controller"], got["verify_limit"]), ("ok", "unverifiable", "rc 2"))
+        cells = [dict(cell("shift-21", "nk", None, "timeout"), wall_s=60.0),
+                 dict(cell("shift-21", "ltlfsynt", None, "timeout"), wall_s=60.0),
+                 dict(got, instance="shift-21", wall_s=1.0)]
+        self.assertFalse(hr.bar(cells, 60, {}, [])["met"])
 
     def test_the_bar_ignores_instances_below_the_hard_range(self):
         cells = [dict(cell("mux-8", "nk", "REALIZABLE"), wall_s=10.0), dict(cell("mux-8", "ltlfsynt", "REALIZABLE"), wall_s=10.0),
