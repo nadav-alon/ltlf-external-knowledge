@@ -46,6 +46,47 @@ Knowledge buys nothing measurable on the slippery arms under the simplifier: eve
 \caption{Knowledge against no knowledge (\tool{otf-solve-simp} against \tool{nk-otfsolve-simp}) at the largest $N$, one row per slippery arm. Where the no-knowledge side times out (\tool{t/o}) the speed-up is a lower bound ($\ge$). \tool{ltlfsynt} is full synthesis; its stages column is the sum of its internal stage times, the only form the sweep records.}\label{tab:rq2}
 \end{table}
 
+\subsection{Output Dependencies on Hard Instances}\label{sec:hard-race}
+
+Output-dependency knowledge (\cref{def:outdep}) gives no speed-up on the TACAS'24 families~\cite{AkshayBasaChakrabortyFried2024}: 99\% of the dependencies found there sit in instances that \tool{-nk} already solves in a median of 9\,ms, so there is no time left to save. To give the knowledge room, we raced it on the instances where synthesis is hard: \tool{mux} for $n = 16..64$, \tool{shift} for $n = 20..40$, and \tool{TwoCountersDisButAC}, 71 instances in all. The specs are read with weak \textsf{X}, as in the original sweep. Each cell had 120\,s and 8\,GiB, one repetition, on Xeon Gold 6130 nodes.
+
+The race has six arms:
+\begin{itemize}
+\item \tool{nk}: EK without knowledge.
+\item \tool{ltlfsynt}: Spot's full synthesis.
+\item \tool{derived}: a $\Tout$ extracted by \tool{ltlf-ek-deps -{}-direction out}.
+\item \tool{compact}: a hand-written $\Tout$, for \tool{mux} at $n \in \{16, 32, 64\}$ and for \tool{shift} at every $n$ (one state).
+\item \tool{derived-fixed} and \tool{compact-fixed}: the same, run with \tool{-{}-fix-dependent-outputs}, which substitutes $\Xdep := \lambda$ and so removes the dependent outputs from the controller's choice.
+\end{itemize}
+No lemma yet shows that this substitution preserves realizability. Its correctness here is only empirical: 0 verdict mismatches across every cell where an arm and a baseline both finished, and every controller \tool{verify\_controller} could finish was SAFE.
+
+\begin{table}[H]
+\centering
+\small
+\begin{tabular}{lrrrrrr}
+\toprule
+instance & \tool{nk} & \tool{ltlfsynt} & derived & compact & derived-fixed & compact-fixed \\
+\midrule
+\tool{mux}-16 & 2.69 & 0.02 & 3.74 & 3.82 & 0.68 & 0.33 \\
+\tool{mux}-32, -64 & t/o & $\le 0.04$ & t/o & t/o & t/o & t/o \\
+\tool{shift}-20 & 48.93 & t/o & t/o & 72.31 & t/o & 28.06$^\dagger$ \\
+\tool{shift}-21 & t/o & t/o & t/o & t/o & -- & 67.66$^\dagger$ \\
+\tool{shift}-22..40 & t/o & t/o & t/o & t/o & -- & t/o \\
+\tool{TwoCountersDisButAC} & 1.31 & 0.03 & 53.48 & -- & 53.41 & -- \\
+\bottomrule
+\end{tabular}
+\caption{Wall time in seconds for the output-dependency race (\nolinkurl{docs/runs/2026-11-14-full-hard-race.json}), at the sizes that have a knowledge arm. \tool{t/o}: over 120\,s. --: no such arm. $^\dagger$: \tool{verify\_controller} ran out of memory, so the controller is unverified. \tool{ltlfsynt} solves every \tool{mux} size from 16 to 64 in at most 0.04\,s; \tool{nk} finishes \tool{mux} only up to $n = 19$.}\label{tab:hard-race}
+\end{table}
+
+\paragraph{The bar is not met.} The target was a $2\times$ speed-up over the faster of \tool{nk} and \tool{ltlfsynt} on at least one family. No instance reaches it.
+\begin{itemize}
+\item \textbf{\tool{mux}:} \tool{ltlfsynt} is effectively instant, so no knowledge arm can win. Fixing the dependent outputs makes EK $8\times$ faster than \tool{nk} on \tool{mux}-16, but still $16\times$ slower than \tool{ltlfsynt}.
+\item \textbf{\tool{shift}:} this is the only family where both baselines struggle, and there \tool{compact-fixed} is the only arm that helps: $1.74\times$ on \tool{shift}-20, checked against \tool{nk}'s verdict. On \tool{shift}-21 it reaches at least $1.77\times$, counting both baselines' timeouts, but nothing checks that answer. It times out from $n = 22$.
+\end{itemize}
+Across both families, the gain comes from fixing the dependent outputs, not from the $\Tout$ itself. On its own, the compact $\Tout$ is slower than \tool{nk} on both \tool{mux}-16 and \tool{shift}-20.
+
+Several cells shared each node, so these times are slower than on a dedicated machine: \tool{nk} on \tool{shift}-20 took 48.9\,s here and 19.3\,s on the desktop smoke run.
+
 \subsection{Comparison Between Methods}
 \guide{Which method wins on which family, and why (NFA vs.\ DFA vs.\ on-the-fly; explicit vs.\
 mtdfa).}
