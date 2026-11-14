@@ -9,11 +9,13 @@
 #include <vector>
 
 #include <gtest/gtest.h>
+#include <spot/tl/parse.hh>
 #include <bddx.h>
 #include <spot/twa/bdddict.hh>
 #include <spot/twa/twagraph.hh>
 
 #include "ltlf_ek/consistency.hpp"
+#include "ltlf_ek/dependent_outputs.hpp"
 #include "ltlf_ek/output_labeled_transducer.hpp"
 #include "ltlf_ek/transducer_io.hpp"
 #include "ltlf_ek/variables.hpp"
@@ -810,6 +812,164 @@ TEST(PrintTransducer, ThrowsWhenTheStreamFailsPartWayThrough) {
   CappedBuf buf(16);
   std::ostream out(&buf);
   EXPECT_THROW(print_transducer(out, t), std::ios_base::failure);
+}
+
+// The shared-DAG form of %%LAMBDA (docs/GLOSSARY.md "transducer file format"):
+// `node` lines define BDD nodes, a state entry may name one, and the
+// one-formula form still parses.
+TEST(ParseTransducer, LambdaReadsSharedDagForm) {
+  const std::string text = R"(HOA: v1
+States: 1
+Start: 0
+AP: 2 "a" "k"
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0
+  [t] 0
+--END--
+%%LAMBDA
+node @0: k ? true : false
+node @1: a ? @0 : false
+state 0: @1
+)";
+  auto dict = spot::make_bdd_dict();
+  const OutputLabeledTransducer t = Parse(text, InFreeKnown(), Role::t_in, dict);
+  const spot::twa_graph_ptr probe = spot::make_twa_graph(dict);
+  EXPECT_EQ(t.emits_region(0), VarBdd(probe, "a") & VarBdd(probe, "k"));
+}
+
+// Text of a one-state transducer over {a, k} whose %%LAMBDA body is `lambda`.
+std::string OneStateWithLambda(const std::string& lambda) {
+  return R"(HOA: v1
+States: 1
+Start: 0
+AP: 2 "a" "k"
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0
+  [t] 0
+--END--
+%%LAMBDA
+)" + lambda;
+}
+
+void ExpectRejected(const std::string& lambda) {
+  auto dict = spot::make_bdd_dict();
+  EXPECT_THROW(
+      Parse(OneStateWithLambda(lambda), InFreeKnown(), Role::t_in, dict),
+      std::invalid_argument)
+      << lambda;
+}
+
+TEST(ParseTransducer, RejectsDagReferenceToUndefinedNode) {
+  ExpectRejected("state 0: @7\n");
+}
+
+TEST(ParseTransducer, RejectsDuplicateDagNodeId) {
+  ExpectRejected(
+      "node @0: a ? true : false\nnode @0: k ? true : false\n"
+      "state 0: @0\n");
+}
+
+TEST(ParseTransducer, RejectsNodeWithoutBranchSeparators) {
+  ExpectRejected("node @0: a\nstate 0: false\n");
+  ExpectRejected("node @0: a ? true\nstate 0: false\n");
+}
+
+TEST(ParseTransducer, RejectsNodeIdWithoutAtOrWithSpace) {
+  ExpectRejected("node 0: a ? true : false\nstate 0: false\n");
+  ExpectRejected("node @ x: a ? true : false\nstate 0: false\n");
+}
+
+TEST(ParseTransducer, RejectsNodeApOutsideSigma) {
+  ExpectRejected("node @0: z ? true : false\nstate 0: @0\n");
+}
+
+TEST(ParseTransducer, RejectsNonAtomicNodeCondition) {
+  ExpectRejected("node @0: a & k ? true : false\nstate 0: @0\n");
+}
+
+TEST(ParseTransducer, RejectsForwardDagReference) {
+  ExpectRejected(
+      "node @0: a ? @1 : false\nnode @1: k ? true : false\nstate 0: @0\n");
+}
+
+std::size_t CountNodeLines(const std::string& text) {
+  std::size_t count = 0;
+  std::istringstream in(text);
+  for (std::string line; std::getline(in, line);)
+    if (line.rfind("node ", 0) == 0) ++count;
+  return count;
+}
+
+// A parity chain has a linear BDD and an exponential sum of products: the
+// shape that made the old writer produce gigabyte files and a parser crash.
+TEST(RoundTrip, ParityOverSixteenInputsStaysLinearAndRoundTrips) {
+  constexpr int n = 16;
+  std::set<std::string> inputs;
+  std::ostringstream hoa;
+  hoa << "HOA: v1\nStates: 1\nStart: 0\nAP: " << n + 1;
+  for (int i = 0; i < n; ++i) {
+    inputs.insert("x" + std::to_string(i));
+    hoa << " \"x" << i << "\"";
+  }
+  hoa << " \"y\"\nacc-name: all\nAcceptance: 0 t\n--BODY--\nState: 0\n"
+         "  [t] 0\n--END--\n%%LAMBDA\n";
+  // y <-> parity(x0..x15), built as a two-nodes-per-level chain over the xs.
+  std::string even = "true", odd = "false";  // y-cofactor for parity so far
+  int id = 0;
+  for (int i = n - 1; i >= 0; --i) {
+    const std::string x = "x" + std::to_string(i);
+    const std::string e = "@" + std::to_string(id++);
+    const std::string o = "@" + std::to_string(id++);
+    hoa << "node " << e << ": " << x << " ? " << odd << " : " << even << "\n";
+    hoa << "node " << o << ": " << x << " ? " << even << " : " << odd << "\n";
+    even = e;
+    odd = o;
+  }
+  // `even` is the BDD of "parity of x0..x15 is even"; y holds iff it is odd.
+  hoa << "node @y: y ? " << odd << " : " << even << "\nstate 0: @y\n";
+
+  const VariablePartition part =
+      VariablePartition::split(inputs, {"y"}, /*governed=*/{"y"});
+  auto dict = spot::make_bdd_dict();
+  const OutputLabeledTransducer t = Parse(hoa.str(), part, Role::t_out, dict);
+  ExpectRoundTrips(t, part, Role::t_out, dict);
+
+  // One `node` line per distinct BDD node: linear in the BDD's size.
+  std::ostringstream printed;
+  print_transducer(printed, t);
+  EXPECT_EQ(CountNodeLines(printed.str()),
+            static_cast<std::size_t>(bdd_nodecount(t.emits_region(0))))
+      << "bdd_nodecount=" << bdd_nodecount(t.emits_region(0));
+}
+
+// The Tout the pipeline derives for a shift-register-style spec: each output
+// is the equivalence of the previous output with a fresh input, so the last is
+// the parity of all n inputs --- the equivalence chain on which the sum of
+// products was exponential (the SYNTCOMP `shift` TLSF is not in the repo).
+TEST(RoundTrip, DerivedShiftToutAtSixteenRoundTrips) {
+  constexpr int n = 16;
+  std::set<std::string> inputs, outputs;
+  std::string spec = "G(o0 <-> i0)";
+  inputs.insert("i0");
+  outputs.insert("o0");
+  for (int k = 1; k < n; ++k) {
+    const std::string i = "i" + std::to_string(k);
+    const std::string o = "o" + std::to_string(k);
+    inputs.insert(i);
+    outputs.insert(o);
+    spec += " & G(" + o + " <-> (o" + std::to_string(k - 1) + " <-> " + i + "))";
+  }
+  auto dict = spot::make_bdd_dict();
+  const auto part = VariablePartition::split(inputs, outputs, /*governed=*/{});
+  const ltlf_ek::DependentOutputs result =
+      ltlf_ek::dependent_outputs(spot::parse_formula(spec), part, dict);
+  ASSERT_TRUE(result.t_out.has_value());
+
+  ExpectRoundTrips(*result.t_out, result.partition, Role::t_out, dict);
 }
 
 }  // namespace

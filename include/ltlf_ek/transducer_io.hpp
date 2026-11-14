@@ -18,8 +18,9 @@ namespace ltlf_ek {
 
 // Materialise one transducer from its external file representation: a Spot HOA
 // automaton for delta, then --- after HOA's `--END--` --- a `%%LAMBDA` block
-// carrying lambda as one boolean formula per HOA state (docs/GLOSSARY.md:
-// "transducer file format").  See docs/prd/transducer-file-format.md.
+// carrying lambda as one boolean formula per HOA state, or as a shared BDD DAG
+// of `node @id: ap ? hi : lo` lines that `state q: @id` entries name
+// (docs/GLOSSARY.md: "transducer file format").  See docs/prd/transducer-file-format.md.
 //
 //   partition --- classifies every AP (Ifree/Iknown/Ofree/Oknown); with `role`
 //                 it orients lambda by deriving sigma0_cube / sigma1_cube.  The
@@ -70,8 +71,8 @@ std::optional<std::string> undetermined_variable(
 // Print a transducer (docs/GLOSSARY.md): the exact inverse of parse_transducer
 // above --- write `t` to its file representation, a Spot HOA automaton for
 // delta (acceptance ignored, via OutputLabeledTransducer::delta_dfa()), then
-// --- after HOA's `--END--` --- a `%%LAMBDA` block giving lambda as one
-// boolean formula per state.  As with the reader, Sigma0/Sigma1 are NOT
+// --- after HOA's `--END--` --- a `%%LAMBDA` block giving lambda as a shared
+// BDD DAG, linear in the size of the BDDs.  As with the reader, Sigma0/Sigma1 are NOT
 // written: the format does not carry them (they come from role + partition).
 // Acceptance is normalised away (a transducer has no F): the emitted HOA always
 // carries the canonical `Acceptance: 0 t`, never whatever the delta twa held.

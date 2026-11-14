@@ -353,7 +353,10 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **Definition:** one self-contained on-disk transducer: a Spot **HOA** automaton
   for $\delta$ (acceptance ignored), then — after HOA's `--END--` — a **`%%LAMBDA`
   block** giving $\lambda$ as one boolean formula per HOA state
-  (`state <n>: <formula>`, `false` = undefined there). $\Sigma_0/\Sigma_1$ are
+  (`state <n>: <formula>`, `false` = undefined there). The writer emits $\lambda$
+  as a shared BDD DAG: `node @<id>: <ap> ? <hi> : <lo>` lines (children `true`,
+  `false` or an earlier `@<id>`) and `state <n>: @<id>`; the reader accepts both
+  forms. $\Sigma_0/\Sigma_1$ are
   **not** stored; they are derived from role + partition. See
   `docs/prd/transducer-file-format.md`.
 - **C++:** the format read by `parse_transducer`; no dedicated type.
@@ -388,8 +391,8 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **`main.tex`:** — (no symbol; serialization of $\tau$, §Transducers) — the
   exact inverse of *Parse a transducer* above.
 - **Definition:** write one transducer to its file representation — the HOA for
-  $\delta$, then `--END--`, then the `%%LAMBDA` block with one boolean formula
-  per state. As with the reader, $\Sigma_0/\Sigma_1$ are **not** written: the
+  $\delta$, then `--END--`, then the `%%LAMBDA` block with $\lambda$ as a shared BDD
+  DAG (`node` lines, then one `state q: @id` per state). As with the reader, $\Sigma_0/\Sigma_1$ are **not** written: the
   format does not carry them (see *Transducer file format*), so a $\Tout$ file
   is unusable without the part file naming $\Oknown$ — which is why
   *Output-dependency extraction* must emit both artifacts, not just the
