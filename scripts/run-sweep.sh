@@ -78,7 +78,7 @@ cmake_args=(-S "$repo" -B "$build_dir" -DCMAKE_BUILD_TYPE=Release)
 cmake_args+=("-DSPOT_ROOT=$spot_root")
 cmake "${cmake_args[@]}" > "$build_dir.cmake.log" 2>&1 || {
   tail -20 "$build_dir.cmake.log"; exit 1; }
-cmake --build "$build_dir" -j --target ltlf-ek-bench > "$build_dir.build.log" 2>&1 || {
+cmake --build "$build_dir" -j8 --target ltlf-ek-bench > "$build_dir.build.log" 2>&1 || {
   tail -40 "$build_dir.build.log"; exit 1; }
 
 # ltlfsynt by absolute path out of the pinned install: the bare name resolves

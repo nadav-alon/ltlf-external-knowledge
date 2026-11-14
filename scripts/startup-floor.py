@@ -10,7 +10,7 @@ This script shows the constant is neither spawn cost nor specific to
 Not part of the deck's `make` -- it needs `ltlf-ek-synth` built, and it is a one-off
 measurement quoted on a slide rather than an input to a figure.  Run:
 
-    cmake --build build-release -j --target ltlf-ek-synth
+    cmake --build build-release -j8 --target ltlf-ek-synth
     python3 scripts/startup-floor.py      # from the repo root
 
 Each row is the MINIMUM over N spawns, matching the statistic

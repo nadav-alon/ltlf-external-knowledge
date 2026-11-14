@@ -241,6 +241,8 @@ if(LTLF_EK_BUILD_TESTS)
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
   add_test(NAME sweep_sbatch_sh
            COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/hpc/test_sweep_sbatch.sh)
+  add_test(NAME no_bare_jobs_sh
+           COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_no_bare_jobs.sh)
   add_test(NAME run_sweep_sh
            COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_run_sweep.sh)
   add_test(NAME build_image_sh
