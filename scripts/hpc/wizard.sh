@@ -182,7 +182,7 @@ finish() {
 # ──────────────────────────────────────────────────────────────────────────
 # ──────────────────────────────────────────────────────────────────────────
 # STAGES: the developer's half of the HPC sweep: build the Release image on the
-# cluster's login node, copy the sbatch script, submit the job array, bring the parts back and merge
+# cluster (as a SLURM job), copy the sbatch script, submit the job array, bring the parts back and merge
 # them into the sweep report. Run from the repo root.
 # ──────────────────────────────────────────────────────────────────────────
 
@@ -199,7 +199,7 @@ keep() { local v; v=$(_existing "$1") && write_env "$1" "$v"; }
 banner "HPC sweep: image, submit, collect"
 
 stage "Build the Release image on the cluster"
-say "Clones the repo on the login node at HEAD and builds scripts/hpc/ltlf-ek.def there into ~/ltlf-ek.sif:"
+say "Submits a SLURM job that clones the repo at HEAD and builds scripts/hpc/ltlf-ek.def into ~/ltlf-ek.sif:"
 say "Spot 2.15.1, MONA, ltlf-ek-bench (Release). No apptainer is needed on this machine."
 note "Connect to the cluster's network or VPN first, if it needs one."
 ask EK_SSH_TARGET "ssh target on the cluster (a ~/.ssh/config alias or user@host) [login]:"
@@ -215,7 +215,7 @@ if confirm "Build $commit on $EK_SSH_TARGET now? (about 20 min)"; then
   "$EK" build "$commit" || exit 1
   keep EK_IMAGE_SHA
 else
-  say "skipped; do it by hand: ssh $EK_SSH_TARGET bash -s -- $EK_REPO_URL $commit < scripts/hpc/build-image.sh"
+  say "skipped; do it by hand: $EK build $commit"
 fi
 note "Build log: ~/$BUILD_LOG on the cluster."
 

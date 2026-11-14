@@ -17,14 +17,22 @@ git -C "$work/origin" commit -qam two
 cat > "$work/bin/apptainer" <<'STUB'
 #!/usr/bin/env bash
 [[ -z "${STUB_FAIL:-}" ]] || { echo "FATAL: stub build failed"; exit 7; }
-cp "$4" "$3"
+echo "$*" > "$ARGS_LOG"
+cp "${@: -1}" "${@: -2:1}"
 STUB
 chmod +x "$work/bin/apptainer"
-export PATH="$work/bin:$PATH" EK_SRC="$work/src" EK_SIF="$work/out.sif" EK_BUILD_LOG="$work/build.log"
+export PATH="$work/bin:$PATH" EK_SRC="$work/src" EK_SIF="$work/out.sif" EK_BUILD_LOG="$work/build.log" ARGS_LOG="$work/args"
 
 bash "$here/build-image.sh" "$work/origin" "$first"
 [[ "$(cat "$EK_SIF")" == one ]] || { echo "did not build the requested commit"; exit 1; }
 grep -q "built .* from $first" "$EK_BUILD_LOG" || { echo "log lacks the built commit"; exit 1; }
+
+# The compile's job count follows the SLURM allocation, not the node's cores; EK_JOBS overrides it.
+grep -qw "jobs=8" "$ARGS_LOG" || { echo "no allocation: expected the default of 8: $(cat "$ARGS_LOG")"; exit 1; }
+SLURM_CPUS_PER_TASK=3 bash "$here/build-image.sh" "$work/origin" "$first"
+grep -qw "jobs=3" "$ARGS_LOG" || { echo "job count ignored SLURM_CPUS_PER_TASK: $(cat "$ARGS_LOG")"; exit 1; }
+SLURM_CPUS_PER_TASK=3 EK_JOBS=5 bash "$here/build-image.sh" "$work/origin" "$first"
+grep -qw "jobs=5" "$ARGS_LOG" || { echo "EK_JOBS did not override: $(cat "$ARGS_LOG")"; exit 1; }
 
 second="$(git -C "$work/origin" rev-parse HEAD)"
 bash "$here/build-image.sh" "$work/origin" "$second"
