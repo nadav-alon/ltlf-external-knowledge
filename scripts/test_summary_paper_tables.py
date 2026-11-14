@@ -31,5 +31,31 @@ class Rq2(unittest.TestCase):
         self.assertNotIn("zeta", spt.rq2(s))
 
 
+class Rq1(unittest.TestCase):
+    def test_rq1_row_lists_every_variant_as_knowledge_over_no_knowledge_at_the_largest_n(self):
+        s = hpc_sweep(timings=[
+            timing("zeta", 2, True, "nfa-product", 3e6, 3e6), timing("zeta", 2, True, "nfa-product-nk", 6e6, 6e6),
+            timing("zeta", 1, True, "nfa-product", 9e6, 9e6)])
+        row = [l for l in spt.rq1(s).splitlines() if l.startswith("zeta ")][0]
+        self.assertEqual(row.split(" & ")[2], "3.00 / 6.00")
+
+    def test_rq1_reads_t_o_for_a_variant_with_no_finished_cell(self):
+        s = hpc_sweep(timings=[timing("zeta", 2, True, "dfa-product", 0, None, stage="TIMEOUT")])
+        row = [l for l in spt.rq1(s).splitlines() if l.startswith("zeta ")][0]
+        self.assertEqual(row.split(" & ")[1], "t/o / n/a")
+
+    def test_rq1_reads_n_a_for_a_variant_the_family_never_ran(self):
+        s = hpc_sweep(timings=[timing("zeta", 2, True, "dfa-product", 3e6, 3e6)])
+        row = [l for l in spt.rq1(s).splitlines() if l.startswith("zeta ")][0]
+        self.assertEqual(row.split(" & ")[1], "3.00 / n/a")
+
+    def test_rq1_counts_a_familys_verdict_mismatches(self):
+        s = hpc_sweep(timings=[timing("zeta", 2, True, K, 1e6, 1e6)],
+                      ltlfsynt=[dict(lt_row("zeta", 1, True, 1e6, 1e6), verdict_mismatch=True),
+                                dict(lt_row("zeta", 2, True, 1e6, 1e6), verdict_mismatch=False)])
+        row = [l for l in spt.rq1(s).splitlines() if l.startswith("zeta ")][0]
+        self.assertTrue(row.endswith("& 1 \\\\"))
+
+
 if __name__ == "__main__":
     unittest.main()

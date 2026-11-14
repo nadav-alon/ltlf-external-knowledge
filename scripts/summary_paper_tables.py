@@ -87,8 +87,38 @@ def rq2(sweep):
     return _tabular(head, rows)
 
 
+def rq1(sweep):
+    """Per family at the sweep's largest N: each variant's median wall time with / without knowledge.
+
+    A cell with any unfinished repeat is left out; a variant with no finished cell reads `t/o`, and
+    one the family never ran (no psi_in, so no -nk subject) reads `n/a`.
+    The last column is the family's ltlfsynt verdict mismatches, over every N.
+    """
+    n = sweep["provenance"]["n_max"]
+    wall = sweep_report._finished_wall(sweep["timings"])
+    meds = defaultdict(list)
+    for (fam, cell_n, _, subject), (_, med) in wall.items():
+        if cell_n == n:
+            meds[(family_group(fam), subject)].append(med / 1e6)
+    ran = {(family_group(r["family"]), r["subject"]) for r in sweep["timings"] if r["n"] == n}
+    mismatches = defaultdict(int)
+    for r in sweep["ltlfsynt"]:
+        mismatches[family_group(r["family"])] += bool(r.get("verdict_mismatch"))
+
+    def cell(g, subject):
+        m = _med(meds[(g, subject)])
+        if m is None:
+            return "t/o" if (g, subject) in ran else "n/a"
+        return _ms(m)
+
+    rows = [[g] + [f"{cell(g, k)} / {cell(g, nk)}" for _, k, nk in RQ1_VARIANTS] + [str(mismatches[g])]
+            for g in _groups(sweep)]
+    head = ["family"] + [f"{name}" for name, _, _ in RQ1_VARIANTS] + ["mismatches"]
+    return _tabular(head, rows)
+
+
 def render(sweep):
-    return {"rq2.tex": rq2(sweep)}
+    return {"rq1.tex": rq1(sweep), "rq2.tex": rq2(sweep)}
 
 
 def main(argv=None):
