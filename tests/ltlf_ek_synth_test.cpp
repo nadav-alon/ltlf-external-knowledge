@@ -184,6 +184,59 @@ TEST(LtlfEkSynth, SimplifyFormulaFlagKeepsTheVerdictsOfOtfMtdfaProduct) {
   EXPECT_EQ(no.stdout_text, "UNREALIZABLE\n");
 }
 
+// --fix-dependent-outputs reaches OtfMtdfaProduct; with no known output it
+// changes nothing, so both verdicts stay.
+TEST(LtlfEkSynth, FixDependentOutputsFlagKeepsTheVerdictsWithoutKnownOutputs) {
+  const CliResult yes = RunCli({"--otf-mtdfa-product", "--otf-solve",
+                                "--fix-dependent-outputs",
+                                "--formula=G(i -> o)", "--inputs", "i",
+                                "--outputs", "o", "--realizable"});
+  EXPECT_EQ(yes.exit_code, 0) << yes.stderr_text;
+  EXPECT_EQ(yes.stdout_text, "REALIZABLE\n");
+  const CliResult no = RunCli({"--otf-mtdfa-product", "--fix-dependent-outputs",
+                               "--formula=X[!] i", "--inputs", "i",
+                               "--outputs", "o", "--realizable"});
+  EXPECT_EQ(no.exit_code, 20) << no.stderr_text;
+  EXPECT_EQ(no.stdout_text, "UNREALIZABLE\n");
+}
+
+// The path the race takes: a known output with a Tout, the flag, and the
+// controller verified against the formula.
+TEST(LtlfEkSynth, FixDependentOutputsWithAKnownOutputTransducerYieldsAVerifiedController) {
+  const ScopedTempFile part_file(
+      "input_free: i\n"
+      "input_known:\n"
+      "output_free:\n"
+      "output_known: o\n");
+  const ScopedTempFile tout_file(
+      "HOA: v1\n"
+      "States: 1\n"
+      "Start: 0\n"
+      "AP: 2 \"i\" \"o\"\n"
+      "acc-name: all\n"
+      "Acceptance: 0 t\n"
+      "--BODY--\n"
+      "State: 0\n"
+      "  [t] 0\n"
+      "--END--\n"
+      "%%LAMBDA\n"
+      "state 0: o <-> i\n");
+  const std::vector<std::string> base{
+      "--otf-mtdfa-product", "--otf-solve", "--fix-dependent-outputs",
+      "--formula=G(o <-> i)", "--part-file", part_file.path(),
+      "--known-output-transducer", tout_file.path()};
+  std::vector<std::string> realizable = base;
+  realizable.push_back("--realizable");
+  const CliResult yes = RunCli(realizable);
+  EXPECT_EQ(yes.exit_code, 0) << yes.stderr_text;
+  EXPECT_EQ(yes.stdout_text, "REALIZABLE\n");
+  std::vector<std::string> checked = base;
+  checked.push_back("--model-check");
+  const CliResult safe = RunCli(checked);
+  EXPECT_EQ(safe.exit_code, 0) << safe.stderr_text;
+  EXPECT_EQ(safe.stdout_text, "SAFE\n");
+}
+
 TEST(LtlfEkSynth, EveryWiredNfaRouteMethodFlagIsAcceptedEndToEnd) {
 #ifndef MONA_FOUND
   GTEST_SKIP() << "mona not found (CMake find_program(mona)); the NFA-route "

@@ -58,7 +58,8 @@ namespace ltlf_ek {
 spot::mtdfa_ptr otf_product_to_mtdfa(const spot::formula& phi,
                                      const std::vector<const Transducer*>& taus,
                                      const VariablePartition& vars,
-                                     const spot::bdd_dict_ptr& dict);
+                                     const spot::bdd_dict_ptr& dict,
+                                     bool fix_dependent_outputs = false);
 
 // Free-form size metric label (docs/GLOSSARY.md) for the number of states whose
 // row was expanded; recorded by OtfMtdfaProduct::synthesize on both paths so
@@ -82,7 +83,7 @@ spot::formula simplify_ltlf_formula(const spot::formula& phi);
 std::optional<Controller> otf_solve_fused(
     const spot::formula& phi, const std::vector<const Transducer*>& taus,
     const VariablePartition& vars, const spot::bdd_dict_ptr& dict,
-    std::size_t* states_expanded = nullptr);
+    std::size_t* states_expanded = nullptr, bool fix_dependent_outputs = false);
 
 // Method 3.1 (main.tex §otfdfa) in the mtdfa Representation
 // (docs/GLOSSARY.md "The five methods", "Representation") --- a method, not
@@ -102,8 +103,20 @@ class OtfMtdfaProduct final : public Synthesis {
   // simplify_formula: run simplify_ltlf_formula on phi before progression.
   // Default OFF; it rewrites phi alone and keeps its meaning, so it is sound
   // under any transducer.
-  explicit OtfMtdfaProduct(bool otf_solve = false, bool simplify_formula = false)
-      : otf_solve_(otf_solve), simplify_formula_(simplify_formula) {}
+  //
+  // fix_dependent_outputs (--fix-dependent-outputs, EXPERIMENTAL): the known
+  // outputs leave the controller's choice; the product substitutes
+  // X_dep := lambda_Tout(state), so the game is solved over output_free only.
+  // The controller already carries no known output, so the verifier still
+  // composes it with Tout.  TODO[#243]: a lemma that the substitution
+  // preserves realizability; until then the tests and the race compare its
+  // verdicts with the default's, NK's and ltlfsynt's.  A Tout whose lambda
+  // does not fix a known output makes synthesize throw std::runtime_error.
+  explicit OtfMtdfaProduct(bool otf_solve = false, bool simplify_formula = false,
+                           bool fix_dependent_outputs = false)
+      : otf_solve_(otf_solve),
+        simplify_formula_(simplify_formula),
+        fix_dependent_outputs_(fix_dependent_outputs) {}
 
   std::optional<Controller> synthesize(const spot::formula& phi,
                                        const VariablePartition& vars,
@@ -113,6 +126,7 @@ class OtfMtdfaProduct final : public Synthesis {
  private:
   bool otf_solve_;
   bool simplify_formula_;
+  bool fix_dependent_outputs_;
 };
 
 }  // namespace ltlf_ek

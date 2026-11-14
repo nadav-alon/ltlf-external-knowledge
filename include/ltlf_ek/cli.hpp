@@ -67,9 +67,11 @@ void print_partition_file(std::ostream& out, const VariablePartition& p);
 // forwarded to MtdfaProduct's constructor and ignored by every other method.
 // `otf_solve` (docs/prd/otf-mtdfa-product.md Phase 2) is the CLI's
 // `--otf-solve`, likewise OtfMtdfaProduct-only, as is `simplify_formula`
-// (`--simplify-formula`).
+// (`--simplify-formula`), and `fix_dependent_outputs`
+// (`--fix-dependent-outputs`, experimental) likewise.
 std::unique_ptr<Synthesis> make_synthesis_method(
     const std::string& method_flag, bool minimize_mtdfa = false,
-    bool otf_solve = false, bool simplify_formula = false);
+    bool otf_solve = false, bool simplify_formula = false,
+    bool fix_dependent_outputs = false);
 
 }  // namespace ltlf_ek

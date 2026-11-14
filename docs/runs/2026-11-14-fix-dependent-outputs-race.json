@@ -1,0 +1,327 @@
+{
+ "provenance": {
+  "date": "2026-11-14",
+  "timeout_seconds": 60.0,
+  "mem_kib": 8388608,
+  "host": "Nadav-Desktop",
+  "ltlfsynt": "/usr/local/bin/ltlfsynt (spot) 2.15.1",
+  "synth_flags": [
+   "--otf-mtdfa-product",
+   "--otf-solve",
+   "--simplify-formula",
+   "--realizable"
+  ],
+  "arms": [
+   "nk",
+   "ltlfsynt",
+   "ek-derived",
+   "ek-compact",
+   "ek-derived-fixed",
+   "ek-compact-fixed"
+  ],
+  "specs": "tests/data/hard-instances"
+ },
+ "cells": [
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "UNREALIZABLE",
+   "wall_s": 0.6508377749705687,
+   "instance": "TwoCountersDisButAC",
+   "family": "TwoCountersDisButAC",
+   "n": null
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "UNREALIZABLE",
+   "wall_s": 0.007298866985365748,
+   "instance": "TwoCountersDisButAC",
+   "family": "TwoCountersDisButAC",
+   "n": null
+  },
+  {
+   "arm": "ek-derived",
+   "status": "ok",
+   "verdict": "UNREALIZABLE",
+   "wall_s": 16.375673720962368,
+   "extract_s": 8.651761632994749,
+   "synth_s": 7.723912087967619,
+   "instance": "TwoCountersDisButAC",
+   "family": "TwoCountersDisButAC",
+   "n": null
+  },
+  {
+   "arm": "ek-derived-fixed",
+   "status": "ok",
+   "verdict": "UNREALIZABLE",
+   "wall_s": 16.24372917797882,
+   "extract_s": 8.651761632994749,
+   "synth_s": 7.5919675449840724,
+   "instance": "TwoCountersDisButAC",
+   "family": "TwoCountersDisButAC",
+   "n": null
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.8397123160539195,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.006263159913942218,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ek-derived",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 1.281851340085268,
+   "extract_s": 0.006211325991898775,
+   "synth_s": 1.2756400140933692,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ek-derived-fixed",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.1871803959365934,
+   "verify_s": 16.910888132988475,
+   "controller": "verified",
+   "extract_s": 0.006211325991898775,
+   "synth_s": 0.18096906994469464,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ek-compact",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 1.224625677918084,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.1173126120120287,
+   "verify_s": 15.866616489016451,
+   "controller": "verified",
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 2.805143377976492,
+   "instance": "mux-17",
+   "family": "mux",
+   "n": 17
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.00619181792717427,
+   "instance": "mux-17",
+   "family": "mux",
+   "n": 17
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.005498043028637767,
+   "extract_s": 0.005498043028637767,
+   "instance": "mux-17",
+   "family": "mux",
+   "n": 17
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 8.030720488983206,
+   "instance": "mux-18",
+   "family": "mux",
+   "n": 18
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.006442727986723185,
+   "instance": "mux-18",
+   "family": "mux",
+   "n": 18
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.005913096014410257,
+   "extract_s": 0.005913096014410257,
+   "instance": "mux-18",
+   "family": "mux",
+   "n": 18
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 23.767325932043605,
+   "instance": "mux-19",
+   "family": "mux",
+   "n": 19
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.006665918044745922,
+   "instance": "mux-19",
+   "family": "mux",
+   "n": 19
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.005843927036039531,
+   "extract_s": 0.005843927036039531,
+   "instance": "mux-19",
+   "family": "mux",
+   "n": 19
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 60.086068694945425,
+   "instance": "mux-20",
+   "family": "mux",
+   "n": 20
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.006765358964912593,
+   "instance": "mux-20",
+   "family": "mux",
+   "n": 20
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.005740341963246465,
+   "extract_s": 0.005740341963246465,
+   "instance": "mux-20",
+   "family": "mux",
+   "n": 20
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 19.249306386103854,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 60.05045780306682,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 60.071907619945705,
+   "extract_s": 16.882505067973398,
+   "synth_s": 43.18940255197231,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ek-derived-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 60.07226178399287,
+   "extract_s": 16.882505067973398,
+   "synth_s": 43.189756716019474,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ek-compact",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 28.61069559690077,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 9.693694689078256,
+   "verify_s": 42.46314695093315,
+   "controller": "unverifiable",
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  }
+ ],
+ "verdict_mismatches": {},
+ "fixed_failures": [],
+ "bar": {
+  "met": false,
+  "required_speedup": 2.0,
+  "mismatches": 0,
+  "evidence": [
+   {
+    "arm": "ek-derived-fixed",
+    "family": "mux",
+    "instances": 1,
+    "speedup_geomean": 0.033460554897339984
+   },
+   {
+    "arm": "ek-compact-fixed",
+    "family": "mux",
+    "instances": 1,
+    "speedup_geomean": 0.05338863236034692
+   },
+   {
+    "arm": "ek-compact-fixed",
+    "family": "shift",
+    "instances": 1,
+    "speedup_geomean": 1.9857553805353252
+   }
+  ]
+ }
+}

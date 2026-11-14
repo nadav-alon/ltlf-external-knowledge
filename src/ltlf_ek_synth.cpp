@@ -90,6 +90,8 @@ struct CliArgs {
   bool otf_solve = false;       // --otf-solve (docs/prd/otf-mtdfa-product.md
                                 // Phase 2); OtfMtdfaProduct-only.
   bool simplify_formula = false;  // --simplify-formula; OtfMtdfaProduct-only.
+  bool fix_dependent_outputs = false;  // --fix-dependent-outputs (experimental);
+                                       // OtfMtdfaProduct-only.
 };
 
 struct Flag {
@@ -148,6 +150,8 @@ CliArgs ParseArgs(int argc, char** argv) {
       args.otf_solve = true;
     } else if (f.name == "simplify-formula") {
       args.simplify_formula = true;
+    } else if (f.name == "fix-dependent-outputs") {
+      args.fix_dependent_outputs = true;
     } else {
       throw UsageError("unrecognised flag: --" + f.name);
     }
@@ -280,10 +284,12 @@ void PrintWitness(std::ostream& os, const Witness& w,
 std::unique_ptr<Synthesis> BuildMethodOrNull(const std::string& flag,
                                              bool minimize_mtdfa,
                                              bool otf_solve,
-                                             bool simplify_formula) {
+                                             bool simplify_formula,
+                                             bool fix_dependent_outputs) {
   try {
     return ltlf_ek::make_synthesis_method(flag, minimize_mtdfa, otf_solve,
-                                          simplify_formula);
+                                          simplify_formula,
+                                          fix_dependent_outputs);
   } catch (const std::logic_error& e) {
     std::cerr << e.what() << "\n";
     return nullptr;
@@ -403,7 +409,7 @@ int main(int argc, char** argv) {
         // controller first.
         std::unique_ptr<Synthesis> method = BuildMethodOrNull(
             args.method_flags.front(), args.minimize_mtdfa, args.otf_solve,
-            args.simplify_formula);
+            args.simplify_formula, args.fix_dependent_outputs);
         if (!method) return 1;
         const std::optional<Controller> result =
             method->synthesize(phi, partition, t_in, t_out);
@@ -432,7 +438,8 @@ int main(int argc, char** argv) {
 
     std::unique_ptr<Synthesis> method =
         BuildMethodOrNull(args.method_flags.front(), args.minimize_mtdfa,
-                           args.otf_solve, args.simplify_formula);
+                           args.otf_solve, args.simplify_formula,
+                          args.fix_dependent_outputs);
     if (!method) return 1;
 
     const std::optional<Controller> result =

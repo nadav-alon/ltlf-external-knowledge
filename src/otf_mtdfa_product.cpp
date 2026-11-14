@@ -123,6 +123,80 @@ bdd Relabel(const bdd& node, ForwardProgression& fp,
   return result;
 }
 
+// --fix-dependent-outputs: leave the known outputs `dep` out of the game.
+// A row masked to `cons` (every Tout emits_region) fixes X_dep as lambda_Tout
+// of the state, so at any assignment of the other variables at most one
+// X_dep valuation leads anywhere non-false.  Substituting X_dep := lambda is
+// then the existential quantification of `dep` over the MTBDD, merging two
+// cofactors by taking the one that is not bddfalse.  Two different non-false
+// leaves meeting means lambda does not fix X_dep (a non-functional Tout), and
+// the substitution is undefined: it throws rather than pick one.
+// Experimental.  TODO[#243]: a lemma that substituting X_dep := lambda_Tout
+// preserves realizability (def:outdep, lem:outdep-diagonal and
+// lem:outdep-transducer in main.tex do not state it).
+class DependentOutputs {
+ public:
+  explicit DependentOutputs(std::unordered_set<int> dep)
+      : dep_(std::move(dep)) {}
+
+  bdd Substitute(const bdd& node) {
+    if (is_leaf(node)) return node;
+    if (auto it = subst_.find(node.id()); it != subst_.end())
+      return it->second.result;
+    const int v = bdd_var(node);
+    const bdd lo = Substitute(bdd_low(node));
+    const bdd hi = Substitute(bdd_high(node));
+    const bdd result = dep_.count(v) ? Merge(lo, hi)
+                                     : bdd_ite(bdd_ithvarpp(v), hi, lo);
+    subst_.emplace(node.id(), Entry{node, result});
+    return result;
+  }
+
+ private:
+  struct Entry {
+    bdd held;  // keeps the memo key's id from being recycled
+    bdd result;
+  };
+
+  static bool is_leaf(const bdd& n) {
+    return n == bddfalse || n == bddtrue || bdd_is_terminal(n);
+  }
+
+  bdd Merge(const bdd& a, const bdd& b) {
+    if (a == bddfalse) return b;
+    if (b == bddfalse || a == b) return a;
+    const std::pair<int, int> key{a.id(), b.id()};
+    if (auto it = merge_.find(key); it != merge_.end())
+      return it->second.result;
+    bdd result;
+    if (is_leaf(a) && is_leaf(b))
+      throw std::runtime_error(
+          "--fix-dependent-outputs: a known output is not fixed by Tout's "
+          "lambda (two letters of one input agree with it)");
+    const int la = is_leaf(a) ? bdd_varnum() : bdd_var2level(bdd_var(a));
+    const int lb = is_leaf(b) ? bdd_varnum() : bdd_var2level(bdd_var(b));
+    const int top = std::min(la, lb);
+    const int v = bdd_level2var(top);
+    const bdd a_lo = la == top ? bdd_low(a) : a;
+    const bdd a_hi = la == top ? bdd_high(a) : a;
+    const bdd b_lo = lb == top ? bdd_low(b) : b;
+    const bdd b_hi = lb == top ? bdd_high(b) : b;
+    const bdd lo = Merge(a_lo, b_lo);
+    const bdd hi = Merge(a_hi, b_hi);
+    result = bdd_ite(bdd_ithvarpp(v), hi, lo);  // a, b hold no dep node
+    merge_.emplace(key, MergeEntry{a, b, result});
+    return result;
+  }
+
+  struct MergeEntry {
+    bdd a, b, result;
+  };
+
+  std::unordered_set<int> dep_;
+  std::unordered_map<int, Entry> subst_;
+  std::map<std::pair<int, int>, MergeEntry> merge_;
+};
+
 // Step 3's cartesian product of `taus[k]->delta_edges(q[k])`, recursive over
 // k --- the same shape mtnfa_product.cpp's ForEachCombination uses (itself
 // mirroring src/product.cpp's combine_taus for build_product_symbolic).
@@ -251,7 +325,8 @@ static ProductBuild BuildProduct(const spot::formula& phi,
                                  const std::vector<const Transducer*>& taus,
                                  const VariablePartition& vars,
                                  const spot::bdd_dict_ptr& dict,
-                                 bool solve_online) {
+                                 bool solve_online,
+                                 bool fix_dependent_outputs) {
   // Reject before any work: Key holds at most kMaxTaus transducer states.
   if (taus.size() > kMaxTaus)
     throw std::invalid_argument("otf_product_to_mtdfa: at most " +
@@ -285,6 +360,13 @@ static ProductBuild BuildProduct(const spot::formula& phi,
   ForwardProgression& fp = *fp_owner;
   std::optional<OnlineGame> game;
   if (solve_online) game.emplace(vars, dict);
+  std::optional<DependentOutputs> dependent;
+  if (fix_dependent_outputs) {
+    std::unordered_set<int> dep;
+    for (const std::string& name : vars.output_known)
+      dep.insert(dict->varnum(spot::formula::ap(name)));
+    dependent.emplace(std::move(dep));
+  }
 
   // Step 1: seed index 0 with Key{fp.progress_row(phi), q0}, q0[k] =
   // taus[k]->initial_state().  Index 0 must be the initial state ---
@@ -347,6 +429,10 @@ static ProductBuild BuildProduct(const spot::formula& phi,
                               row_out);
           });
     }
+
+    // --fix-dependent-outputs: X_dep := lambda_Tout(state), so no row
+    // mentions a known output and the game never offers it as a choice.
+    if (dependent) row_out = dependent->Substitute(row_out);
 
     // Step 7: BFS discovery order assigns output indices 0,1,2,... in
     // dequeue order, so `key`'s index always equals out->states.size() here.
@@ -412,19 +498,23 @@ static std::optional<Controller> solve_and_record(spot::mtdfa_ptr product,
 spot::mtdfa_ptr otf_product_to_mtdfa(const spot::formula& phi,
                                      const std::vector<const Transducer*>& taus,
                                      const VariablePartition& vars,
-                                     const spot::bdd_dict_ptr& dict) {
-  return BuildProduct(phi, taus, vars, dict, /*solve_online=*/false).product;
+                                     const spot::bdd_dict_ptr& dict,
+                                     bool fix_dependent_outputs) {
+  return BuildProduct(phi, taus, vars, dict, /*solve_online=*/false,
+                      fix_dependent_outputs)
+      .product;
 }
 
 std::optional<Controller> otf_solve_fused(
     const spot::formula& phi, const std::vector<const Transducer*>& taus,
     const VariablePartition& vars, const spot::bdd_dict_ptr& dict,
-    std::size_t* states_expanded) {
+    std::size_t* states_expanded, bool fix_dependent_outputs) {
   require_turn_order_aps(vars, dict);
   ProductBuild build;
   {
     BenchTimer t(Stage::product_construction);
-    build = BuildProduct(phi, taus, vars, dict, /*solve_online=*/true);
+    build = BuildProduct(phi, taus, vars, dict, /*solve_online=*/true,
+                         fix_dependent_outputs);
   }
   if (states_expanded) *states_expanded = build.expanded;
   // Every expanded row has been fed, so every root and node vertex is frozen:
@@ -456,7 +546,8 @@ std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
 
   if (otf_solve_) {
     std::size_t expanded = 0;
-    auto controller = otf_solve_fused(goal, taus, vars, dict, &expanded);
+    auto controller = otf_solve_fused(goal, taus, vars, dict, &expanded,
+                                      fix_dependent_outputs_);
     record_size_metric(kStatesExpandedMetric, expanded);
     return controller;
   }
@@ -464,7 +555,8 @@ std::optional<Controller> OtfMtdfaProduct::synthesize(const spot::formula& phi,
   spot::mtdfa_ptr product;
   {
     BenchTimer t(Stage::product_construction);
-    product = otf_product_to_mtdfa(goal, taus, vars, dict);
+    product = otf_product_to_mtdfa(goal, taus, vars, dict,
+                                   fix_dependent_outputs_);
   }
   record_size_metric(kStatesExpandedMetric, product->num_roots());
   record_product_metrics(product, product->num_roots());

@@ -1039,4 +1039,145 @@ TEST(OtfProductToMtdfa, MoreTransducersThanTheStateKeyHoldsThrows) {
                std::invalid_argument);
 }
 
+// --fix-dependent-outputs: X_dep := lambda_Tout(state).  i is a free input, o
+// a free output, d a known output whose Tout has one state and lambda d <-> i
+// (Sigma0 = {i}, Sigma1 = {d}), so the known output is fixed by the input.
+struct DependentOutputFixture {
+  spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  VariablePartition vars;
+  OutputLabeledTransducer t_in;
+  OutputLabeledTransducer t_out;
+
+  static VariablePartition Vars() {
+    VariablePartition p = VariablePartition::split({"i"}, {"o"}, {});
+    p.output_known = {"d"};
+    return p;
+  }
+  // `lambda_of(i, d)` is Tout's output relation over the one state.
+  template <typename Lambda>
+  static OutputLabeledTransducer Tout(const spot::bdd_dict_ptr& dict,
+                                      Lambda lambda_of) {
+    auto g = spot::make_twa_graph(dict);
+    const bdd i = bdd_ithvar(g->register_ap("i"));
+    g->register_ap("o");
+    const bdd d = bdd_ithvar(g->register_ap("d"));
+    g->new_states(1);
+    g->set_init_state(0);
+    g->new_edge(0, 0, bddtrue);
+    return OutputLabeledTransducer(g, {lambda_of(i, d)}, /*sigma0=*/i,
+                                   /*sigma1=*/d);
+  }
+  template <typename Lambda>
+  explicit DependentOutputFixture(Lambda lambda_of)
+      : vars(Vars()),
+        t_in((register_turn_order_aps(vars, dict),
+              trivial_transducer(vars, Role::t_in, dict))),
+        t_out(Tout(dict, lambda_of)) {}
+  DependentOutputFixture()
+      : DependentOutputFixture([](bdd i, bdd d) { return bdd_biimp(i, d); }) {}
+  std::vector<const Transducer*> taus() const { return {&t_in, &t_out}; }
+};
+
+TEST(FixDependentOutputs, KeepsTheVerdictAndYieldsAVerifiedController) {
+  for (const char* text : {"G(o <-> i)", "G(o <-> d)", "G(d <-> i)", "G d",
+                           "G(!d) | F(o & d)", "X[!] d"}) {
+    for (const bool otf_solve : {false, true}) {
+      SCOPED_TRACE(std::string(text) + (otf_solve ? " otf-solve" : ""));
+      DependentOutputFixture f;
+      const spot::formula phi = Phi(text);
+      OtfMtdfaProduct fixed(otf_solve, false, /*fix_dependent_outputs=*/true);
+      OtfMtdfaProduct plain(otf_solve);
+      const auto a = fixed.synthesize(phi, f.vars, f.t_in, f.t_out);
+      const auto b = plain.synthesize(phi, f.vars, f.t_in, f.t_out);
+      EXPECT_EQ(a.has_value(), b.has_value());
+      if (a)
+        EXPECT_TRUE(
+            ltlf_ek::verify_controller(phi, f.vars, f.t_in, f.t_out, *a).ok);
+    }
+  }
+}
+
+// A fixed-seed corpus past the hand-picked formulas: three free inputs, nested
+// temporal operators, and a two-state Tout whose lambda depends on the state
+// (d <-> i2 in state 0, d <-> !i3 in state 1; i1 moves 0 -> 1, then back).
+TEST(FixDependentOutputs, SeededCorpusWithAStateDependentToutKeepsTheVerdict) {
+  const spot::bdd_dict_ptr dict = spot::make_bdd_dict();
+  VariablePartition vars =
+      VariablePartition::split({"i1", "i2", "i3"}, {"o"}, {});
+  vars.output_known = {"d"};
+  const OutputLabeledTransducer t_in = (register_turn_order_aps(vars, dict),
+                                        trivial_transducer(vars, Role::t_in, dict));
+  auto g = spot::make_twa_graph(dict);
+  const bdd i1 = bdd_ithvar(g->register_ap("i1"));
+  const bdd i2 = bdd_ithvar(g->register_ap("i2"));
+  const bdd i3 = bdd_ithvar(g->register_ap("i3"));
+  const bdd o = bdd_ithvar(g->register_ap("o"));
+  const bdd d = bdd_ithvar(g->register_ap("d"));
+  g->new_states(2);
+  g->set_init_state(0);
+  g->new_edge(0, 1, i1);
+  g->new_edge(0, 0, !i1);
+  g->new_edge(1, 0, bddtrue);
+  const OutputLabeledTransducer t_out(
+      g, {bdd_biimp(i2, d), bdd_biimp(!i3, d)}, /*sigma0=*/i1 & i2 & i3 & o,
+      /*sigma1=*/d);
+
+  std::mt19937 rng(20261114);
+  std::size_t realizable = 0, unrealizable = 0;
+  for (int case_idx = 0; case_idx < 24; ++case_idx) {
+    const spot::formula phi = GenerateRandomFormula(
+        {"i1", "i2", "i3", "o", "d"}, rng, /*tree_size_max=*/10);
+    SCOPED_TRACE("case " + std::to_string(case_idx) + ": phi=" + FormulaStr(phi));
+    for (const bool otf_solve : {false, true}) {
+      OtfMtdfaProduct fixed(otf_solve, false, /*fix_dependent_outputs=*/true);
+      OtfMtdfaProduct plain(otf_solve);
+      const auto a = fixed.synthesize(phi, vars, t_in, t_out);
+      const auto b = plain.synthesize(phi, vars, t_in, t_out);
+      EXPECT_EQ(a.has_value(), b.has_value());
+      if (a)
+        EXPECT_TRUE(ltlf_ek::verify_controller(phi, vars, t_in, t_out, *a).ok);
+      (b ? realizable : unrealizable) += 1;
+    }
+  }
+  // The corpus must exercise both verdicts, or the comparison proves nothing.
+  EXPECT_GT(realizable, 0u);
+  EXPECT_GT(unrealizable, 0u);
+}
+
+TEST(FixDependentOutputs, NoRowOfTheProductMentionsTheKnownOutput) {
+  DependentOutputFixture f;
+  const bdd d = bdd_ithvar(f.dict->varnum(spot::formula::ap("d")));
+  const spot::formula phi = Phi("G(o <-> d)");
+  const auto mentions_d = [&](bool fix) {
+    const spot::mtdfa_ptr product =
+        otf_product_to_mtdfa(phi, f.taus(), f.vars, f.dict, fix);
+    for (const bdd& row : product->states) {
+      const bdd support = bdd_support(row);
+      if ((support & d) == support) return true;
+    }
+    return false;
+  };
+  EXPECT_TRUE(mentions_d(false));
+  EXPECT_FALSE(mentions_d(true));
+}
+
+TEST(FixDependentOutputs, ALambdaThatDoesNotFixTheKnownOutputThrows) {
+  DependentOutputFixture f([](bdd, bdd) { return bddtrue; });
+  OtfMtdfaProduct fixed(false, false, /*fix_dependent_outputs=*/true);
+  EXPECT_THROW(fixed.synthesize(Phi("(d & X[!] o) | (!d & X[!] !o)"), f.vars,
+                                f.t_in, f.t_out),
+               std::runtime_error);
+}
+
+TEST(MakeSynthesisMethod, FixDependentOutputsFlagBuildsAnOtfMtdfaProductWithTheKnob) {
+  DependentOutputFixture f([](bdd, bdd) { return bddtrue; });
+  std::unique_ptr<Synthesis> m = make_synthesis_method(
+      "otf-mtdfa-product", false, false, false, /*fix_dependent_outputs=*/true);
+  // The knob is observable: only the fixing method refuses a lambda that
+  // leaves d free.
+  EXPECT_THROW(m->synthesize(Phi("(d & X[!] o) | (!d & X[!] !o)"), f.vars,
+                             f.t_in, f.t_out),
+               std::runtime_error);
+}
+
 }  // namespace

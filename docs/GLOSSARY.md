@@ -778,6 +778,13 @@ the existing term or update this file via `/glossary` — do not let drift happe
   with any transducer. main.tex: none (implementation-only). The bench subjects
   `otf-mtdfa-product-otfsolve-simp` and `otf-mtdfa-product-nk-otfsolve-simp` are the
   `--otf-solve` subjects with the knob on.
+  **`fix_dependent_outputs`** (`--fix-dependent-outputs`,
+  `OtfMtdfaProduct(…, fix_dependent_outputs=true)`) is experimental: the known
+  outputs leave the controller's choice, each product row substituting
+  $X_{dep} := \lambda_{T_{out}}(q)$ so the game is solved over $O_{free}$ only
+  (the TACAS'24 mechanism). main.tex: `underspecified` — `def:outdep` has no
+  soundness lemma yet, so the flag is kept out of the paper; the race checks
+  every verdict against NK and `ltlfsynt`.
 - **Do not call it:** composition, join, cross; for the symbolic pieces, not
   `symbolic_product`/`product_symbolic` (build), `GuardMap`/`product_map`
   (`ProductGuards`), `materialize`/`to_twa` (bare, for `materialize_product`);
