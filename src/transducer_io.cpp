@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cctype>
 #include <cstddef>
 #include <ios>
 #include <map>
@@ -80,7 +81,15 @@ HoaSplit split_at_hoa_end(const std::string& text) {
 // The shared-DAG form of a lambda (docs/GLOSSARY.md "transducer file format"):
 // `node @<id>: <ap> ? <hi> : <lo>` defines one BDD node, children being `true`,
 // `false` or an earlier `@<id>`; a `state q: @<id>` entry then names a node.
-// The one-formula-per-state form stays readable alongside it.
+// Both forms are accepted.
+// Validation 3: AP scope --- every AP of a lambda must lie in Sigma0 ∪ Sigma1.
+void require_in_scope(const std::string& ap, const std::set<std::string>& scope,
+                      const std::string& where) {
+  if (!scope.count(ap))
+    throw std::invalid_argument("parse_transducer: " + where + " names AP '" +
+                                ap + "' outside Sigma0 ∪ Sigma1");
+}
+
 bdd dag_ref(const std::string& tok, const std::map<std::string, bdd>& dag) {
   if (tok == "true") return bddtrue;
   if (tok == "false") return bddfalse;
@@ -103,7 +112,10 @@ std::pair<std::string, bdd> parse_dag_node(
       hi_sep == std::string::npos || hi_sep < colon)
     throw std::invalid_argument(bad);
   const std::string id = detail::trim(line.substr(5, colon - 5));
-  if (id.size() < 2 || id[0] != '@') throw std::invalid_argument(bad);
+  if (id.size() < 2 || id[0] != '@' ||
+      std::any_of(id.begin(), id.end(),
+                  [](unsigned char c) { return std::isspace(c); }))
+    throw std::invalid_argument(bad);
   const std::string ap_text = detail::trim(line.substr(colon + 1, hi_sep - colon - 1));
   const std::string hi = detail::trim(line.substr(hi_sep + 3, lo_sep - hi_sep - 3));
   const std::string lo = detail::trim(line.substr(lo_sep + 3));
@@ -111,14 +123,11 @@ std::pair<std::string, bdd> parse_dag_node(
   spot::formula f;
   try {
     f = spot::parse_formula(ap_text);
-  } catch (const std::runtime_error&) {
-    throw std::invalid_argument(bad);
+  } catch (const std::runtime_error& e) {
+    throw std::invalid_argument(bad + ": " + e.what());
   }
   if (!f.is(spot::op::ap)) throw std::invalid_argument(bad);
-  if (!scope.count(f.ap_name()))
-    throw std::invalid_argument("parse_transducer: lambda node " + id +
-                                " names AP '" + f.ap_name() +
-                                "' outside Sigma0 ∪ Sigma1");
+  require_in_scope(f.ap_name(), scope, "lambda node " + id);
   const bdd var = spot::formula_to_bdd(f, dict, aut.get());
   return {id, bdd_ite(var, dag_ref(hi, dag), dag_ref(lo, dag))};
 }
@@ -194,7 +203,9 @@ OutputLabeledTransducer parse_transducer(std::istream& in,
 
     if (t.rfind("node ", 0) == 0) {
       const auto [id, node] = parse_dag_node(t, dag, dict, aut, scope);
-      dag.emplace(id, node);
+      if (!dag.emplace(id, node).second)
+        throw std::invalid_argument(
+            "parse_transducer: duplicate %%LAMBDA node " + id);
       continue;
     }
 
@@ -241,13 +252,9 @@ OutputLabeledTransducer parse_transducer(std::istream& in,
         throw std::invalid_argument(
             "parse_transducer: non-boolean lambda formula for state " +
             std::to_string(q) + ": " + formula_text);
-      // Validation 3: AP scope --- every AP must lie in Sigma0 ∪ Sigma1.
       for (const auto& ap : collect_aps(f))
-        if (!scope.count(ap))
-          throw std::invalid_argument(
-              "parse_transducer: lambda formula for state " +
-              std::to_string(q) + " names AP '" + ap +
-              "' outside Sigma0 ∪ Sigma1");
+        require_in_scope(ap, scope,
+                         "lambda formula for state " + std::to_string(q));
       out = spot::formula_to_bdd(f, dict, aut.get());
     }
 
@@ -351,8 +358,8 @@ void print_transducer(std::ostream& out, const OutputLabeledTransducer& t) {
   out << "\n%%LAMBDA\n";
 
   // lambda: the BDD of each state written as a shared DAG --- one `node` line
-  // per distinct BDD node over all states, linear in the BDDs' size where the
-  // sum of products bdd_to_formula gives is exponential on equivalence chains.
+  // per distinct BDD node over all states, linear in the BDDs' size (a sum
+  // of products is exponential on equivalence chains).
   // emits_region(q) is exactly lambda_by_state_[q] (docs/GLOSSARY.md "Output
   // agreement (emits)"), bddfalse when lambda is undefined at q.  Children are
   // written before their parents so the reader can resolve each reference as it
@@ -364,21 +371,22 @@ void print_transducer(std::ostream& out, const OutputLabeledTransducer& t) {
     if (b == bddfalse) return "false";
     return ids.at(b.id());
   };
+  const auto done = [&](bdd b) {
+    return b == bddtrue || b == bddfalse || ids.count(b.id()) > 0;
+  };
   const auto emit = [&](bdd root) {
     // Iterative post-order: a BDD over thousands of variables is that deep.
     std::vector<bdd> stack{root};
     while (!stack.empty()) {
       const bdd b = stack.back();
-      if (b == bddtrue || b == bddfalse || ids.count(b.id())) {
+      if (done(b)) {
         stack.pop_back();
         continue;
       }
       const bdd hi = bdd_high(b), lo = bdd_low(b);
-      const bool hi_done = hi == bddtrue || hi == bddfalse || ids.count(hi.id());
-      const bool lo_done = lo == bddtrue || lo == bddfalse || ids.count(lo.id());
-      if (!hi_done || !lo_done) {
-        if (!hi_done) stack.push_back(hi);
-        if (!lo_done) stack.push_back(lo);
+      if (!done(hi) || !done(lo)) {
+        if (!done(hi)) stack.push_back(hi);
+        if (!done(lo)) stack.push_back(lo);
         continue;
       }
       const std::string id = "@" + std::to_string(ids.size());

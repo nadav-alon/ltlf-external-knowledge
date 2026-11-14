@@ -133,6 +133,13 @@ state 1: false          /* λ undefined at q1 (partial)       */
 - **`<formula>`** is a boolean formula over the $\Sigma_0\cup\Sigma_1$ APs,
   parsed by `spot::parse_formula` → BDD (thin wrapper). `false` = totally
   undefined $\lambda$ at that state.
+- **Shared-DAG form.** Instead of a formula, a `state <n>:` entry may name a BDD
+  node `@<id>`, defined by an earlier line `node @<id>: <ap> ? <hi> : <lo>`.
+  `<ap>` is one AP of $\Sigma_0\cup\Sigma_1$; `<hi>` and `<lo>` are `true`,
+  `false` or an earlier `@<id>`. An `@<id>` is `@` followed by non-whitespace
+  and is defined at most once; an undefined, forward or duplicate id is a
+  **parse error**. `print_transducer` writes this form (one `node` line per
+  distinct BDD node over all states); the reader accepts both forms.
 - **The block carries no slice declaration.** $\Sigma_0/\Sigma_1$ are derived
   from role + partition (above); the file never restates them. (An earlier draft
   allowed optional `sigma0:`/`sigma1:` lines validated against the derivation;
