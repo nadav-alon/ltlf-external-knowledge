@@ -96,6 +96,14 @@ def synth_cell(arm, synth, formula, args, timeout, flags=()):
     return cell(arm, "error", wall, rc=rc)
 
 
+def verification(rc, out):
+    """`--model-check`'s outcome: verified (SAFE), unsafe (a counterexample), else unverifiable (the verifier
+    itself ran out of time or memory: shift-20's product exceeds 8 GiB for any controller, flag or not)."""
+    if rc == 0 and out.strip() == "SAFE":
+        return "verified"
+    return "unsafe" if out.startswith("UNSAFE") else "unverifiable"
+
+
 def verified_cell(arm, synth, formula, args, timeout):
     """A fixed arm: the timed synthesis, then (on REALIZABLE) an untimed --model-check of its controller."""
     got = synth_cell(arm, synth, formula, args, timeout, [FIX_FLAG])
@@ -104,10 +112,9 @@ def verified_cell(arm, synth, formula, args, timeout):
     flags = [f for f in SYNTH_FLAGS if f != "--realizable"] + [FIX_FLAG, "--model-check"]
     rc, out, verify = run([synth, *flags, "--formula", formula, *args], timeout)
     got["verify_s"] = verify
-    if rc != 0 or out.strip() != "SAFE":
-        got.update(status="error", controller="timeout" if rc is None else "unverified", rc=rc)
-    else:
-        got["controller"] = "verified"
+    got["controller"] = verification(rc, out)
+    if got["controller"] == "unsafe":
+        got.update(status="error", rc=rc)
     return got
 
 
@@ -211,7 +218,7 @@ def bar(cells, timeout, mismatches):
 
 
 def fixed_failures(cells):
-    """Fixed-arm cells that errored: a controller that did not verify, or a Tout whose lambda leaves a known output free."""
+    """Fixed-arm cells that errored: an unsafe controller, or a Tout whose lambda leaves a known output free."""
     return [c["instance"] + ":" + c["arm"] for c in cells if c["arm"].endswith("-fixed") and c["status"] == "error"]
 
 

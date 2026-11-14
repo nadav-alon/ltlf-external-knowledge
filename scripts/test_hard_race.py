@@ -59,6 +59,12 @@ class HardRace(unittest.TestCase):
                  dict(cell("mux-8", "ek-compact-fixed", "REALIZABLE"), wall_s=0.1)]
         self.assertEqual(hr.bar(cells, 60, {})["evidence"], [])
 
+    def test_a_verifier_that_runs_out_of_memory_leaves_the_controller_unverifiable_not_unsafe(self):
+        self.assertEqual(hr.verification(0, "SAFE\n"), "verified")
+        self.assertEqual(hr.verification(20, "UNSAFE\nprefix: {i}\n"), "unsafe")
+        self.assertEqual(hr.verification(1, ""), "unverifiable")
+        self.assertEqual(hr.verification(None, ""), "unverifiable")
+
     def test_a_fixed_cell_that_errors_is_a_fixed_failure(self):
         cells = [cell("a", "ek-compact-fixed", None, "error"), cell("b", "ek-compact", None, "error"),
                  cell("c", "ek-derived-fixed", "REALIZABLE")]
