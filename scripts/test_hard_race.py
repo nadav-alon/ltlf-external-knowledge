@@ -57,6 +57,29 @@ class HardRace(unittest.TestCase):
         self.assertFalse(hr.bar(cells(1.0, nk_wall=99.0, nk_status="error"), 60, {}, [])["met"])
         self.assertEqual(hr.bar(cells(1.0, nk_status="error"), 60, {}, [])["evidence"], [])
 
+    def test_unchecked_instances_report_beside_the_checked_and_never_make_the_bar_met(self):
+        def cells(controller=None, fixed_verdict="REALIZABLE"):
+            return [dict(cell("shift-21", "nk", None, "timeout"), wall_s=60.0),
+                    dict(cell("shift-21", "ltlfsynt", None, "timeout"), wall_s=60.0),
+                    dict(cell("shift-21", "ek-compact-fixed", fixed_verdict), wall_s=1.0, controller=controller)]
+        unchecked = hr.bar(cells("unverifiable"), 60, {}, [])
+        self.assertFalse(unchecked["met"])
+        e = unchecked["evidence"][0]
+        self.assertEqual((e["instances"], e["checked"], e["unchecked"]), (1, 0, 1))
+        self.assertAlmostEqual(e["speedup_geomean"], 60.0)
+        self.assertIsNone(e["checked_speedup_geomean"])
+        verified = hr.bar(cells("verified"), 60, {}, [])
+        self.assertTrue(verified["met"])
+        self.assertEqual(verified["evidence"][0]["checked"], 1)
+        disagreeing = [dict(cell("mux-16", "nk", "UNREALIZABLE"), wall_s=10.0),
+                       dict(cell("mux-16", "ltlfsynt", None, "timeout"), wall_s=60.0),
+                       dict(cell("mux-16", "ek-compact-fixed", "REALIZABLE"), wall_s=1.0, controller="unverifiable")]
+        self.assertFalse(hr.bar(disagreeing, 60, {}, [])["met"])
+
+    def test_a_verifier_exit_that_is_neither_safe_nor_unsafe_is_unverifiable(self):
+        self.assertEqual(hr.verification(2, "usage: ...\n"), "unverifiable")
+        self.assertEqual(hr.verification(0, ""), "unverifiable")
+
     def test_the_bar_ignores_instances_below_the_hard_range(self):
         cells = [dict(cell("mux-8", "nk", "REALIZABLE"), wall_s=10.0), dict(cell("mux-8", "ltlfsynt", "REALIZABLE"), wall_s=10.0),
                  dict(cell("mux-8", "ek-compact-fixed", "REALIZABLE"), wall_s=0.1)]
