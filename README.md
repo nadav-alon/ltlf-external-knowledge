@@ -34,7 +34,7 @@ Requires a C++20 compiler, CMake ≥ 3.16, and Spot (`libspot` on the
 
 ```sh
 cmake -S . -B build
-cmake --build build -j
+cmake --build build -j8
 ctest --test-dir build --output-on-failure
 ```
 

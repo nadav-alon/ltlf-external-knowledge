@@ -63,6 +63,7 @@ Never let raw build output into your context — it is re-read every turn and
 dominates the token bill.
 
 ```sh
+# -j8: ~250 MB per cc1plus keeps eight jobs well under the sandbox's 8 GiB; do not raise it or drop it.
 cmake --build build -j8 > "${TMPDIR:-/tmp}/ek_build.log" 2>&1 && echo OK || tail -40 "${TMPDIR:-/tmp}/ek_build.log"
 ctest --test-dir build --output-on-failure > "${TMPDIR:-/tmp}/ek_test.log" 2>&1; grep -nE "FAILED|Failed" "${TMPDIR:-/tmp}/ek_test.log" | head -40 || echo "all passed"
 ```
