@@ -3,7 +3,7 @@
 # its first-run walkthrough; `ek-hpc.sh run` is the routine path. Run from anywhere
 # inside the repo; state lives in the wizard's env file, keys unchanged.
 #
-#   ek-hpc.sh build [COMMIT]       build ~/ltlf-ek.sif on the login node (HEAD by default)
+#   ek-hpc.sh build [COMMIT]       build ~/ltlf-ek.sif as a SLURM job (HEAD by default)
 #   ek-hpc.sh sync                 copy sweep.sbatch to the login node's ~/
 #   ek-hpc.sh submit [--node N] [--force]
 #                                  submit the array; pinned with -w only when --node is
@@ -74,9 +74,10 @@ cmd_build() {
   remote true || die "cannot ssh to $t (host, VPN or key); nothing was built"
   remote git ls-remote "$url" HEAD > /dev/null ||
     die "the login node cannot read $url (no network to GitHub, or a private repo); give a URL it can clone, e.g. an ssh one with a deploy key"
-  say "building $commit on $t (about 20 min); log: ~/$BUILD_LOG there"
-  ssh "$t" "EK_BUILD_LOG=\$HOME/$BUILD_LOG" bash -s -- "$url" "$commit" < scripts/hpc/build-image.sh ||
-    die "the build failed; the log is ~/$BUILD_LOG on the cluster: ssh $t tail -50 $BUILD_LOG (a missing or old log means it failed before the build started)"
+  scp -q scripts/hpc/build-image.sh scripts/hpc/build-image.sbatch "$t:" || die "scp of the build scripts to $t failed"
+  say "building $commit as a SLURM job on $t (about 20 min, waiting); log: ~/$BUILD_LOG there"
+  remote "EK_BUILD_LOG=\$HOME/$BUILD_LOG sbatch --wait --exclude=$EXCLUDE build-image.sbatch '$url' '$commit'" ||
+    die "the build failed; the log is ~/$BUILD_LOG on the cluster: ssh $t tail -50 $BUILD_LOG (a missing or old log means it failed before the build started; the job's own output is ~/ek-image-JOBID.log)"
   put EK_IMAGE_SHA "$commit"
   say "built $commit"
 }

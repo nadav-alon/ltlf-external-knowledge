@@ -12,7 +12,7 @@ fail() { echo "$1"; exit 1; }
 
 # A repo with ek-hpc.sh and stand-ins for what it calls, pushed to a bare origin.
 repo="$work/repo"; mkdir -p "$repo/scripts/hpc" "$repo/docs/runs" "$work/bin" "$work/home"
-cp "$here/ek-hpc.sh" "$here/build-image.sh" "$here/sweep.sbatch" "$repo/scripts/hpc/"
+cp "$here/ek-hpc.sh" "$here/build-image.sh" "$here/build-image.sbatch" "$here/sweep.sbatch" "$repo/scripts/hpc/"
 # The array's task ids, as sweep.sbatch declares them.
 tasks=$(seq 0 "$(sed -n 's/^#SBATCH --array=0-\([0-9]*\)$/\1/p' "$here/sweep.sbatch")")
 n=$(wc -w <<<"$tasks")
@@ -41,6 +41,12 @@ STUB
 cat > "$work/bin/sbatch" <<'STUB'
 #!/usr/bin/env bash
 echo "sbatch $*" >> "$CALLS"
+# --wait runs the job in the foreground, as SLURM would on a compute node with 8 CPUs.
+if [[ "$*" == *--wait* ]]; then
+  while [[ "$1" == -* ]]; do shift; done
+  SLURM_CPUS_PER_TASK=8 bash "$@" || exit $?
+  exit 0
+fi
 echo "4242;cluster"
 STUB
 cat > "$work/bin/sacct" <<'STUB'
@@ -50,7 +56,9 @@ if [[ "$*" == *"-o End"* ]]; then printf '2026-10-17T09:00:00\n2026-10-17T11:30:
 STUB
 cat > "$work/bin/apptainer" <<'STUB'
 #!/usr/bin/env bash
-cp "$4" "$3"
+echo "apptainer $*" >> "$CALLS"
+[[ -z "${STUB_FAIL:-}" ]] || { echo "FATAL: stub build failed"; exit 7; }
+cp "${@: -1}" "${@: -2:1}"
 STUB
 chmod +x "$work/bin/"*
 export PATH="$work/bin:/usr/bin:/bin" CALLS="$calls" FAKE_HOME="$work/home" EK_POLL=0
@@ -84,9 +92,25 @@ ek build > /dev/null
 [[ "$(cat "$work/home/ltlf-ek.sif")" == stub-def ]] || fail "build did not build the image"
 grep -qx "EK_IMAGE_SHA=$head" "$ENV_FILE" || fail "build did not record EK_IMAGE_SHA"
 m=$(mark); ek build > /dev/null
-remote_since "$m" | grep -q 'bash -s' && fail "a second build rebuilt"
+remote_since "$m" | grep -q 'sbatch --wait' && fail "a second build rebuilt"
 rm "$work/home/ltlf-ek.sif"; m=$(mark); ek build > /dev/null
-remote_since "$m" | grep -q 'bash -s' || fail "build skipped although the image is gone"
+remote_since "$m" | grep -q 'sbatch --wait' || fail "build skipped although the image is gone"
+
+# build is a SLURM job on the CPU partition: the sweep's --exclude list, no --exclusive,
+# and nothing heavier than git and sbatch runs on the login node itself.
+grep -q "^sbatch --wait --exclude=cn\[31-44\],gpu\[1-4\],gpu\[6-8\] build-image.sbatch " "$calls" || fail "build did not sbatch --wait with the sweep's exclude list"
+grep -q -- '--exclusive' "$calls" && fail "build asked for --exclusive"
+grep -q '^#SBATCH --partition=work$' "$here/build-image.sbatch" || fail "the build job is not on the CPU partition"
+grep -q '^#SBATCH --cpus-per-task=' "$here/build-image.sbatch" || fail "the build job declares no CPU allocation"
+grep -q '^apptainer .*--build-arg jobs=8 ' "$calls" || fail "the compile's job count did not follow the job's 8 CPUs"
+grep '^ssh ' "$calls" | grep -qE 'apptainer|bash -s|build-image\.sh' && fail "the login node ran the build itself"
+
+# A failed build job names the log, and records no image.
+sed -i '/^EK_IMAGE_SHA/d' "$ENV_FILE"; rm "$work/home/ltlf-ek.sif"
+err=$(STUB_FAIL=1 ek build 2>&1) && fail "a failed build job was reported as built"
+grep -q "ltlf-ek-build.log" <<<"$err" || fail "a failed build does not name the log: $err"
+grep -q '^EK_IMAGE_SHA=' "$ENV_FILE" && fail "a failed build recorded an image"
+ek build > /dev/null
 
 # sync: copies, then is a no-op while the copy matches.
 ek sync > /dev/null
@@ -147,6 +171,6 @@ m=$(mark); ek run --no-wait --node cn07 > /dev/null
 remote_since "$m" | grep -q sacct && fail "run --no-wait polled"
 grep -qx EK_JOB=4242 "$ENV_FILE" || fail "run --no-wait did not submit"
 m=$(mark); ek run > /dev/null
-remote_since "$m" | grep -qE 'bash -s|^sbatch ' && fail "the second run rebuilt or resubmitted"
+remote_since "$m" | grep -qE 'sbatch --wait|^sbatch ' && fail "the second run rebuilt or resubmitted"
 [[ -f "$repo/docs/runs/2026-10-17-four-family-sweep.md" ]] || fail "run did not merge"
 echo ok

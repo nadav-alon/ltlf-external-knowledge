@@ -97,8 +97,10 @@ instead of a native build.
   Same settings as `run-sweep.sh`. `EK_DRY_RUN=1` prints the command.
 - `merge_sweep.py` (in `scripts/`) — joins the parts into one sweep JSON; it refuses
   parts from different CPU models, builds, commits, repeat or timeout.
-- `build-image.sh` — clones the repo and builds the image on the cluster's login
-  node (the developer's machine has no apptainer); the log is `~/ltlf-ek-build.log` there.
+- `build-image.sh` — clones the repo and builds the image on the cluster (the developer's
+  machine has no apptainer); the log is `~/ltlf-ek-build.log` there. `build-image.sbatch`
+  runs it as a SLURM job (CPU partition, 8 CPUs, no `--exclusive`), so the login node runs
+  only git and sbatch; the compile's job count is the job's CPUs.
 - `ek-hpc.sh` — the routine path: the same stages as non-interactive, idempotent
   subcommands (`build`, `sync`, `submit`, `status`, `fetch`, `merge`), and `ek-hpc.sh run`
   to chain them. `run` waits for the job, polling every 60 s and raising a Windows toast
