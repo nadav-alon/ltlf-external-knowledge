@@ -3,7 +3,7 @@
 import unittest
 
 import summary_paper_tables as spt
-from test_sweep_report import lt, sweep, timing
+from test_sweep_report import lt, structural, sweep, timing
 
 K, NK = spt.SIMP, spt.SIMP_NK
 
@@ -25,6 +25,20 @@ class Rq2(unittest.TestCase):
             ltlfsynt=[lt_row("zeta", 2, True, 20e6, 5e6)])
         row = [l for l in spt.rq2(s).splitlines() if l.startswith("zeta ")][0]
         self.assertEqual(row, "zeta & 2 & 2.00 & 8.00 & 4.00$\\times$ & 20.00 & 5.00 \\\\")
+
+    def test_rq2_reads_t_o_and_a_lower_bound_when_the_no_knowledge_side_never_finishes(self):
+        s = hpc_sweep(timings=[timing("zeta", 2, True, K, 1e6, 1e6),
+                               timing("zeta", 2, True, NK, 0, None, stage="TIMEOUT")])
+        s["provenance"]["timeout_seconds"] = 1
+        row = [l for l in spt.rq2(s).splitlines() if l.startswith("zeta ")][0]
+        self.assertEqual(row.split(" & ")[3:5], ["t/o", "$\\ge$ 1000.00$\\times$"])
+
+    def test_rq2_lists_each_slippery_arm_on_its_own_row(self):
+        s = hpc_sweep(timings=[timing(f, 2, True, k, 2e6, 2e6) for f in ("slippery-binary", "slippery-onehot")
+                               for k in (K, NK)])
+        rows = [l.split(" & ")[0] for l in spt.rq2(s).splitlines()]
+        self.assertIn("slippery-binary", rows)
+        self.assertIn("slippery-onehot", rows)
 
     def test_rq2_ignores_every_n_but_the_sweeps_largest(self):
         s = hpc_sweep(timings=[timing("zeta", 1, True, K, 2e6, 2e6), timing("zeta", 1, True, NK, 8e6, 8e6)])
@@ -63,6 +77,12 @@ class Figures(unittest.TestCase):
             timings=[timing("zeta", 1, True, K, 2e6, 2e6), timing("zeta", 2, True, K, 1e6, 1e6)],
             ltlfsynt=[lt_row("zeta", 1, True, 10e6, 1e6), lt_row("zeta", 2, True, 10e6, 1e6)])
         self.assertEqual(spt.speedup(s).splitlines()[0], "\\addplot coordinates {(1,5) (2,10)};")
+
+    def test_prune_series_is_the_explored_roots_of_the_simplified_pair_not_the_explicit_product(self):
+        s = hpc_sweep(timings=[timing("zeta", 1, True, K, 1e6, 1e6), timing("zeta", 1, True, NK, 1e6, 1e6)],
+                      structural_rows=[structural("zeta", 1, True, K, 3, "product_mtdfa_roots"),
+                                       structural("zeta", 1, True, NK, 12, "product_mtdfa_roots")])
+        self.assertEqual(spt.prune_ratio(s).splitlines()[0], "\\addplot coordinates {(1,0.25)};")
 
     def test_a_family_with_no_figure_has_no_series(self):
         s = hpc_sweep(timings=[timing("zeta", 1, True, K, 2e6, 2e6)])

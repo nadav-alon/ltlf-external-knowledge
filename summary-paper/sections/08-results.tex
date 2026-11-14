@@ -9,7 +9,7 @@
 \centering
 \small
 \input{tables/rq1}
-\caption{Median wall time in ms at the largest $N$, each variant with knowledge over without (\tool{-nk}); \tool{t/o} where no cell finished. The last column counts verdict mismatches against \tool{ltlfsynt}.}\label{tab:rq1}
+\caption{Median wall time in ms at the largest $N$; each cell is \emph{with knowledge} / \emph{without knowledge} (\tool{-nk}), \tool{t/o} where no cell finished and \tool{n/a} where the family has no knowledge. \tool{otf-solve-simp} and \tool{nk-otfsolve-simp} abbreviate the sweep subjects \tool{otf-mtdfa-product-otfsolve-simp} and \tool{otf-mtdfa-product-nk-otfsolve-simp}. The last column counts verdict mismatches against \tool{ltlfsynt} over every $N$.}\label{tab:rq1}
 \end{table}
 
 \subsection{Effect of Knowledge on Product Size}
@@ -18,11 +18,11 @@
 \begin{figure}[H]
 \centering
 \begin{tikzpicture}
-\begin{axis}[width=.8\linewidth, height=6cm, xlabel={$N$}, ylabel={prune ratio}, ymode=log, legend pos=outer north east, legend style={font=\scriptsize}]
+\begin{axis}[width=.8\linewidth, height=6cm, xlabel={$N$}, ylabel={explored-roots ratio}, ymode=log, legend pos=outer north east, legend style={font=\scriptsize}]
 \input{tables/prune-ratio}
 \end{axis}
 \end{tikzpicture}
-\caption{Reachable product states with knowledge over without, per family.}\label{fig:prune}
+\caption{Explored product roots of \tool{otf-solve-simp} over \tool{nk-otfsolve-simp} (with knowledge over without), median per family.}\label{fig:prune}
 \end{figure}
 
 \subsection{Runtime against \tool{ltlfsynt}}
@@ -38,10 +38,12 @@
 \caption{\tool{ltlfsynt} full synthesis over \tool{otf-solve-simp}, median wall time per family.}\label{fig:speedup}
 \end{figure}
 
+Knowledge buys nothing measurable on the slippery arms under the simplifier: every arm's speed-up is within $0.55$--$1.13\times$, so the $100\times$ of the 2026-10-16 run does not survive.
+
 \begin{table}[H]
 \centering
 \input{tables/rq2}
-\caption{Knowledge against no knowledge (\tool{otf-solve-simp} against \tool{nk-otfsolve-simp}), with \tool{ltlfsynt} as full synthesis and the sum of its internal stage times.}\label{tab:rq2}
+\caption{Knowledge against no knowledge (\tool{otf-solve-simp} against \tool{nk-otfsolve-simp}) at the largest $N$, one row per slippery arm. Where the no-knowledge side times out (\tool{t/o}) the speed-up is a lower bound ($\ge$). \tool{ltlfsynt} is full synthesis; its stages column is the sum of its internal stage times, the only form the sweep records.}\label{tab:rq2}
 \end{table}
 
 \subsection{Comparison Between Methods}

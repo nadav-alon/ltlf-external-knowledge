@@ -36,12 +36,14 @@ def _med(xs):
     return statistics.median(xs) if xs else None
 
 
-def _ms(ms):
+def _fmt_ms(ms):
     return "n/a" if ms is None else f"{ms:.2f}"
 
 
-def _x(x):
-    return "n/a" if x is None else f"{x:.2f}$\\times$"
+def _fmt_speedup(x, bound=False):
+    if x is None:
+        return "n/a"
+    return f"{x:.2f}$\\times$" if not bound else f"$\\ge$ {x:.2f}$\\times$"
 
 
 def _tabular(head, rows):
@@ -51,13 +53,13 @@ def _tabular(head, rows):
     return "\n".join(lines + ["\\bottomrule", "\\end{tabular}"]) + "\n"
 
 
-def _ltlfsynt_ns(sweep):
+def _ltlfsynt_ns(sweep, group=family_group):
     """(group, n) -> (median full-synthesis ms, median internal-stage ms) over its ok cells."""
     acc = defaultdict(lambda: ([], []))
     for r in sweep["ltlfsynt"]:
         if r["status"] != "ok":
             continue
-        full, internal = acc[(family_group(r["family"]), r["n"])]
+        full, internal = acc[(group(r["family"]), r["n"])]
         if r.get("ltlfsynt_median_ns") is not None:
             full.append(r["ltlfsynt_median_ns"] / 1e6)
         if r.get("ltlfsynt_internal_ns") is not None:
@@ -65,23 +67,28 @@ def _ltlfsynt_ns(sweep):
     return {k: (_med(f), _med(i)) for k, (f, i) in acc.items()}
 
 
-def _groups(sweep):
-    return sorted({family_group(r["family"]) for r in sweep["timings"]})
-
-
 def rq2(sweep):
-    """Per family at the sweep's largest N: knowledge vs no knowledge, and ltlfsynt as full synthesis."""
+    """Per family (slippery by arm) at the sweep's largest N: knowledge vs no knowledge, and ltlfsynt.
+
+    A no-knowledge side that did not finish reads `t/o`, and the speed-up becomes the lower bound
+    sweep_pairs counts at timeout over the knowledge median.
+    """
     n = sweep["provenance"]["n_max"]
-    pairs = sweep_pairs.build_rows(sweep, SIMP, SIMP_NK)
-    lt = _ltlfsynt_ns(sweep)
+    pairs = sweep_pairs.build_rows(sweep, SIMP, SIMP_NK, arms=True)
+    ltlfsynt_ms = _ltlfsynt_ns(sweep, group=lambda family: family)
     rows = []
-    for g in _groups(sweep):
+    for g in sorted({g for g, _ in pairs}):
         p = pairs.get((g, n))
         if p is None:
             continue
-        full, internal = lt.get((g, n), (None, None))
-        rows.append([g, f"{n}", _ms(p["ek_ms"]), _ms(p["formula_ms"]),
-                     _x(p["speedup"]), _ms(full), _ms(internal)])
+        full, internal = ltlfsynt_ms.get((g, n), (None, None))
+        no_knowledge = _fmt_ms(p["formula_ms"])
+        if p["bound"] is None:
+            speedup = _fmt_speedup(p["speedup"])
+        else:
+            speedup = _fmt_speedup(p["bound"], bound=True)
+            no_knowledge = "t/o" if p["formula_ms"] is None else no_knowledge
+        rows.append([g, f"{n}", _fmt_ms(p["ek_ms"]), no_knowledge, speedup, _fmt_ms(full), _fmt_ms(internal)])
     head = ["family", "$N$", "knowledge (ms)", "no knowledge (ms)", "knowledge speed-up",
             "\\tool{ltlfsynt} (ms)", "\\tool{ltlfsynt} stages (ms)"]
     return _tabular(head, rows)
@@ -95,6 +102,7 @@ def rq1(sweep):
     The last column is the family's ltlfsynt verdict mismatches, over every N.
     """
     n = sweep["provenance"]["n_max"]
+    groups = sorted({family_group(r["family"]) for r in sweep["timings"]})
     wall = sweep_report.finished_wall(sweep["timings"])
     meds = defaultdict(list)
     for (fam, cell_n, _, subject), (_, med) in wall.items():
@@ -109,11 +117,11 @@ def rq1(sweep):
         m = _med(meds[(g, subject)])
         if m is None:
             return "t/o" if (g, subject) in ran else "n/a"
-        return _ms(m)
+        return _fmt_ms(m)
 
     rows = [[g] + [f"{cell(g, k)} / {cell(g, nk)}" for _, k, nk in RQ1_VARIANTS] + [str(mismatches[g])]
-            for g in _groups(sweep)]
-    head = ["family"] + [f"{name}" for name, _, _ in RQ1_VARIANTS] + ["mismatches"]
+            for g in groups]
+    head = ["family"] + [name for name, _, _ in RQ1_VARIANTS] + ["mismatches"]
     return _tabular(head, rows)
 
 
@@ -121,16 +129,19 @@ def _plot(rows, field):
     """pgfplots series, one per family, of `field` against N; a family with no figure is omitted."""
     lines = []
     for g in sorted(rows):
-        pts = [(n, r[field]) for n, r in sorted(rows[g].items()) if r.get(field) is not None]
-        if pts:
-            coords = " ".join(f"({n},{v:.4g})" for n, v in pts)
+        points = [(n, r[field]) for n, r in sorted(rows[g].items()) if r.get(field) is not None]
+        if points:
+            coords = " ".join(f"({n},{v:.4g})" for n, v in points)
             lines.append(f"\\addplot coordinates {{{coords}}};\n\\addlegendentry{{{g}}}")
     return "\n".join(lines) + "\n"
 
 
 def prune_ratio(sweep):
-    """fig:prune: reachable product states with knowledge over without, per family."""
-    return _plot(sweep_report.build_rows(sweep, SIMP), "prune")
+    """fig:prune: explored product roots of the otf-solve-simp pair, with knowledge over without."""
+    rows = defaultdict(dict)
+    for (g, n), r in sweep_pairs.build_rows(sweep, SIMP, SIMP_NK).items():
+        rows[g][n] = r
+    return _plot(rows, "roots")
 
 
 def speedup(sweep):
@@ -143,6 +154,10 @@ def render(sweep):
             "prune-ratio.tex": prune_ratio(sweep), "speedup.tex": speedup(sweep)}
 
 
+def _header(sweep_path, out_dir):
+    return f"% generated by python3 scripts/summary_paper_tables.py {sweep_path} {out_dir}; do not edit\n"
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("sweep")
@@ -153,7 +168,7 @@ def main(argv=None):
     os.makedirs(args.out_dir, exist_ok=True)
     for name, text in render(sweep).items():
         with open(os.path.join(args.out_dir, name), "w") as out:
-            out.write(text)
+            out.write(_header(args.sweep, args.out_dir) + text)
 
 
 if __name__ == "__main__":
