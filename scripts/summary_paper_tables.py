@@ -160,8 +160,15 @@ def prune_ratio(sweep):
 
 
 def speedup(sweep):
-    """fig:speedup: ltlfsynt full synthesis over the knowledge subject, per family."""
-    return _plot(sweep_report.build_rows(sweep, SIMP), "speedup_med")
+    """fig:speedup: ltlfsynt full synthesis over the knowledge subject, per family.
+
+    A point is plotted only where every cell of the family at that N finished on both sides, so no
+    point is a median over a subset; an N with a timed-out or failed cell has no point.
+    """
+    rows = sweep_report.build_rows(sweep, SIMP)
+    complete = {g: {n: dict(r, speedup_med=r["speedup_med"] if r["both"] == r["total"] else None)
+                    for n, r in by_n.items()} for g, by_n in rows.items()}
+    return _plot(complete, "speedup_med")
 
 
 def render(sweep):

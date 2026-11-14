@@ -100,6 +100,14 @@ class Figures(unittest.TestCase):
                                        structural("zeta", 1, True, NK, 12, "product_mtdfa_roots")])
         self.assertEqual(spt.prune_ratio(s).splitlines()[0], "\\addplot coordinates {(1,0.25)};")
 
+    def test_speedup_series_omits_an_n_where_a_cell_timed_out(self):
+        s = hpc_sweep(
+            timings=[timing("zeta", 1, True, K, 2e6, 2e6), timing("zeta", 2, True, K, 1e6, 1e6),
+                     timing("zeta", 2, False, K, 1e6, 1e6)],
+            ltlfsynt=[lt_row("zeta", 1, True, 10e6, 1e6), lt_row("zeta", 2, True, 10e6, 1e6),
+                      dict(lt_row("zeta", 2, False, 0, 0), status="timeout")])
+        self.assertEqual(spt.speedup(s).splitlines()[0], "\\addplot coordinates {(1,5)};")
+
     def test_a_family_with_no_figure_has_no_series(self):
         s = hpc_sweep(timings=[timing("zeta", 1, True, K, 2e6, 2e6)])
         self.assertEqual(spt.speedup(s), "\n")
