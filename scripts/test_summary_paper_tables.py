@@ -57,5 +57,17 @@ class Rq1(unittest.TestCase):
         self.assertTrue(row.endswith("& 1 \\\\"))
 
 
+class Figures(unittest.TestCase):
+    def test_speedup_series_is_ltlfsynt_full_synthesis_over_the_knowledge_subject_per_n(self):
+        s = hpc_sweep(
+            timings=[timing("zeta", 1, True, K, 2e6, 2e6), timing("zeta", 2, True, K, 1e6, 1e6)],
+            ltlfsynt=[lt_row("zeta", 1, True, 10e6, 1e6), lt_row("zeta", 2, True, 10e6, 1e6)])
+        self.assertEqual(spt.speedup(s).splitlines()[0], "\\addplot coordinates {(1,5) (2,10)};")
+
+    def test_a_family_with_no_figure_has_no_series(self):
+        s = hpc_sweep(timings=[timing("zeta", 1, True, K, 2e6, 2e6)])
+        self.assertEqual(spt.speedup(s), "\n")
+
+
 if __name__ == "__main__":
     unittest.main()

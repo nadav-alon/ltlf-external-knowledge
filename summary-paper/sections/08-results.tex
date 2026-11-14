@@ -17,9 +17,12 @@
 
 \begin{figure}[H]
 \centering
-% \includegraphics[width=.8\linewidth]{figures/prune-ratio}
-\guide{figure: product size with vs.\ without knowledge}
-\caption{}\label{fig:prune}
+\begin{tikzpicture}
+\begin{axis}[width=.8\linewidth, height=6cm, xlabel={$N$}, ylabel={prune ratio}, ymode=log, legend pos=outer north east, legend style={font=\scriptsize}]
+\input{tables/prune-ratio}
+\end{axis}
+\end{tikzpicture}
+\caption{Reachable product states with knowledge over without, per family.}\label{fig:prune}
 \end{figure}
 
 \subsection{Runtime against \tool{ltlfsynt}}
@@ -27,9 +30,12 @@
 
 \begin{figure}[H]
 \centering
-% \includegraphics[width=.8\linewidth]{figures/speedup}
-\guide{figure: speedup vs.\ $n$}
-\caption{}\label{fig:speedup}
+\begin{tikzpicture}
+\begin{axis}[width=.8\linewidth, height=6cm, xlabel={$N$}, ylabel={speed-up over \tool{ltlfsynt}}, ymode=log, legend pos=outer north east, legend style={font=\scriptsize}]
+\input{tables/speedup}
+\end{axis}
+\end{tikzpicture}
+\caption{\tool{ltlfsynt} full synthesis over \tool{otf-solve-simp}, median wall time per family.}\label{fig:speedup}
 \end{figure}
 
 \begin{table}[H]

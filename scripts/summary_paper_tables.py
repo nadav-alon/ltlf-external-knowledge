@@ -117,8 +117,30 @@ def rq1(sweep):
     return _tabular(head, rows)
 
 
+def _plot(rows, field):
+    """pgfplots series, one per family, of `field` against N; a family with no figure is omitted."""
+    lines = []
+    for g in sorted(rows):
+        pts = [(n, r[field]) for n, r in sorted(rows[g].items()) if r.get(field) is not None]
+        if pts:
+            coords = " ".join(f"({n},{v:.4g})" for n, v in pts)
+            lines.append(f"\\addplot coordinates {{{coords}}};\n\\addlegendentry{{{g}}}")
+    return "\n".join(lines) + "\n"
+
+
+def prune_ratio(sweep):
+    """fig:prune: reachable product states with knowledge over without, per family."""
+    return _plot(sweep_report.build_rows(sweep, SIMP), "prune")
+
+
+def speedup(sweep):
+    """fig:speedup: ltlfsynt full synthesis over the knowledge subject, per family."""
+    return _plot(sweep_report.build_rows(sweep, SIMP), "speedup_med")
+
+
 def render(sweep):
-    return {"rq1.tex": rq1(sweep), "rq2.tex": rq2(sweep)}
+    return {"rq1.tex": rq1(sweep), "rq2.tex": rq2(sweep),
+            "prune-ratio.tex": prune_ratio(sweep), "speedup.tex": speedup(sweep)}
 
 
 def main(argv=None):
