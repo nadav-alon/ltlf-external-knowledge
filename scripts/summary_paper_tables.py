@@ -95,7 +95,7 @@ def rq1(sweep):
     The last column is the family's ltlfsynt verdict mismatches, over every N.
     """
     n = sweep["provenance"]["n_max"]
-    wall = sweep_report._finished_wall(sweep["timings"])
+    wall = sweep_report.finished_wall(sweep["timings"])
     meds = defaultdict(list)
     for (fam, cell_n, _, subject), (_, med) in wall.items():
         if cell_n == n:

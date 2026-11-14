@@ -24,7 +24,7 @@ def family_group(name):
     return "slippery" if name.startswith("slippery-") else name
 
 
-def _finished_wall(timings):
+def finished_wall(timings):
     """(family, n, realizable, subject) -> (min_ns, median_ns), cells whose every repeat finished."""
     out, failed = {}, set()
     for r in timings:
@@ -56,7 +56,7 @@ def _ratio(c, name, num, den, key):
 def build_rows(sweep, subject=EK_SUBJECT):
     """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_bounded', 'lt_errors', 'prune', 'prune_nk', 'nk_ratio_min', 'inproc_speedup', 'roots_ratio', 'internal_speedup', 'internal_missing', 'inproc_bound', 'nk_bounded', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
     'speedup_med', 'speedup_min', 'bound'}}}; a figure is None when no cell has it."""
-    wall = _finished_wall(sweep["timings"])
+    wall = finished_wall(sweep["timings"])
     with_k = _metric_by_cell(sweep["structural"], EK_PRODUCT)
     without_k = _metric_by_cell(sweep["structural"], EK_UNPRUNED)
     nk_k = _metric_by_cell(sweep["structural"], EK_NK)

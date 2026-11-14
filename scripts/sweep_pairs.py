@@ -15,7 +15,7 @@ import sys
 from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from sweep_report import PRODUCT_MTDFA_ROOTS, _finished_wall, _metric_by_cell, family_group  # noqa: E402
+from sweep_report import PRODUCT_MTDFA_ROOTS, _metric_by_cell, family_group, finished_wall  # noqa: E402
 
 
 def _cells(sweep, subject):
@@ -25,7 +25,7 @@ def _cells(sweep, subject):
 def build_rows(sweep, ek, formula, arms=False):
     """(group, n) -> figures; group is the family, or the arm with arms=True."""
     timeout_ns = sweep["provenance"]["timeout_seconds"] * 1e9
-    wall = _finished_wall(sweep["timings"])
+    wall = finished_wall(sweep["timings"])
     roots_ek = _metric_by_cell(sweep["structural"], ek, PRODUCT_MTDFA_ROOTS)
     roots_f = _metric_by_cell(sweep["structural"], formula, PRODUCT_MTDFA_ROOTS)
     lt = {(r["family"], r["n"], r["realizable"]): r for r in sweep["ltlfsynt"]}
