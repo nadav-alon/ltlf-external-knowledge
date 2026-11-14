@@ -70,25 +70,38 @@ def _ltlfsynt_ns(sweep, group=family_group):
 def rq2(sweep):
     """Per family (slippery by arm) at the sweep's largest N: knowledge vs no knowledge, and ltlfsynt.
 
-    A no-knowledge side that did not finish reads `t/o`, and the speed-up becomes the lower bound
-    sweep_pairs counts at timeout over the knowledge median.
+    A column reads `t/o` when any of the family's cells did not finish on that side, never a median
+    over the cells that did. With the no-knowledge side unfinished the speed-up becomes the lower
+    bound sweep_pairs counts at timeout over the knowledge median; with the knowledge side
+    unfinished it is `n/a`.
     """
     n = sweep["provenance"]["n_max"]
     pairs = sweep_pairs.build_rows(sweep, SIMP, SIMP_NK, arms=True)
     ltlfsynt_ms = _ltlfsynt_ns(sweep, group=lambda family: family)
+    lt_timed_out = {(r["family"], r["n"]) for r in sweep["ltlfsynt"] if sweep_report.ltlfsynt_timed_out(r)}
     rows = []
     for g in sorted({g for g, _ in pairs}):
         p = pairs.get((g, n))
         if p is None:
             continue
         full, internal = ltlfsynt_ms.get((g, n), (None, None))
+        if (g, n) in lt_timed_out:
+            full = internal = "t/o"
+        else:
+            full, internal = _fmt_ms(full), _fmt_ms(internal)
+        knowledge = _fmt_ms(p["ek_ms"])
         no_knowledge = _fmt_ms(p["formula_ms"])
-        if p["bound"] is None:
+        if p["ek_finished"] < p["cells"]:
+            knowledge = "t/o"
+            speedup = "n/a"
+            # formula_ms covers only cells where knowledge finished, so it is never printed here.
+            no_knowledge = "t/o" if p["unfinished"] else "n/a"
+        elif p["bound"] is None:
             speedup = _fmt_speedup(p["speedup"])
         else:
             speedup = _fmt_speedup(p["bound"], bound=True)
-            no_knowledge = "t/o" if p["formula_ms"] is None else no_knowledge
-        rows.append([g, f"{n}", _fmt_ms(p["ek_ms"]), no_knowledge, speedup, _fmt_ms(full), _fmt_ms(internal)])
+            no_knowledge = "t/o"
+        rows.append([g, f"{n}", knowledge, no_knowledge, speedup, full, internal])
     head = ["family", "$N$", "knowledge (ms)", "no knowledge (ms)", "knowledge speed-up",
             "\\tool{ltlfsynt} (ms)", "\\tool{ltlfsynt} stages (ms)"]
     return _tabular(head, rows)
@@ -97,8 +110,9 @@ def rq2(sweep):
 def rq1(sweep):
     """Per family at the sweep's largest N: each variant's median wall time with / without knowledge.
 
-    A cell with any unfinished repeat is left out; a variant with no finished cell reads `t/o`, and
-    one the family never ran (no psi_in, so no -nk subject) reads `n/a`.
+    A variant reads `t/o` when any of the family's cells has an unfinished repeat, so a median is
+    always over every cell the family ran; one the family never ran (no psi_in, so no -nk subject)
+    reads `n/a`.
     The last column is the family's ltlfsynt verdict mismatches, over every N.
     """
     n = sweep["provenance"]["n_max"]
@@ -108,16 +122,19 @@ def rq1(sweep):
     for (fam, cell_n, _, subject), (_, med) in wall.items():
         if cell_n == n:
             meds[(family_group(fam), subject)].append(med / 1e6)
-    ran = {(family_group(r["family"]), r["subject"]) for r in sweep["timings"] if r["n"] == n}
+    cells_ran = defaultdict(int)
+    for fam, _, subject in {(r["family"], r["realizable"], r["subject"]) for r in sweep["timings"] if r["n"] == n}:
+        cells_ran[(family_group(fam), subject)] += 1
     mismatches = defaultdict(int)
     for r in sweep["ltlfsynt"]:
         mismatches[family_group(r["family"])] += bool(r.get("verdict_mismatch"))
 
     def cell(g, subject):
-        m = _med(meds[(g, subject)])
-        if m is None:
-            return "t/o" if (g, subject) in ran else "n/a"
-        return _fmt_ms(m)
+        if (g, subject) not in cells_ran:
+            return "n/a"
+        if len(meds[(g, subject)]) < cells_ran[(g, subject)]:
+            return "t/o"
+        return _fmt_ms(_med(meds[(g, subject)]))
 
     rows = [[g] + [f"{cell(g, k)} / {cell(g, nk)}" for _, k, nk in RQ1_VARIANTS] + [str(mismatches[g])]
             for g in groups]
@@ -145,8 +162,15 @@ def prune_ratio(sweep):
 
 
 def speedup(sweep):
-    """fig:speedup: ltlfsynt full synthesis over the knowledge subject, per family."""
-    return _plot(sweep_report.build_rows(sweep, SIMP), "speedup_med")
+    """fig:speedup: ltlfsynt full synthesis over the knowledge subject, per family.
+
+    A point is plotted only where every cell of the family at that N finished on both sides, so no
+    point is a median over a subset; an N with a timed-out or failed cell has no point.
+    """
+    rows = sweep_report.build_rows(sweep, SIMP)
+    complete = {g: {n: dict(r, speedup_med=r["speedup_med"] if r["both"] == r["total"] else None)
+                    for n, r in by_n.items()} for g, by_n in rows.items()}
+    return _plot(complete, "speedup_med")
 
 
 def render(sweep):

@@ -33,6 +33,25 @@ class Rq2(unittest.TestCase):
         row = [l for l in spt.rq2(s).splitlines() if l.startswith("zeta ")][0]
         self.assertEqual(row.split(" & ")[3:5], ["t/o", "$\\ge$ 1000.00$\\times$"])
 
+    def test_rq2_reads_t_o_for_a_side_with_an_unfinished_cell_not_the_median_of_the_rest(self):
+        s = hpc_sweep(timings=[timing("zeta", 2, True, K, 1e6, 1e6), timing("zeta", 2, False, K, 1e6, 1e6),
+                               timing("zeta", 2, True, NK, 2e6, 2e6),
+                               timing("zeta", 2, False, NK, 0, None, stage="TIMEOUT")],
+                      ltlfsynt=[lt_row("zeta", 2, True, 20e6, 5e6),
+                                dict(lt_row("zeta", 2, False, 0, 0), status="timeout")])
+        s["provenance"]["timeout_seconds"] = 1
+        row = [l for l in spt.rq2(s).splitlines() if l.startswith("zeta ")][0]
+        self.assertEqual(row.split(" & ")[2:], ["1.00", "t/o", "$\\ge$ 501.00$\\times$", "t/o", "t/o \\\\"])
+
+    def test_rq2_reads_no_knowledge_t_o_only_when_it_timed_out_where_the_knowledge_side_is_partial(self):
+        def row(nk_true):
+            s = hpc_sweep(timings=[timing("zeta", 2, True, K, 1e6, 1e6),
+                                   timing("zeta", 2, False, K, 0, None, stage="TIMEOUT"),
+                                   timing("zeta", 2, False, NK, 3e6, 3e6), nk_true])
+            return [l for l in spt.rq2(s).splitlines() if l.startswith("zeta ")][0].split(" & ")[2:5]
+        self.assertEqual(row(timing("zeta", 2, True, NK, 0, None, stage="TIMEOUT")), ["t/o", "t/o", "n/a"])
+        self.assertEqual(row(timing("zeta", 2, True, NK, 2e6, 2e6)), ["t/o", "n/a", "n/a"])
+
     def test_rq2_lists_each_slippery_arm_on_its_own_row(self):
         s = hpc_sweep(timings=[timing(f, 2, True, k, 2e6, 2e6) for f in ("slippery-binary", "slippery-onehot")
                                for k in (K, NK)])
@@ -55,6 +74,12 @@ class Rq1(unittest.TestCase):
 
     def test_rq1_reads_t_o_for_a_variant_with_no_finished_cell(self):
         s = hpc_sweep(timings=[timing("zeta", 2, True, "dfa-product", 0, None, stage="TIMEOUT")])
+        row = [l for l in spt.rq1(s).splitlines() if l.startswith("zeta ")][0]
+        self.assertEqual(row.split(" & ")[1], "t/o / n/a")
+
+    def test_rq1_reads_t_o_when_only_some_of_a_variants_cells_finished(self):
+        s = hpc_sweep(timings=[timing("zeta", 2, True, "dfa-product", 3e6, 3e6),
+                               timing("zeta", 2, False, "dfa-product", 0, None, stage="TIMEOUT")])
         row = [l for l in spt.rq1(s).splitlines() if l.startswith("zeta ")][0]
         self.assertEqual(row.split(" & ")[1], "t/o / n/a")
 
@@ -83,6 +108,14 @@ class Figures(unittest.TestCase):
                       structural_rows=[structural("zeta", 1, True, K, 3, "product_mtdfa_roots"),
                                        structural("zeta", 1, True, NK, 12, "product_mtdfa_roots")])
         self.assertEqual(spt.prune_ratio(s).splitlines()[0], "\\addplot coordinates {(1,0.25)};")
+
+    def test_speedup_series_omits_an_n_where_a_cell_timed_out(self):
+        s = hpc_sweep(
+            timings=[timing("zeta", 1, True, K, 2e6, 2e6), timing("zeta", 2, True, K, 1e6, 1e6),
+                     timing("zeta", 2, False, K, 1e6, 1e6)],
+            ltlfsynt=[lt_row("zeta", 1, True, 10e6, 1e6), lt_row("zeta", 2, True, 10e6, 1e6),
+                      dict(lt_row("zeta", 2, False, 0, 0), status="timeout")])
+        self.assertEqual(spt.speedup(s).splitlines()[0], "\\addplot coordinates {(1,5)};")
 
     def test_a_family_with_no_figure_has_no_series(self):
         s = hpc_sweep(timings=[timing("zeta", 1, True, K, 2e6, 2e6)])
