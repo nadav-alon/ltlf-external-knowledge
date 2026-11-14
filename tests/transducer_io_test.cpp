@@ -782,10 +782,7 @@ TEST(RoundTrip, EndTokenInCommentFixture) {
                    InFreeKnown(), Role::t_in, dict);
 }
 
-}  // namespace
-
-// A streambuf that accepts `capacity` bytes and then refuses more, standing in
-// for the stream cap that left a 1 GiB transducer behind as success.
+// A streambuf that accepts `capacity` bytes and then refuses more.
 class CappedBuf : public std::streambuf {
  public:
   explicit CappedBuf(std::streamsize capacity) : left_(capacity) {}
@@ -814,3 +811,5 @@ TEST(PrintTransducer, ThrowsWhenTheStreamFailsPartWayThrough) {
   std::ostream out(&buf);
   EXPECT_THROW(print_transducer(out, t), std::ios_base::failure);
 }
+
+}  // namespace

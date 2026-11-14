@@ -400,7 +400,9 @@ the existing term or update this file via `/glossary` — do not let drift happe
   is **meaningless** (see *Output-labeled transducer*) — the accessor exists for
   this writer and carries the same warning. Round-trips by construction:
   `parse_transducer(print_transducer(t))` reproduces $t$ (same states, BDD-equal
-  guards and $\lambda$).
+  guards and $\lambda$). Throws `std::ios_base::failure` if the stream is in a
+  failed state once the transducer is written, since the output is then
+  truncated.
 - **Do not call it:** write, dump, serialize, to_hoa, save_transducer,
   `print_hoa` (Spot's own primitive, the same rule that rejects `ltlf2dfa`).
 

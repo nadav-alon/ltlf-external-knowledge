@@ -302,8 +302,8 @@ void print_transducer(std::ostream& out, const OutputLabeledTransducer& t) {
     out << "state " << q << ": "
         << spot::bdd_to_formula(t.emits_region(q), dict) << "\n";
 
-  // A stream that hit its capacity swallows the rest silently; without this a
-  // truncated transducer (no `--END--`) is reported as written.
+  // Checked once at the end: an unchecked stream failure would let a truncated
+  // transducer (no `--END--`) pass as written.
   if (!out)
     throw std::ios_base::failure("print_transducer: output stream failed");
 }

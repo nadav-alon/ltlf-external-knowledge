@@ -84,6 +84,10 @@ std::optional<std::string> undetermined_variable(
 //      file supply Sigma0/Sigma1; and
 //   2. every AP of t.delta_dfa() lies in partition.universe(), or the reader's
 //      closed-universe check rejects the file it just wrote.
+//
+// Throws std::ios_base::failure if `out` is in a failed state after the whole
+// transducer has been written (a stream already failed on entry included),
+// since what it holds is then truncated.
 void print_transducer(std::ostream& out, const OutputLabeledTransducer& t);
 
 }  // namespace ltlf_ek

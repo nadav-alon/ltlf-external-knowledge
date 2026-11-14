@@ -435,7 +435,7 @@ int main(int argc, char** argv) {
         try {
           ltlf_ek::print_transducer(t_out, *transducer);
         } catch (const std::ios_base::failure& e) {
-          throw IoError("failed writing --transducer: " + *args.transducer +
+          throw IoError("cannot render --transducer for " + *args.transducer +
                         " (" + e.what() + ")");
         }
         artifacts.push_back({*args.transducer, t_out.str(), "--transducer"});
