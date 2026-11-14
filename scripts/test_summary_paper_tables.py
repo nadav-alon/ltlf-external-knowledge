@@ -58,6 +58,12 @@ class Rq1(unittest.TestCase):
         row = [l for l in spt.rq1(s).splitlines() if l.startswith("zeta ")][0]
         self.assertEqual(row.split(" & ")[1], "t/o / n/a")
 
+    def test_rq1_reads_t_o_when_only_some_of_a_variants_cells_finished(self):
+        s = hpc_sweep(timings=[timing("zeta", 2, True, "dfa-product", 3e6, 3e6),
+                               timing("zeta", 2, False, "dfa-product", 0, None, stage="TIMEOUT")])
+        row = [l for l in spt.rq1(s).splitlines() if l.startswith("zeta ")][0]
+        self.assertEqual(row.split(" & ")[1], "t/o / n/a")
+
     def test_rq1_reads_n_a_for_a_variant_the_family_never_ran(self):
         s = hpc_sweep(timings=[timing("zeta", 2, True, "dfa-product", 3e6, 3e6)])
         row = [l for l in spt.rq1(s).splitlines() if l.startswith("zeta ")][0]

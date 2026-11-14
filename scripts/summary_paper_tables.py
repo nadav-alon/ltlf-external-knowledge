@@ -97,8 +97,9 @@ def rq2(sweep):
 def rq1(sweep):
     """Per family at the sweep's largest N: each variant's median wall time with / without knowledge.
 
-    A cell with any unfinished repeat is left out; a variant with no finished cell reads `t/o`, and
-    one the family never ran (no psi_in, so no -nk subject) reads `n/a`.
+    A variant reads `t/o` when any of the family's cells has an unfinished repeat, so a median is
+    always over every cell the family ran; one the family never ran (no psi_in, so no -nk subject)
+    reads `n/a`.
     The last column is the family's ltlfsynt verdict mismatches, over every N.
     """
     n = sweep["provenance"]["n_max"]
@@ -109,15 +110,19 @@ def rq1(sweep):
         if cell_n == n:
             meds[(family_group(fam), subject)].append(med / 1e6)
     ran = {(family_group(r["family"]), r["subject"]) for r in sweep["timings"] if r["n"] == n}
+    cells_ran = defaultdict(int)
+    for k in {(r["family"], r["realizable"], r["subject"]) for r in sweep["timings"] if r["n"] == n}:
+        cells_ran[(family_group(k[0]), k[2])] += 1
     mismatches = defaultdict(int)
     for r in sweep["ltlfsynt"]:
         mismatches[family_group(r["family"])] += bool(r.get("verdict_mismatch"))
 
     def cell(g, subject):
-        m = _med(meds[(g, subject)])
-        if m is None:
-            return "t/o" if (g, subject) in ran else "n/a"
-        return _fmt_ms(m)
+        if (g, subject) not in ran:
+            return "n/a"
+        if len(meds[(g, subject)]) < cells_ran[(g, subject)]:
+            return "t/o"
+        return _fmt_ms(_med(meds[(g, subject)]))
 
     rows = [[g] + [f"{cell(g, k)} / {cell(g, nk)}" for _, k, nk in RQ1_VARIANTS] + [str(mismatches[g])]
             for g in groups]
