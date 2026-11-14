@@ -6,22 +6,15 @@ import tempfile
 import unittest
 
 import hard_instances as hi
+import hard_race as hr
 
 BUILD = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build")
 SYNTH, DEPS = os.path.join(BUILD, "ltlf-ek-synth"), os.path.join(BUILD, "ltlf-ek-deps")
 HAVE_BINARIES = os.path.exists(SYNTH) and os.path.exists(DEPS)
-SYNTH_FLAGS = ["--otf-mtdfa-product", "--otf-solve", "--simplify-formula", "--realizable"]
-
-
-def write(dirname, inst):
-    for name, text in hi.files(inst).items():
-        with open(os.path.join(dirname, name), "w") as f:
-            f.write(text)
-    return os.path.join(dirname, inst["name"])
 
 
 def verdict(*args):
-    return subprocess.run([SYNTH, *SYNTH_FLAGS, *args], capture_output=True, text=True).stdout.strip()
+    return subprocess.run([SYNTH, *hr.SYNTH_FLAGS, *args], capture_output=True, text=True).stdout.strip()
 
 
 class HardInstances(unittest.TestCase):
@@ -50,7 +43,7 @@ class HardInstances(unittest.TestCase):
     def test_the_compact_tout_leaves_the_verdict_of_a_small_instance_unchanged(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as d:
             for inst in (hi.mux(4), hi.shift(3)):
-                base = write(d, inst)
+                base = hi.write(d, inst)
                 formula = inst["formula"]
                 known = base + ".known.part"
                 with open(known, "w") as f:
@@ -63,7 +56,7 @@ class HardInstances(unittest.TestCase):
     def test_deps_finds_the_output_of_mux_exactly_at_a_power_of_two(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as d:
             for n, hit in ((4, True), (6, False)):
-                base = write(d, hi.mux(n))
+                base = hi.write(d, hi.mux(n))
                 out = subprocess.run([DEPS, "--direction", "out", "--part-file", base + ".part", "--formula",
                                       hi.mux(n)["formula"]], capture_output=True, text=True).stdout
                 self.assertEqual("dependent outputs: out" in out, hit, "mux-%d: %s" % (n, out))

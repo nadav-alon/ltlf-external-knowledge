@@ -2,6 +2,7 @@
 """Tests for hard_race.py. The ones that run the binaries are skipped without build/ltlf-ek-*."""
 import json
 import os
+import shutil
 import tempfile
 import unittest
 
@@ -9,6 +10,7 @@ import hard_instances as hi
 import hard_race as hr
 
 HAVE_BINARIES = all(os.path.exists(os.path.join(hr.REPO, "build", b)) for b in ("ltlf-ek-synth", "ltlf-ek-deps"))
+HAVE_LTLFSYNT = shutil.which("ltlfsynt") is not None
 
 
 def cell(instance, arm, verdict, status="ok"):
@@ -42,22 +44,27 @@ class HardRace(unittest.TestCase):
         self.assertTrue({"shift-%d" % n for n in range(20, 41)} <= names)
         self.assertIn("TwoCountersDisButAC", names)
 
-    @unittest.skipUnless(HAVE_BINARIES, "needs build/ltlf-ek-synth and build/ltlf-ek-deps")
-    def test_a_small_race_names_the_arm_of_every_cell_and_the_arms_agree(self):
+    def small_race(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as d:
             for inst in (hi.mux(4), hi.mux(6), hi.shift(3)):
-                for name, text in hi.files(inst).items():
-                    with open(os.path.join(d, name), "w") as f:
-                        f.write(text)
+                hi.write(d, inst)
             out = os.path.join(d, "run.json")
             self.assertEqual(hr.main(["--specs", d, "--out", out, "--timeout", "60"]), 0)
             with open(out) as f:
                 run = json.load(f)
-        arms = {(c["instance"], c["arm"]): c for c in run["cells"]}
+        return run, {(c["instance"], c["arm"]): c for c in run["cells"]}
+
+    @unittest.skipUnless(HAVE_BINARIES and HAVE_LTLFSYNT, "needs build/ltlf-ek-* and ltlfsynt")
+    def test_every_cell_of_a_small_race_names_its_arm(self):
+        _, arms = self.small_race()
         self.assertEqual({a for (i, a) in arms if i == "shift-3"}, set(hr.ARMS))
         self.assertEqual({a for (i, a) in arms if i == "mux-6"}, {"nk", "ltlfsynt", "ek-derived"})
         self.assertEqual(arms[("mux-6", "ek-derived")]["status"], "none")
-        self.assertTrue(all(c["status"] == "ok" for k, c in arms.items() if k[1] != "ek-derived" or k[0] != "mux-6"))
+        self.assertTrue(all(c["status"] == "ok" for k, c in arms.items() if k != ("mux-6", "ek-derived")))
+
+    @unittest.skipUnless(HAVE_BINARIES and HAVE_LTLFSYNT, "needs build/ltlf-ek-* and ltlfsynt")
+    def test_the_arms_of_a_small_race_agree_on_every_verdict(self):
+        run, _ = self.small_race()
         self.assertEqual(run["verdict_mismatches"], {})
 
 

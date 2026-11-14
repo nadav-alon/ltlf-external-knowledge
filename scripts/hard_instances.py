@@ -76,6 +76,14 @@ def tout_text(inst):
             % (len(aps), " ".join('"%s"' % a for a in aps), inst["tout"]))
 
 
+def write(dirname, inst):
+    """Write inst's files into dirname; the path prefix of the instance (without extension)."""
+    for name, text in files(inst).items():
+        with open(os.path.join(dirname, name), "w") as f:
+            f.write(text)
+    return os.path.join(dirname, inst["name"])
+
+
 def files(inst):
     out = {inst["name"] + ".ltlf": inst["formula"] + "\n",
            inst["name"] + ".part": part_text(inst["inputs"], inst["outputs"])}

@@ -12,7 +12,8 @@ hand-written compact Tout exists) is run under four arms, each a cell of the JSO
                reads them; extract_s is the deps stage, synth_s the synthesis, wall_s their sum
   ek-compact   ltlf-ek-synth with the hand-written Tout and every output known
 
-ltlf-ek-synth runs --otf-mtdfa-product --otf-solve --simplify-formula in every EK and NK cell. A
+ltlf-ek-synth runs --otf-mtdfa-product --otf-solve --simplify-formula --realizable in every EK and
+NK cell; --realizable only suppresses printing the controller, which is still built. A
 cell names its arm and ends as ok (verdict REALIZABLE / UNREALIZABLE), timeout, error, or none
 (ek-derived only: no output dependency found, so there is no Tout to race). The run's
 verdict_mismatches lists every instance on which two finished arms disagree.
@@ -28,6 +29,8 @@ import subprocess
 import sys
 import tempfile
 import time
+
+import hard_instances
 
 REPO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 DEFAULT_SPECS = os.path.join(REPO, "tests", "data", "hard-instances")
@@ -64,24 +67,29 @@ def run(argv, timeout):
     return p.returncode, p.stdout, time.monotonic() - t0
 
 
+def cell(arm, status, wall, verdict=None, **extra):
+    """One cell of the run JSON: the only place that knows its keys."""
+    return {"arm": arm, "status": status, "verdict": verdict, "wall_s": wall, **extra}
+
+
 def synth_cell(arm, synth, formula, args, timeout):
     rc, out, wall = run([synth, *SYNTH_FLAGS, "--formula", formula, *args], timeout)
     if rc is None:
-        return {"arm": arm, "status": "timeout", "verdict": None, "wall_s": wall}
+        return cell(arm, "timeout", wall)
     if rc in VERDICTS:
-        return {"arm": arm, "status": "ok", "verdict": VERDICTS[rc], "wall_s": wall}
-    return {"arm": arm, "status": "error", "verdict": None, "wall_s": wall, "rc": rc}
+        return cell(arm, "ok", wall, VERDICTS[rc])
+    return cell(arm, "error", wall, rc=rc)
 
 
 def ltlfsynt_cell(ltlfsynt, formula, part, timeout):
     rc, out, wall = run([ltlfsynt, "--ins=" + ",".join(part["input_free"]),
                          "--outs=" + ",".join(part["output_free"]), "-f", formula], timeout)
     if rc is None:
-        return {"arm": "ltlfsynt", "status": "timeout", "verdict": None, "wall_s": wall}
+        return cell("ltlfsynt", "timeout", wall)
     verdict = out.split("\n", 1)[0].strip()
     if rc in (0, 1) and verdict in VERDICTS.values():
-        return {"arm": "ltlfsynt", "status": "ok", "verdict": verdict, "wall_s": wall}
-    return {"arm": "ltlfsynt", "status": "error", "verdict": None, "wall_s": wall, "rc": rc}
+        return cell("ltlfsynt", "ok", wall, verdict)
+    return cell("ltlfsynt", "error", wall, rc=rc)
 
 
 def derived_cell(build, formula, part_path, scratch, timeout):
@@ -89,24 +97,22 @@ def derived_cell(build, formula, part_path, scratch, timeout):
     rc, out, extract = run([os.path.join(build, "ltlf-ek-deps"), "--direction", "out", "--formula", formula,
                             "--part-file", part_path, "--emit-part", emitted, "--transducer", tout], timeout)
     if rc is None:
-        return {"arm": "ek-derived", "status": "timeout", "verdict": None, "wall_s": extract, "extract_s": extract}
+        return cell("ek-derived", "timeout", extract, extract_s=extract)
     if rc != 0:
-        return {"arm": "ek-derived", "status": "error", "verdict": None, "wall_s": extract, "extract_s": extract,
-                "rc": rc}
+        return cell("ek-derived", "error", extract, extract_s=extract, rc=rc)
     if not os.path.exists(tout):
-        return {"arm": "ek-derived", "status": "none", "verdict": None, "wall_s": extract, "extract_s": extract}
-    cell = synth_cell("ek-derived", os.path.join(build, "ltlf-ek-synth"), formula,
+        return cell("ek-derived", "none", extract, extract_s=extract)
+    synthed = synth_cell("ek-derived", os.path.join(build, "ltlf-ek-synth"), formula,
                       ["--part-file", emitted, "--known-output-transducer", tout],
                       max(timeout - extract, 1))
-    cell.update(extract_s=extract, synth_s=cell["wall_s"], wall_s=extract + cell["wall_s"])
-    return cell
+    synthed.update(extract_s=extract, synth_s=synthed["wall_s"], wall_s=extract + synthed["wall_s"])
+    return synthed
 
 
 def compact_cell(build, formula, part, tout_path, scratch, timeout):
     known = os.path.join(scratch, "compact.part")
     with open(known, "w") as f:
-        f.write("input_free: %s\ninput_known:\noutput_free:\noutput_known: %s\n"
-                % (" ".join(part["input_free"]), " ".join(part["output_free"])))
+        f.write(hard_instances.part_text(part["input_free"], part["output_free"], known=part["output_free"]))
     return synth_cell("ek-compact", os.path.join(build, "ltlf-ek-synth"), formula,
                       ["--part-file", known, "--known-output-transducer", tout_path], timeout)
 
