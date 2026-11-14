@@ -87,7 +87,8 @@ class HardRace(unittest.TestCase):
     def test_every_cell_of_a_small_race_names_its_arm(self):
         _, arms = self.small_race()
         self.assertEqual({a for (i, a) in arms if i == "shift-3"}, set(hr.ARMS))
-        self.assertEqual({a for (i, a) in arms if i == "mux-6"}, {"nk", "ltlfsynt", "ek-derived"})
+        self.assertEqual({a for (i, a) in arms if i == "mux-6"},
+                         set(hr.ARMS) - {"ek-derived-fixed"})
         self.assertEqual(arms[("mux-6", "ek-derived")]["status"], "none")
         self.assertTrue(all(c["status"] == "ok" for k, c in arms.items() if k != ("mux-6", "ek-derived")))
 
