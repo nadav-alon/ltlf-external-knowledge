@@ -550,6 +550,30 @@ TEST(LtlfEkDepsExitCodes, UnsatisfiableFormulaExitsThreeAndWritesNothing) {
       << "unsatisfiable phi must write no artifacts";
 }
 
+// A transducer whose %%LAMBDA line outgrows Spot's n-ary formula limit (the
+// sum-of-products of an 18-input parity, as on SYNTCOMP `shift` n>=16) makes
+// emission throw "too many children for formula".  That is an internal error
+// and must exit 1 with nothing installed, never 0 with the artifacts missing.
+TEST(LtlfEkDepsExitCodes, OversizedTransducerEmissionExitsOneAndWritesNothing) {
+  std::string inputs, parity;
+  for (int i = 1; i <= 18; ++i) {
+    inputs += (i > 1 ? ",a" : "a") + std::to_string(i);
+    parity += (i > 1 ? " xor a" : "a") + std::to_string(i);
+  }
+  const ScopedTempFile emit_part;
+  const ScopedTempFile transducer;
+  const CliResult deps =
+      RunEkDeps({"--formula=G(x <-> (" + parity + "))", "--inputs", inputs,
+                 "--outputs", "x", "--emit-part", emit_part.path(),
+                 "--transducer", transducer.path()});
+  EXPECT_EQ(deps.exit_code, 1) << deps.stderr_text;
+  EXPECT_NE(deps.stderr_text.find("too many children"), std::string::npos)
+      << deps.stderr_text;
+  EXPECT_EQ(std::ifstream(emit_part.path()).peek(), -1)
+      << "the part file must not be written when the transducer cannot be";
+  EXPECT_EQ(std::ifstream(transducer.path()).peek(), -1);
+}
+
 // ---------------------------------------------------------------------------
 // --verbose. Previously exercised by nothing, and unexercisable in any useful
 // sense: the CLI re-derived liveness/live-regions/the greedy walk from its own
