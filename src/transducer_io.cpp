@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <ios>
 #include <set>
 #include <sstream>
 #include <stdexcept>
@@ -300,6 +301,11 @@ void print_transducer(std::ostream& out, const OutputLabeledTransducer& t) {
   for (unsigned q = 0; q < n_states; ++q)
     out << "state " << q << ": "
         << spot::bdd_to_formula(t.emits_region(q), dict) << "\n";
+
+  // A stream that hit its capacity swallows the rest silently; without this a
+  // truncated transducer (no `--END--`) is reported as written.
+  if (!out)
+    throw std::ios_base::failure("print_transducer: output stream failed");
 }
 
 }  // namespace ltlf_ek

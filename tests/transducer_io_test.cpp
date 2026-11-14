@@ -1,6 +1,9 @@
+#include <algorithm>
+#include <ios>
 #include <optional>
 #include <set>
 #include <sstream>
+#include <streambuf>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -780,3 +783,34 @@ TEST(RoundTrip, EndTokenInCommentFixture) {
 }
 
 }  // namespace
+
+// A streambuf that accepts `capacity` bytes and then refuses more, standing in
+// for the stream cap that left a 1 GiB transducer behind as success.
+class CappedBuf : public std::streambuf {
+ public:
+  explicit CappedBuf(std::streamsize capacity) : left_(capacity) {}
+
+ protected:
+  int_type overflow(int_type c) override {
+    if (left_ == 0) return traits_type::eof();
+    --left_;
+    return traits_type::not_eof(c);
+  }
+  std::streamsize xsputn(const char*, std::streamsize n) override {
+    const std::streamsize took = std::min(n, left_);
+    left_ -= took;
+    return took;
+  }
+
+ private:
+  std::streamsize left_;
+};
+
+TEST(PrintTransducer, ThrowsWhenTheStreamFailsPartWayThrough) {
+  auto dict = spot::make_bdd_dict();
+  const OutputLabeledTransducer t =
+      Parse(kExample, InFreeKnown(), Role::t_in, dict);
+  CappedBuf buf(16);
+  std::ostream out(&buf);
+  EXPECT_THROW(print_transducer(out, t), std::ios_base::failure);
+}

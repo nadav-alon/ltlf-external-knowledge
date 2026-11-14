@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <ios>
 #include <iostream>
 #include <optional>
 #include <set>
@@ -431,7 +432,12 @@ int main(int argc, char** argv) {
     if (args.transducer) {
       if (transducer) {
         std::ostringstream t_out;
-        ltlf_ek::print_transducer(t_out, *transducer);
+        try {
+          ltlf_ek::print_transducer(t_out, *transducer);
+        } catch (const std::ios_base::failure& e) {
+          throw IoError("failed writing --transducer: " + *args.transducer +
+                        " (" + e.what() + ")");
+        }
         artifacts.push_back({*args.transducer, t_out.str(), "--transducer"});
       } else {
         stale_transducer = *args.transducer;  // see RemoveStaleTransducer
