@@ -39,15 +39,21 @@ def _value(bus, v, width):
     return " & ".join(("%s%d" if (v >> i) & 1 else "!%s%d") % (bus, i) for i in range(width))
 
 
+def _selects(n):
+    """(the select bus reads i, i) for each input i of an n-way mux."""
+    w = nbits(n)
+    return [(_value("select", i, w), i) for i in range(n)]
+
+
 def mux(n):
     w = nbits(n)
-    body = " & ".join("((%s) -> (out <-> in%d))" % (_value("select", i, w), i) for i in range(n))
+    body = " & ".join("((%s) -> (out <-> in%d))" % (sel, i) for sel, i in _selects(n))
     return {
         "name": "mux-%d" % n,
         "formula": "G(%s)" % body,
         "inputs": ["select%d" % i for i in range(w)] + ["in%d" % i for i in range(n)],
         "outputs": ["out"],
-        "tout": "out <-> (%s)" % " | ".join("(%s & in%d)" % (_value("select", i, w), i) for i in range(n)),
+        "tout": "out <-> (%s)" % " | ".join("(%s & in%d)" % (sel, i) for sel, i in _selects(n)),
     }
 
 

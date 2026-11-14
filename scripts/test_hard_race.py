@@ -95,9 +95,10 @@ class HardRace(unittest.TestCase):
     @unittest.skipUnless(HAVE_BINARIES and HAVE_LTLFSYNT, "needs build/ltlf-ek-* and ltlfsynt")
     def test_a_realizable_fixed_cell_has_its_controller_verified(self):
         run, arms = self.small_race()
-        for arm in ("ek-compact-fixed", "ek-derived-fixed"):
-            got = arms[("shift-3", arm)]
-            self.assertEqual((got["verdict"], got.get("controller")), ("REALIZABLE", "verified"))
+        for key in (("shift-3", "ek-compact-fixed"), ("shift-3", "ek-derived-fixed"),
+                    ("mux-6", "ek-compact-fixed")):
+            got = arms[key]
+            self.assertEqual((got["verdict"], got.get("controller")), ("REALIZABLE", "verified"), key)
         self.assertEqual(run["fixed_failures"], [])
         self.assertIn("met", run["bar"])
 

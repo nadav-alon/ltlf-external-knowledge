@@ -28,10 +28,14 @@ class HardInstances(unittest.TestCase):
     def test_mux_needs_ceil_log2_n_select_bits(self):
         self.assertEqual([hi.nbits(n) for n in (1, 2, 3, 4, 16, 17, 64)], [1, 1, 2, 2, 4, 5, 6])
 
-    def test_mux_has_the_same_compact_tout_formula_at_every_size(self):
+    def test_the_compact_mux_tout_of_three_inputs_is_the_hand_written_formula(self):
+        self.assertEqual(hi.mux(3)["tout"],
+                         "out <-> ((!select0 & !select1 & in0) | (select0 & !select1 & in1)"
+                         " | (!select0 & select1 & in2))")
+
+    def test_the_compact_mux_tout_has_one_disjunct_per_input_at_every_size(self):
         for n in (16, 17, 33):
-            self.assertTrue(hi.mux(n)["tout"].startswith("out <-> ((!select0"), n)
-            self.assertEqual(hi.mux(n)["tout"].count(" | "), n - 1)
+            self.assertEqual(hi.mux(n)["tout"].count(" | "), n - 1, n)
 
     def test_shift_tout_is_one_state(self):
         self.assertIn("States: 1\n", hi.tout_text(hi.shift(3)))

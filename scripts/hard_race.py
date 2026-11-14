@@ -4,7 +4,8 @@
     python3 scripts/hard_race.py [--specs DIR] [--out FILE.json] [--timeout S] [--family F] [--n-min N] [--n-max N]
 
 Every instance of DIR (tests/data/hard-instances: NAME.ltlf, NAME.part, and NAME.tout where a
-hand-written compact Tout exists: every mux and shift) is run under four arms, each a cell of the JSON:
+hand-written compact Tout exists: every mux and shift; at a mux size that is not a power of 2 the
+Tout sets `out` false for select values >= n, where the formula leaves it free: see hard_instances.py) is run under four arms, each a cell of the JSON:
 
   nk           ltlf-ek-synth, no knowledge (the instance's own part file)
   ltlfsynt     Spot's ltlfsynt, full synthesis (the controller is built, then discarded), same formula
