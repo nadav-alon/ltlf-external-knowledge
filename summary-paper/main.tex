@@ -15,7 +15,7 @@
 \usepackage{pgfplots}
 \pgfplotsset{compat=1.18}
 \usetikzlibrary{automata,positioning,arrows.meta}
-\usepackage{hyperref}
+\usepackage[colorlinks,allcolors=blue!50!black]{hyperref}
 \usepackage{cleveref}
 % \usepackage[disable]{todonotes}
 \usepackage{todonotes}
@@ -35,7 +35,8 @@
 \algrenewcommand{\algorithmicensure}{\textbf{Output:}}
 
 \input{macros}
-% \guidesfalse % uncomment to hide every writing guide
+\guidesfalse % comment out to show every writing guide
+\clnotesfalse % comment out to show the \cl review notes
 
 \title{LTLf Synthesis with External Knowledge}
 \author{Nadav Alon}
@@ -45,8 +46,14 @@
 \maketitle
 
 \begin{abstract}
-Progress report on $\LTLf$ with external knowledge work. The problem is synthesis of an $\LTLf$ formula $\varphi$ assuming the possible traces are limited to those consistent with transducers $\Tin$ and $\Tout$, for input and output respectively. This idea was motivated by the TACAS'24 paper on output dependencies; this generalizes the idea to input dependencies. The method we suggest uses MTDFA with on-the-fly formula progression and game solving, which hopefully prunes out enough paths that the original formula considers possible to outweigh the cost of the product.
-In practice, trying to apply this to input transducers has resulted in suboptimal results; at problems that are large enough to cost Spot's \tool{ltlfsynt} tool an hour we only gain a 3x speedup, not significant enough, while in smaller problems we lose outright. A comparison with output dependencies is difficult to make, as the output dependencies results are for LTL and would need revising to compare.
+This is a progress report on our work on $\LTLf$ synthesis with external knowledge.
+The problem is synthesis of an $\LTLf$ formula $\varphi$ when the possible traces are limited to those consistent with transducers $\Tin$ and $\Tout$, for inputs and outputs respectively.
+The idea came from the TACAS'24 paper on output dependencies~\cite{AkshayBCF2024}; we generalize it to input dependencies, and further to any known component.
+Our methods take the product of an automaton for $\varphi$ with the transducers and solve the resulting game, in the hope that the knowledge prunes enough of the game to outweigh the cost of the product.
+In practice the gains are limited.
+With input knowledge, we get large speedups over the same problem without knowledge only on families built for it (up to $24\times$ and over $100\times$), and none when the knowledge is cheap to write into the formula.
+Against Spot's \tool{ltlfsynt}, our speedups at small sizes come mostly from its fixed startup cost, and they shrink as the problems grow.
+With output dependencies on the TACAS'24 families, \tool{ltlfsynt} is faster wherever it finishes.
 \end{abstract}
 
 \tableofcontents
@@ -64,10 +71,5 @@ In practice, trying to apply this to input transducers has resulted in suboptima
 
 \bibliographystyle{plain}
 \bibliography{refs}
-
-\appendix
-\input{sections/A-proofs}
-\input{sections/B-full-results}
-\input{sections/C-reproducibility}
 
 \end{document}

@@ -40,21 +40,21 @@ The benchmark sweeps do not model-check controllers, and the SYNTCOMP instances 
 
 \subsubsection{Mismatches}
 
-\texttt{parity-t3} was designed as realizable, but all methods agree it is not; the design was wrong.
-SYNTCOMP publishes Moore verdicts, which differ from Mealy on $11$ instances, so we compare against \tool{ltlfsynt} in Mealy mode.
+\texttt{parity-t3} was meant to be realizable, but all methods agree it is not, so the family was designed wrong.
+SYNTCOMP publishes Moore verdicts, which differ from Mealy on $11$ instances, so we compare against \tool{ltlfsynt} in Mealy mode instead.
 
 \subsection{RQ2: Impact of Knowledge on Solve Time}\label{sec:rq2}
 
 Knowledge pays off when folding it into the formula makes the formula expensive to translate: up to $24\times$ on \texttt{co-generated} and over $100\times$ on \texttt{slippery-*}.
 Where the folded formula stays small, as on \texttt{cons-prunes}, knowledge gives no speedup.
-All timings are from the HPC sweep: our DFA product (\cref{sec:dfa}), medians of five repeats, 20\,s timeout, $n = 2..6$.
+All timings are of our DFA product (\cref{sec:dfa}), from the sweep of \cref{sec:benchmarks}.
 
 \subsubsection{Product Size}
 
 Knowledge shrinks the product when it fixes an input the goal depends on (\cref{fig:prune}).
 At $n = 6$ the product is $13\%$ of the unpruned one on \texttt{cons-prunes} and $22\%$ on \texttt{knowledge-chain}, and the ratio keeps falling with $n$.
 On \texttt{co-generated} the knowledge adds states instead, because $\Tin$ itself has $2^n$ states.
-\texttt{slippery-*} is left out: its goal ignores the grid, so the unpruned product has two states and the ratio only measures $|\Tin|$.
+\texttt{slippery-*} is left out: its goal $F(\text{cell})$ has only two states, so the ratio only measures $|\Tin|$.
 
 \begin{figure}[H]
 \centering
@@ -84,7 +84,7 @@ On \texttt{co-generated} the gap grows from $1.2\times$ to $24\times$; on \textt
 
 \subsubsection{Against \tool{ltlfsynt}}
 
-\tool{ltlfsynt} decides realizability of $\psiin\rightarrow\varphi$ in Mealy mode and takes about 12\,ms on any instance, so the $4$--$6\times$ speedups at small $n$ are its fixed cost, not the knowledge.
+\tool{ltlfsynt} takes about 12\,ms on any instance, even the smallest, so the $4$--$6\times$ speedups at small $n$ come from this fixed cost and say nothing about the knowledge.
 As $n$ grows the gap closes, except on \texttt{slippery-onehot} ($12\times$ at $n = 6$) and on unrealizable \texttt{co-generated}, where \tool{ltlfsynt} times out from $n = 5$.
 
 \begin{figure}[H]
@@ -131,7 +131,8 @@ Lines stop where a baseline times out.}\label{fig:speedup}
 \centering
 \small
 \caption{RQ2 at $n = 6$.
-Speedup is baseline time over ours; ``timeout'' means the baseline did not finish in 20\,s.}\label{tab:rq2}
+``timeout'' means the baseline did not finish in 20\,s.
+For \texttt{co-generated} against \tool{ltlfsynt}, the realizable variant / the unrealizable one.}\label{tab:rq2}
 \begin{tabular}{lccc}
 \toprule
 Family & Product / unpruned & vs.\ no-knowledge & vs.\ \tool{ltlfsynt} \\
@@ -150,7 +151,8 @@ Family & Product / unpruned & vs.\ no-knowledge & vs.\ \tool{ltlfsynt} \\
 
 \subsection{Output Dependencies}\label{sec:outdep-results}
 
-We ran our method with output-dependency knowledge on the TACAS'24 families~\cite{AkshayBCF2024}, with $\Tout$ built from the dependencies of \cref{sec:dependencies}, interpreted as LTLf.
+We ran our method with output-dependency knowledge on the TACAS'24 families~\cite{AkshayBCF2024}, with $\Tout$ built from the dependencies of \cref{sec:dependencies}.
+The families are LTL specifications; we read them as $\LTLf$ formulas.
 
 We compare six arms:
 \begin{itemize}
@@ -166,7 +168,8 @@ All arms agree on every verdict where they finish, and every controller we could
 \begin{table}[H]
 \centering
 \small
-\caption{Output dependencies: wall time in seconds, at the sizes that have a knowledge arm.}\label{tab:outdep-results}
+\caption{Output dependencies: wall time in seconds, at the sizes that have a knowledge arm.
+``timeout'' means over 120\,s; --- means the arm does not exist at that size; $^\dagger$ means the controller could not be verified (the verifier ran out of memory).}\label{tab:outdep-results}
 \begin{tabular}{lcccccc}
 \toprule
 Instance & no-knowledge & \tool{ltlfsynt} & derived & compact & derived-fixed & compact-fixed \\
@@ -184,7 +187,7 @@ Instance & no-knowledge & \tool{ltlfsynt} & derived & compact & derived-fixed & 
 \subsubsection{Against the No-Knowledge Product}
 
 $\Tout$ on its own makes our method slower: \emph{derived} and \emph{compact} both lose to the no-knowledge product.
-Fixing the dependent outputs is what helps: \emph{compact-fixed} is $8\times$ faster on \texttt{mux}-16 and $1.74\times$ on \texttt{shift}-20.
+Only the fixed arms are faster: \emph{compact-fixed} is $8\times$ faster on \texttt{mux}-16 and $1.74\times$ on \texttt{shift}-20.
 
 \subsubsection{Against \tool{ltlfsynt}}
 On every instance where \tool{ltlfsynt} finishes, it is faster than our method, even with fixed outputs.
@@ -192,5 +195,7 @@ On every instance where \tool{ltlfsynt} finishes, it is faster than our method, 
 \subsection{Negative and Surprising Results}
 \guide{Degenerate families, non-reproductions, cases with no gain. Keep them; they are findings.}
 
-Knowledge that prunes the product does not by itself save time: on \texttt{cons-prunes} the product shrinks to $13\%$, yet our method is $0.71\times$ the no-knowledge product at $n = 6$, and on \texttt{co-generated} the knowledge grows the product instead of pruning it.
+A smaller product does not mean a faster solve.
+On \texttt{cons-prunes} the product shrinks to $13\%$, yet we are slower than the no-knowledge product at $n = 6$ ($0.71\times$), because the folded formula there is cheap to translate.
+On \texttt{co-generated} it is the other way around: the knowledge makes the product larger, yet we are $24\times$ faster, because the folded formula is expensive.
 

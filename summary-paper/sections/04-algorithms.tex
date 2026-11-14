@@ -3,17 +3,16 @@
 \guide{Shared interface: every method takes $(\varphi,\mathcal{I},\mathcal{O},\Tin,\Tout)$ and returns
 a controller or ``unrealizable''. State the common correctness claim once here.}
 
-We present three methods for solving the problem of \cref{def:problem}. The first method translates the $\LTLf$ specification to an NFA, then takes the product with the external-knowledge transducers and solves the resulting game. The second method translates the specification to a DFA, then takes the product with the transducers and solves the resulting game. The third method performs the DFA product on-the-fly, exploring only the part of the product that is reachable in the game.
-
-All methods solve the problem of \cref{def:problem} through one shared interface.
-Each takes an $\LTLf$ specification $\varphi$ over input variables $\mathcal{I}$ and output variables $\mathcal{O}$, together with the external-knowledge transducers $\Tin$ and $\Tout$.
-Each returns either a controller $T_C$ under which every trace consistent with $\Tin$ and $\Tout$ (\cref{def:consistency}) satisfies $\varphi$, or \textsc{Unrealizable}.
+We present three methods for solving the problem of \cref{def:problem}.
+Each takes an $\LTLf$ specification $\varphi$ over $\mathcal{I}$ and $\mathcal{O}$ and the transducers $\Tin$ and $\Tout$, and returns either a controller $T_C$ under which every trace consistent with $\Tin$ and $\Tout$ (\cref{def:consistency}) satisfies $\varphi$, or \textsc{Unrealizable}.
+All three take the product of an automaton for $\varphi$ with the transducers and solve the resulting game; they differ in the automaton and in how much of the product they build.
+The first method uses an NFA for $\varphi$, the second a DFA, and the third builds the DFA product on the fly, exploring only the part of the product that is reachable in the game.
 
 \subsection{Method 1: NFA Product}\label{sec:nfa}
 \subsubsection{From \texorpdfstring{$\LTLf$}{LTLf} to a Small NFA}
 \guide{Formula mirror, reversal; size theorem.}
 We build the NFA for $\varphi$ in three steps.
-First, we take the \emph{mirror} $\mirror{\varphi}$, the past-$\LTLf$ formula obtained by replacing each future operator of $\varphi$ with its past dual, so that $w \models \varphi$ if and only if $\rev{w}$ satisfies $\mirror{\varphi}$ at its last position.
+First, we take the \emph{mirror} $\mirror{\varphi}$, the past-$\LTLf$ formula obtained by replacing each operator of $\varphi$ with its past counterpart, so that $w \models \varphi$ if and only if $\rev{w}$ satisfies $\mirror{\varphi}$ at its last position.
 Second, we translate $\mirror{\varphi}$ to a DFA $D$, which accepts the reverse language $\{\rev{w} : w \models \varphi\}$.
 Third, we reverse every edge of $D$, starting from $D$'s accepting states and accepting only in $D$'s initial state, which yields an NFA $N$ with $L(N) = L(\varphi)$.
 
@@ -23,7 +22,7 @@ The product $P$ runs $N$, $\Tin$ and $\Tout$ in lockstep, so its states are trip
 On a letter $v \in 2^{\mathcal{V}}$, $P$ moves from $(q, s, t)$ to $(q', \delta_{\Tin}(s, v), \delta_{\Tout}(t, v))$ for every $q' \in \delta_N(q, v)$, but only if $v$ agrees with both transducers' outputs, that is, $\lambda_{\Tin}(s, v|_{\Ifree}) = v|_{\Iknown}$ and $\lambda_{\Tout}(t, v|_{\mathcal{I} \cup \Ofree}) = v|_{\Oknown}$.
 
 Letters that disagree with the transducers have no transition in $P$, so $L(P)$ is exactly the set of traces in $L(\varphi)$ that are consistent with $\Tin$ and $\Tout$ (\cref{def:consistency}).
-This is how the external knowledge prunes the game: traces that $\varphi$ alone would allow, but that the transducers rule out, never appear in $P$.
+Traces that $\varphi$ alone would allow but the transducers rule out never appear in $P$, and this is where the knowledge prunes the game.
 
 $P$ is still nondeterministic, because $N$ is; we determinize it only when solving the game (\cref{sec:nfa-solve}).
 
@@ -41,7 +40,7 @@ The system may end the trace as soon as it reaches an accepting state, so reachi
 
 
 \subsubsection{Complexity}
-\guide{Theorem statement; proof sketch here, full proof in \cref{app:proofs}.}
+\guide{Theorem statement; proof sketch here.}
 
 $N$ has $2^{O(|\varphi|)}$ states, and because the transducers are deterministic, every state of $D_P$ pairs a set of $N$-states with a single state of each transducer.
 Hence $D_P$, and so the arena, has at most $2^{|N|} \cdot |\Sin| \cdot |\Sout| = 2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ states, and solving is linear in that.
@@ -81,27 +80,25 @@ There is no determinization step, so we split $P$ into an arena and solve it exa
 \guide{Theorem, proof sketch.}
 The DFA $A$ has $2^{2^{O(|\varphi|)}}$ states in the worst case, so $P$ and the arena have at most $|A| \cdot |\Sin| \cdot |\Sout|$ states, and solving is linear in that.
 The worst case is the same as for Method~1.
-The difference is where the blow-up happens: Method~1 determinizes after the product, so the transducers prune the NFA before the subset construction, while Method~2 pays for the full DFA of $\varphi$ before any pruning.
+Still, Method~1 determinizes after the product, so the transducers prune the NFA before the subset construction, while Method~2 pays for the full DFA of $\varphi$ before any pruning.
 
-\begin{algorithm}[H]
-\caption{DFA product}\label{alg:dfa}
-\begin{algorithmic}[1]
-\Require $\varphi$, $\mathcal{I}$, $\mathcal{O}$, $\Tin$, $\Tout$
-\Ensure controller $T_C$ or \textsc{Unrealizable}
-\Statex
-\Function{SyntDfaProduct}{$\varphi$, $\Tin$, $\Tout$}
-    \State $(Q_A, q_0, \delta_A, F_A) \gets \algname{LtlfToDfa}(\varphi)$ \label{alg:dfa:dfa}
-    \State $\delta_P \gets \text{empty mapping}$
-    \For{\textbf{each} $q \in Q_A$, $s \in \Sin$, $t \in \Sout$, $v \in 2^{\mathcal{I} \cup \mathcal{O}}$}
-        \If{$\lambda_{\Tin}(s, v|_{\Ifree}) = v|_{\Iknown}$ \textbf{and} $\lambda_{\Tout}(t, v|_{\mathcal{I} \cup \Ofree}) = v|_{\Oknown}$} \label{alg:dfa:cons}
-            \State $\delta_P((q, s, t), v) \gets (\delta_A(q, v), \delta_{\Tin}(s, v), \delta_{\Tout}(t, v))$
-        \EndIf
-    \EndFor
-    \State $P \gets (Q_A \times \Sin \times \Sout,\ (q_0, s_0, t_0),\ \delta_P,\ F_A \times \Sin \times \Sout)$ \label{alg:dfa:product}
-    \State \Return $\algname{SolveDfa}(P)$ \label{alg:dfa:solve}
-\EndFunction
-\end{algorithmic}
-\end{algorithm}
+\Cref{alg:nfa} turns into Method~2 with three changes:
+lines~\ref{alg:nfa:mona}--\ref{alg:nfa:reverse} become $(Q_A, q_0, \delta_A, F_A) \gets \algname{LtlfToDfa}(\varphi)$;
+the product transition becomes the single state $(\delta_A(q, v), \delta_{\Tin}(s, v), \delta_{\Tout}(t, v))$;
+and line~\ref{alg:nfa:determinize} is dropped, so \algname{SolveDfa} runs on $P$ directly.
+
+\begin{example}[\cref{ex:running}, continued]\label{ex:running-dfa}
+The DFA $A$ of $\varphi = X[!]\,\top \wedge (o \leftrightarrow X\,k)$ has an initial state $q_0$, two states $q_o$ and $q_{\bar o}$ that remember the value of $o$ at step~$0$, an accepting sink $q_\top$ and a rejecting sink $q_\bot$.
+From $q_o$, a letter with $k$ goes to $q_\top$ and a letter without $k$ to $q_\bot$; $q_{\bar o}$ is the other way around.
+Without knowledge, the environment picks $k$ at step~$1$, so from $q_o$ it always has a letter that leads to $q_\bot$, and the system loses.
+
+In the product with $\Tin$, the initial state is $(q_0, s_0)$; we drop $\Tout$, since it is trivial.
+At $s_0$, $\lambda$ sets $k$ to false, so at step~$0$ only letters without $k$ survive.
+If the environment sets $r$, the system sets $o$ and the product moves to $(q_o, s_1)$, where $\lambda$ sets $k$ to true.
+The letters without $k$, which were the environment's way to reach $q_\bot$, fail the consistency check and have no transition, so every letter left goes to $q_\top$.
+The case without $r$ is symmetric, through $(q_{\bar o}, s_0)$.
+So the system wins from $(q_0, s_0)$, and the winning strategy is the copy controller $T_C$ of \cref{fig:running-tc}.
+\end{example}
 
 \subsection{Method 3: On-the-Fly DFA Product}\label{sec:otf}
 \guide{Why on-the-fly: build only the part of the product the game reaches.}
@@ -147,9 +144,9 @@ In practice the method builds only the states reachable under the external knowl
 
 \subsection{Explicit vs.\ Symbolic Representations}
 \guide{Which methods exist in which representation (explicit, mtdfa, mtnfa). Table.}
-Each method can be implemented over more than one representation of its automata, and the representation changes how a method runs, not which method it is.
+Each method can be implemented over more than one representation of its automata; switching the representation gives a second implementation of the same method.
 In the explicit representation, every automaton is a graph whose edges are labeled with letters.
-In the symbolic representation, every automaton is an MTDFA (\cref{sec:background}), which stores the transitions of each state as one MTBDD, so a state's moves on all letters are handled at once.
+In the symbolic representation, every automaton is an MTDFA (\cref{sec:background}), or for Method~1 its nondeterministic version, an MTNFA, which stores the transitions of each state as one MTBDD, so a state's moves on all letters are handled at once.
 Methods~1 and~2 exist in both representations, while Method~3 exists only in the symbolic one, since formula progression is provided by the MTDFA construction (\cref{tab:methods}).
 
 \subsection{Comparison of the Methods}

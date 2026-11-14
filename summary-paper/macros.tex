@@ -20,7 +20,8 @@
 
 % Review notes: one colour per author.
 \newcommand{\na}[2][]{\todo[color=cyan,#1]{NA: {#2}}}
-\newcommand{\cl}[2][]{\todo[color=green!30,#1]{CL: {#2}}}
+\newif\ifclnotes\clnotestrue % \clnotesfalse in main.tex hides every \cl note
+\newcommand{\cl}[2][]{\ifclnotes\todo[color=green!30,#1]{CL: {#2}}\fi}
 
 % \guide{...}: what a section should hold. Delete each one once its section is written,
 % or set \guidesfalse in main.tex to hide them all at once.

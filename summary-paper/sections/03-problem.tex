@@ -5,62 +5,54 @@
 $\varphi$. Who controls what.}
 
 We are given a set of variables $\mathcal{V}$ split into input variables $\mathcal{I}$ and output variables $\mathcal{O}$.
-Each of these sets is further split into free variables $\Ifree$ and $\Ofree$, which are free variables for the players of the game, and known variables $\Iknown$ and $\Oknown$, which are controlled by an external knowledge source. 
+Each of these sets is further split into free variables $\Ifree$ and $\Ofree$, which are set by the players of the game, and known variables $\Iknown$ and $\Oknown$, which are set by an external knowledge source.
 
-We are also given a specification $\varphi$ in $\LTLf$ over the variables $\mathcal{V}$, as well as two transducers~\ref{def:ek-transducer} $\Tin$ and $\Tout$ that model the external knowledge for the input and output variables respectively.
+We are also given a specification $\varphi$ in $\LTLf$ over the variables $\mathcal{V}$, as well as two transducers $\Tin$ and $\Tout$ (\cref{def:ek-transducer}) that model the external knowledge for the input and output variables respectively.
 
 \subsection{Knowledge as Transducers}
 \guide{Define $\Tin$ (states $\Sin$) and $\Tout$ (states $\Sout$), their input/output alphabets,
 and the lambda split. Small figure of each.}
 
-An external-knowledge transducer is a finite state machine that reads the history of the free variables and outputs values for the known variables.
-
-The transducer has a set of states, an initial state, an input alphabet, an output alphabet, a transition function, and an output function.
-The input alphabet is the set of valuations of the free variables, and the output alphabet is the set of valuations of the known variables.
-
-Special care needs to be taken for the order of the moves; the transducer for the input variables reads the historical values as well as the current values of the free input variables, and outputs the current values of the known input variables. The transducer for the output variables reads the historical values as well as the current values of the entire input variable set, as well as the free output variables, and outputs the current values of the known output variables.
-
 \begin{definition}[External-knowledge transducer]\label{def:ek-transducer}
-\guide{formal definition}
-
-An external-knowledge transducer is a tuple $\langle S, s_0, \Sigma, \Sigma_{in}, \Sigma_{out}, \delta, \lambda \rangle$ where:
+An external-knowledge transducer is a tuple
+\[
+  \langle S, s_0, V_{in}, V_{out}, \delta, \lambda \rangle
+\]
+where:
 
 \begin{itemize}
-  \item $S$ is a finite set of states
-  \item $s_0 \in S$ is the initial state
-  \item $\Sigma = 2^{\mathcal{V}}$ is the full alphabet, the set of valuations of all the variables
-  \item $\Sigma_{in}$ is the visible alphabet, the set of valuations of the variables the transducer may see at the current step
-  \item $\Sigma_{out}$ is the output alphabet, the set of valuations of the known variables it sets
-  \item $\delta: S \times \Sigma \rightharpoonup S$ is the partial transition function; it reads the full letter, so the state tracks the entire history, including values not visible to $\lambda$
-  \item $\lambda: S \times \Sigma_{in} \rightharpoonup \Sigma_{out}$ is the partial output function
+  \item $S$ is a finite set of states, and $s_0 \in S$ is the initial state
+  \item $V_{in}$ is the set of variables the transducer may see at the current step, and $V_{out}$ is the set of known variables it sets
+  \item $\delta: S \times 2^{\mathcal{V}} \rightharpoonup S$ is the partial transition function; it reads the full letter, so the state tracks the entire history, including values not visible to $\lambda$
+  \item $\lambda: S \times 2^{V_{in}} \rightharpoonup 2^{V_{out}}$ is the partial output function, which sets the known variables from the state and the visible part of the current letter
 \end{itemize}
 
-For $\Tin$, $\Sigma_{in} = 2^{\Ifree}$ and $\Sigma_{out} = 2^{\Iknown}$; for $\Tout$, $\Sigma_{in} = 2^{\mathcal{I} \cup \Ofree}$ and $\Sigma_{out} = 2^{\Oknown}$.
-
+For $\Tin$, $V_{in} = \Ifree$ and $V_{out} = \Iknown$; for $\Tout$, $V_{in} = \mathcal{I} \cup \Ofree$ and $V_{out} = \Oknown$.
 \end{definition}
+
+The visible sets follow the turn order: $\Tin$ moves together with the environment, so it sees only the current free inputs, while $\Tout$ moves after the system and sees all the current inputs and the free outputs.
 
 \input{figures/running-example}
 
 \subsection{Consistency}
 \guide{When a trace agrees with $\Tin$, $\Tout$ and $T_C$; the $\cons$ predicate.}
-For a trace to be consistent with an external knowledge transducer, it must agree with the transducer's output for every step of the trace. That is, for every step in the trace, the values of the known variables must match the output of the transducer given the history of the free variables up to that point.
 
 \begin{definition}[Consistency]\label{def:consistency}
-\guide{formal definition}
-A trace $\pi$ is consistent with an external-knowledge transducer $T$ if for every step $i$ in the trace, the values of the known variables at step $i$ match the output of the transducer given the history of the free variables up to that point. Formally, let $\pi[i]$ denote the valuation of the variables at step $i$, and let $\pi[0..i-1]$ denote the history of the free variables up to step $i-1$. Then $\pi$ is consistent with $T$ if for all $i$, $\lambda(s_t, \pi[i]_{\Sigma_{in}}) = \pi[i]_{\Sigma_{out}}$, where $s_t$ is the state of the transducer after processing $\pi[0..i-1]$.
+Let $T$ be an external-knowledge transducer and $\pi$ a trace.
+Let $s_0$ be the initial state of $T$, and $s_{i+1} = \delta(s_i, \pi[i])$, the state $T$ reaches after reading $\pi[0..i]$.
+$\pi$ is consistent with $T$ if, for every step $i$, $s_i$ is defined and $\lambda(s_i, \pi[i]|_{V_{in}}) = \pi[i]|_{V_{out}}$.
 \end{definition}
 
 \subsection{The Synthesis Problem}
-Given the specification and external-knowledge transducers, the synthesis problem is to find a controller transducer $T_C$ that reads the free input variables and outputs values for the free output variables such that every trace generated by the interaction of $T_C$ with the environment and the external knowledge transducers $\Tin$ and $\Tout$ satisfies the specification $\varphi$. 
 \begin{definition}[Synthesis with external knowledge]\label{def:problem}
-\guide{Given $(\varphi,\mathcal{I},\mathcal{O},\Tin,\Tout)$, find $T_C$ such that every consistent
-trace satisfies $\varphi$, or report unrealizable.}
-Let $\mathcal{I} = \Ifree \cup \Iknown$ and $\mathcal{O} = \Ofree \cup \Oknown$ be the sets of input and output variables, respectively. Given a specification $\varphi$ in $\LTLf$ over the variables $\mathcal{V} = \mathcal{I} \cup \mathcal{O}$, and external-knowledge transducers $\Tin$ and $\Tout$, the synthesis problem with external knowledge is to find a controller transducer $T_C$ such that for every environment strategy $\sigma_E$ and every trace $\pi$ generated by the interaction of $T_C$, $\sigma_E$, $\Tin$, and $\Tout$, if $\pi$ is consistent with $\Tin$ and $\Tout$, then $\pi \models \varphi$. If no such controller exists, we report that the problem is unrealizable.
+Given a specification $\varphi$ in $\LTLf$ over $\mathcal{V} = \mathcal{I} \cup \mathcal{O}$ and external-knowledge transducers $\Tin$ and $\Tout$, find a controller transducer $T_C$ that, at each step, reads the inputs $\mathcal{I}$, sets the free outputs $\Ofree$, and decides whether to end the trace.
+In each step the environment sets $\Ifree$, $\Tin$ sets $\Iknown$, $T_C$ sets $\Ofree$, and $\Tout$ sets $\Oknown$, so every trace produced this way is consistent with $\Tin$ and $\Tout$.
+$T_C$ is a solution if every trace it produces, against every environment, satisfies $\varphi$.
+If no such controller exists, we report that the problem is unrealizable.
 \end{definition}
 
 \subsection{Running Example}
 \begin{example}\label{ex:running}
-\guide{One small instance used throughout: realizable with knowledge, unrealizable without.}
 Let $\Ifree = \{r\}$, $\Iknown = \{k\}$, $\Ofree = \{o\}$ and $\Oknown = \emptyset$.
 The specification is
 \[
@@ -70,7 +62,7 @@ which asks the controller to announce at step~$0$ the value that $k$ will take a
 
 The input knowledge $\Tin$ is a delayed echo: $k$ holds at step~$i$ exactly when $r$ held at step~$i-1$, and $k$ is false at step~$0$.
 It has two states $\Sin = \{s_0, s_1\}$, where $s_1$ records that the last value of $r$ was true.
-Its transition function is $\delta(s, \sigma) = s_1$ if $r \in \sigma$ and $\delta(s, \sigma) = s_0$ otherwise, and its output function is $\lambda(s_1, \cdot) = \{k\}$ and $\lambda(s_0, \cdot) = \emptyset$.
+Its transition function is $\delta(s, v) = s_1$ if $r \in v$ and $\delta(s, v) = s_0$ otherwise, and its output function is $\lambda(s_1, \cdot) = \{k\}$ and $\lambda(s_0, \cdot) = \emptyset$.
 The output knowledge $\Tout$ is trivial: one state, which always outputs the empty valuation.
 
 \textbf{Without knowledge, $\varphi$ is unrealizable.}
@@ -80,7 +72,7 @@ The controller cannot escape by ending the trace at step~$0$, because $X[!]\,\to
 \textbf{With knowledge, $\varphi$ is realizable.}
 At step~$0$ the controller sees $r$ and copies it, $o := r$.
 On every trace consistent with $\Tin$, $k$ at step~$1$ equals $r$ at step~$0$, so $o \leftrightarrow X\,k$ holds, and the controller ends the trace at step~$1$.
-The knowledge does not reveal the future of a free variable; it removes the environment's freedom over $k$, which is what makes the next value of $k$ predictable.
+The controller still knows nothing about future values of $r$; it only knows that $k$ will copy the current one.
 \end{example}
 
 \subsection{Relation to Assume--Guarantee Synthesis}
@@ -95,6 +87,8 @@ Then synthesis with external knowledge reduces to standard $\LTLf$ synthesis of 
   \psiin \rightarrow (\psiout \wedge \varphi),
 \]
 in which $\Iknown$ become ordinary inputs and $\Oknown$ ordinary outputs.
+We call this the \emph{folded formula}, since the knowledge is folded into the specification.
 The assumption $\psiin$ restricts the environment to traces that respect the input knowledge: a trace that leaves the language of $\Tin$ is outside the problem, so the controller wins it vacuously.
 The guarantee $\psiout$ obliges the controller to set $\Oknown$ exactly as $\Tout$ would, since in the reduced problem nothing else sets them.
 This makes off-the-shelf $\LTLf$ synthesizers a baseline for our methods.
+Not every transducer has such a $\psiin$: $\LTLf$ only expresses star-free languages, so a transducer that counts modulo~2, for example, has none.

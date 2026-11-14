@@ -6,7 +6,9 @@ dependencies already implied by $\varphi$.}
 The methods described above assume the external knowledge is given in the form of transducers. The transducers can be a part of the problem statement, or they can be derived from the formula itself. In this section we describe how to extract transducers from dependencies between input and output variables.
 
 \subsection{Output Dependencies}
-Output dependencies are output variables that are determined by other variables. That means the system has only one possible valuation for the dependent variable given the valuations of the other variables. This can be used to reduce the number of possible outputs, making the enitre problem smaller.
+Output dependencies are output variables that are determined by other variables.
+That means the system has only one possible valuation for the dependent variable given the valuations of the other variables.
+This can be used to reduce the number of possible outputs, making the entire problem smaller.
 \begin{definition}[Output dependency]\label{def:outdep}
 \guide{$\Xdep$ dependent on $\Ydep$.}
 We use the notion of dependent variables of~\cite{AkshayBCF2024}, restricted to finite traces.
@@ -16,7 +18,9 @@ We say that $\Xdep$ is \emph{dependent in} $\varphi$ if it is dependent on $\mat
 \end{definition}
 \guide{Lemma: how a dependency yields a $\Tout$. Detection procedure.}
 
-In the paper it was introduced in, the authors describe a method to extract output dependencies and a transducer for them from an LTL formula. They then project the dependent variables out and solve the game, getting a controller for all variables other then the dependent ones. The final controller is then created by merging the output dependencies transducer with the controller.
+Akshay et al.~\cite{AkshayBCF2024} extract the output dependencies of an LTL formula and a transducer that computes them.
+They then project the dependent variables out and solve the game, getting a controller for all variables other than the dependent ones.
+The final controller is the merge of the dependency transducer with that controller.
 
 For our purposes, we can use the output dependencies to create a transducer $\Tout$ and feed it to our algorithms.
 
@@ -37,11 +41,12 @@ Second, $\Ydep$ contains only the remaining input variables and not the output v
 Setting $\Iknown = \Xdep$ makes $\Ydep = \Ifree$, which is exactly what $\Tin$ is allowed to read (\cref{def:ek-transducer}).
 
 To extract a transducer, we build a DFA for $\lnot\varphi$ and use it as $\Tin$: at each state, the forced value of $\Xdep$ is read off the letters from which the environment can still violate $\varphi$, and an arbitrary value is used where no such letter exists.
-Forcing the environment onto its only non-losing move costs it nothing, so the resulting problem is realizable if and only if $\varphi$ is realizable without knowledge.
+The extracted $\Tin$ only ever sets $\Xdep$ to a value the environment would have picked anyway to keep $\varphi$ violated, so the resulting problem is realizable if and only if $\varphi$ is realizable without knowledge.
 For example, for $\varphi = F(a \oplus b)$ with $a, b \in \mathcal{I}$, the environment can only keep $\varphi$ unsatisfied by setting $b$ equal to $a$ at every step, and that forced answer is the extracted $\Tin$.
 
 \subsection{Discussion}
 \guide{How much knowledge these extractors find in practice; limitations; the ``tentative''
 dependency generation tool.}
 
-In practice, we do not find many input dependencies in real benchmarks. We use a singular created benchmark family that does have input dependencies by design, but a tighter definition for input dependencies might be needed.
+In practice, we do not find many input dependencies in real benchmarks.
+We use a single purpose-built benchmark family that has input dependencies by design, but a tighter definition for input dependencies might be needed.

@@ -1,16 +1,10 @@
 \section{Implementation}\label{sec:implementation}
 
-\subsection{Architecture}
-\guide{C++20 on Spot; thin wrappers; custom lambda-split transducer and NFA types; one
-\texttt{Synthesis} interface. Diagram optional.}
-
-We created an two artifacts called \tool{ltlf-ek-synth} and \tool{ltlf-ek-deps}. The first is a command-line tool that takes an LTLf formula and optional transducers as input, and outputs a controller if one exists. The second is a dependency extractor that takes an LTLf formula and outputs the input and output dependencies it finds, along with the transducers for them.
-
 \subsection{Tools}
 \guide{\tool{ltlf-ek-synth} (CLI), \tool{ltlf-ek-bench} (benchmark runner), dependency tools.
 Input formats (HOA transducers, formula files).}
 
-The code is split into a library and three command-line tools that only parse arguments, call the library, and format the result.
+The code is a C++ library on top of Spot, and three command-line tools that only parse arguments, call the library, and format the result.
 
 \tool{ltlf-ek-synth} is the synthesis tool.
 It takes an $\LTLf$ formula $\varphi$, a \emph{part file} that splits the atomic propositions into $\Ifree$, $\Iknown$, $\Ofree$ and $\Oknown$, and one transducer file for each non-empty known set.
@@ -27,7 +21,7 @@ It sweeps the chosen families, methods and parameter range, runs each case in a 
 
 Both input formats are plain text.
 A part file has one line per set, such as \texttt{input\_known: c}.
-A transducer file is a Spot HOA automaton for the transition function $\delta$, followed by a \texttt{\%\%LAMBDA} block that gives the output function $\lambda$ as one Boolean formula per state.
+A transducer file is an automaton in the HOA (Hanoi Omega-Automata) format, which Spot reads, for the transition function $\delta$, followed by a \texttt{\%\%LAMBDA} block that gives the output function $\lambda$ as one Boolean formula per state.
 Both $\delta$ and $\lambda$ may be partial, and the acceptance condition of the HOA automaton is ignored, since a transducer has none.
 
 \subsection{Controller Verification}\label{sec:verification}
