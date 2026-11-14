@@ -44,6 +44,26 @@ class HardRace(unittest.TestCase):
         self.assertTrue({"shift-%d" % n for n in range(20, 41)} <= names)
         self.assertIn("TwoCountersDisButAC", names)
 
+    def test_the_bar_is_met_when_a_fixed_arm_is_twice_as_fast_as_both_baselines(self):
+        def cells(fixed_wall, nk_wall=10.0, nk_status="ok"):
+            return [dict(cell("mux-16", "nk", "REALIZABLE", nk_status), wall_s=nk_wall),
+                    dict(cell("mux-16", "ltlfsynt", "REALIZABLE"), wall_s=8.0),
+                    dict(cell("mux-16", "ek-compact-fixed", "REALIZABLE"), wall_s=fixed_wall)]
+        self.assertTrue(hr.bar(cells(4.0), 60, {})["met"])
+        self.assertFalse(hr.bar(cells(4.1), 60, {})["met"])
+        self.assertFalse(hr.bar(cells(1.0), 60, {"mux-16": {}})["met"])
+        self.assertTrue(hr.bar(cells(3.9, nk_wall=99.0, nk_status="timeout"), 60, {})["met"])
+
+    def test_the_bar_ignores_instances_below_the_hard_range(self):
+        cells = [dict(cell("mux-8", "nk", "REALIZABLE"), wall_s=10.0), dict(cell("mux-8", "ltlfsynt", "REALIZABLE"), wall_s=10.0),
+                 dict(cell("mux-8", "ek-compact-fixed", "REALIZABLE"), wall_s=0.1)]
+        self.assertEqual(hr.bar(cells, 60, {})["evidence"], [])
+
+    def test_a_fixed_cell_that_errors_is_a_fixed_failure(self):
+        cells = [cell("a", "ek-compact-fixed", None, "error"), cell("b", "ek-compact", None, "error"),
+                 cell("c", "ek-derived-fixed", "REALIZABLE")]
+        self.assertEqual(hr.fixed_failures(cells), ["a:ek-compact-fixed"])
+
     def small_race(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as d:
             for inst in (hi.mux(4), hi.mux(6), hi.shift(3)):
@@ -61,6 +81,15 @@ class HardRace(unittest.TestCase):
         self.assertEqual({a for (i, a) in arms if i == "mux-6"}, {"nk", "ltlfsynt", "ek-derived"})
         self.assertEqual(arms[("mux-6", "ek-derived")]["status"], "none")
         self.assertTrue(all(c["status"] == "ok" for k, c in arms.items() if k != ("mux-6", "ek-derived")))
+
+    @unittest.skipUnless(HAVE_BINARIES and HAVE_LTLFSYNT, "needs build/ltlf-ek-* and ltlfsynt")
+    def test_a_realizable_fixed_cell_has_its_controller_verified(self):
+        run, arms = self.small_race()
+        for arm in ("ek-compact-fixed", "ek-derived-fixed"):
+            got = arms[("shift-3", arm)]
+            self.assertEqual((got["verdict"], got.get("controller")), ("REALIZABLE", "verified"))
+        self.assertEqual(run["fixed_failures"], [])
+        self.assertIn("met", run["bar"])
 
     @unittest.skipUnless(HAVE_BINARIES and HAVE_LTLFSYNT, "needs build/ltlf-ek-* and ltlfsynt")
     def test_the_arms_of_a_small_race_agree_on_every_verdict(self):
