@@ -78,7 +78,7 @@ def rq2(sweep):
     n = sweep["provenance"]["n_max"]
     pairs = sweep_pairs.build_rows(sweep, SIMP, SIMP_NK, arms=True)
     ltlfsynt_ms = _ltlfsynt_ns(sweep, group=lambda family: family)
-    lt_timed_out = {(r["family"], r["n"]) for r in sweep["ltlfsynt"] if r["status"] in ("timeout", "partial_timeout")}
+    lt_timed_out = {(r["family"], r["n"]) for r in sweep["ltlfsynt"] if sweep_report.ltlfsynt_timed_out(r)}
     rows = []
     for g in sorted({g for g, _ in pairs}):
         p = pairs.get((g, n))
@@ -92,7 +92,10 @@ def rq2(sweep):
         knowledge = _fmt_ms(p["ek_ms"])
         no_knowledge = _fmt_ms(p["formula_ms"])
         if p["ek_finished"] < p["cells"]:
-            knowledge, no_knowledge, speedup = "t/o", "n/a" if p["formula_ms"] is None else "t/o", "n/a"
+            knowledge = "t/o"
+            speedup = "n/a"
+            # formula_ms covers only cells where knowledge finished, so it is never printed here.
+            no_knowledge = "t/o" if p["unfinished"] else "n/a"
         elif p["bound"] is None:
             speedup = _fmt_speedup(p["speedup"])
         else:
@@ -119,16 +122,15 @@ def rq1(sweep):
     for (fam, cell_n, _, subject), (_, med) in wall.items():
         if cell_n == n:
             meds[(family_group(fam), subject)].append(med / 1e6)
-    ran = {(family_group(r["family"]), r["subject"]) for r in sweep["timings"] if r["n"] == n}
     cells_ran = defaultdict(int)
-    for k in {(r["family"], r["realizable"], r["subject"]) for r in sweep["timings"] if r["n"] == n}:
-        cells_ran[(family_group(k[0]), k[2])] += 1
+    for fam, _, subject in {(r["family"], r["realizable"], r["subject"]) for r in sweep["timings"] if r["n"] == n}:
+        cells_ran[(family_group(fam), subject)] += 1
     mismatches = defaultdict(int)
     for r in sweep["ltlfsynt"]:
         mismatches[family_group(r["family"])] += bool(r.get("verdict_mismatch"))
 
     def cell(g, subject):
-        if (g, subject) not in ran:
+        if (g, subject) not in cells_ran:
             return "n/a"
         if len(meds[(g, subject)]) < cells_ran[(g, subject)]:
             return "t/o"

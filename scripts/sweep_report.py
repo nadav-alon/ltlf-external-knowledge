@@ -53,6 +53,11 @@ def _ratio(c, name, num, den, key):
         c[name].append(num[key] / den[key])
 
 
+def ltlfsynt_timed_out(row):
+    """True when an ltlfsynt row's run (or one of its repeats) hit the timeout."""
+    return row["status"] in ("timeout", "partial_timeout")
+
+
 def build_rows(sweep, subject=EK_SUBJECT):
     """{group: {n: {'cells', 'both', 'total', 'lt_timeouts', 'lt_bounded', 'lt_errors', 'prune', 'prune_nk', 'nk_ratio_min', 'inproc_speedup', 'roots_ratio', 'internal_speedup', 'internal_missing', 'inproc_bound', 'nk_bounded', 'ek_med', 'ek_min', 'lt_med', 'lt_min',
     'speedup_med', 'speedup_min', 'bound'}}}; a figure is None when no cell has it."""
@@ -79,7 +84,7 @@ def build_rows(sweep, subject=EK_SUBJECT):
     lt_timeout = {
         (r["family"], r["n"], r["realizable"])
         for r in sweep["ltlfsynt"]
-        if r["status"] in ("timeout", "partial_timeout")
+        if ltlfsynt_timed_out(r)
     }
 
     lt_error = {

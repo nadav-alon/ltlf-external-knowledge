@@ -43,6 +43,15 @@ class Rq2(unittest.TestCase):
         row = [l for l in spt.rq2(s).splitlines() if l.startswith("zeta ")][0]
         self.assertEqual(row.split(" & ")[2:], ["1.00", "t/o", "$\\ge$ 501.00$\\times$", "t/o", "t/o \\\\"])
 
+    def test_rq2_reads_no_knowledge_t_o_only_when_it_timed_out_where_the_knowledge_side_is_partial(self):
+        def row(nk_true):
+            s = hpc_sweep(timings=[timing("zeta", 2, True, K, 1e6, 1e6),
+                                   timing("zeta", 2, False, K, 0, None, stage="TIMEOUT"),
+                                   timing("zeta", 2, False, NK, 3e6, 3e6), nk_true])
+            return [l for l in spt.rq2(s).splitlines() if l.startswith("zeta ")][0].split(" & ")[2:5]
+        self.assertEqual(row(timing("zeta", 2, True, NK, 0, None, stage="TIMEOUT")), ["t/o", "t/o", "n/a"])
+        self.assertEqual(row(timing("zeta", 2, True, NK, 2e6, 2e6)), ["t/o", "n/a", "n/a"])
+
     def test_rq2_lists_each_slippery_arm_on_its_own_row(self):
         s = hpc_sweep(timings=[timing(f, 2, True, k, 2e6, 2e6) for f in ("slippery-binary", "slippery-onehot")
                                for k in (K, NK)])
