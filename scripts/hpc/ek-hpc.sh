@@ -29,7 +29,8 @@ ENV_FILE="${ENV_FILE:-build/hpc-sweep-wizard.env}"
 SIF='~/ltlf-ek.sif'
 BUILD_LOG="ltlf-ek-build.log"
 # CPU-only nodes outside these, as nadav-alon/ltlf-po-benchmarks's sbatch scripts exclude.
-EXCLUDE='cn[31-44],gpu[1-4],gpu[6-8]'
+# One list, read from sweep.sbatch.
+EXCLUDE=$(sed -n 's/^#SBATCH --exclude=//p' "$(dirname "${BASH_SOURCE[0]}")/sweep.sbatch")
 
 say()  { printf 'ek-hpc: %s\n' "$1"; }
 warn() { printf 'ek-hpc: %s\n' "$1" >&2; }
@@ -73,10 +74,10 @@ cmd_build() {
   git branch -r --contains "$commit" | grep -q . || die "$commit is not on any remote branch; push it first"
   remote true || die "cannot ssh to $t (host, VPN or key); nothing was built"
   remote git ls-remote "$url" HEAD > /dev/null ||
-    die "the login node cannot read $url (no network to GitHub, or a private repo); give a URL it can clone, e.g. an ssh one with a deploy key"
+    die "the login node cannot read $url (no network to GitHub, or a private repo); the compute node that builds the image clones it too, so it needs access as well; give a URL it can clone, e.g. an ssh one with a deploy key"
   scp -q scripts/hpc/build-image.sh scripts/hpc/build-image.sbatch "$t:" || die "scp of the build scripts to $t failed"
   say "building $commit as a SLURM job on $t (about 20 min, waiting); log: ~/$BUILD_LOG there"
-  remote "EK_BUILD_LOG=\$HOME/$BUILD_LOG sbatch --wait --exclude=$EXCLUDE build-image.sbatch '$url' '$commit'" ||
+  remote "EK_BUILD_LOG=\$HOME/$BUILD_LOG sbatch --wait --exclude='$EXCLUDE' build-image.sbatch '$url' '$commit'" ||
     die "the build failed; the log is ~/$BUILD_LOG on the cluster: ssh $t tail -50 $BUILD_LOG (a missing or old log means it failed before the build started; the job's own output is ~/ek-image-JOBID.log)"
   put EK_IMAGE_SHA "$commit"
   say "built $commit"
@@ -110,7 +111,7 @@ cmd_submit() {
   if [[ -n "$node" ]]; then
     place="-w $node"
   else
-    place="--exclude=$EXCLUDE"
+    place="--exclude='$EXCLUDE'"
   fi
   job=$(remote "sbatch --parsable $place sweep.sbatch") || die "sbatch on $t refused the job (its error is above)"
   job=${job%%;*}

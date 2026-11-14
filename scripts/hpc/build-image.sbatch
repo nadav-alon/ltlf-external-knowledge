@@ -6,7 +6,8 @@
 #
 # The compile's job count is this job's CPUs (build-image.sh reads SLURM_CPUS_PER_TASK).
 # No --exclusive: the cluster refuses it, as sweep.sbatch notes. The build log is
-# ~/ltlf-ek-build.log, written by build-image.sh.
+# ~/ltlf-ek-build.log, written by build-image.sh. $HOME must be shared between the login node
+# and the compute nodes: ek-hpc.sh scp's the scripts to the former and this job runs them from the latter.
 #SBATCH --job-name=ek-image
 #SBATCH --partition=work
 #SBATCH --account=rg-fried

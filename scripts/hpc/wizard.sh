@@ -182,7 +182,7 @@ finish() {
 # ──────────────────────────────────────────────────────────────────────────
 # ──────────────────────────────────────────────────────────────────────────
 # STAGES: the developer's half of the HPC sweep: build the Release image on the
-# cluster's login node, copy the sbatch script, submit the job array, bring the parts back and merge
+# cluster (as a SLURM job), copy the sbatch script, submit the job array, bring the parts back and merge
 # them into the sweep report. Run from the repo root.
 # ──────────────────────────────────────────────────────────────────────────
 

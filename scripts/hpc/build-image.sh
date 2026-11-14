@@ -6,14 +6,19 @@
 #   EK_SRC        the clone           (default ~/ltlf-ek-src)
 #   EK_SIF        the image           (default ~/ltlf-ek.sif)
 #   EK_BUILD_LOG  the whole build log (default ~/ltlf-ek-build.log)
-#   EK_JOBS       the compile's job count (default the SLURM job's CPUs, else 8)
+#   EK_JOBS       the compile's job count (default the SLURM job's CPUs, else 8); keep it within
+#                 the job's --mem=16G (about 250 MB per compiler process)
 set -euo pipefail
 url="${1:?usage: build-image.sh URL COMMIT}"
 commit="${2:?usage: build-image.sh URL COMMIT}"
 src="${EK_SRC:-$HOME/ltlf-ek-src}"
 sif="${EK_SIF:-$HOME/ltlf-ek.sif}"
 log="${EK_BUILD_LOG:-$HOME/ltlf-ek-build.log}"
-jobs="${EK_JOBS:-${SLURM_CPUS_PER_TASK:-8}}"
+compile_jobs="${EK_JOBS:-${SLURM_CPUS_PER_TASK:-8}}"
+
+# One build at a time: a re-run after a dropped ssh session waits for the first job.
+exec 9> "$sif.lock"
+flock 9
 
 echo "build log: $log"
 exec > "$log" 2>&1
@@ -26,5 +31,5 @@ fi
 git -C "$src" checkout --force --detach "$commit"
 git -C "$src" clean -ffdx
 cd "$src"
-apptainer build --force --build-arg "jobs=$jobs" "$sif" scripts/hpc/ltlf-ek.def
+apptainer build --force --build-arg "jobs=$compile_jobs" "$sif" scripts/hpc/ltlf-ek.def
 echo "built $sif from $(git rev-parse HEAD)"

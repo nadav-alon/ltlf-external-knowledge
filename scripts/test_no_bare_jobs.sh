@@ -19,3 +19,9 @@ if [ -n "$hits" ]; then
   exit 1
 fi
 echo "no bare -j"
+
+# The image build bounds its jobs through MAKEFLAGS (not on a build line), so check it
+# is still set from the build's --build-arg jobs, which build-image.sh takes from the
+# SLURM job's CPUs.
+grep -qE 'MAKEFLAGS="--jobs=\{\{ jobs \}\}"' scripts/hpc/ltlf-ek.def ||
+  { echo "scripts/hpc/ltlf-ek.def no longer sets MAKEFLAGS=--jobs={{ jobs }}" >&2; exit 1; }
