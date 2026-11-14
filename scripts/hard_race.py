@@ -17,9 +17,9 @@ hand-written compact Tout exists) is run under four arms, each a cell of the JSO
                --model-check, which verifies its controller against the formula (verify_s). An
                unsafe controller makes the cell an error; an unverifiable one (the verifier ran out
                of time or memory, or exited otherwise than SAFE or UNSAFE; recorded in verify_limit)
-               leaves the cell ok but its instance unchecked unless a baseline verdict agrees. A fixed cell that
-               finishes takes its instance into the bar (below), and a verdict that differs from
-               NK's or ltlfsynt's fails the run.
+               leaves the cell ok but its instance unchecked unless a baseline verdict agrees. A fixed
+               cell that finishes takes its instance into the bar (below), and a verdict that differs
+               from NK's or ltlfsynt's fails the run.
 
 ltlf-ek-synth runs --otf-mtdfa-product --otf-solve --simplify-formula --realizable in every EK and
 NK cell; --realizable only suppresses printing the controller, which is still built. A
@@ -28,10 +28,11 @@ cell names its arm and ends as ok (verdict REALIZABLE / UNREALIZABLE), timeout, 
 verdict_mismatches lists every instance on which two finished arms disagree, and its `bar` says
 whether the bar is met: on at least one hard family (mux n>=16, shift n>=20), a fixed arm is
 at least 2x faster than both NK and ltlfsynt (geometric mean over the family's instances where
-that fixed arm finished and checked, that is a finished NK or ltlfsynt verdict agrees or its controller
-was verified; a baseline that timed out counts as its timeout, a lower bound; an instance whose baseline
-errored is left out), with 0 verdict mismatches and 0 fixed failures. The evidence reports the checked
-and unchecked instances side by side; unchecked ones never count towards `met`.
+that fixed arm finished and checked, that is a finished NK or ltlfsynt verdict agrees or its
+controller was verified; a baseline that timed out counts as its timeout, a lower bound; an
+instance whose baseline errored is left out), with 0 verdict mismatches and 0 fixed failures.
+The evidence reports the checked and unchecked instances side by side; unchecked ones never
+count towards `met`.
 """
 import argparse
 import datetime
@@ -102,7 +103,7 @@ def synth_cell(arm, synth, formula, args, timeout, flags=()):
 
 def verification(rc, out):
     """`--model-check`'s outcome: verified (SAFE), unsafe (a counterexample), else unverifiable (the verifier
-    itself ran out of time or memory)."""
+    ran out of time or memory, or exited otherwise than SAFE or UNSAFE: a crash or a usage error)."""
     if rc == 0 and out.strip() == "SAFE":
         return "verified"
     return "unsafe" if out.startswith("UNSAFE") else "unverifiable"
@@ -195,6 +196,13 @@ def geomean(xs):
     return math.exp(sum(math.log(x) for x in xs) / len(xs))
 
 
+def is_checked(fixed, base_cells):
+    """Whether a finished fixed cell's verdict is backed: a finished baseline (NK or ltlfsynt) agrees with it,
+    or its controller was verified."""
+    agreed = any(b["status"] == "ok" and b["verdict"] == fixed["verdict"] for b in base_cells)
+    return agreed or fixed.get("controller") == "verified"
+
+
 def bar(cells, timeout, mismatches, failures):
     """Whether the bar is met, with the evidence per (fixed arm, hard family).
 
@@ -205,7 +213,8 @@ def bar(cells, timeout, mismatches, failures):
     over all of them and `checked_speedup_geomean` over the checked ones (None when there are none). Only
     the checked ones count towards `met`. `unverifiable` counts the evidence instances whose controller
     the verifier could not finish (a crash or usage error included), and `fixed_unfinished` the family's
-    instances the arm did not finish.
+    instances the arm did not finish. `unverifiable` and `unchecked` differ: an unverifiable instance
+    whose baseline verdict agrees is checked, so `unverifiable` can exceed `unchecked`.
     """
     by = {}
     for c in cells:
@@ -213,7 +222,7 @@ def bar(cells, timeout, mismatches, failures):
     evidence = []
     for arm in ("ek-derived-fixed", "ek-compact-fixed"):
         for family, n_min in HARD_FAMILIES.items():
-            speedups, checked_speedups, unverifiable, unfinished = [], [], 0, 0
+            speedups, unverifiable, unfinished = [], 0, 0
             for inst, got in by.items():
                 fam, n = instance_key(inst)
                 fixed = got.get(arm)
@@ -228,15 +237,14 @@ def bar(cells, timeout, mismatches, failures):
                 base = [b["wall_s"] if b["status"] == "ok" else timeout for b in base_cells]
                 unverifiable += fixed.get("controller") == "unverifiable"
                 speedup = min(base) / max(fixed["wall_s"], 1e-3)
-                speedups.append(speedup)
-                agreed = any(b["status"] == "ok" and b["verdict"] == fixed["verdict"] for b in base_cells)
-                if agreed or fixed.get("controller") == "verified":
-                    checked_speedups.append(speedup)
+                speedups.append((speedup, is_checked(fixed, base_cells)))
             if speedups:
+                all_speedups = [x for x, _ in speedups]
+                checked_speedups = [x for x, ok in speedups if ok]
                 evidence.append({"arm": arm, "family": family, "instances": len(speedups),
                                  "checked": len(checked_speedups),
                                  "unchecked": len(speedups) - len(checked_speedups),
-                                 "speedup_geomean": geomean(speedups),
+                                 "speedup_geomean": geomean(all_speedups),
                                  "checked_speedup_geomean": geomean(checked_speedups) if checked_speedups else None,
                                  "unverifiable": unverifiable, "fixed_unfinished": unfinished})
     met = not mismatches and not failures and any(
