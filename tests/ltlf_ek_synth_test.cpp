@@ -184,6 +184,22 @@ TEST(LtlfEkSynth, SimplifyFormulaFlagKeepsTheVerdictsOfOtfMtdfaProduct) {
   EXPECT_EQ(no.stdout_text, "UNREALIZABLE\n");
 }
 
+// --fix-dependent-outputs reaches OtfMtdfaProduct; with no known output it
+// changes nothing, so both verdicts stay.
+TEST(LtlfEkSynth, FixDependentOutputsFlagKeepsTheVerdictsWithoutKnownOutputs) {
+  const CliResult yes = RunCli({"--otf-mtdfa-product", "--otf-solve",
+                                "--fix-dependent-outputs",
+                                "--formula=G(i -> o)", "--inputs", "i",
+                                "--outputs", "o", "--realizable"});
+  EXPECT_EQ(yes.exit_code, 0) << yes.stderr_text;
+  EXPECT_EQ(yes.stdout_text, "REALIZABLE\n");
+  const CliResult no = RunCli({"--otf-mtdfa-product", "--fix-dependent-outputs",
+                               "--formula=X[!] i", "--inputs", "i",
+                               "--outputs", "o", "--realizable"});
+  EXPECT_EQ(no.exit_code, 20) << no.stderr_text;
+  EXPECT_EQ(no.stdout_text, "UNREALIZABLE\n");
+}
+
 TEST(LtlfEkSynth, EveryWiredNfaRouteMethodFlagIsAcceptedEndToEnd) {
 #ifndef MONA_FOUND
   GTEST_SKIP() << "mona not found (CMake find_program(mona)); the NFA-route "
