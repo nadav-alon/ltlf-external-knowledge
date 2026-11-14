@@ -7,7 +7,7 @@ Every instance of DIR (tests/data/hard-instances: NAME.ltlf, NAME.part, and NAME
 hand-written compact Tout exists) is run under four arms, each a cell of the JSON:
 
   nk           ltlf-ek-synth, no knowledge (the instance's own part file)
-  ltlfsynt     Spot's ltlfsynt --realizability on the same formula
+  ltlfsynt     Spot's ltlfsynt, full synthesis (the controller is built, then discarded), same formula
   ek-derived   ltlf-ek-deps --direction out emits the part file and the Tout, then ltlf-ek-synth
                reads them; extract_s is the deps stage, synth_s the synthesis, wall_s their sum
   ek-compact   ltlf-ek-synth with the hand-written Tout and every output known
@@ -75,10 +75,10 @@ def synth_cell(arm, synth, formula, args, timeout):
 
 def ltlfsynt_cell(ltlfsynt, formula, part, timeout):
     rc, out, wall = run([ltlfsynt, "--ins=" + ",".join(part["input_free"]),
-                         "--outs=" + ",".join(part["output_free"]), "-f", formula, "--realizability"], timeout)
+                         "--outs=" + ",".join(part["output_free"]), "-f", formula], timeout)
     if rc is None:
         return {"arm": "ltlfsynt", "status": "timeout", "verdict": None, "wall_s": wall}
-    verdict = out.strip()
+    verdict = out.split("\n", 1)[0].strip()
     if rc in (0, 1) and verdict in VERDICTS.values():
         return {"arm": "ltlfsynt", "status": "ok", "verdict": verdict, "wall_s": wall}
     return {"arm": "ltlfsynt", "status": "error", "verdict": None, "wall_s": wall, "rc": rc}
