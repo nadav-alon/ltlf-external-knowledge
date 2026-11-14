@@ -1,0 +1,12 @@
+HOA: v1
+States: 1
+Start: 0
+AP: 21 "select0" "select1" "select2" "select3" "in0" "in1" "in2" "in3" "in4" "in5" "in6" "in7" "in8" "in9" "in10" "in11" "in12" "in13" "in14" "in15" "out"
+acc-name: all
+Acceptance: 0 t
+--BODY--
+State: 0
+[t] 0
+--END--
+%%LAMBDA
+state 0: out <-> ((!select0 & !select1 & !select2 & !select3 & in0) | (select0 & !select1 & !select2 & !select3 & in1) | (!select0 & select1 & !select2 & !select3 & in2) | (select0 & select1 & !select2 & !select3 & in3) | (!select0 & !select1 & select2 & !select3 & in4) | (select0 & !select1 & select2 & !select3 & in5) | (!select0 & select1 & select2 & !select3 & in6) | (select0 & select1 & select2 & !select3 & in7) | (!select0 & !select1 & !select2 & select3 & in8) | (select0 & !select1 & !select2 & select3 & in9) | (!select0 & select1 & !select2 & select3 & in10) | (select0 & select1 & !select2 & select3 & in11) | (!select0 & !select1 & select2 & select3 & in12) | (select0 & !select1 & select2 & select3 & in13) | (!select0 & select1 & select2 & select3 & in14) | (select0 & select1 & select2 & select3 & in15))

@@ -242,6 +242,12 @@ if(LTLF_EK_BUILD_TESTS)
   add_test(NAME merge_sweep_py
            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_merge_sweep.py
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
+  add_test(NAME hard_instances_py
+           COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_hard_instances.py
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
+  add_test(NAME hard_race_py
+           COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_hard_race.py
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
   add_test(NAME sweep_sbatch_sh
            COMMAND bash ${CMAKE_CURRENT_SOURCE_DIR}/scripts/hpc/test_sweep_sbatch.sh)
   add_test(NAME no_bare_jobs_sh

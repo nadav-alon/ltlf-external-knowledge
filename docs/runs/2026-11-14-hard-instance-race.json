@@ -1,0 +1,242 @@
+{
+ "provenance": {
+  "date": "2026-11-14",
+  "timeout_seconds": 60.0,
+  "mem_kib": 8388608,
+  "host": "Nadav-Desktop",
+  "ltlfsynt": "/usr/local/bin/ltlfsynt (spot) 2.15.1",
+  "synth_flags": [
+   "--otf-mtdfa-product",
+   "--otf-solve",
+   "--simplify-formula",
+   "--realizable"
+  ],
+  "arms": [
+   "nk",
+   "ltlfsynt",
+   "ek-derived",
+   "ek-compact"
+  ],
+  "specs": "tests/data/hard-instances"
+ },
+ "cells": [
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "UNREALIZABLE",
+   "wall_s": 0.2561566570075229,
+   "instance": "TwoCountersDisButAC",
+   "family": "TwoCountersDisButAC",
+   "n": null
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "UNREALIZABLE",
+   "wall_s": 0.007124103023670614,
+   "instance": "TwoCountersDisButAC",
+   "family": "TwoCountersDisButAC",
+   "n": null
+  },
+  {
+   "arm": "ek-derived",
+   "status": "ok",
+   "verdict": "UNREALIZABLE",
+   "wall_s": 16.01709714299068,
+   "extract_s": 8.7308562110411,
+   "synth_s": 7.286240931949578,
+   "instance": "TwoCountersDisButAC",
+   "family": "TwoCountersDisButAC",
+   "n": null
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.8439982269192114,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.006477871094830334,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ek-derived",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 1.3282552579184994,
+   "extract_s": 0.00628891889937222,
+   "synth_s": 1.3219663390191272,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ek-compact",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 1.2808164950693026,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 2.892199963913299,
+   "instance": "mux-17",
+   "family": "mux",
+   "n": 17
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.007049210951663554,
+   "instance": "mux-17",
+   "family": "mux",
+   "n": 17
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.006274705985561013,
+   "extract_s": 0.006274705985561013,
+   "instance": "mux-17",
+   "family": "mux",
+   "n": 17
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 8.45120800100267,
+   "instance": "mux-18",
+   "family": "mux",
+   "n": 18
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.006905382964760065,
+   "instance": "mux-18",
+   "family": "mux",
+   "n": 18
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.005988201010040939,
+   "extract_s": 0.005988201010040939,
+   "instance": "mux-18",
+   "family": "mux",
+   "n": 18
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 24.099234714987688,
+   "instance": "mux-19",
+   "family": "mux",
+   "n": 19
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.006717474083416164,
+   "instance": "mux-19",
+   "family": "mux",
+   "n": 19
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.005792529904283583,
+   "extract_s": 0.005792529904283583,
+   "instance": "mux-19",
+   "family": "mux",
+   "n": 19
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 60.092370335012674,
+   "instance": "mux-20",
+   "family": "mux",
+   "n": 20
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.006880067056044936,
+   "instance": "mux-20",
+   "family": "mux",
+   "n": 20
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.00625646801199764,
+   "extract_s": 0.00625646801199764,
+   "instance": "mux-20",
+   "family": "mux",
+   "n": 20
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 18.852748422068544,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 60.077365438919514,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 60.09720674797427,
+   "extract_s": 26.64846898301039,
+   "synth_s": 33.44873776496388,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ek-compact",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 39.47561288799625,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  }
+ ],
+ "verdict_mismatches": {}
+}
