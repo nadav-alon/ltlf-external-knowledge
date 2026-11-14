@@ -28,9 +28,14 @@ class HardInstances(unittest.TestCase):
     def test_mux_needs_ceil_log2_n_select_bits(self):
         self.assertEqual([hi.nbits(n) for n in (1, 2, 3, 4, 16, 17, 64)], [1, 1, 2, 2, 4, 5, 6])
 
-    def test_mux_has_a_compact_tout_only_at_powers_of_two(self):
-        self.assertIsNotNone(hi.mux(16)["tout"])
-        self.assertIsNone(hi.mux(17)["tout"])
+    def test_the_compact_mux_tout_of_three_inputs_is_the_hand_written_formula(self):
+        self.assertEqual(hi.mux(3)["tout"],
+                         "out <-> ((!select0 & !select1 & in0) | (select0 & !select1 & in1)"
+                         " | (!select0 & select1 & in2))")
+
+    def test_the_compact_mux_tout_has_one_disjunct_per_input_at_every_size(self):
+        for n in (16, 17, 33):
+            self.assertEqual(hi.mux(n)["tout"].count(" | "), n - 1, n)
 
     def test_shift_tout_is_one_state(self):
         self.assertIn("States: 1\n", hi.tout_text(hi.shift(3)))
@@ -42,7 +47,7 @@ class HardInstances(unittest.TestCase):
     @unittest.skipUnless(HAVE_BINARIES, "needs build/ltlf-ek-synth and build/ltlf-ek-deps")
     def test_the_compact_tout_leaves_the_verdict_of_a_small_instance_unchanged(self):
         with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as d:
-            for inst in (hi.mux(4), hi.shift(3)):
+            for inst in (hi.mux(4), hi.mux(6), hi.shift(3)):
                 base = hi.write(d, inst)
                 formula = inst["formula"]
                 known = base + ".known.part"

@@ -7,12 +7,13 @@ Mealy LTLf specs read with weak X (the `syfco -f ltlxba` rendering, Spot LTLf
 semantics), written from their SYNTCOMP TLSF definitions rather than through
 syfco:
 
-  mux    n = 16..64   out <-> in[i] under the binary-encoded select bus; `out` is
-                      determined only at powers of 2, where no select value >= n exists.
+  mux    n = 16..64   out <-> in[i] under the binary-encoded select bus. `out` is
+                      determined by the spec only at powers of 2; elsewhere the select
+                      values >= n leave it free, and the compact Tout sets it false there.
   shift  n = 20..40   out[i+1] <-> in[i], out[0] <-> in[n-1].
 
 Per instance NAME the directory holds NAME.ltlf (one formula), NAME.part (the
-knowledge-free part file) and, for mux at powers of 2 and for shift, NAME.tout
+knowledge-free part file) and, for mux and shift, NAME.tout
 (the hand-written compact Tout: one state, lambda one boolean formula).
 TwoCountersDisButAC (SYNTCOMP tlsf_paper, commit 13336b3c) is committed in the
 same directory as a copy, not generated.
@@ -38,16 +39,21 @@ def _value(bus, v, width):
     return " & ".join(("%s%d" if (v >> i) & 1 else "!%s%d") % (bus, i) for i in range(width))
 
 
+def _selects(n):
+    """(the select bus reads i, i) for each input i of an n-way mux."""
+    w = nbits(n)
+    return [(_value("select", i, w), i) for i in range(n)]
+
+
 def mux(n):
     w = nbits(n)
-    body = " & ".join("((%s) -> (out <-> in%d))" % (_value("select", i, w), i) for i in range(n))
+    body = " & ".join("((%s) -> (out <-> in%d))" % (sel, i) for sel, i in _selects(n))
     return {
         "name": "mux-%d" % n,
         "formula": "G(%s)" % body,
         "inputs": ["select%d" % i for i in range(w)] + ["in%d" % i for i in range(n)],
         "outputs": ["out"],
-        "tout": ("out <-> (%s)" % " | ".join("(%s & in%d)" % (_value("select", i, w), i) for i in range(n))
-                 if n == 1 << w else None),
+        "tout": "out <-> (%s)" % " | ".join("(%s & in%d)" % (sel, i) for sel, i in _selects(n)),
     }
 
 
