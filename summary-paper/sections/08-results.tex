@@ -148,6 +148,51 @@ Family & Product / unpruned & vs.\ no-knowledge & vs.\ \tool{ltlfsynt} \\
 
 \texttt{knowledge-chain} has no baseline, since its $\Tin$ is not given as a formula; it is still solved at every $n$ in about 3\,ms.
 
+\subsection{Output Dependencies on Hard Instances}\label{sec:hard-race}
+
+Output-dependency knowledge does not reach a $2\times$ speedup over the faster of the no-knowledge product and \tool{ltlfsynt} on any hard instance.
+On the TACAS'24 families~\cite{AkshayBCF2024} it cannot help at all: $99\%$ of the dependencies we find there are in instances the no-knowledge product already solves in a median of 9\,ms.
+So we raced it on the instances where synthesis is hard: \texttt{mux} for $n = 16..64$, \texttt{shift} for $n = 20..40$, and \texttt{TwoCountersDisButAC}, 71 instances in all.
+Each run had 120\,s and 8\,GiB, one repetition, on the HPC's Xeon Gold 6130 nodes.
+
+We compare six arms:
+\begin{itemize}
+\item the no-knowledge product, and \tool{ltlfsynt};
+\item our method with a $\Tout$ extracted by \tool{ltlf-ek-deps} (\emph{derived});
+\item our method with a hand-written $\Tout$, for \texttt{mux} at $n \in \{16, 32, 64\}$ and for \texttt{shift} at every $n$ (\emph{compact});
+\item both of these with the dependent outputs fixed, $\Xdep := \lambda$, so the controller no longer chooses them (\emph{derived-fixed}, \emph{compact-fixed}).
+\end{itemize}
+No lemma yet shows that fixing the dependent outputs preserves realizability; its correctness here is only empirical.
+All arms agree on every verdict where they finish, and every controller we could verify is safe.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Output dependencies on hard instances: wall time in seconds, at the sizes that have a knowledge arm.
+``timeout'' means over 120\,s; --- means no such arm; $^\dagger$ means the controller could not be verified (the verifier ran out of memory).}\label{tab:hard-race}
+\begin{tabular}{lcccccc}
+\toprule
+Instance & no-knowledge & \tool{ltlfsynt} & derived & compact & derived-fixed & compact-fixed \\
+\midrule
+\texttt{mux}-16 & 2.69 & 0.02 & 3.74 & 3.82 & 0.68 & 0.33 \\
+\texttt{mux}-32, -64 & timeout & $\le 0.04$ & timeout & timeout & timeout & timeout \\
+\texttt{shift}-20 & 48.93 & timeout & timeout & 72.31 & timeout & 28.06$^\dagger$ \\
+\texttt{shift}-21 & timeout & timeout & timeout & timeout & --- & 67.66$^\dagger$ \\
+\texttt{shift}-22..40 & timeout & timeout & timeout & timeout & --- & timeout \\
+\texttt{TwoCountersDisButAC} & 1.31 & 0.03 & 53.48 & --- & 53.41 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+On \texttt{mux}, \tool{ltlfsynt} solves every size from 16 to 64 in at most 0.04\,s, so no knowledge can win.
+Fixing the dependent outputs makes our method $8\times$ faster than the no-knowledge product on \texttt{mux}-16, but it is still $16\times$ slower than \tool{ltlfsynt}.
+\texttt{shift} is the only family where both baselines struggle.
+There \emph{compact-fixed} is $1.74\times$ faster on \texttt{shift}-20, and at least $1.77\times$ on \texttt{shift}-21 if both baselines' timeouts count, though nothing checks that verdict.
+From $n = 22$ every arm times out.
+
+The gain comes from fixing the dependent outputs, not from $\Tout$ itself: on its own, the compact $\Tout$ is slower than the no-knowledge product on both \texttt{mux}-16 and \texttt{shift}-20.
+Several runs shared each node, so these times are slower than on a dedicated machine.
+
 
 \subsection{Negative and Surprising Results}
 \guide{Degenerate families, non-reproductions, cases with no gain. Keep them; they are findings.}
