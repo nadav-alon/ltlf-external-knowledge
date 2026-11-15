@@ -57,5 +57,12 @@ game-solving gap.}
 \subsection{Negative and Surprising Results}
 \guide{Degenerate families, non-reproductions, cases with no gain. Keep them; they are findings.}
 
+\textbf{Output-dependency knowledge misses its speed-up bar on the hard families.}
+The bar, set before the run, was a speed-up of at least $2\times$ over both the no-knowledge run (NK) and \tool{ltlfsynt} on at least one hard family (here mux and shift, each raced at growing sizes), with no verdict mismatch; the full hard-instance race, which times every arm on every size, does not meet it.
+On mux, \tool{ltlfsynt} solves every size from 16 to 64 in at most $0.04$\,s, so no knowledge arm can win.
+On shift, the best checked speed-up of the \tool{--fix-dependent-outputs} arm (compact knowledge, \tool{compact-fixed}) is $1.74\times$ over NK, at shift-20, where \tool{ltlfsynt} times out, against the $2\times$ bar; \tool{compact-fixed} times out from shift-22 up, and every other arm finishes at most shift-20.
+There are $0$ verdict mismatches.
+This race is a separate run from the main sweep of \cref{sec:benchmarks}: it ran on the HPC on 2026-11-14 (ten nodes, \texttt{cn01}, \texttt{cn02}, \texttt{cn11} and \texttt{cn13}--\texttt{cn19}, Intel Xeon Gold 6130 at 2.10\,GHz), from a Release build at commit \texttt{021a915}, with Spot 2.15.1, one repetition and a 120\,s timeout per cell; the committed run is \texttt{docs/runs/2026-11-14-full-hard-race.json}.
+
 \subsection{Threats to Validity}
 \guide{Family selection bias, small $n$, timeouts, the tier assumptions, single machine.}
