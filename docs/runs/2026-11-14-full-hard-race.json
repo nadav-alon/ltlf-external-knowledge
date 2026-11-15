@@ -1,0 +1,2723 @@
+{
+ "provenance": {
+  "timeout_seconds": 120.0,
+  "mem_kib": 8388608,
+  "ltlfsynt": "/usr/local/bin/ltlfsynt (spot) 2.15.1",
+  "synth_flags": [
+   "--otf-mtdfa-product",
+   "--otf-solve",
+   "--simplify-formula",
+   "--realizable"
+  ],
+  "arms": [
+   "nk",
+   "ltlfsynt",
+   "ek-derived",
+   "ek-compact",
+   "ek-derived-fixed",
+   "ek-compact-fixed"
+  ],
+  "specs": "tests/data/hard-instances",
+  "repo_commit": "021a9154f231abd0949cbe6d3c8c4ced2003e405",
+  "master_commit": "e9b3c51",
+  "spot_version": "2.15.1",
+  "cpu_model": "Intel(R) Xeon(R) Gold 6130 CPU @ 2.10GHz",
+  "slurm_jobs": {
+   "image": 1275436,
+   "race": 1275437
+  },
+  "date": "2026-11-14",
+  "machines": [
+   "cn01.hpc.pub.lan",
+   "cn02.hpc.pub.lan",
+   "cn11.hpc.pub.lan",
+   "cn13.hpc.pub.lan",
+   "cn14.hpc.pub.lan",
+   "cn15.hpc.pub.lan",
+   "cn16.hpc.pub.lan",
+   "cn17.hpc.pub.lan",
+   "cn18.hpc.pub.lan",
+   "cn19.hpc.pub.lan"
+  ],
+  "host_by_instance": {
+   "TwoCountersDisButAC": "cn11.hpc.pub.lan",
+   "mux-16": "cn01.hpc.pub.lan",
+   "mux-17": "cn01.hpc.pub.lan",
+   "mux-18": "cn01.hpc.pub.lan",
+   "mux-19": "cn01.hpc.pub.lan",
+   "mux-20": "cn01.hpc.pub.lan",
+   "mux-21": "cn01.hpc.pub.lan",
+   "mux-22": "cn01.hpc.pub.lan",
+   "mux-23": "cn02.hpc.pub.lan",
+   "mux-24": "cn02.hpc.pub.lan",
+   "mux-25": "cn02.hpc.pub.lan",
+   "mux-26": "cn02.hpc.pub.lan",
+   "mux-27": "cn02.hpc.pub.lan",
+   "mux-28": "cn02.hpc.pub.lan",
+   "mux-29": "cn02.hpc.pub.lan",
+   "mux-30": "cn02.hpc.pub.lan",
+   "mux-31": "cn14.hpc.pub.lan",
+   "mux-32": "cn14.hpc.pub.lan",
+   "mux-33": "cn14.hpc.pub.lan",
+   "mux-34": "cn14.hpc.pub.lan",
+   "mux-35": "cn14.hpc.pub.lan",
+   "mux-36": "cn14.hpc.pub.lan",
+   "mux-37": "cn13.hpc.pub.lan",
+   "mux-38": "cn13.hpc.pub.lan",
+   "mux-39": "cn13.hpc.pub.lan",
+   "mux-40": "cn13.hpc.pub.lan",
+   "mux-41": "cn13.hpc.pub.lan",
+   "mux-42": "cn13.hpc.pub.lan",
+   "mux-43": "cn13.hpc.pub.lan",
+   "mux-44": "cn13.hpc.pub.lan",
+   "mux-45": "cn13.hpc.pub.lan",
+   "mux-46": "cn13.hpc.pub.lan",
+   "mux-47": "cn13.hpc.pub.lan",
+   "mux-48": "cn17.hpc.pub.lan",
+   "mux-49": "cn17.hpc.pub.lan",
+   "mux-50": "cn17.hpc.pub.lan",
+   "mux-51": "cn17.hpc.pub.lan",
+   "mux-52": "cn17.hpc.pub.lan",
+   "mux-53": "cn17.hpc.pub.lan",
+   "mux-54": "cn17.hpc.pub.lan",
+   "mux-55": "cn17.hpc.pub.lan",
+   "mux-56": "cn16.hpc.pub.lan",
+   "mux-57": "cn16.hpc.pub.lan",
+   "mux-58": "cn16.hpc.pub.lan",
+   "mux-59": "cn16.hpc.pub.lan",
+   "mux-60": "cn15.hpc.pub.lan",
+   "mux-61": "cn15.hpc.pub.lan",
+   "mux-62": "cn15.hpc.pub.lan",
+   "mux-63": "cn15.hpc.pub.lan",
+   "mux-64": "cn15.hpc.pub.lan",
+   "shift-20": "cn15.hpc.pub.lan",
+   "shift-21": "cn15.hpc.pub.lan",
+   "shift-22": "cn15.hpc.pub.lan",
+   "shift-23": "cn15.hpc.pub.lan",
+   "shift-24": "cn15.hpc.pub.lan",
+   "shift-25": "cn18.hpc.pub.lan",
+   "shift-26": "cn18.hpc.pub.lan",
+   "shift-27": "cn18.hpc.pub.lan",
+   "shift-28": "cn18.hpc.pub.lan",
+   "shift-29": "cn18.hpc.pub.lan",
+   "shift-30": "cn18.hpc.pub.lan",
+   "shift-31": "cn18.hpc.pub.lan",
+   "shift-32": "cn18.hpc.pub.lan",
+   "shift-33": "cn18.hpc.pub.lan",
+   "shift-34": "cn19.hpc.pub.lan",
+   "shift-35": "cn19.hpc.pub.lan",
+   "shift-36": "cn19.hpc.pub.lan",
+   "shift-37": "cn19.hpc.pub.lan",
+   "shift-38": "cn19.hpc.pub.lan",
+   "shift-39": "cn19.hpc.pub.lan",
+   "shift-40": "cn19.hpc.pub.lan"
+  },
+  "instances": 71,
+  "instances_missing": []
+ },
+ "cells": [
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "UNREALIZABLE",
+   "wall_s": 1.3091750950552523,
+   "instance": "TwoCountersDisButAC",
+   "family": "TwoCountersDisButAC",
+   "n": null
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "UNREALIZABLE",
+   "wall_s": 0.028297908138483763,
+   "instance": "TwoCountersDisButAC",
+   "family": "TwoCountersDisButAC",
+   "n": null
+  },
+  {
+   "arm": "ek-derived",
+   "status": "ok",
+   "verdict": "UNREALIZABLE",
+   "wall_s": 53.47851059399545,
+   "extract_s": 33.75112296408042,
+   "synth_s": 19.72738762991503,
+   "instance": "TwoCountersDisButAC",
+   "family": "TwoCountersDisButAC",
+   "n": null
+  },
+  {
+   "arm": "ek-derived-fixed",
+   "status": "ok",
+   "verdict": "UNREALIZABLE",
+   "wall_s": 53.41447773994878,
+   "extract_s": 33.75112296408042,
+   "synth_s": 19.663354775868356,
+   "instance": "TwoCountersDisButAC",
+   "family": "TwoCountersDisButAC",
+   "n": null
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 2.6877983431331813,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.02292829379439354,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ek-derived",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 3.7429669345729053,
+   "extract_s": 0.02321574278175831,
+   "synth_s": 3.719751191791147,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ek-compact",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 3.822915789205581,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ek-derived-fixed",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.6767107187770307,
+   "verify_s": 47.0572441839613,
+   "controller": "verified",
+   "extract_s": 0.02321574278175831,
+   "synth_s": 0.6534949759952724,
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.33250471809878945,
+   "verify_s": 41.67234790371731,
+   "controller": "verified",
+   "instance": "mux-16",
+   "family": "mux",
+   "n": 16
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 7.010731759015471,
+   "instance": "mux-17",
+   "family": "mux",
+   "n": 17
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.02336285775527358,
+   "instance": "mux-17",
+   "family": "mux",
+   "n": 17
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02193130599334836,
+   "extract_s": 0.02193130599334836,
+   "instance": "mux-17",
+   "family": "mux",
+   "n": 17
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 18.18384417006746,
+   "instance": "mux-18",
+   "family": "mux",
+   "n": 18
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.02377460803836584,
+   "instance": "mux-18",
+   "family": "mux",
+   "n": 18
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.021165517158806324,
+   "extract_s": 0.021165517158806324,
+   "instance": "mux-18",
+   "family": "mux",
+   "n": 18
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 49.482310969848186,
+   "instance": "mux-19",
+   "family": "mux",
+   "n": 19
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.024578167125582695,
+   "instance": "mux-19",
+   "family": "mux",
+   "n": 19
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.021137539763003588,
+   "extract_s": 0.021137539763003588,
+   "instance": "mux-19",
+   "family": "mux",
+   "n": 19
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17613683408126,
+   "instance": "mux-20",
+   "family": "mux",
+   "n": 20
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.032481227070093155,
+   "instance": "mux-20",
+   "family": "mux",
+   "n": 20
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02019378775730729,
+   "extract_s": 0.02019378775730729,
+   "instance": "mux-20",
+   "family": "mux",
+   "n": 20
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.19385343324393,
+   "instance": "mux-21",
+   "family": "mux",
+   "n": 21
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03235270082950592,
+   "instance": "mux-21",
+   "family": "mux",
+   "n": 21
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.021598441991955042,
+   "extract_s": 0.021598441991955042,
+   "instance": "mux-21",
+   "family": "mux",
+   "n": 21
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20822599809617,
+   "instance": "mux-22",
+   "family": "mux",
+   "n": 22
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03189989132806659,
+   "instance": "mux-22",
+   "family": "mux",
+   "n": 22
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.020409564021974802,
+   "extract_s": 0.020409564021974802,
+   "instance": "mux-22",
+   "family": "mux",
+   "n": 22
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20928159728646,
+   "instance": "mux-23",
+   "family": "mux",
+   "n": 23
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03198046889156103,
+   "instance": "mux-23",
+   "family": "mux",
+   "n": 23
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02001445507630706,
+   "extract_s": 0.02001445507630706,
+   "instance": "mux-23",
+   "family": "mux",
+   "n": 23
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17442612396553,
+   "instance": "mux-24",
+   "family": "mux",
+   "n": 24
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03181209834292531,
+   "instance": "mux-24",
+   "family": "mux",
+   "n": 24
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.020170623902231455,
+   "extract_s": 0.020170623902231455,
+   "instance": "mux-24",
+   "family": "mux",
+   "n": 24
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.171508254949,
+   "instance": "mux-25",
+   "family": "mux",
+   "n": 25
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.0317772408016026,
+   "instance": "mux-25",
+   "family": "mux",
+   "n": 25
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.020204697269946337,
+   "extract_s": 0.020204697269946337,
+   "instance": "mux-25",
+   "family": "mux",
+   "n": 25
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17324099084362,
+   "instance": "mux-26",
+   "family": "mux",
+   "n": 26
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03211472416296601,
+   "instance": "mux-26",
+   "family": "mux",
+   "n": 26
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.020146092865616083,
+   "extract_s": 0.020146092865616083,
+   "instance": "mux-26",
+   "family": "mux",
+   "n": 26
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.04684319999069,
+   "instance": "mux-27",
+   "family": "mux",
+   "n": 27
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03566234977915883,
+   "instance": "mux-27",
+   "family": "mux",
+   "n": 27
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02172776684165001,
+   "extract_s": 0.02172776684165001,
+   "instance": "mux-27",
+   "family": "mux",
+   "n": 27
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17292562732473,
+   "instance": "mux-28",
+   "family": "mux",
+   "n": 28
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.032333387061953545,
+   "instance": "mux-28",
+   "family": "mux",
+   "n": 28
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.020365973934531212,
+   "extract_s": 0.020365973934531212,
+   "instance": "mux-28",
+   "family": "mux",
+   "n": 28
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17352731479332,
+   "instance": "mux-29",
+   "family": "mux",
+   "n": 29
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.032603742089122534,
+   "instance": "mux-29",
+   "family": "mux",
+   "n": 29
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.020426670089364052,
+   "extract_s": 0.020426670089364052,
+   "instance": "mux-29",
+   "family": "mux",
+   "n": 29
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17007732670754,
+   "instance": "mux-30",
+   "family": "mux",
+   "n": 30
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03286999696865678,
+   "instance": "mux-30",
+   "family": "mux",
+   "n": 30
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.020714187994599342,
+   "extract_s": 0.020714187994599342,
+   "instance": "mux-30",
+   "family": "mux",
+   "n": 30
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15688285324723,
+   "instance": "mux-31",
+   "family": "mux",
+   "n": 31
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03297765785828233,
+   "instance": "mux-31",
+   "family": "mux",
+   "n": 31
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.0205231960862875,
+   "extract_s": 0.0205231960862875,
+   "instance": "mux-31",
+   "family": "mux",
+   "n": 31
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15663900598884,
+   "instance": "mux-32",
+   "family": "mux",
+   "n": 32
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.0331197720952332,
+   "instance": "mux-32",
+   "family": "mux",
+   "n": 32
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14820662792772,
+   "extract_s": 0.02440471202135086,
+   "synth_s": 120.12380191590637,
+   "instance": "mux-32",
+   "family": "mux",
+   "n": 32
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.148871621117,
+   "instance": "mux-32",
+   "family": "mux",
+   "n": 32
+  },
+  {
+   "arm": "ek-derived-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14951913105324,
+   "extract_s": 0.02440471202135086,
+   "synth_s": 120.12511441903189,
+   "instance": "mux-32",
+   "family": "mux",
+   "n": 32
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14858113275841,
+   "instance": "mux-32",
+   "family": "mux",
+   "n": 32
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15679666772485,
+   "instance": "mux-33",
+   "family": "mux",
+   "n": 33
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03297924483194947,
+   "instance": "mux-33",
+   "family": "mux",
+   "n": 33
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02089247526600957,
+   "extract_s": 0.02089247526600957,
+   "instance": "mux-33",
+   "family": "mux",
+   "n": 33
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15734974388033,
+   "instance": "mux-34",
+   "family": "mux",
+   "n": 34
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.032997531816363335,
+   "instance": "mux-34",
+   "family": "mux",
+   "n": 34
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02072092704474926,
+   "extract_s": 0.02072092704474926,
+   "instance": "mux-34",
+   "family": "mux",
+   "n": 34
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14806814398617,
+   "instance": "mux-35",
+   "family": "mux",
+   "n": 35
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.034239865373820066,
+   "instance": "mux-35",
+   "family": "mux",
+   "n": 35
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.021699668373912573,
+   "extract_s": 0.021699668373912573,
+   "instance": "mux-35",
+   "family": "mux",
+   "n": 35
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1468870039098,
+   "instance": "mux-36",
+   "family": "mux",
+   "n": 36
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.035378120839595795,
+   "instance": "mux-36",
+   "family": "mux",
+   "n": 36
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.021693720016628504,
+   "extract_s": 0.021693720016628504,
+   "instance": "mux-36",
+   "family": "mux",
+   "n": 36
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20835774485022,
+   "instance": "mux-37",
+   "family": "mux",
+   "n": 37
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03322317637503147,
+   "instance": "mux-37",
+   "family": "mux",
+   "n": 37
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.021461299154907465,
+   "extract_s": 0.021461299154907465,
+   "instance": "mux-37",
+   "family": "mux",
+   "n": 37
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20862686121836,
+   "instance": "mux-38",
+   "family": "mux",
+   "n": 38
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03325039567425847,
+   "instance": "mux-38",
+   "family": "mux",
+   "n": 38
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.021064724773168564,
+   "extract_s": 0.021064724773168564,
+   "instance": "mux-38",
+   "family": "mux",
+   "n": 38
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20855899900198,
+   "instance": "mux-39",
+   "family": "mux",
+   "n": 39
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.033667702693492174,
+   "instance": "mux-39",
+   "family": "mux",
+   "n": 39
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02119319885969162,
+   "extract_s": 0.02119319885969162,
+   "instance": "mux-39",
+   "family": "mux",
+   "n": 39
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20433856220916,
+   "instance": "mux-40",
+   "family": "mux",
+   "n": 40
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.035496552009135485,
+   "instance": "mux-40",
+   "family": "mux",
+   "n": 40
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.021871692966669798,
+   "extract_s": 0.021871692966669798,
+   "instance": "mux-40",
+   "family": "mux",
+   "n": 40
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20866256579757,
+   "instance": "mux-41",
+   "family": "mux",
+   "n": 41
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03358571697026491,
+   "instance": "mux-41",
+   "family": "mux",
+   "n": 41
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.0210513137280941,
+   "extract_s": 0.0210513137280941,
+   "instance": "mux-41",
+   "family": "mux",
+   "n": 41
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20924597419798,
+   "instance": "mux-42",
+   "family": "mux",
+   "n": 42
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.034072655253112316,
+   "instance": "mux-42",
+   "family": "mux",
+   "n": 42
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.020989973098039627,
+   "extract_s": 0.020989973098039627,
+   "instance": "mux-42",
+   "family": "mux",
+   "n": 42
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20475061656907,
+   "instance": "mux-43",
+   "family": "mux",
+   "n": 43
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03535637678578496,
+   "instance": "mux-43",
+   "family": "mux",
+   "n": 43
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.021818144246935844,
+   "extract_s": 0.021818144246935844,
+   "instance": "mux-43",
+   "family": "mux",
+   "n": 43
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20756204985082,
+   "instance": "mux-44",
+   "family": "mux",
+   "n": 44
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.0339584075845778,
+   "instance": "mux-44",
+   "family": "mux",
+   "n": 44
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02151037473231554,
+   "extract_s": 0.02151037473231554,
+   "instance": "mux-44",
+   "family": "mux",
+   "n": 44
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20977605506778,
+   "instance": "mux-45",
+   "family": "mux",
+   "n": 45
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03424568520858884,
+   "instance": "mux-45",
+   "family": "mux",
+   "n": 45
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02162408037111163,
+   "extract_s": 0.02162408037111163,
+   "instance": "mux-45",
+   "family": "mux",
+   "n": 45
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20770526118577,
+   "instance": "mux-46",
+   "family": "mux",
+   "n": 46
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03407932538539171,
+   "instance": "mux-46",
+   "family": "mux",
+   "n": 46
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.021418909076601267,
+   "extract_s": 0.021418909076601267,
+   "instance": "mux-46",
+   "family": "mux",
+   "n": 46
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.2074602516368,
+   "instance": "mux-47",
+   "family": "mux",
+   "n": 47
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03427276574075222,
+   "instance": "mux-47",
+   "family": "mux",
+   "n": 47
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.021578256972134113,
+   "extract_s": 0.021578256972134113,
+   "instance": "mux-47",
+   "family": "mux",
+   "n": 47
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17305973125622,
+   "instance": "mux-48",
+   "family": "mux",
+   "n": 48
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03461745101958513,
+   "instance": "mux-48",
+   "family": "mux",
+   "n": 48
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02189387520775199,
+   "extract_s": 0.02189387520775199,
+   "instance": "mux-48",
+   "family": "mux",
+   "n": 48
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16272415826097,
+   "instance": "mux-49",
+   "family": "mux",
+   "n": 49
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.0351202841848135,
+   "instance": "mux-49",
+   "family": "mux",
+   "n": 49
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.022272275295108557,
+   "extract_s": 0.022272275295108557,
+   "instance": "mux-49",
+   "family": "mux",
+   "n": 49
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1729416041635,
+   "instance": "mux-50",
+   "family": "mux",
+   "n": 50
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03468132019042969,
+   "instance": "mux-50",
+   "family": "mux",
+   "n": 50
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.022301218938082457,
+   "extract_s": 0.022301218938082457,
+   "instance": "mux-50",
+   "family": "mux",
+   "n": 50
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16931807203218,
+   "instance": "mux-51",
+   "family": "mux",
+   "n": 51
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.0352808590978384,
+   "instance": "mux-51",
+   "family": "mux",
+   "n": 51
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.0220499518327415,
+   "extract_s": 0.0220499518327415,
+   "instance": "mux-51",
+   "family": "mux",
+   "n": 51
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16962707042694,
+   "instance": "mux-52",
+   "family": "mux",
+   "n": 52
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03472821321338415,
+   "instance": "mux-52",
+   "family": "mux",
+   "n": 52
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.021842957939952612,
+   "extract_s": 0.021842957939952612,
+   "instance": "mux-52",
+   "family": "mux",
+   "n": 52
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17182871093974,
+   "instance": "mux-53",
+   "family": "mux",
+   "n": 53
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03572495607659221,
+   "instance": "mux-53",
+   "family": "mux",
+   "n": 53
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.022088463883846998,
+   "extract_s": 0.022088463883846998,
+   "instance": "mux-53",
+   "family": "mux",
+   "n": 53
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14789470983669,
+   "instance": "mux-54",
+   "family": "mux",
+   "n": 54
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.036115110386162996,
+   "instance": "mux-54",
+   "family": "mux",
+   "n": 54
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.022509006317704916,
+   "extract_s": 0.022509006317704916,
+   "instance": "mux-54",
+   "family": "mux",
+   "n": 54
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1470109121874,
+   "instance": "mux-55",
+   "family": "mux",
+   "n": 55
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03686580015346408,
+   "instance": "mux-55",
+   "family": "mux",
+   "n": 55
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.022982513066381216,
+   "extract_s": 0.022982513066381216,
+   "instance": "mux-55",
+   "family": "mux",
+   "n": 55
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16486891312525,
+   "instance": "mux-56",
+   "family": "mux",
+   "n": 56
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.0366056808270514,
+   "instance": "mux-56",
+   "family": "mux",
+   "n": 56
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02365551283583045,
+   "extract_s": 0.02365551283583045,
+   "instance": "mux-56",
+   "family": "mux",
+   "n": 56
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16525535332039,
+   "instance": "mux-57",
+   "family": "mux",
+   "n": 57
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03647399786859751,
+   "instance": "mux-57",
+   "family": "mux",
+   "n": 57
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.023403947241604328,
+   "extract_s": 0.023403947241604328,
+   "instance": "mux-57",
+   "family": "mux",
+   "n": 57
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16494118981063,
+   "instance": "mux-58",
+   "family": "mux",
+   "n": 58
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03702282812446356,
+   "instance": "mux-58",
+   "family": "mux",
+   "n": 58
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.023358593229204416,
+   "extract_s": 0.023358593229204416,
+   "instance": "mux-58",
+   "family": "mux",
+   "n": 58
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16150498203933,
+   "instance": "mux-59",
+   "family": "mux",
+   "n": 59
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03947244118899107,
+   "instance": "mux-59",
+   "family": "mux",
+   "n": 59
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02408048789948225,
+   "extract_s": 0.02408048789948225,
+   "instance": "mux-59",
+   "family": "mux",
+   "n": 59
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17743168910965,
+   "instance": "mux-60",
+   "family": "mux",
+   "n": 60
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03579025389626622,
+   "instance": "mux-60",
+   "family": "mux",
+   "n": 60
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.022707520984113216,
+   "extract_s": 0.022707520984113216,
+   "instance": "mux-60",
+   "family": "mux",
+   "n": 60
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17820726614445,
+   "instance": "mux-61",
+   "family": "mux",
+   "n": 61
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.0355653390288353,
+   "instance": "mux-61",
+   "family": "mux",
+   "n": 61
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02264962438493967,
+   "extract_s": 0.02264962438493967,
+   "instance": "mux-61",
+   "family": "mux",
+   "n": 61
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17613359773532,
+   "instance": "mux-62",
+   "family": "mux",
+   "n": 62
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.036183739081025124,
+   "instance": "mux-62",
+   "family": "mux",
+   "n": 62
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02255534427240491,
+   "extract_s": 0.02255534427240491,
+   "instance": "mux-62",
+   "family": "mux",
+   "n": 62
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17201048089191,
+   "instance": "mux-63",
+   "family": "mux",
+   "n": 63
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.03585500409826636,
+   "instance": "mux-63",
+   "family": "mux",
+   "n": 63
+  },
+  {
+   "arm": "ek-derived",
+   "status": "none",
+   "verdict": null,
+   "wall_s": 0.02386740781366825,
+   "extract_s": 0.02386740781366825,
+   "instance": "mux-63",
+   "family": "mux",
+   "n": 63
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.18013349501416,
+   "instance": "mux-64",
+   "family": "mux",
+   "n": 64
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 0.035704136826097965,
+   "instance": "mux-64",
+   "family": "mux",
+   "n": 64
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14928100025281,
+   "extract_s": 0.029158749151974916,
+   "synth_s": 120.12012225110084,
+   "instance": "mux-64",
+   "family": "mux",
+   "n": 64
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14938761200756,
+   "instance": "mux-64",
+   "family": "mux",
+   "n": 64
+  },
+  {
+   "arm": "ek-derived-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14927179785445,
+   "extract_s": 0.029158749151974916,
+   "synth_s": 120.12011304870248,
+   "instance": "mux-64",
+   "family": "mux",
+   "n": 64
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15202528890222,
+   "instance": "mux-64",
+   "family": "mux",
+   "n": 64
+  },
+  {
+   "arm": "nk",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 48.927699212916195,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.10711610270664,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.0782361458987,
+   "extract_s": 56.85110788280144,
+   "synth_s": 63.227128263097256,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ek-compact",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 72.31384774576873,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ek-derived-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.07840027008206,
+   "extract_s": 56.85110788280144,
+   "synth_s": 63.22729238728061,
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 28.06313237780705,
+   "verify_s": 100.81023835670203,
+   "controller": "unverifiable",
+   "verify_limit": "rc 1",
+   "instance": "shift-20",
+   "family": "shift",
+   "n": 20
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20227098977193,
+   "instance": "shift-21",
+   "family": "shift",
+   "n": 21
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1166582480073,
+   "instance": "shift-21",
+   "family": "shift",
+   "n": 21
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.11578210117295,
+   "extract_s": 120.11578210117295,
+   "instance": "shift-21",
+   "family": "shift",
+   "n": 21
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14937814697623,
+   "instance": "shift-21",
+   "family": "shift",
+   "n": 21
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "ok",
+   "verdict": "REALIZABLE",
+   "wall_s": 67.65653294883668,
+   "verify_s": 120.14827359188348,
+   "controller": "unverifiable",
+   "verify_limit": "timeout",
+   "instance": "shift-21",
+   "family": "shift",
+   "n": 21
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.20615716837347,
+   "instance": "shift-22",
+   "family": "shift",
+   "n": 22
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.12875550612807,
+   "instance": "shift-22",
+   "family": "shift",
+   "n": 22
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.12854450615123,
+   "extract_s": 120.12854450615123,
+   "instance": "shift-22",
+   "family": "shift",
+   "n": 22
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.12204969394952,
+   "instance": "shift-22",
+   "family": "shift",
+   "n": 22
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.12214264972135,
+   "instance": "shift-22",
+   "family": "shift",
+   "n": 22
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14435997512192,
+   "instance": "shift-23",
+   "family": "shift",
+   "n": 23
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14805575599894,
+   "instance": "shift-23",
+   "family": "shift",
+   "n": 23
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.13399053923786,
+   "extract_s": 120.13399053923786,
+   "instance": "shift-23",
+   "family": "shift",
+   "n": 23
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.13857306493446,
+   "instance": "shift-23",
+   "family": "shift",
+   "n": 23
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.13748947065324,
+   "instance": "shift-23",
+   "family": "shift",
+   "n": 23
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.08837659936398,
+   "instance": "shift-24",
+   "family": "shift",
+   "n": 24
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14620341174304,
+   "instance": "shift-24",
+   "family": "shift",
+   "n": 24
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.141816386953,
+   "extract_s": 120.141816386953,
+   "instance": "shift-24",
+   "family": "shift",
+   "n": 24
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1416163481772,
+   "instance": "shift-24",
+   "family": "shift",
+   "n": 24
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14192021591589,
+   "instance": "shift-24",
+   "family": "shift",
+   "n": 24
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17817020276561,
+   "instance": "shift-25",
+   "family": "shift",
+   "n": 25
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17530720261857,
+   "instance": "shift-25",
+   "family": "shift",
+   "n": 25
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17004655720666,
+   "extract_s": 120.17004655720666,
+   "instance": "shift-25",
+   "family": "shift",
+   "n": 25
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.05309400334954,
+   "instance": "shift-25",
+   "family": "shift",
+   "n": 25
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15167986601591,
+   "instance": "shift-25",
+   "family": "shift",
+   "n": 25
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17739511094987,
+   "instance": "shift-26",
+   "family": "shift",
+   "n": 26
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17010732740164,
+   "instance": "shift-26",
+   "family": "shift",
+   "n": 26
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1651497837156,
+   "extract_s": 120.1651497837156,
+   "instance": "shift-26",
+   "family": "shift",
+   "n": 26
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.11141518456861,
+   "instance": "shift-26",
+   "family": "shift",
+   "n": 26
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.12549041910097,
+   "instance": "shift-26",
+   "family": "shift",
+   "n": 26
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.18105456838384,
+   "instance": "shift-27",
+   "family": "shift",
+   "n": 27
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17683397978544,
+   "instance": "shift-27",
+   "family": "shift",
+   "n": 27
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.18255719263107,
+   "extract_s": 120.18255719263107,
+   "instance": "shift-27",
+   "family": "shift",
+   "n": 27
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17063229065388,
+   "instance": "shift-27",
+   "family": "shift",
+   "n": 27
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15916965901852,
+   "instance": "shift-27",
+   "family": "shift",
+   "n": 27
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.18093811394647,
+   "instance": "shift-28",
+   "family": "shift",
+   "n": 28
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17822666699067,
+   "instance": "shift-28",
+   "family": "shift",
+   "n": 28
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.18491686228663,
+   "extract_s": 120.18491686228663,
+   "instance": "shift-28",
+   "family": "shift",
+   "n": 28
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16855432419106,
+   "instance": "shift-28",
+   "family": "shift",
+   "n": 28
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1428342377767,
+   "instance": "shift-28",
+   "family": "shift",
+   "n": 28
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.18098223814741,
+   "instance": "shift-29",
+   "family": "shift",
+   "n": 29
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17684314586222,
+   "instance": "shift-29",
+   "family": "shift",
+   "n": 29
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.18594456743449,
+   "extract_s": 120.18594456743449,
+   "instance": "shift-29",
+   "family": "shift",
+   "n": 29
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16913935821503,
+   "instance": "shift-29",
+   "family": "shift",
+   "n": 29
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14383622491732,
+   "instance": "shift-29",
+   "family": "shift",
+   "n": 29
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.18088165810332,
+   "instance": "shift-30",
+   "family": "shift",
+   "n": 30
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16356736514717,
+   "instance": "shift-30",
+   "family": "shift",
+   "n": 30
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17756662983447,
+   "extract_s": 120.17756662983447,
+   "instance": "shift-30",
+   "family": "shift",
+   "n": 30
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15858341194689,
+   "instance": "shift-30",
+   "family": "shift",
+   "n": 30
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.07743145991117,
+   "instance": "shift-30",
+   "family": "shift",
+   "n": 30
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.18122247233987,
+   "instance": "shift-31",
+   "family": "shift",
+   "n": 31
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17850603396073,
+   "instance": "shift-31",
+   "family": "shift",
+   "n": 31
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.18420663662255,
+   "extract_s": 120.18420663662255,
+   "instance": "shift-31",
+   "family": "shift",
+   "n": 31
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1702813510783,
+   "instance": "shift-31",
+   "family": "shift",
+   "n": 31
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.158365058247,
+   "instance": "shift-31",
+   "family": "shift",
+   "n": 31
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17947416007519,
+   "instance": "shift-32",
+   "family": "shift",
+   "n": 32
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17552625900134,
+   "instance": "shift-32",
+   "family": "shift",
+   "n": 32
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.18161831889302,
+   "extract_s": 120.18161831889302,
+   "instance": "shift-32",
+   "family": "shift",
+   "n": 32
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.05099073797464,
+   "instance": "shift-32",
+   "family": "shift",
+   "n": 32
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15353333530948,
+   "instance": "shift-32",
+   "family": "shift",
+   "n": 32
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17601854540408,
+   "instance": "shift-33",
+   "family": "shift",
+   "n": 33
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15923641994596,
+   "instance": "shift-33",
+   "family": "shift",
+   "n": 33
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14923377009109,
+   "extract_s": 120.14923377009109,
+   "instance": "shift-33",
+   "family": "shift",
+   "n": 33
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15903828386217,
+   "instance": "shift-33",
+   "family": "shift",
+   "n": 33
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.12593280663714,
+   "instance": "shift-33",
+   "family": "shift",
+   "n": 33
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1670931992121,
+   "instance": "shift-34",
+   "family": "shift",
+   "n": 34
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1682945350185,
+   "instance": "shift-34",
+   "family": "shift",
+   "n": 34
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17197289783508,
+   "extract_s": 120.17197289783508,
+   "instance": "shift-34",
+   "family": "shift",
+   "n": 34
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16730516729876,
+   "instance": "shift-34",
+   "family": "shift",
+   "n": 34
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16211852198467,
+   "instance": "shift-34",
+   "family": "shift",
+   "n": 34
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16534921294078,
+   "instance": "shift-35",
+   "family": "shift",
+   "n": 35
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16699949884787,
+   "instance": "shift-35",
+   "family": "shift",
+   "n": 35
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17164407018572,
+   "extract_s": 120.17164407018572,
+   "instance": "shift-35",
+   "family": "shift",
+   "n": 35
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16646258393303,
+   "instance": "shift-35",
+   "family": "shift",
+   "n": 35
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.06123284390196,
+   "instance": "shift-35",
+   "family": "shift",
+   "n": 35
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16693470673636,
+   "instance": "shift-36",
+   "family": "shift",
+   "n": 36
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1667664879933,
+   "instance": "shift-36",
+   "family": "shift",
+   "n": 36
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.17244101176038,
+   "extract_s": 120.17244101176038,
+   "instance": "shift-36",
+   "family": "shift",
+   "n": 36
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16479068994522,
+   "instance": "shift-36",
+   "family": "shift",
+   "n": 36
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16157451365143,
+   "instance": "shift-36",
+   "family": "shift",
+   "n": 36
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1653143898584,
+   "instance": "shift-37",
+   "family": "shift",
+   "n": 37
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16689273901284,
+   "instance": "shift-37",
+   "family": "shift",
+   "n": 37
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16290896758437,
+   "extract_s": 120.16290896758437,
+   "instance": "shift-37",
+   "family": "shift",
+   "n": 37
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.105920357164,
+   "instance": "shift-37",
+   "family": "shift",
+   "n": 37
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1518887821585,
+   "instance": "shift-37",
+   "family": "shift",
+   "n": 37
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16361996578053,
+   "instance": "shift-38",
+   "family": "shift",
+   "n": 38
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16614155797288,
+   "instance": "shift-38",
+   "family": "shift",
+   "n": 38
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.08509950013831,
+   "extract_s": 120.08509950013831,
+   "instance": "shift-38",
+   "family": "shift",
+   "n": 38
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.13638287596405,
+   "instance": "shift-38",
+   "family": "shift",
+   "n": 38
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14473804924637,
+   "instance": "shift-38",
+   "family": "shift",
+   "n": 38
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16572057362646,
+   "instance": "shift-39",
+   "family": "shift",
+   "n": 39
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16597741190344,
+   "instance": "shift-39",
+   "family": "shift",
+   "n": 39
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16984308511019,
+   "extract_s": 120.16984308511019,
+   "instance": "shift-39",
+   "family": "shift",
+   "n": 39
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.1654263981618,
+   "instance": "shift-39",
+   "family": "shift",
+   "n": 39
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16288586612791,
+   "instance": "shift-39",
+   "family": "shift",
+   "n": 39
+  },
+  {
+   "arm": "nk",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16551018878818,
+   "instance": "shift-40",
+   "family": "shift",
+   "n": 40
+  },
+  {
+   "arm": "ltlfsynt",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.16854522377253,
+   "instance": "shift-40",
+   "family": "shift",
+   "n": 40
+  },
+  {
+   "arm": "ek-derived",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.14849983388558,
+   "extract_s": 120.14849983388558,
+   "instance": "shift-40",
+   "family": "shift",
+   "n": 40
+  },
+  {
+   "arm": "ek-compact",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15652049612254,
+   "instance": "shift-40",
+   "family": "shift",
+   "n": 40
+  },
+  {
+   "arm": "ek-compact-fixed",
+   "status": "timeout",
+   "verdict": null,
+   "wall_s": 120.15195170324296,
+   "instance": "shift-40",
+   "family": "shift",
+   "n": 40
+  }
+ ],
+ "verdict_mismatches": {},
+ "fixed_failures": [],
+ "bar": {
+  "met": false,
+  "required_speedup": 2.0,
+  "mismatches": 0,
+  "fixed_failures": 0,
+  "evidence": [
+   {
+    "arm": "ek-derived-fixed",
+    "family": "mux",
+    "instances": 1,
+    "speedup_geomean": 0.033881972249279795,
+    "unverifiable": 0,
+    "fixed_unfinished": 2
+   },
+   {
+    "arm": "ek-compact-fixed",
+    "family": "mux",
+    "instances": 1,
+    "speedup_geomean": 0.06895629609556814,
+    "unverifiable": 0,
+    "fixed_unfinished": 2
+   },
+   {
+    "arm": "ek-compact-fixed",
+    "family": "shift",
+    "instances": 2,
+    "speedup_geomean": 1.758510955004987,
+    "unverifiable": 2,
+    "fixed_unfinished": 19
+   }
+  ]
+ },
+ "bar_checked": {
+  "met": false,
+  "required_speedup": 2.0,
+  "rule": "2026-11-14 decision on #250/#288, computed by hand before #288 landed: an evidence instance is checked when a finished NK or ltlfsynt verdict agrees with the fixed arm's, or its controller verified; met counts checked instances only",
+  "evidence": [
+   {
+    "arm": "ek-derived-fixed",
+    "family": "mux",
+    "checked": 1,
+    "unchecked": 0,
+    "fixed_unfinished": 2,
+    "no_cell": 46,
+    "speedup_geomean_checked": 0.033881972249279795,
+    "speedup_geomean_unchecked": null,
+    "checked_instances": [
+     {
+      "instance": "mux-16",
+      "speedup": 0.033881972249279795,
+      "by": "verdict"
+     }
+    ],
+    "unchecked_instances": []
+   },
+   {
+    "arm": "ek-derived-fixed",
+    "family": "shift",
+    "checked": 0,
+    "unchecked": 0,
+    "fixed_unfinished": 1,
+    "no_cell": 20,
+    "speedup_geomean_checked": null,
+    "speedup_geomean_unchecked": null,
+    "checked_instances": [],
+    "unchecked_instances": []
+   },
+   {
+    "arm": "ek-compact-fixed",
+    "family": "mux",
+    "checked": 1,
+    "unchecked": 0,
+    "fixed_unfinished": 2,
+    "no_cell": 46,
+    "speedup_geomean_checked": 0.06895629609556814,
+    "speedup_geomean_unchecked": null,
+    "checked_instances": [
+     {
+      "instance": "mux-16",
+      "speedup": 0.06895629609556814,
+      "by": "verdict"
+     }
+    ],
+    "unchecked_instances": []
+   },
+   {
+    "arm": "ek-compact-fixed",
+    "family": "shift",
+    "checked": 1,
+    "unchecked": 1,
+    "fixed_unfinished": 19,
+    "no_cell": 0,
+    "speedup_geomean_checked": 1.7434867410456756,
+    "speedup_geomean_unchecked": 1.7736646376891136,
+    "checked_instances": [
+     {
+      "instance": "shift-20",
+      "speedup": 1.7434867410456756,
+      "by": "verdict"
+     }
+    ],
+    "unchecked_instances": [
+     {
+      "instance": "shift-21",
+      "speedup": 1.7736646376891136,
+      "by": null
+     }
+    ]
+   }
+  ]
+ }
+}
