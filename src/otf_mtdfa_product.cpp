@@ -131,9 +131,10 @@ bdd Relabel(const bdd& node, ForwardProgression& fp,
 // cofactors by taking the one that is not bddfalse.  Two different non-false
 // leaves meeting means lambda does not fix X_dep (a non-functional Tout), and
 // the substitution is undefined: it throws rather than pick one.
-// Experimental.  TODO[#243]: a lemma that substituting X_dep := lambda_Tout
-// preserves realizability (def:outdep, lem:outdep-diagonal and
-// lem:outdep-transducer in main.tex do not state it).
+// Experimental, a negative result (no >=2x speedup over both NK and ltlfsynt
+// on the hard families).  TODO[#302]: a lemma that substituting
+// X_dep := lambda_Tout preserves realizability (def:outdep,
+// lem:outdep-diagonal and lem:outdep-transducer in main.tex do not state it).
 class DependentOutputs {
  public:
   explicit DependentOutputs(std::unordered_set<int> dep)
