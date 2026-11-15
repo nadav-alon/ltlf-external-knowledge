@@ -104,11 +104,14 @@ class OtfMtdfaProduct final : public Synthesis {
   // Default OFF; it rewrites phi alone and keeps its meaning, so it is sound
   // under any transducer.
   //
-  // fix_dependent_outputs (--fix-dependent-outputs, EXPERIMENTAL): the known
+  // fix_dependent_outputs (--fix-dependent-outputs, EXPERIMENTAL, a NEGATIVE
+  // RESULT: no >=2x speedup over NK and ltlfsynt on the hard families, per
+  // #243 and docs/runs/2026-11-14-full-hard-race.md; kept so the race's fixed
+  // arms can be rerun): the known
   // outputs leave the controller's choice; the product substitutes
   // X_dep := lambda_Tout(state), so the game is solved over output_free only.
   // The controller already carries no known output, so the verifier still
-  // composes it with Tout.  TODO[#243]: a lemma that the substitution
+  // composes it with Tout.  TODO[#302]: a lemma that the substitution
   // preserves realizability; until then the tests and the race compare its
   // verdicts with the default's, NK's and ltlfsynt's.  A Tout whose lambda
   // does not fix a known output makes synthesize throw std::runtime_error.

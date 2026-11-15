@@ -90,7 +90,8 @@ struct CliArgs {
   bool otf_solve = false;       // --otf-solve (docs/prd/otf-mtdfa-product.md
                                 // Phase 2); OtfMtdfaProduct-only.
   bool simplify_formula = false;  // --simplify-formula; OtfMtdfaProduct-only.
-  bool fix_dependent_outputs = false;  // --fix-dependent-outputs (experimental);
+  bool fix_dependent_outputs = false;  // --fix-dependent-outputs (experimental,
+                                       // negative result, #243);
                                        // OtfMtdfaProduct-only.
 };
 
