@@ -68,8 +68,9 @@ void print_partition_file(std::ostream& out, const VariablePartition& p);
 // `otf_solve` (docs/prd/otf-mtdfa-product.md Phase 2) is the CLI's
 // `--otf-solve`, likewise OtfMtdfaProduct-only, as is `simplify_formula`
 // (`--simplify-formula`), and `fix_dependent_outputs`
-// (`--fix-dependent-outputs`, experimental and a negative result: no >=2x
-// speedup on the hard families, #243) likewise.
+// (`--fix-dependent-outputs`) likewise; it is experimental and a negative
+// result: no >=2x speedup over both NK and ltlfsynt on the hard families (see
+// docs/GLOSSARY.md).
 std::unique_ptr<Synthesis> make_synthesis_method(
     const std::string& method_flag, bool minimize_mtdfa = false,
     bool otf_solve = false, bool simplify_formula = false,

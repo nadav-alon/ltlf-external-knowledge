@@ -106,8 +106,8 @@ class OtfMtdfaProduct final : public Synthesis {
   //
   // fix_dependent_outputs (--fix-dependent-outputs, EXPERIMENTAL, a NEGATIVE
   // RESULT: no >=2x speedup over NK and ltlfsynt on the hard families, per
-  // #243 and docs/runs/2026-11-14-full-hard-race.md; kept so the race's fixed
-  // arms can be rerun): the known
+  // docs/runs/2026-11-14-full-hard-race.md; kept so the race's fixed arms can
+  // be rerun): the known
   // outputs leave the controller's choice; the product substitutes
   // X_dep := lambda_Tout(state), so the game is solved over output_free only.
   // The controller already carries no known output, so the verifier still

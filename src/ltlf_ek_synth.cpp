@@ -91,7 +91,7 @@ struct CliArgs {
                                 // Phase 2); OtfMtdfaProduct-only.
   bool simplify_formula = false;  // --simplify-formula; OtfMtdfaProduct-only.
   bool fix_dependent_outputs = false;  // --fix-dependent-outputs (experimental,
-                                       // negative result, #243);
+                                       // negative result);
                                        // OtfMtdfaProduct-only.
 };
 
