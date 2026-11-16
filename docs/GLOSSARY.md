@@ -780,7 +780,7 @@ the existing term or update this file via `/glossary` — do not let drift happe
   `--otf-solve` subjects with the knob on.
   **`fix_dependent_outputs`** (`--fix-dependent-outputs`,
   `OtfMtdfaProduct(…, fix_dependent_outputs=true)`) is experimental and a negative result: it gave no
-  ≥2× speedup over NK and `ltlfsynt` on the hard families (#243,
+  ≥2× speedup over both NK and `ltlfsynt` on the hard families (#243,
   `docs/runs/2026-11-14-full-hard-race.md`),
   and is kept so the race's fixed arms can be rerun. The known
   outputs leave the controller's choice, each product row substituting
