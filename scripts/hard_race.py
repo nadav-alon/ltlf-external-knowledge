@@ -13,10 +13,10 @@ Tout sets `out` false for select values >= n, where the formula leaves it free: 
                reads them; extract_s is the deps stage, synth_s the synthesis, wall_s their sum
   ek-compact   ltlf-ek-synth with the hand-written Tout and every output known
   ek-derived-fixed, ek-compact-fixed
-               the same two, with --fix-dependent-outputs (experimental; a negative result: no >=2x
-               speed-up over NK and ltlfsynt on the hard families, see
-               docs/runs/2026-11-14-full-hard-race.md): the known outputs leave
-               the controller's choice. A fixed cell that finishes REALIZABLE is run again with
+               the same two, with --fix-dependent-outputs (experimental; a negative result: no
+               >=2x speedup over both NK and ltlfsynt on the hard families, see
+               docs/runs/2026-11-14-full-hard-race.md): the known outputs leave the controller's
+               choice. A fixed cell that finishes REALIZABLE is run again with
                --model-check, which verifies its controller against the formula (verify_s). An
                unsafe controller makes the cell an error; an unverifiable one (the verifier ran out
                of time or memory, or exited otherwise than SAFE or UNSAFE; recorded in verify_limit)
