@@ -19,7 +19,7 @@ Suite & Instances & Methods agree & Agree with \tool{ltlfsynt} & Controllers ver
 \midrule
 Parametric & 98 & 98 / 98 & 56 / 56 & not checked \\
 Engineered domain & 60 & 60 / 60 & 48 / 48 & not checked \\
-SYNTCOMP, knowledge found & 7 & 7 / 7 & 7 / 7 & none realizable \\
+SYNTCOMP, knowledge found & 6 & 6 / 6 & 6 / 6 & none realizable \\
 Generated corpus & 256 & 256 / 256 & all compared & all \\
 \bottomrule
 \end{tabular}
@@ -30,7 +30,7 @@ Generated corpus & 256 & 256 / 256 & all compared & all \\
 All methods return the same verdict on every benchmark instance and every generated case.
 The unpruned product is excluded, since it ignores the knowledge and so decides a different game.
 
-Against \tool{ltlfsynt} on $\psiin\rightarrow\varphi$ there is no mismatch.
+Against \tool{ltlfsynt} on $\psiin\rightarrow\varphi$ there is no mismatch; the timing sweep, too, counts no verdict mismatch on any family (\cref{tab:times}).
 The instances it skips are not comparable: some families have no $\psiin$, and \tool{ltlfsynt} times out on large \texttt{co-generated}.
 
 \subsubsection{Controller Verification}
@@ -45,9 +45,18 @@ SYNTCOMP publishes Moore verdicts, which differ from Mealy on $11$ instances, so
 
 \subsection{RQ2: Impact of Knowledge on Solve Time}\label{sec:rq2}
 
-Knowledge pays off when folding it into the formula makes the formula expensive to translate: up to $24\times$ on \texttt{co-generated} and over $100\times$ on \texttt{slippery-*}.
+Knowledge pays off when folding it into the formula makes the formula expensive to translate: on \texttt{co-generated} the no-knowledge run times out at $n = 6$, so knowledge is at least $9331\times$ faster.
+On \texttt{slippery-*} it buys nothing measurable, $0.55$--$1.13\times$ across its three arms at $n = 6$.
 Where the folded formula stays small, as on \texttt{cons-prunes}, knowledge gives no speedup.
-All timings are of our DFA product (\cref{sec:dfa}), from the sweep of \cref{sec:benchmarks}.
+All timings are of \tool{otf-solve-simp}, our on-the-fly DFA product (\cref{sec:otf}) with on-the-fly game solving and Spot's $\LTLf$ formula simplifier, from the sweep of \cref{sec:benchmarks}; product sizes are of the DFA product (\cref{sec:dfa}).
+\Cref{tab:times} gives every method's time at the largest $n$.
+
+\begin{table}[H]
+\centering
+\small
+\input{tables/rq1}
+\caption{Median wall time in ms at the largest $n$; each cell is \emph{with knowledge} / \emph{without knowledge} (\tool{-nk}), \tool{t/o} where any cell of the family timed out or failed (a median is only ever over every cell) and \tool{n/a} where the family has no knowledge. \tool{otf-solve-simp} and \tool{nk-otfsolve-simp} abbreviate the sweep subjects \tool{otf-mtdfa-product-otfsolve-simp} and \tool{otf-mtdfa-product-nk-otfsolve-simp}. The last column counts verdict mismatches against \tool{ltlfsynt} over every $n$.}\label{tab:times}
+\end{table}
 
 \subsubsection{Product Size}
 
@@ -55,6 +64,17 @@ Knowledge shrinks the product when it fixes an input the goal depends on (\cref{
 At $n = 6$ the product is $13\%$ of the unpruned one on \texttt{cons-prunes} and $22\%$ on \texttt{knowledge-chain}, and the ratio keeps falling with $n$.
 On \texttt{co-generated} the knowledge adds states instead, because $\Tin$ itself has $2^n$ states.
 \texttt{slippery-*} is left out: its goal $F(\text{cell})$ has only two states, so the ratio only measures $|\Tin|$.
+\tool{otf-solve-simp} explores only part of the product, and there knowledge prunes less (\cref{fig:prune-otf}): at $n = 6$ it explores $62.5\%$ of the no-knowledge roots on \texttt{cons-prunes}, and $51\%$ on \texttt{co-generated} at $n = 5$.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=.8\linewidth, height=6cm, xlabel={$n$}, ylabel={explored-roots ratio}, ymode=log, legend pos=outer north east, legend style={font=\scriptsize}]
+\input{tables/prune-ratio}
+\end{axis}
+\end{tikzpicture}
+\caption{Explored product roots of \tool{otf-solve-simp} over \tool{nk-otfsolve-simp} (with knowledge over without), median per family.}\label{fig:prune-otf}
+\end{figure}
 
 \begin{figure}[H]
 \centering
@@ -78,76 +98,33 @@ Below the dashed line, knowledge prunes.}\label{fig:prune}
 
 \subsubsection{Against the No-Knowledge Product}
 
-The no-knowledge baseline runs the same DFA product on $\psiin\rightarrow\varphi$ with trivial transducers.
-On \texttt{slippery-*} the folded formula is $6\times$ slower at $n = 2$ and $107\times$ at $n = 4$, and times out from $n = 5$ on two of the three arms.
-On \texttt{co-generated} the gap grows from $1.2\times$ to $24\times$; on \texttt{cons-prunes} the folded formula is slightly faster.
+The no-knowledge baseline, \tool{nk-otfsolve-simp}, runs the same method on $\psiin\rightarrow\varphi$ with trivial transducers.
+On \texttt{slippery-*} the folded formula is no slower under the simplifier: at $n = 6$ knowledge is at $0.55\times$, $0.64\times$ and $1.13\times$ on the three arms, so the $100\times$ of the 2026-10-16 run does not survive.
+On \texttt{co-generated} the no-knowledge run times out at $n = 6$ while ours takes about 2\,ms, so knowledge is at least $9331\times$ faster; on \texttt{cons-prunes} the folded formula is slightly faster ($0.92\times$), and on \texttt{hidden-counter} knowledge gives $1.17\times$.
 
 \subsubsection{Against \tool{ltlfsynt}}
 
-\tool{ltlfsynt} takes about 12\,ms on any instance, even the smallest, so the $4$--$6\times$ speedups at small $n$ come from this fixed cost and say nothing about the knowledge.
-As $n$ grows the gap closes, except on \texttt{slippery-onehot} ($12\times$ at $n = 6$) and on unrealizable \texttt{co-generated}, where \tool{ltlfsynt} times out from $n = 5$.
+\tool{ltlfsynt} takes about 15\,ms on any instance, even the smallest, of which its internal stages take under 2\,ms, so the $8$--$10\times$ speedups at small $n$ come from this fixed cost and say nothing about the knowledge.
+As $n$ grows the gap closes (\cref{fig:speedup}): on \texttt{hidden-counter} from $9.9\times$ to $2.56\times$, and on \texttt{slippery-*} from $4\times$ to $0.88\times$, so there \tool{ltlfsynt} is faster at $n = 6$; only \texttt{slippery-onehot} is still ahead of it, at about $2\times$.
+On \texttt{co-generated} \tool{ltlfsynt} times out in one of the two cells from $n = 5$, so its line stops at $n = 4$ ($10\times$).
 
 \begin{figure}[H]
 \centering
-\begin{subfigure}{.49\linewidth}
-\centering
 \begin{tikzpicture}
-\begin{axis}[
-  width=\linewidth, height=5cm,
-  xlabel={$n$}, ylabel={speedup}, title={vs.\ no-knowledge product},
-  xtick={2,...,6}, ymode=log, ymin=0.5, ymax=2000,
-  legend pos=north west, legend style={font=\scriptsize},
-]
-\addplot[mark=*, blue] coordinates {(2,0.93) (3,0.96) (4,0.94) (5,0.83) (6,0.71)};
-\addplot[mark=diamond*, orange] coordinates {(2,5.66) (3,23.89) (4,107.06)};
-\addplot[mark=triangle*, black!60!green] coordinates {(2,1.20) (3,1.47) (4,2.71) (5,7.39) (6,24.19)};
-\addplot[dashed, gray, domain=2:6] {1};
-\legend{\texttt{cons-prunes}, \texttt{slippery-*}, \texttt{co-generated}}
+\begin{axis}[width=.8\linewidth, height=6cm, xlabel={$n$}, ylabel={speed-up over \tool{ltlfsynt}}, ymode=log, legend pos=outer north east, legend style={font=\scriptsize}]
+\input{tables/speedup}
 \end{axis}
 \end{tikzpicture}
-\end{subfigure}
-\hfill
-\begin{subfigure}{.49\linewidth}
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-  width=\linewidth, height=5cm,
-  xlabel={$n$}, title={vs.\ \tool{ltlfsynt}},
-  xtick={2,...,6}, ymode=log, ymin=0.5, ymax=2000,
-]
-\addplot[mark=*, blue] coordinates {(2,5.82) (3,5.93) (4,5.50) (5,4.68) (6,3.99)};
-\addplot[mark=diamond*, orange] coordinates {(2,4.60) (3,3.64) (4,2.16) (5,1.41) (6,1.16)};
-\addplot[mark=triangle*, black!60!green] coordinates {(2,5.62) (3,5.25) (4,5.45)};
-\addplot[dashed, gray, domain=2:6] {1};
-\end{axis}
-\end{tikzpicture}
-\end{subfigure}
-\caption{Speedup of our DFA product (baseline time over ours; above the dashed line, knowledge wins).
-\texttt{slippery-*} is the median over its three arms.
-Lines stop where a baseline times out.}\label{fig:speedup}
+\caption{\tool{ltlfsynt} full synthesis over \tool{otf-solve-simp}, median wall time per family; an $n$ at which any cell of the family timed out on either side has no point.}\label{fig:speedup}
 \end{figure}
 
 \begin{table}[H]
 \centering
-\small
-\caption{RQ2 at $n = 6$.
-``timeout'' means the baseline did not finish in 20\,s.
-For \texttt{co-generated} against \tool{ltlfsynt}, the realizable variant / the unrealizable one.}\label{tab:rq2}
-\begin{tabular}{lccc}
-\toprule
-Family & Product / unpruned & vs.\ no-knowledge & vs.\ \tool{ltlfsynt} \\
-\midrule
-\texttt{cons-prunes} & 0.13 & $0.71\times$ & $3.99\times$ \\
-\texttt{knowledge-chain} & 0.22 & --- & --- \\
-\texttt{slippery-binary} & --- & timeout & $1.16\times$ \\
-\texttt{slippery-binary-compact} & --- & $9.93\times$ & $0.97\times$ \\
-\texttt{slippery-onehot} & --- & timeout & $12.41\times$ \\
-\texttt{co-generated} & 1.24 & $24.19\times$ & $3.61\times$ / timeout \\
-\bottomrule
-\end{tabular}
+\input{tables/rq2}
+\caption{Knowledge against no knowledge (\tool{otf-solve-simp} against \tool{nk-otfsolve-simp}) at the largest $n$, one row per slippery arm. Where the no-knowledge side times out (\tool{t/o}) the speed-up is a lower bound ($\ge$). A side with any timed-out cell reads \tool{t/o}, the \tool{ltlfsynt} columns included. \tool{ltlfsynt} is full synthesis; its stages column is the sum of its internal stage times, the only form the sweep records.}\label{tab:rq2}
 \end{table}
 
-\texttt{knowledge-chain} has no baseline, since its $\Tin$ is not given as a formula; it is still solved at every $n$ in about 3\,ms.
+\texttt{knowledge-chain} has no baseline, since its $\Tin$ is not given as a formula; it is still solved at every $n$ in about 2\,ms.
 
 \subsection{Output Dependencies}\label{sec:outdep-results}
 
@@ -196,6 +173,13 @@ On every instance where \tool{ltlfsynt} finishes, it is faster than our method, 
 \guide{Degenerate families, non-reproductions, cases with no gain. Keep them; they are findings.}
 
 A smaller product does not mean a faster solve.
-On \texttt{cons-prunes} the product shrinks to $13\%$, yet we are slower than the no-knowledge product at $n = 6$ ($0.71\times$), because the folded formula there is cheap to translate.
-On \texttt{co-generated} it is the other way around: the knowledge makes the product larger, yet we are $24\times$ faster, because the folded formula is expensive.
+On \texttt{cons-prunes} the product shrinks to $13\%$, yet we are slower than the no-knowledge run at $n = 6$ ($0.92\times$), because the folded formula there is cheap to translate.
+On \texttt{co-generated} it is the other way around: the knowledge makes the product larger, yet the no-knowledge run times out, because the folded formula is expensive.
+
+\textbf{Output-dependency knowledge misses its speed-up bar on the hard families.}
+The bar, set before the run, was a speed-up of at least $2\times$ over both the no-knowledge run (NK) and \tool{ltlfsynt} on at least one hard family (here mux and shift, each raced at growing sizes), with no verdict mismatch; the full hard-instance race, which times every arm on every size, does not meet it.
+On mux, \tool{ltlfsynt} solves every size from 16 to 64 in at most $0.04$\,s, so no knowledge arm can win.
+On shift, the best checked speed-up of the \tool{--fix-dependent-outputs} arm (compact knowledge, \tool{compact-fixed}) is $1.74\times$ over NK, at shift-20, where \tool{ltlfsynt} times out, against the $2\times$ bar; \tool{compact-fixed} times out from shift-22 up, and every other arm finishes at most shift-20.
+There are $0$ verdict mismatches.
+This race is a separate run from the main sweep of \cref{sec:benchmarks}: it ran on the HPC on 2026-11-14 (ten nodes, \texttt{cn01}, \texttt{cn02}, \texttt{cn11} and \texttt{cn13}--\texttt{cn19}, Intel Xeon Gold 6130 at 2.10\,GHz), from a Release build at commit \texttt{021a915}, with Spot 2.15.1, one repetition and a 120\,s timeout per cell; the committed run is \texttt{docs/runs/2026-11-14-full-hard-race.json}.
 

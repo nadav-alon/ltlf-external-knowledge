@@ -2,5 +2,5 @@
 \guide{One paragraph: problem, approach, main result, next step.}
 
 We studied $\LTLf$ synthesis in which external transducers $\Tin$ and $\Tout$ fix some inputs and outputs, and solved it with NFA, DFA and on-the-fly products of the goal automaton with the transducers, which agree on every benchmark and with \tool{ltlfsynt}.
-Input knowledge pays off when folding it into the formula is expensive, up to $24\times$ on \texttt{co-generated} and over $100\times$ on \texttt{slippery-*}, but those are purpose-built examples, and we could not find such cases in existing benchmarks.
+Input knowledge pays off when folding it into the formula is expensive, at least $9331\times$ on \texttt{co-generated}, where the run without knowledge times out, but that is a purpose-built example, the other one, \texttt{slippery-*}, gains nothing measurable ($0.55$--$1.13\times$), and we could not find such cases in existing benchmarks.
 With output dependencies on the TACAS'24 families, \tool{ltlfsynt} is faster than our method wherever it finishes.
