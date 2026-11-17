@@ -1,0 +1,142 @@
+diff --git a/main.tex b/main.tex
+--- a/main.tex
++++ b/main.tex
+@@ -39,6 +39,9 @@
+ \newcommand{\Tout}{T_{\mathit{Out}}}
+ \newcommand{\psiin}{\psi_{\mathit{Inp}}}  % CL: LTLf language of \Tin (assumption)
+ \newcommand{\psiout}{\psi_{\mathit{Out}}} % CL: LTLf language of \Tout (guarantee)
++\newcommand{\Lin}{L_{\mathit{Inp}}}     % CL: language of the traces produced by \Tin (\cref{thm:monolithic})
++\newcommand{\Lout}{L_{\mathit{Out}}}    % CL: language of the traces produced by \Tout (\cref{thm:monolithic})
++\newcommand{\sinkst}{\mathrm{sink}}      % CL: the fresh non-accepting sink of a completed automaton
+ \newcommand{\Sin}{S_{\mathit{Inp}}}
+ \newcommand{\Sout}{S_{\mathit{Out}}}
+ \newcommand{\cons}{\mathrm{cons}}
+@@ -101,6 +104,9 @@
+ Given an $\text{LTL}_f$ formula $\varphi$ over variables $\mathcal{I}$ and $\mathcal{O}$, and auxiliary strategies $\Sin, \Sout$, synthesize a strategy $S_C$ for $\varphi$ such that every trace that agrees with $\Sin, \Sout$ and $S_C$ satisfies $\varphi$.
+ \end{definition}
+ \na[inline]{ This definition does not work out-of-the-box, because it means that the controller does not decide when the trace ends, unlike the normal LTLf semantics. Would restricting to traces that dont contain any accepting prefix solve this? }
++\cl[inline]{Who ends the trace, read as the standard $\text{LTL}_f$ synthesis convention: the \textbf{system} chooses when the trace ends, and traces are non-empty, so a trace satisfies $\varphi$ if some non-empty finite prefix of it does.
++Both \texttt{verify\_controller} and \texttt{solve\_dfa} implement this system-controlled-termination reachability reading, and the differential against Spot's \texttt{ltlfsynt} does not contradict it.
++The paper does not say it, so the reading is recorded here and is the one~\cref{thm:monolithic} assumes.}
+ 
+ \na[inline]{Also, these signatures are commiting to a mealy turn order, and are not ready for adding a moore option. For that, the signatures would be dependent on the order of players. Note that the Image of the functions would stay the same, it would just be the same-step allowed variables values visible to each strategy}
+ 
+@@ -156,6 +162,72 @@
+ The gap is that partiality deletes letters from the arena for \emph{both} players, so it denies the system the very continuation by which the monolithic reduction escapes the assumption --- the same reason a totality hypothesis was already needed in the note after~\cref{lem:outdep-transducer}.
+ Which side is right is not settled here: the disagreement is entirely about whether the system may step outside the transducers' domain in order to end the trace there, which is what the note after~\cref{def:probDef} leaves open.}
+ 
++\cl[inline]{Totality hypothesis and scope.
++The conjecture is proved below under \textbf{totality} only: $\delta_{in}$, $\lambda_{in}$, $\delta_{out}$ and $\lambda_{out}$ are total on the domains declared in~\cref{def:probDefTransducer}, which~\cref{def:consistency}'s partiality clause makes a hypothesis and not a consequence.
++Partial transducers, including the divergence witness above, are out of scope and are stated as such, not proved: for them the produced-trace language has to be chosen, and the choice decides whether the system may step outside a transducer's domain to end the trace there.
++Two further hypotheses are used and are the only reading of~\cref{def:probDef} the proof needs.
++\textbf{Termination:} the system chooses when the trace ends and traces are non-empty, as in the note after~\cref{def:probDef}.
++\textbf{Definability:} $\psiin$ and $\psiout$ are the languages $\Lin$ and $\Lout$ defined in the statement below, which are regular but not always $\text{LTL}_f$-definable; the proof uses only that they are those languages, so it holds verbatim for any regular objective in their place.}
++
++\begin{theorem}\label{thm:monolithic}
++Let $\Tin, \Tout$ be total transducers, and read~\cref{def:probDefTransducer} under the termination reading recorded in the note after~\cref{def:probDef}.
++For a finite trace $\pi = v_0 \cdots v_n$ let $q_{in,0}$ be the initial state and $q_{in,t+1} = \delta_{in}(q_{in,t}, v_t)$, and likewise $q_{out,t}$ from $q_{out,0}$ and $\delta_{out}$.
++Set
++\begin{align*}
++    \Lin &= \{\pi : \forall t \le n.\ v_t \cap \Iknown = \lambda_{in}(q_{in,t}, v_t \cap \Ifree)\}, \\
++    \Lout &= \{\pi : \forall t \le n.\ v_t \cap \Oknown = \lambda_{out}(q_{out,t}, v_t \cap (\mathcal{I} \cup \Ofree))\},
++\end{align*}
++and let $\psiin, \psiout$ be objectives with these languages.
++Then~\cref{def:probDefTransducer} for $(\varphi, \Tin, \Tout)$ has a solution if and only if the plain game $G$ with environment inputs $\mathcal{I}$, system outputs $\mathcal{O}$, the Mealy turn order and objective $\theta = \psiin \rightarrow (\varphi \wedge \psiout)$ is realizable.
++Moreover, a finite-state solution yields a finite-state winning strategy of $G$, and a realizable $G$ has a finite-state winning strategy that projects to a finite-state solution.
++\end{theorem}
++
++\begin{proof}
++A \emph{play} is an infinite sequence $u = u_0 u_1 \cdots$ of letters of $2^{\mathcal{I} \cup \mathcal{O}}$, and it \emph{satisfies} an objective if some non-empty finite prefix does.
++A plain strategy is $\sigma : (2^{\mathcal{I} \cup \mathcal{O}})^* \times 2^{\mathcal{I}} \to 2^{\mathcal{O}}$, and its play against inputs $(i_t)$ has $u_t = i_t \cup \sigma(u_0 \cdots u_{t-1}, i_t)$.
++By the definition of agreement, $\pi \in \Lin$ if and only if $\pi$ agrees with $\Sin$ at every step, and $\pi \in \Lout$ if and only if it agrees with $\Sout$.
++Both languages are prefix-closed.
++
++\textbf{Uniqueness.}
++For a strategy $S_C$ and an $\Ifree$-sequence $(f_t)$, for every $n$ there is exactly one trace of length $n+1$ that agrees with $\Sin, \Sout, S_C$, and these traces are the prefixes of one play, the \emph{agreeing play}.
++By induction on $t$: given $v_0 \cdots v_{t-1}$, the states $q_{in,t}, q_{out,t}$ exist by totality of $\delta_{in}, \delta_{out}$.
++Agreement forces $v_t \cap \Ifree = f_t$, then $v_t \cap \Iknown = \lambda_{in}(q_{in,t}, f_t)$, then $v_t \cap \Ofree = S_C(v_0 \cdots v_{t-1}, v_t \cap \mathcal{I})$, then $v_t \cap \Oknown = \lambda_{out}(q_{out,t}, v_t \cap (\mathcal{I} \cup \Ofree))$.
++Each is a value of a total function, so $v_t$ exists and is unique.
++This is the canonical turn order of~\cref{definition}, and the only place the Mealy order is used.
++
++\textbf{Direction $(\Rightarrow)$.}
++Let $T_C$ solve the problem, with strategy $S_C$, and define
++\[
++    \sigma(h, i) = S_C(h, i) \cup \lambda_{out}\big(q^{out}(h),\, i \cup S_C(h, i)\big),
++\]
++where $q^{out}(h)$ is the $\Tout$ state after $h$.
++Where $S_C(h, i)$ is undefined, which is only on $h$ outside $\Lin$, pick any value, since $\theta$ is vacuous there.
++If $T_C$ is finite-state, so is $\sigma$: it runs as the product of $T_C$ and $\Tout$.
++Let $u$ be the play of $\sigma$ against any input sequence.
++By construction every step of $u$ agrees with $\Tout$ and with $S_C$ on $\Ofree$, so every prefix of $u$ is in $\Lout$.
++Take the first $t$ with $u_t \cap \Iknown \neq \lambda_{in}(q_{in,t}, u_t \cap \Ifree)$, if any.
++If such a $t$ exists, then $u_0 \cdots u_t \notin \Lin$, so it satisfies $\theta$ vacuously.
++Otherwise every step of $u$ agrees with $\Tin$, so $u$ is the agreeing play for $(u_t \cap \Ifree)$.
++Since $S_C$ solves the problem some prefix $\pi$ satisfies $\varphi$, and all prefixes lie in $\Lin \cap \Lout$, so $\pi \models \psiin \wedge \varphi \wedge \psiout$ and hence $\pi \models \theta$.
++So $\sigma$ wins.
++
++\textbf{Direction $(\Leftarrow)$.}
++Let $\sigma$ win $G$.
++Since $\theta$ is regular, the product of $G$ with the DFA for $\theta$ is a reachability game with positional winning strategies, so $\sigma$ can be taken finite-state (finite-memory on $G$).
++Define $S_C(h, i) = \sigma(h, i) \cap \Ofree$, which is finite-state as well.
++Fix an $\Ifree$-sequence $(f_t)$ and let $w$ be the agreeing play.
++Build the play $u$ against $\sigma$ adaptively: $u_t \cap \Ifree = f_t$, $u_t \cap \Iknown = \lambda_{in}(q_{in,t}, f_t)$ with $q_{in,t}$ computed along $u$ itself, and $u_t \cap \mathcal{O} = \sigma(u_0 \cdots u_{t-1}, u_t \cap \mathcal{I})$.
++This uses totality of $\delta_{in}$ and $\lambda_{in}$.
++The adaptation is needed because $\sigma$ may deviate in $\Oknown$ so that $\delta_{in}$ leaves the states $w$ passes through, so a fixed copy of $w$'s inputs would not do.
++Every prefix of $u$ is in $\Lin$, so $\psiin$ holds at every prefix, and since $\sigma$ wins some prefix $\pi = u_0 \cdots u_n$ satisfies $\varphi \wedge \psiout$.
++Now $\pi \in \Lout$ gives agreement with $\Tout$, $\pi \in \Lin$ gives agreement with $\Tin$, and $u_t \cap \Ofree = S_C(u_0 \cdots u_{t-1}, u_t \cap \mathcal{I})$ by definition.
++So $\pi$ is a trace of length $n+1$ agreeing with $\Sin, \Sout, S_C$, and by uniqueness $w_0 \cdots w_n = \pi$.
++Hence $w$ has a prefix satisfying $\varphi$, for every $(f_t)$, so $T_C$ solves the problem.
++\end{proof}
++\cl[inline]{This settles the conjecture's ``to be proven'' under the hypotheses of the note above.
++The asymmetry shows in the proof: $\Tin$ constrains an environment-chosen letter, so a violation hands the system a win (the vacuous branch of $(\Rightarrow)$ and the adaptive adversary of $(\Leftarrow)$), and it is an assumption; $\Tout$ constrains a system-chosen letter, so a violation hands the system nothing, because $\varphi \wedge \psiout$ fails on the violating prefix, and it is a guarantee.
++Totality is used in the uniqueness step, in the definition of $\sigma$, and in the adaptive environment of $(\Leftarrow)$; without it $\Lin$ stops being the set of traces on which every step agrees, since a step at a $\delta$-dead state has no agreeing letter, which is the divergence witness above and is not argued here.}
++
+ 
+ \section{Method 1 - NFA product}\label{nfa}
+ In which we construct the NFA for the formula (\algname{LtlfToNfa}~\cref{alg:ltlftonfa}), compute the product of it with the two transducers (representing the 2 strategies for input and output knowledge), then determinize (\algname{NfaToDfa}) and solve the resulting game (\algname{SolveDfa}) to extract the controller strategy.
+@@ -255,6 +327,13 @@
+ 
+ \textbf{Note} The clean way to prove the above is the reachability invariant of the subset construction: because $\Tin$ and $\Tout$ are deterministic, every reachable subset of $P$ has the form $R \times \{q_{in}\} \times \{q_{out}\}$ for a single pair of transducer states, so the reachable DFA states are bounded by $2^{|S_N|} \cdot |Q_{in}| \cdot |Q_{out}|$ --- exponential in $\varphi$ but linear in each transducer.
+ 
++\cl[inline]{The black box \algname{NfaToDfa} states no rule for the empty subset, and both sources of an empty $\delta_{prod}$, a non-$\cons$ letter and a $\cons$-dead letter with $\delta_N(s, v) = \emptyset$, collapse to $\emptyset$, so no uniform reading of it is sound: skipping both is spuriously realizable and sinking both is spuriously unrealizable.
++They must be treated differently.
++A non-$\cons$ letter is impossible, since its $\mathcal{V}$-bits are pinned by $\Tin, \Tout$, and must be \textbf{skipped} as a missing edge.
++A $\cons$ letter on which the Goal dies is a legitimate, losing play and must reach a rejecting sink.
++The explicit realization therefore completes $N$ into $N_c$, with a fresh non-accepting sink and $\delta$ total, before the product, exactly as~\cref{fulldfa} completes $A$.
++Then a $\cons$-dead letter becomes the non-empty subset $\{(\sinkst, q_{in}', q_{out}')\}$, the non-$\cons$ letters are dropped by the $\cons$ filter, and the subset construction safely skips the empty subset.}
++
+ \begin{algorithm}[H]
+ \caption{NFA Product}
+ \label{alg:nfa_product}
+@@ -372,7 +451,8 @@
+ First, the next-operator reading: $\algname{FP}(X\psi,w)=(\psi,\top)$ (weak --- vacuously satisfied when the trace ends here) and $\algname{FP}(X[!]\psi,w)=(\psi,\bot)$ (strong), a semantics this paper currently fixes nowhere, as it has no $\text{LTL}_f$ preliminaries.
+ Second, $b$ is a property of the transition, not of $\psi'$: $\algname{FP}(G(a\rightarrow Xb),\{\lnot a,\lnot b\})=(G(a\rightarrow Xb),\top)$ while $\algname{FP}(X[!]G(a\rightarrow Xb),\{\lnot a,\lnot b\})=(G(a\rightarrow Xb),\bot)$ --- same $[\psi']$, opposite $b$.
+ Third, all four corners of $\psi'\in\{\mathtt{tt},\mathtt{ff}\}$ against $b$ occur --- $(\mathtt{tt},\bot)$ from $X[!]\mathtt{tt}$ and $(\mathtt{ff},\top)$ from $\lnot X[!]\mathtt{tt}$ --- so no rule may treat $\psi'=\mathtt{tt}$ alone as acceptance or $\psi'=\mathtt{ff}$ alone as rejection.
+-Fourth, the returned $\psi'$ is already the canonical representative $[\psi']$ of~\cref{otf}; \cref{alg:otfdfa_product} must not be read as applying $[\cdot]$ a second time.}
++Fourth, the returned $\psi'$ is already the canonical representative $[\psi']$ of~\cref{otf}; \cref{alg:otfdfa_product} must not be read as applying $[\cdot]$ a second time.
++The positive form $X[!]\mathtt{tt}$ (``a next position exists'') and its negation $\lnot X[!]\mathtt{tt}$ (``the trace ends here'') are already used as such in the worked $\psiin$ of the divergence-witness note after~\cref{def:probDefTransducer} and in the $\liveset{s}$ discussion of the note after~\cref{lem:outdep-diagonal}, and are the idiom any $\text{LTL}_f$ preliminaries subsection should fix explicitly.}
+ 
+ \subsection{Method 3.1 - on-the-fly DFA-product - no aggregation}\label{otfdfa}
+ Similar to~\cref{fulldfa} but the product DFA is constructed on the fly using formula progression. Algorithm described in~\cref{alg:otfdfa_product}. The letters that arent consistent with the external knowledge transducers are skipped.
+@@ -601,6 +681,9 @@
+ Note that \emph{live} here means the \textbf{environment} can still win, since acceptance in $\Aneg$ is violation of $\varphi$; a letter outside $\liveset{s}$ is one the environment loses by playing, which is the precise dual of~\cref{lem:outdep-diagonal}, where it was one the system loses by playing.
+ The single piece of genuinely new content is $\liveproj{s}$, and it is exactly the ``some completion by the outputs'' of~\cref{def:indep}: projecting $\liveset{s}$ onto $\mathcal{I}$ is the existential quantification of the variables $\lambda_{in}$ may not observe.}
+ 
++\cl[inline]{The criterion has been checked against~\cref{def:indep} directly and not merely by analogy with~\cref{lem:outdep-diagonal}: a brute-force oracle enumerates every trace of $L(\lnot\varphi)$ up to length four over $\mathcal{I} \cup \mathcal{O}$ and searches for the pair $w, w'$ that~\cref{def:indep} forbids, independently of any automaton, and agrees with the $\Xdep$ the implementation returns on every formula tried, including the subset-maximality probe on each strict superset of $\Xdep$.
++That is evidence for the reduction, not a proof of it, and in one direction only: a bounded witness refutes input-dependence outright, whereas its absence at length four is not input-dependence.}
++
+ \begin{lemma}\label{lem:indep-transducer}
+ Let $\Xdep$ be input-dependent in $\varphi$, let $\Aneg$ be as in~\cref{lem:indep-diagonal} with $\delta_{\Aneg}$ \textbf{total}, and set $\Iknown = \Xdep$, so that $\Ydep = \Ifree$.
+ Define $\Tin = (Q_{\Aneg}, 2^{\mathcal{I} \cup \mathcal{O}}, \delta_{\Aneg}, \lambda_{in}, s_0)$ where $\lambda_{in}(s, v \cap \Ifree)$ is the unique $u \cap \Xdep$ over the $u \in \liveproj{s}$ with $u \cap \Ifree = v \cap \Ifree$ when such a $u$ exists, and a fixed arbitrary element of $2^{\Xdep}$ otherwise.
+@@ -616,6 +699,11 @@
+ A winning strategy against the restricted environment still wins against an unrestricted one, because a total $\delta_{\Aneg}$ and a total $\lambda_{in}$ delete no letter, and any environment deviation from $\lambda_{in}$ enters a state from which no continuation violates $\varphi$, so the system wins however it continues; conversely the restricted environment is a weakening of the environment, so a plain winning strategy remains winning.
+ In short, forcing the environment onto its only surviving move costs it nothing, exactly as forcing the system onto its only non-losing move cost the system nothing in~\cref{lem:outdep-transducer}.}
+ 
++\cl[inline]{Two things the sketch above leaves implicit.
++First, the step ``any environment deviation from $\lambda_{in}$ enters a state from which no continuation violates $\varphi$'' is precisely where $\liveproj{s}$ must be the \textbf{existential} projection: a deviating $u$ lies outside $\liveproj{s} = \exists \mathcal{O}.\liveset{s}$ exactly when \textbf{every} output completion sends $\delta_{\Aneg}$ to a dead state, so the system wins whatever it, or a given $\Tout$, plays next --- and since a dead state is by reflexivity non-accepting, the trace already satisfies $\varphi$ and the system may stop immediately.
++Under a universal projection the same step fails, so the quantifier is forced by this proof obligation and is not a modelling choice.
++Second, the equirealizability claim itself is unproved but has been tested: over eight hundred random formulas and two partitions, every $\varphi$ for which the construction returned a non-empty $\Xdep$ was realizable with the emitted $\Tin$ exactly when it was realizable without it.}
++
+ \cl[inline]{A maximally input-dependent set is found by the same greedy scan as in~\cref{outdep}, over $\mathcal{I}$ in place of $\mathcal{O}$ and in the same fixed lexicographic order, and the test again uses the \textbf{accumulated} $\Xdep$.
+ The witness that singletons do not compose is the mirror of $G(x \leftrightarrow y)$: for $\varphi = F(a \oplus b)$ with $a, b \in \mathcal{I}$ and $\mathcal{O} = \{x\}$, the violating language is that of $G(a \leftrightarrow b)$, so each of $\{a\}$ and $\{b\}$ is input-dependent while $\{a, b\}$ is not, since both $a = b = \top$ and $a = b = \bot$ keep the environment alive at every state.
+ That formula is also the smallest illustration of the section as a whole: $\varphi$ is unrealizable, the environment's only way to keep it unrealizable is to answer every $a$ with an equal $b$, and that forced answer is precisely the extracted $\Tin$.}
