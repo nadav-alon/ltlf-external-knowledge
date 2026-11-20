@@ -4,14 +4,24 @@
 \guide{Why $\LTLf$ synthesis matters (planning, robotics, business processes). Why classic
 synthesis treats the environment as fully adversarial, and why that is often too pessimistic or
 too expensive. One concrete scenario where something is \emph{known} about inputs or outputs.}
-Reactive LTL synthesis is a problem in which we are given a specification $\varphi$ in Linear Temporal Logic (LTL) and we want to construct a controller that interacts with every environment such that the resulting trace satisfies the specification.
+Reactive LTL synthesis is a problem in which we are given a specification $\varphi$ in Linear Temporal Logic (LTL) and we want to construct a controller that satisfies $\varphi$ for every environment behavior~\cite{PnueliRosner1989}.
+This paper is about its finite-trace version, $\LTLf$ synthesis~\cite{DeGiacomoVardi2015}: the specification is an $\LTLf$ formula, and the controller must make the finite trace that results from the interaction satisfy it, for every behavior of the environment.
+$\LTLf$ is the natural language for goals that end, such as a plan reaching its goal, a robot finishing a task, or a business process completing a case, so $\LTLf$ synthesis is the problem behind planning and process-control tools.
+
+In these settings something about the variables is often known in advance.
+Consider a warehouse robot whose controller sets the output \emph{move} and reads the input \emph{at\_dock}.
+The warehouse layout is known, and it fixes the value of \emph{at\_dock} as a function of the history of moves.
+A classic synthesis algorithm still lets the environment pick \emph{at\_dock} freely, so it considers behaviors that cannot happen, and may declare the task unrealizable or spend its effort on the wrong game.
 
 The TACAS'24 paper of Akshay et al.~\cite{AkshayBCF2024} introduced variable dependencies in LTL synthesis: some output variables are determined by the others, so they can be taken out of the game, which makes the problem smaller.
 The definition is made for variables the system sets.
 An input dependency would mean that every trace satisfying $\varphi$ fixes the value of an input, even though the environment is free to choose it.
-Benchmark specifications rarely constrain their own inputs that way, and when we looked for input dependencies in the benchmarks we found none.
+This definition does not carry over to inputs, because it assumes that the system picks the value of the dependent variable.
+For an input the environment picks the value, so a formula that determines it tends to be trivial or valid.
+This matches what we see in practice: we ran our dependency-extraction tool on tier~1 of the SYNTCOMP finite-trace suite (\texttt{tlsf-fin}, $405$ instances analysed for inputs) in the 2026-08-18 sweep, and found no input dependency, against $6$ output dependencies in $388$ instances.
 
-We wanted to generalize the idea of dependencies to input variables as well, and ended up with an even more general idea, in which we solve the synthesis problem with the help of an outside helper that decides the values of some variables.
+We wanted to generalize the idea of dependencies to input variables as well, and ended up with an even more general idea, in which we solve the synthesis problem with the help of a known component that decides the values of some variables.
+For an output such a component is a dependency that comes from the formula; for an input, the component ($\Tin$) limits the environment rather than helping the system.
 
 \subsection{External Knowledge}
 
