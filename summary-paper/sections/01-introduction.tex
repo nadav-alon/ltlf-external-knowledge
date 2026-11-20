@@ -30,13 +30,17 @@ The transducer can come from the formula itself, as with output dependencies, or
 on-the-fly variants); knowledge extraction from dependencies; implementation on Spot; benchmark
 suite and results. Mark which items are done vs.\ in progress.}
 
+Each item is marked \emph{done} or \emph{in progress}.
+
 \begin{itemize}
-  \item Definitions of \begin{itemize}
+  \item Definitions of (done) \begin{itemize}
     \item External knowledge
     \item $\LTLf$ synthesis with external knowledge
     \item $\LTLf$ synthesis with input dependencies
   \end{itemize}
-  \item Extraction of knowledge transducers from input and output dependencies
-  \item Several benchmark families to test the problem
-  \item Implementation of methods to solve the problem, comparisons between them, and a comparison against the state of the art.
+  \item Five methods to solve the problem: the NFA product, the DFA product, and three on-the-fly variants of the DFA product.
+  Only the first three are implemented: the NFA product (Method~1), the DFA product (Method~2) and the on-the-fly DFA product (Method~3.1) are done, while the on-the-fly product with aggregation (Method~3.2) and dynamic aggregation (Method~3.3) are in progress and not implemented.
+  \item Extraction of knowledge transducers from input and output dependencies (\cref{sec:dependencies}) (done)
+  \item Several benchmark families to test the problem (\cref{sec:benchmarks}) (done)
+  \item Implementation on top of Spot (\cref{sec:implementation}), comparisons between the implemented methods, and a comparison against the state of the art (\cref{sec:results}) (done)
 \end{itemize}
