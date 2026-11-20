@@ -23,7 +23,19 @@ Given a specification $\varphi$, we want to be able to incorporate external know
 We model the knowledge as a transducer that decides the values of these variables from the history of the other variables.
 When solving the synthesis problem, we consult the transducer for the values of the variables it controls, which limits the traces to the allowed ones.
 
-The transducer can come from the formula itself, as with output dependencies, or from outside it, as an extra assumption about the environment, similar to a fairness assumption.
+The transducer can come from the formula itself, as with output dependencies, or from outside it, as an extra assumption about the environment.
+
+Knowledge buys two things.
+First, \textbf{realizability}: some instances are unrealizable when the knowledge is ignored and realizable once it is used.
+In the running example (\cref{ex:running}), $\varphi = X[!]\,\top \wedge (o \leftrightarrow X\,k)$ asks the controller to announce the value that $k$ will take at the next step.
+If $k$ is a free input, the environment sets it against the announcement; if $k$ is known to echo $r$ one step late, the controller announces $r$ and wins.
+Second, \textbf{a smaller product}: the knowledge rules out the traces it does not allow, so the product contains only the states reachable under consistent traces, which can be far fewer than the states of the goal automaton (\texttt{cons-prunes}, \cref{sec:benchmarks}).
+
+Knowledge is also strictly more expressive than an assumption written in the formula.
+When the language of $\Tin$ is expressible in $\LTLf$ by a formula $\psiin$, as for the benchmark families of tier~T1, the problem reduces to standard synthesis of $\psiin \rightarrow \varphi$, and knowledge is a different way to say the same thing.
+But $\LTLf$ expresses only star-free languages, and a transducer need not be star-free.
+When the language of $\Tin$ is not (tier~T3, for example the parity tracker of \texttt{parity-t3}), no $\psiin$ exists, so the reduction is unavailable and no $\LTLf$ assumption captures the knowledge.
+The extension therefore handles inputs that an assumption of the form $\psiin \rightarrow \varphi$ cannot (\cref{sec:problem}).
 
 \subsection{Contributions}
 \guide{Bullet list. Problem formulation; the five methods (NFA product, DFA product, three
