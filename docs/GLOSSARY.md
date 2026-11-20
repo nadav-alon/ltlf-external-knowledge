@@ -1797,7 +1797,7 @@ is seeded with them:
   - **Terminology note (2026-07-16).** *Enabled* was once its own `main.tex`
     definition (`\label{def:enabled}`, "Enabled letter" = δ **and** λ defined at
     both states **and** $\cons$). An Overleaf update **removed it** and folded
-    partiality into `\cref{def:consistency}` itself, so **`\cref{def:enabled}` no
+    partiality into `\cref{def:consistency}` itself, so **`def:enabled` no
     longer resolves** and every reference was repointed to `def:consistency`.
     *Enabled* survives as **this project's** term for the same predicate — it is
     ours now, not `main.tex`'s. Cite `def:consistency`, never `def:enabled`.

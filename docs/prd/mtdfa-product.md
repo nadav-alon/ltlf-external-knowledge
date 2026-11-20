@@ -141,7 +141,7 @@ are kept as history in each bullet):**
   makes every $(q_{in},q_{out})$ final, but a $\lambda$-dead state has $0$ out-edges
   and Spot cannot mark it accepting — unreachable under Case-A totality, so vacuous.
   Recorded in *Edge cases*. Also repointed the repo-wide dangling
-  `\cref{def:enabled}` (removed upstream, folded into `def:consistency`).
+  `def:enabled` (removed upstream, folded into `def:consistency`).
 
 ## Goal
 
