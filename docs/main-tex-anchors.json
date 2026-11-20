@@ -26,6 +26,9 @@
     "105": [
       "\\na[inline]{Also, these signatures are commiting to a mealy turn order, and are not ready for adding a moore option. For that, the signatures would be dependent on the order of players. Note that the Image of the functions would stay the same, it would just be the same-step allowed variables values visible to each strategy}"
     ],
+    "112": [
+      "As our strategies are ordered in such a way that each needs to be able to 'see' only the variables that is allowed to it in the 'turn order', our $\\lambda$ functions will take the shape of $$\\lambda: Q \\times \\Sigma_{0} \\to \\Sigma_{1}$$ such that $\\Sigma_{0}, \\Sigma_{1} \\subseteq \\Sigma$, in such a way that it implements a strategy of the shape $$f: \\Sigma^* \\times \\Sigma_{0} \\to \\Sigma_{1}$$"
+    ],
     "127": [
       "\\begin{align*}",
       "\\Tin &= (Q_{in}, 2^{\\mathcal{I} \\cup \\mathcal{O}}, \\delta_{in}, \\lambda_{in}, q_{in, 0}) \\\\"

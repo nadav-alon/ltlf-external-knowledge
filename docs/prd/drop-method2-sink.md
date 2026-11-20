@@ -171,7 +171,7 @@ their soundness:
     (`:297`), the `\Else … \bot` branch (`:303-304`), the sink self-loop line
     (`:307`), and the prose "sending … to a failing sink" (`:315`) → "skipping".
     The algorithm then mirrors `alg:otfdfa_product`'s `continue`-on-`$\lnot\cons$`.
-- **Dangling `\cref{lem:sink_skip}` after deletion** — clean up the references in
+- **Dangling `lem:sink_skip` after deletion** — clean up the references in
   `docs/prd/transducer-file-format.md:253`, `docs/prd/concrete-transducer.md:185`,
   and `docs/prd/dfa-product.md` (multiple). Also verify the unrelated `$\bot$` at
   `docs/prd/transducer-file-format.md:322` is a truth-value `$\bot$`, not the sink.
@@ -259,7 +259,7 @@ These are the author's own theory; `/theory-review` should not re-derive them.
   `\cl` note; and de-sinked `alg:dfa_product` (state set, `\Else…⊥` branch, self-
   loop line, closing prose). All edits are `\cl`-noted, one sentence per source
   line, macro-only notation. No dangling `\ref`/`\cref` remain — both
-  `\cref{lem:sink_skip}` sites and the `:non_cons` / `:self_loop` label refs are
+  `lem:sink_skip` sites and the `:non_cons` / `:self_loop` label refs are
   gone. Not compiled locally (Overleaf-only); verified by reading. The
   theory-review gate is now ticked. Beyond the PRD's itemized edit list, the
   de-sink also had to fix `def:consistency` (main.tex line 171), which still said
