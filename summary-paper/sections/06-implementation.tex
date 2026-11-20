@@ -1,17 +1,36 @@
 \section{Implementation}\label{sec:implementation}
 
-\subsection{Architecture}
-\guide{C++20 on Spot; thin wrappers; custom lambda-split transducer and NFA types; one
-\texttt{Synthesis} interface. Diagram optional.}
-
 \subsection{Tools}
 \guide{\tool{ltlf-ek-synth} (CLI), \tool{ltlf-ek-bench} (benchmark runner), dependency tools.
 Input formats (HOA transducers, formula files).}
 
-\subsection{Verification Strategy}
-\guide{The oracle layers: unit fixtures, cross-method equivalence, controller verifier, external
-\tool{ltlfsynt} oracle. What each catches. Test-suite size.}
+The code is a C++ library on top of Spot, and three command-line tools that only parse arguments, call the library, and format the result.
 
-\subsection{Engineering Lessons}
-\guide{Optional. Anything non-obvious that shaped the results (e.g.\ degenerate families,
-timing vs.\ state counts).}
+\tool{ltlf-ek-synth} is the synthesis tool.
+It takes an $\LTLf$ formula $\varphi$, a \emph{part file} that splits the atomic propositions into $\Ifree$, $\Iknown$, $\Ofree$ and $\Oknown$, and one transducer file for each non-empty known set.
+A flag selects the method: \texttt{--nfa-product} and \texttt{--dfa-product} for Methods~1 and~2 over explicit automata, \texttt{--mtnfa-product} and \texttt{--mtdfa-product} for the same methods over Spot's MTDFA representation, and \texttt{--otf-mtdfa-product} for Method~3.
+The tool prints \texttt{REALIZABLE} or \texttt{UNREALIZABLE} and signals the verdict in its exit code.
+With \texttt{--model-check} it also runs the controller verifier of \cref{sec:verification} on the synthesized controller, or on a controller read from a file.
+
+\tool{ltlf-ek-deps} is the dependency extractor of \cref{sec:dependencies}.
+With \texttt{--direction out} it searches for a maximal set of dependent outputs (\cref{def:outdep}), and with \texttt{--direction in} for a maximal set of dependent inputs (\cref{def:indep}).
+It prints the set it found and can emit an updated part file, with the dependent variables moved to the known side, together with the matching transducer, so its output feeds straight into \tool{ltlf-ek-synth}.
+
+\tool{ltlf-ek-bench} runs the benchmarks of \cref{sec:benchmarks}.
+It sweeps the chosen families, methods and parameter range, runs each case in a separate process under a timeout, races \tool{ltlfsynt} as the baseline, and writes a JSON report that a script turns into a spreadsheet.
+
+Both input formats are plain text.
+A part file has one line per set, such as \texttt{input\_known: c}.
+A transducer file is an automaton in the HOA (Hanoi Omega-Automata) format, which Spot reads, for the transition function $\delta$, followed by a \texttt{\%\%LAMBDA} block that gives the output function $\lambda$ as one Boolean formula per state.
+Both $\delta$ and $\lambda$ may be partial, and the acceptance condition of the HOA automaton is ignored, since a transducer has none.
+
+\subsection{Controller Verification}\label{sec:verification}
+\guide{The \texttt{--model-check} flag: what it checks and how.}
+
+The \texttt{--model-check} flag checks a controller $T_C$ against \cref{def:problem}, taking it either from the selected method or from a file given with \texttt{--controller}.
+It builds the product of the DFA of $\varphi$ with $\Tin$, $\Tout$ and $T_C$.
+Since $T_C$ fixes every free output, only the environment has moves left, so the check is a one-player game.
+The environment wins from a non-accepting state if it can stay in non-accepting states forever, or reach a state where some free input has no letter consistent with the transducers.
+The verifier computes this set as a greatest fixpoint and reports \texttt{SAFE} if the initial state is outside it, and \texttt{UNSAFE} with a counterexample play otherwise.
+
+

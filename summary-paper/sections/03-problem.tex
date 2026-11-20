@@ -4,36 +4,91 @@
 \guide{Variables $\mathcal{I}=\Ifree\cup\Iknown$, $\mathcal{O}=\Ofree\cup\Oknown$. Goal
 $\varphi$. Who controls what.}
 
+We are given a set of variables $\mathcal{V}$ split into input variables $\mathcal{I}$ and output variables $\mathcal{O}$.
+Each of these sets is further split into free variables $\Ifree$ and $\Ofree$, which are set by the players of the game, and known variables $\Iknown$ and $\Oknown$, which are set by an external knowledge source.
+
+We are also given a specification $\varphi$ in $\LTLf$ over the variables $\mathcal{V}$, as well as two transducers $\Tin$ and $\Tout$ (\cref{def:ek-transducer}) that model the external knowledge for the input and output variables respectively.
+
 \subsection{Knowledge as Transducers}
 \guide{Define $\Tin$ (states $\Sin$) and $\Tout$ (states $\Sout$), their input/output alphabets,
 and the lambda split. Small figure of each.}
 
 \begin{definition}[External-knowledge transducer]\label{def:ek-transducer}
-\guide{formal definition}
+An external-knowledge transducer is a tuple
+\[
+  \langle S, s_0, V_{in}, V_{out}, \delta, \lambda \rangle
+\]
+where:
+
+\begin{itemize}
+  \item $S$ is a finite set of states, and $s_0 \in S$ is the initial state
+  \item $V_{in}$ is the set of variables the transducer may see at the current step, and $V_{out}$ is the set of known variables it sets
+  \item $\delta: S \times 2^{\mathcal{V}} \rightharpoonup S$ is the partial transition function; it reads the full letter, so the state tracks the entire history, including values not visible to $\lambda$
+  \item $\lambda: S \times 2^{V_{in}} \rightharpoonup 2^{V_{out}}$ is the partial output function, which sets the known variables from the state and the visible part of the current letter
+\end{itemize}
+
+For $\Tin$, $V_{in} = \Ifree$ and $V_{out} = \Iknown$; for $\Tout$, $V_{in} = \mathcal{I} \cup \Ofree$ and $V_{out} = \Oknown$.
 \end{definition}
+
+The visible sets follow the turn order: $\Tin$ moves together with the environment, so it sees only the current free inputs, while $\Tout$ moves after the system and sees all the current inputs and the free outputs.
+
+\input{figures/running-example}
 
 \subsection{Consistency}
 \guide{When a trace agrees with $\Tin$, $\Tout$ and $T_C$; the $\cons$ predicate.}
 
 \begin{definition}[Consistency]\label{def:consistency}
-\guide{formal definition}
+Let $T$ be an external-knowledge transducer and $\pi$ a trace.
+Let $s_0$ be the initial state of $T$, and $s_{i+1} = \delta(s_i, \pi[i])$, the state $T$ reaches after reading $\pi[0..i]$.
+$\pi$ is consistent with $T$ if, for every step $i$, $s_i$ is defined and $\lambda(s_i, \pi[i]|_{V_{in}}) = \pi[i]|_{V_{out}}$.
 \end{definition}
 
 \subsection{The Synthesis Problem}
 \begin{definition}[Synthesis with external knowledge]\label{def:problem}
-\guide{Given $(\varphi,\mathcal{I},\mathcal{O},\Tin,\Tout)$, find $T_C$ such that every consistent
-trace satisfies $\varphi$, or report unrealizable.}
+Given a specification $\varphi$ in $\LTLf$ over $\mathcal{V} = \mathcal{I} \cup \mathcal{O}$ and external-knowledge transducers $\Tin$ and $\Tout$, find a controller transducer $T_C$ that, at each step, reads the inputs $\mathcal{I}$, sets the free outputs $\Ofree$, and decides whether to end the trace.
+In each step the environment sets $\Ifree$, $\Tin$ sets $\Iknown$, $T_C$ sets $\Ofree$, and $\Tout$ sets $\Oknown$, so every trace produced this way is consistent with $\Tin$ and $\Tout$.
+$T_C$ is a solution if every trace it produces, against every environment, satisfies $\varphi$.
+If no such controller exists, we report that the problem is unrealizable.
 \end{definition}
 
 \subsection{Running Example}
 \begin{example}\label{ex:running}
-\guide{One small instance used throughout: realizable with knowledge, unrealizable without.}
+Let $\Ifree = \{r\}$, $\Iknown = \{k\}$, $\Ofree = \{o\}$ and $\Oknown = \emptyset$.
+The specification is
+\[
+  \varphi \;=\; X[!]\,\top \;\wedge\; (o \leftrightarrow X\,k),
+\]
+which asks the controller to announce at step~$0$ the value that $k$ will take at step~$1$.
+
+The input knowledge $\Tin$ is a delayed echo: $k$ holds at step~$i$ exactly when $r$ held at step~$i-1$, and $k$ is false at step~$0$.
+It has two states $\Sin = \{s_0, s_1\}$, where $s_1$ records that the last value of $r$ was true.
+Its transition function is $\delta(s, v) = s_1$ if $r \in v$ and $\delta(s, v) = s_0$ otherwise, and its output function is $\lambda(s_1, \cdot) = \{k\}$ and $\lambda(s_0, \cdot) = \emptyset$.
+The output knowledge $\Tout$ is trivial: one state, which always outputs the empty valuation.
+
+\textbf{Without knowledge, $\varphi$ is unrealizable.}
+If $k$ is an ordinary free input, the environment chooses $k$ at step~$1$ after seeing $o$ at step~$0$, and sets $k$ to the opposite of $o$.
+The controller cannot escape by ending the trace at step~$0$, because $X[!]\,\top$ is false at the last position.
+
+\textbf{With knowledge, $\varphi$ is realizable.}
+At step~$0$ the controller sees $r$ and copies it, $o := r$.
+On every trace consistent with $\Tin$, $k$ at step~$1$ equals $r$ at step~$0$, so $o \leftrightarrow X\,k$ holds, and the controller ends the trace at step~$1$.
+The controller still knows nothing about future values of $r$; it only knows that $k$ will copy the current one.
 \end{example}
 
 \subsection{Relation to Assume--Guarantee Synthesis}
 \guide{When $\Tin$ has an $\LTLf$ language $\psiin$, the problem reduces to
 $\psiin \rightarrow \varphi$ (and $\psiout$ as a guarantee). When it does not
-(non-star-free $\Tin$), the reduction is unavailable. Introduce comparability tiers T1/T2/T3.}
+(non-star-free $\Tin$), the reduction is unavailable.}
 
-\subsection{Complexity}
-\guide{Known bounds, or what is open. Keep to what is proved.}
+The language of a knowledge transducer is the set of traces consistent with it (\cref{def:consistency}).
+Suppose the language of $\Tin$ is expressed by an $\LTLf$ formula $\psiin$, and that of $\Tout$ by $\psiout$.
+Then synthesis with external knowledge reduces to standard $\LTLf$ synthesis of the assume--guarantee formula
+\[
+  \psiin \rightarrow (\psiout \wedge \varphi),
+\]
+in which $\Iknown$ become ordinary inputs and $\Oknown$ ordinary outputs.
+We call this the \emph{folded formula}, since the knowledge is folded into the specification.
+The assumption $\psiin$ restricts the environment to traces that respect the input knowledge: a trace that leaves the language of $\Tin$ is outside the problem, so the controller wins it vacuously.
+The guarantee $\psiout$ obliges the controller to set $\Oknown$ exactly as $\Tout$ would, since in the reduced problem nothing else sets them.
+This makes off-the-shelf $\LTLf$ synthesizers a baseline for our methods.
+Not every transducer has such a $\psiin$: $\LTLf$ only expresses star-free languages, so a transducer that counts modulo~2, for example, has none.

@@ -13,9 +13,9 @@
 \usepackage{subcaption}
 \usepackage{tikz}
 \usepackage{pgfplots}
-\pgfplotsset{compat=1.17}
+\pgfplotsset{compat=1.18}
 \usetikzlibrary{automata,positioning,arrows.meta}
-\usepackage{hyperref}
+\usepackage[colorlinks,allcolors=blue!50!black]{hyperref}
 \usepackage{cleveref}
 % \usepackage[disable]{todonotes}
 \usepackage{todonotes}
@@ -35,7 +35,8 @@
 \algrenewcommand{\algorithmicensure}{\textbf{Output:}}
 
 \input{macros}
-% \guidesfalse % uncomment to hide every writing guide
+\guidesfalse % comment out to show every writing guide
+\clnotesfalse % comment out to show the \cl review notes
 
 \title{LTLf Synthesis with External Knowledge}
 \author{Nadav Alon}
@@ -45,12 +46,14 @@
 \maketitle
 
 \begin{abstract}
-Progress report on $\LTLf$ with external knowledge work. The problem is synthesis of an $\LTLf$ formula $\varphi$ assuming the possible traces are limited to those consistent with transducers $\Tin$ and $\Tout$, for input and output respectively. This idea was motivated by the TACAS'24 paper on output dependencies~\cite{AkshayBasaChakrabortyFried2024}; this generalizes the idea to input dependencies. The method we suggest uses MTDFA with on-the-fly formula progression and game solving, which hopefully prunes out enough paths that the original formula considers possible to outweigh the cost of the product.
-In practice, trying to apply this to input transducers has mostly not paid off.
-Against Spot's \tool{ltlfsynt} (full synthesis, median wall time at $N=6$ in the 2026-11-14 HPC sweep of \cref{sec:results}; speed-ups are \tool{ltlfsynt} time over \tool{otf-solve-simp}), \tool{otf-solve-simp} is ahead on every family with an \tool{ltlfsynt} time except slippery, from $2.56\times$ (hidden-counter) to $8.14\times$ (cons-inert) (\cref{fig:speedup}); co-generated has no figure at $N=6$, because \tool{ltlfsynt} times out in one of its two cells.
-On the slippery family \tool{ltlfsynt} is slightly faster, at $0.88\times$ in aggregate; only the one-hot arm is ahead of it, at about $2\times$.
-Knowledge itself buys little under the simplifier: knowledge against no knowledge is within $0.55$--$1.17\times$ on every family with a finite no-knowledge time, the exception being co-generated, where the no-knowledge side times out (\cref{tab:rq2}).
-A comparison with output dependencies is difficult to make, as the output dependencies results~\cite{AkshayBasaChakrabortyFried2024} are for LTL and would need revising to compare.
+This is a progress report on our work on $\LTLf$ synthesis with external knowledge.
+The problem is synthesis of an $\LTLf$ formula $\varphi$ when the possible traces are limited to those consistent with transducers $\Tin$ and $\Tout$, for inputs and outputs respectively.
+The idea came from the TACAS'24 paper on output dependencies~\cite{AkshayBCF2024}; we generalize it to input dependencies, and further to any known component.
+Our methods take the product of an automaton for $\varphi$ with the transducers and solve the resulting game, in the hope that the knowledge prunes enough of the game to outweigh the cost of the product.
+In practice the gains are limited.
+With input knowledge, we get a large speedup over the same problem without knowledge only on a family built for it (at least $9331\times$ on \texttt{co-generated}, where the run without knowledge times out), none on the other such family (\texttt{slippery-*}, $0.55$--$1.13\times$), and none when the knowledge is cheap to write into the formula.
+Against Spot's \tool{ltlfsynt}, our speedups at small sizes come mostly from its fixed startup cost, and they shrink as the problems grow; on \texttt{slippery-*} \tool{ltlfsynt} is ahead at the largest size.
+With output dependencies on the TACAS'24 families, \tool{ltlfsynt} is faster wherever it finishes.
 \end{abstract}
 
 \tableofcontents
@@ -64,16 +67,9 @@ A comparison with output dependencies is difficult to make, as the output depend
 \input{sections/06-implementation}
 \input{sections/07-benchmarks}
 \input{sections/08-results}
-\input{sections/09-related-work}
-\input{sections/10-future}
-\input{sections/11-conclusion}
+\input{sections/09-conclusion}
 
 \bibliographystyle{plain}
 \bibliography{refs}
-
-\appendix
-\input{sections/A-proofs}
-\input{sections/B-full-results}
-\input{sections/C-reproducibility}
 
 \end{document}

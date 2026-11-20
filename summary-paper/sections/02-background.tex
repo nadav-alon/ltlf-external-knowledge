@@ -4,18 +4,62 @@
 \guide{Syntax and finite-trace semantics; strong/weak next ($X[!]$ vs.\ $X$); notation for
 traces over $2^{\mathcal{I}\cup\mathcal{O}}$. Cite \cite{DeGiacomoVardi2013}.}
 
+$\LTLf$~\cite{DeGiacomoVardi2013} is a variant of LTL that is interpreted over finite traces.
+That means we have the same operators as LTL, such as $G$ (Globally), $F$ (Finally), $X$ (Next), etcetera.
+Traces must be of length at least 1.
+A trace is a word over the alphabet $2^{\mathcal{V}}$, where $\mathcal{V}$ is the set of variables; we write $\pi[i]$ for its letter at step $i$ and $\pi[0..i]$ for its prefix up to step $i$.
+For a letter $v$ and a set of variables $U$, $v|_U = v \cap U$ is the restriction of $v$ to $U$.
+
+The Next operator usually assumes that there is always a next state; on finite traces there is not, so we have weak and strong next operators.
+The weak next operator $X$ is true in the last state of a trace, while the strong next operator $X[!]$ is false in the last state of a trace.
+
+A similar logic is Past-$\LTLf$, which is interpreted over finite traces but with past operators.
+Each future operator has a past counterpart: $Y$ (Yesterday) for $X$, $O$ (Once) for $F$, $H$ (Historically) for $G$, and $S$ (Since) for $U$ (Until).
+
 \subsection{Automata on Finite Words}
 \guide{NFA, DFA, determinisation blow-up, minimisation. Past-$\LTLf$ and the reverse/mirror
 construction that gives a small NFA (needed for Method 1).}
 
+$\LTLf$ formulas can be translated into automata on finite words that accept exactly the traces that satisfy the formula.
+The automata can be non-deterministic (NFA) or deterministic (DFA).
+The NFA of a formula can have $2^{O(|\varphi|)}$ states, and the DFA $2^{2^{O(|\varphi|)}}$ states.
+
+The translation from $\LTLf$ to DFA can be done by translating to NFA and determinizing, or directly by \emph{formula progression}: each state is a formula, and reading a letter rewrites it into the formula that the rest of the trace must satisfy.
+
+Using Past-$\LTLf$, we can get an NFA of single-exponential size another way.
+We replace every operator of $\varphi$ with its past counterpart, translate the resulting past formula to a DFA, which is only single-exponential for past formulas, and then reverse that DFA to get an NFA for $\varphi$.
+
 \subsection{Reactive Synthesis on Finite Traces}
-\guide{Controller as a transducer; realizability; DFA game, attractor/fixpoint solving.
+\guide{Controller as a transducer; realizability; DFA game.
 Turn order (who moves first). Cite \cite{PnueliRosner1989,DeGiacomoVardi2015}.}
+
+$\LTLf$ synthesis~\cite{PnueliRosner1989,DeGiacomoVardi2015} is a problem in which we are given a specification $\varphi$ and sets of input and output variables $\mathcal{I}$ and $\mathcal{O}$.
+We interpret the specification as a game between the system and the environment, in which the environment chooses values for the input variables, and the system chooses values for the output variables.
+On finite traces the system also decides when the trace ends: it may stop after any step.
+The system wins if the trace it stops on satisfies the specification, and the synthesis problem is realizable if there exists a strategy for the system to win against every possible strategy of the environment.
+
+Such a strategy can be implemented as a transducer, a finite state machine that reads the input variables, stores the history of the trace in its state, and outputs values for the output variables.
+
+A nuance of the synthesis problem is the turn order, which determines who moves first.
+If the environment moves first in each step, the system sees the current inputs before choosing its outputs; this is a \emph{Mealy} controller.
+If the system moves first, it sees only past inputs; this is a \emph{Moore} controller.
+We use the Mealy setting throughout.
 
 \subsection{Symbolic Representations}
 \guide{BDDs, multi-terminal DFAs (MTDFA) in Spot; why an mtdfa representation is a second
 implementation of a method, not a new method. Cite \cite{Spot2022}.}
 
+Storing the automata as a list of states and transitions is called an explicit representation.
+It is intuitive but each letter of the alphabet gets its own edge, and the alphabet is exponential in the number of variables.
+Symbolic representations instead group letters into Boolean functions.
+
+A binary decision diagram (BDD) represents a Boolean function over the variables, and so a set of valuations: those on which the function is true.
+A multi-terminal BDD (MTBDD) generalizes this to functions whose result is one of several terminal values instead of true or false.
+Spot~\cite{Spot2022} uses MTBDDs to store a DFA as an \emph{MTDFA}: each state has one MTBDD whose terminals are the successor states, so all the transitions of a state are stored at once.
+
 \subsection{Baseline Tool: \tool{ltlfsynt}}
 \guide{What Spot's \tool{ltlfsynt} does, and how it is used here: as a baseline and as an
 external realizability oracle.}
+
+A baseline tool for $\LTLf$ synthesis is Spot's \tool{ltlfsynt}, which builds the MTDFA of the formula on the fly and solves the game as it goes.
+We use it to compare the performance of our methods, and to check their verdicts.

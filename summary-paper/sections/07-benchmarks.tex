@@ -3,53 +3,109 @@
 \subsection{Research Questions}
 \guide{What the experiments answer. E.g.\ RQ1: do the methods agree and verify? RQ2: how much does
 knowledge shrink the product? RQ3: speed vs.\ \tool{ltlfsynt}? RQ4: which method wins where?}
+We aim to answer the following research questions in our experiments:
 
 \begin{enumerate}
-  \item[RQ1] \guide{question}
-  \item[RQ2] \guide{question}
+  \item[RQ1] Verify equivalence of methods in terms of realizability and correctness of the synthesized controller.
+  \item[RQ2] Quantify the impact of external knowledge on solve time, compared to the same problem without knowledge and to a baseline tool.
 \end{enumerate}
 
-\subsection{Metrics}
+\subsection{Metrics and Baselines}
 \guide{Structural (state counts, deterministic, committed) vs.\ timing (wall clock, median of
 repeats). Prune ratio; nk-product ratio; speedup. Why state counts are the decisive number.}
 
-\subsection{Baselines}
-\guide{\tool{ltlfsynt} on the $\psiin\rightarrow\varphi$ encoding; the no-knowledge product;
-the unpruned product. Comparability tiers: which families admit a fair external comparison.}
+We measure the number of reachable product states and the wall-clock time of synthesis.
+We compare against three baselines:
+\begin{itemize}
+  \item \tool{ltlfsynt} on the folded formula $\psiin \rightarrow \varphi$ (\cref{sec:problem}), in Mealy mode. It needs a $\psiin$, so it only runs on families that provide one.
+  \item The \emph{no-knowledge product}: our method on the same folded formula, with trivial transducers. It poses the same problem as the original, with the knowledge as a formula instead of a transducer.
+  \item The \emph{unpruned product}: our method on $\varphi$ alone, with the known variables made free and trivial transducers. It solves a different, harder game, so we only use its size. The \emph{prune ratio} is the number of reachable product states with the knowledge over the number in the unpruned product; below 1, the knowledge prunes.
+\end{itemize}
+The \emph{speedup} against a baseline is the baseline's time over ours.
 
 \subsection{Benchmark Families}
-\guide{One paragraph per family: $\varphi_n$, knowledge, tier, what it isolates. Then the
+\guide{One paragraph per family: $\varphi_n$, knowledge, what it isolates. Then the
 summary table.}
+
+We compared only input knowledge; as such, every family has a trivial $\Tout$.
+Every family also comes in a realizable and an unrealizable variant.
 
 \subsubsection{Parametric Families}
 \guide{cons-prunes, cons-inert, mirror-small, mirror-degenerate, parity-t3, knowledge-chain(-inert),
 co-generated, \ldots}
 
+\textbf{\texttt{cons-prunes}}: $\varphi_n = F(k \wedge X[!]^n k)$, where $k$ is a known input that $\Tin$ sets to true at every step.
+The DFA of $\varphi_n$ has exponentially many states, but with $k$ always true only $n+1$ of them are reachable, so this is the best case for pruning.
+
+\textbf{\texttt{cons-inert}}: the same $\varphi_n$, but $k$ is a free output and the knowledge is trivial, so nothing is pruned and the family measures only the cost of the product.
+
+\textbf{\texttt{mirror-small}} and \textbf{\texttt{mirror-degenerate}} have no knowledge and compare Method~1 (NFA) against Method~2 (DFA).
+In \texttt{mirror-small} the NFA built through the past formula is much smaller than the DFA; in \texttt{mirror-degenerate} it is about as large, so the NFA route only adds work.
+
+\textbf{\texttt{knowledge-chain}}: the $\varphi_n$ of \texttt{cons-prunes}, with an $n$-state $\Tin$ that keeps $k$ false until step $n-1$ and true from then on.
+It tests how the size of $\Tin$ affects the product.
+\textbf{\texttt{knowledge-chain-inert}} does the same with an $n$-state counter over a free input that $\varphi_n$ never mentions, so nothing is pruned and the product is exactly $|\Tin|$ times the goal DFA.
+
+\textbf{\texttt{parity-t3}}: the $\varphi_n$ of \texttt{cons-prunes}, with a two-state $\Tin$ that tracks the parity of a free input.
+No $\LTLf$ formula expresses this $\Tin$, so \tool{ltlfsynt} cannot be run on it.
+
+\textbf{\texttt{co-generated}}: $\Tin$ is a delay line with $2^n$ states that sets $k$ at step $t$ to the value of the free input $a$ at step $t-n$, and $\varphi_n$ is realizable only with this knowledge.
+
 \subsubsection{Engineered Domain Families}
 \guide{Domain-inspired instances (e.g.\ slippery world, hidden counters).}
 
+\textbf{\texttt{slippery-*}}: the controller must reach a corner of a $2^n \times 2^n$ grid, and a free input $\mathit{slip}$ makes a move go two cells instead of one.
+$\Tin$ tracks the position and gives it to the controller as known inputs.
+The three variants differ in how the position is encoded (binary or one-hot) and how $\psiin$ is written (\texttt{slippery-binary-compact} has a shorter $\psiin$), so they differ mainly in the size of the folded formula.
+
+\textbf{\texttt{hidden-counter}}: $\Tin$ counts the steps where $a$ holds, modulo $2^n$, and reveals only the top bit of the count as $k$.
+The output must predict $k$ one step ahead (realizable) or two steps ahead (unrealizable).
+
 \subsubsection{External Suites}
-Of the 430 instances with at most 16 propositions, 388 could be analysed and 6 of those carry output dependencies; a seventh, with 26 propositions, lies above that bound.
+\guide{SYNTCOMP finite-trace instances; what fraction carries usable knowledge.}
+
+SYNTCOMP, the annual reactive synthesis competition, has a suite of finite-trace specifications, \texttt{tlsf-fin}, with $1717$ instances and no knowledge of their own.
+Dependency extraction (\cref{sec:dependencies}) finds knowledge in $6$ of the $388$ that could be analysed among the $430$ instances with at most $16$ propositions, all of them unrealizable; a seventh, with $26$ propositions, lies above that bound.
 
 \subsubsection{Generated Corpus}
 \guide{Random instances used for oracle soak testing.}
 
+Random $(\varphi, \text{partition}, \Tin)$ triples from a fixed seed.
+They are not timed; we only check that the methods agree with \tool{ltlfsynt} and model-check each controller (RQ1).
+
 \begin{table}[H]
 \centering
+\small
 \caption{Benchmark families.}\label{tab:families}
-\begin{tabular}{lllll}
+\begin{tabular}{lllp{3.5cm}}
 \toprule
-Family & $\varphi_n$ & Knowledge & Tier & Purpose \\
+Family & $\varphi_n$ & $\Tin$ & Purpose \\
 \midrule
- & & & & \\
+\texttt{cons-prunes} & $F(k \wedge X[!]^n k)$ & 1 state, $G\,k$ & best-case pruning \\
+\texttt{cons-inert} & $F(k \wedge X[!]^n k)$, $k \in \Ofree$ & trivial & cost of the product alone \\
+\texttt{mirror-small} & $F(v \wedge X[!]^n \neg X[!]\top)$ & trivial & NFA much smaller than DFA \\
+\texttt{mirror-degenerate} & $F(v \wedge X[!]^n v)$ & trivial & NFA as large as DFA \\
+\texttt{knowledge-chain} & $F(k \wedge X[!]^n k)$ & $n$-state chain & large $\Tin$, pruning \\
+\texttt{knowledge-chain-inert} & $F(v \wedge X[!]^n v)$ & $n$-state counter & large $\Tin$, no pruning \\
+\texttt{parity-t3} & $F(k \wedge X[!]^n k)$ & 2-state parity & $\Tin$ with no $\psiin$ \\
+\texttt{co-generated} & $G(a_0 \rightarrow X^n k \wedge \ldots)$ & $2^n$-state delay & realizable only with knowledge \\
+\midrule
+\texttt{slippery-*} & $F(\text{cell})$ & grid position & cost of the folded formula \\
+\texttt{hidden-counter} & $o \leftrightarrow X[!]\,k$ & $2^n$-state counter & large $\Tin$, one-step prediction \\
+\midrule
+SYNTCOMP \texttt{tlsf-fin} & 1717 instances & extracted & real specifications \\
+Generated corpus & random & random & cross-checks (RQ1) \\
 \bottomrule
 \end{tabular}
 \end{table}
 
 \subsection{Experimental Setup}
-The timing sweep ran on the HPC cluster (nodes \texttt{cn01} and \texttt{cn16}, Intel Xeon Gold 6130 at 2.10\,GHz) from a Release build at commit \texttt{4e3beec} with Spot 2.15.1.
-Each cell is repeated 5 times with a 20\,s timeout, for $n$ up to 6; the committed run is \texttt{docs/runs/2026-11-14-summary-paper-sweep.json}.
+\guide{Machine, build type, Spot version, commit, repeats, timeout, budget.}
+
+All timings come from one sweep on a computing cluster (HPC), on nodes \texttt{cn01} and \texttt{cn16}, both Intel Xeon Gold 6130 at 2.10\,GHz.
+Each case runs the Release build at commit \texttt{4e3beec} with Spot 2.15.1 in its own process, with a 20\,s timeout, for $n$ up to 6; the reported time is the median of five repeats.
+The committed run is \texttt{docs/runs/2026-11-14-summary-paper-sweep.json}.
+The timing sweep covers every parametric family except \texttt{parity-t3}, which has no \tool{ltlfsynt} baseline to time against, plus the three \texttt{slippery-*} variants and \texttt{hidden-counter}.
 The RQ1 correctness checks ran on the developer's desktop, not on the HPC, and are machine-independent.
 The SYNTCOMP verdict cross-checks come from the 2026-08-18 SYNTCOMP-fin sweep (\texttt{docs/runs/2026-08-18-syntcomp-fin-sweep.json}), run on the desktop with tools built at commit \texttt{40c5d72} and Spot 2.15.1.
 The generated-corpus checks are oracle soaks with no committed run.
-Repeats are aggregated by their median.

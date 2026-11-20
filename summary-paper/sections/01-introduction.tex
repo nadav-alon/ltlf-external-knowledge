@@ -6,7 +6,10 @@ synthesis treats the environment as fully adversarial, and why that is often too
 too expensive. One concrete scenario where something is \emph{known} about inputs or outputs.}
 Reactive LTL synthesis is a problem in which we are given a specification $\varphi$ in Linear Temporal Logic (LTL) and we want to construct a controller that interacts with every environment such that the resulting trace satisfies the specification.
 
-The TACAS'24 paper~\cite{AkshayBasaChakrabortyFried2024} introduced the ideas of variable dependencies in LTL synthesis, which allows us to classify some variables as dependent on others, and reduce the size of the problem. This result is restricted to output variables; attempting to apply the definition to input variables found none. This makes intuitive sense; the definition given in the paper is one that assumes control of the variable is the system's and not the environment, so formulas that do have such dependencies are likely to be valid and uninteresting, so they do not exist in benchmarks.
+The TACAS'24 paper of Akshay et al.~\cite{AkshayBCF2024} introduced variable dependencies in LTL synthesis: some output variables are determined by the others, so they can be taken out of the game, which makes the problem smaller.
+The definition is made for variables the system sets.
+An input dependency would mean that every trace satisfying $\varphi$ fixes the value of an input, even though the environment is free to choose it.
+Benchmark specifications rarely constrain their own inputs that way, and when we looked for input dependencies in the benchmarks we found none.
 
 We wanted to generalize the idea of dependencies to input variables as well, and ended up with an even more general idea, in which we solve the synthesis problem with the help of an outside helper that decides the values of some variables.
 
@@ -16,10 +19,11 @@ We wanted to generalize the idea of dependencies to input variables as well, and
 component, given as a transducer. What this buys: realizability that would otherwise fail, and
 smaller search spaces. Preview the running example.}
 
-Given a specification $\varphi$, we want to be able to incorporate external knowledge about some variables. For that we model the knowledge as a transducer which according to the history of the other variables decides the values of the variables.
-When solving the synthesis problem, we consult the transducer to determine the values of the variables it controls to limit the traces to the allowed ones.
+Given a specification $\varphi$, we want to be able to incorporate external knowledge about some variables.
+We model the knowledge as a transducer that decides the values of these variables from the history of the other variables.
+When solving the synthesis problem, we consult the transducer for the values of the variables it controls, which limits the traces to the allowed ones.
 
-This idea can be used to incorporate knowledge inherent to the formula itself (output dependencies) or to change the problem to a different one (similarly to fairness assumptions).
+The transducer can come from the formula itself, as with output dependencies, or from outside it, as an extra assumption about the environment, similar to a fairness assumption.
 
 \subsection{Contributions}
 \guide{Bullet list. Problem formulation; the five methods (NFA product, DFA product, three
@@ -32,6 +36,7 @@ suite and results. Mark which items are done vs.\ in progress.}
     \item $\LTLf$ synthesis with external knowledge
     \item $\LTLf$ synthesis with input dependencies
   \end{itemize}
+  \item Extraction of knowledge transducers from input and output dependencies
   \item Several benchmark families to test the problem
   \item Implementation of methods to solve the problem, comparisons between them, and a comparison against the state of the art.
 \end{itemize}
