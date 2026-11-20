@@ -48,11 +48,11 @@
 \begin{abstract}
 We report progress on $\LTLf$ synthesis with external knowledge: synthesis of an $\LTLf$ formula $\varphi$ when the possible traces are limited to those consistent with transducers $\Tin$ and $\Tout$, for inputs and outputs respectively.
 The idea came from the TACAS'24 paper on output dependencies~\cite{AkshayBCF2024}; we generalize it to input dependencies, and to any known component.
-We give three methods, which take the product of an NFA, a DFA, or an on-the-fly DFA for $\varphi$ with the transducers and solve the resulting game.
+We give three methods, NFA Product, DFA Product and On-the-Fly DFA Product, which take the product of an automaton for $\varphi$ with the transducers, built explicitly or on the fly, and solve the resulting game; the results below are for the on-the-fly method.
 Our hypothesis is that the knowledge prunes enough of the game to outweigh the cost of the product.
-It holds only in part.
+It holds only on a family built for it.
 With input knowledge, we get a large speedup over the same problem without knowledge only on a family built for it (at least $9331\times$ on \texttt{co-generated}, where the run without knowledge times out), none on \texttt{slippery-*} ($0.55$--$1.13\times$), and none when the knowledge is cheap to write into the formula.
-Against Spot's \tool{ltlfsynt}, our speedups at small sizes come mostly from its fixed startup cost and shrink as the problems grow.
+Against Spot's \tool{ltlfsynt}, our speedups at small sizes come mostly from its fixed startup cost and shrink as the problems grow; on \texttt{slippery-*} \tool{ltlfsynt} is ahead at the largest size.
 With output dependencies on the TACAS'24 families, \tool{ltlfsynt} is faster wherever it finishes.
 Next, we will port the LTL benchmarks of the TACAS'24 paper to $\LTLf$ for a like-for-like comparison.
 \end{abstract}
