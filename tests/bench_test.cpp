@@ -414,6 +414,9 @@ TEST(BenchReport, MonotonicContainmentHoldsAcrossANestedTree) {
 // ---------------------------------------------------------------------------
 
 TEST(BenchScopeDeathTest, NestedBenchScopeInstallAsserts) {
+#ifdef NDEBUG
+  GTEST_SKIP() << "the nested-install check is an assert(), compiled out under NDEBUG";
+#endif
   BenchScope outer;
   EXPECT_DEATH({ BenchScope inner; }, "");
 }
