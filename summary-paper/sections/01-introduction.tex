@@ -15,10 +15,6 @@ We wanted to generalize the idea of dependencies to input variables as well, and
 
 \subsection{External Knowledge}
 
-\guide{The idea in plain words: part of the inputs and/or outputs is governed by a known
-component, given as a transducer. What this buys: realizability that would otherwise fail, and
-smaller search spaces. Preview the running example.}
-
 Given a specification $\varphi$, we want to be able to incorporate external knowledge about some variables.
 We model the knowledge as a transducer that decides the values of these variables from the history of the other variables.
 When solving the synthesis problem, we consult the transducer for the values of the variables it controls, which limits the traces to the allowed ones.
@@ -31,11 +27,13 @@ In the running example (\cref{ex:running}), $\varphi = X[!]\,\top \wedge (o \lef
 If $k$ is a free input, the environment sets it against the announcement; if $k$ is known to echo $r$ one step late, the controller announces $r$ and wins.
 Second, \textbf{a smaller product}: the knowledge rules out the traces it does not allow, so the product contains only the states reachable under consistent traces, which can be far fewer than the states of the goal automaton (\texttt{cons-prunes}, \cref{sec:benchmarks}).
 
-Knowledge is also strictly more expressive than an assumption written in the formula.
-When the language of $\Tin$ is expressible in $\LTLf$ by a formula $\psiin$, as for the benchmark families of tier~T1, the problem reduces to standard synthesis of $\psiin \rightarrow \varphi$, and knowledge is a different way to say the same thing.
+Like a fairness assumption, knowledge restricts the traces the controller must handle, but over the same variables it is strictly more expressive than an assumption written in the formula.
+When the language of $\Tin$ is expressible in $\LTLf$ by a formula $\psiin$, the problem reduces to standard synthesis of $\psiin \rightarrow \varphi$ (for input knowledge alone; with output knowledge $\psiout$ also appears as a guarantee, \cref{sec:problem}), and knowledge is a different way to say the same thing.
+Such instances are the easy case, and the benchmark families whose knowledge has a known $\psiin$ are the ones that can be compared against standard synthesis (\cref{sec:benchmarks}).
 But $\LTLf$ expresses only star-free languages, and a transducer need not be star-free.
-When the language of $\Tin$ is not (tier~T3, for example the parity tracker of \texttt{parity-t3}), no $\psiin$ exists, so the reduction is unavailable and no $\LTLf$ assumption captures the knowledge.
-The extension therefore handles inputs that an assumption of the form $\psiin \rightarrow \varphi$ cannot (\cref{sec:problem}).
+When the language of $\Tin$ is not star-free, no $\psiin$ exists, so the reduction is unavailable and no $\LTLf$ assumption over the same variables captures the knowledge.
+The extension therefore handles inputs that an assumption of the form $\psiin \rightarrow \varphi$ over those variables cannot.
+(The qualifier matters: the controller sees the full history, so it could track the state of $\Tin$ itself, and adding that state as fresh known variables would make a local $\psiin$ exist over the larger variable set.)
 
 \subsection{Contributions}
 \guide{Bullet list. Problem formulation; the five methods (NFA product, DFA product, three
