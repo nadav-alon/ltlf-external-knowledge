@@ -63,10 +63,10 @@ class FondEncode(unittest.TestCase):
         block, n = fe.quotient([(0,), (0,), (1,)], [(2, 2), (2, 2), (2, 2)])
         self.assertEqual((n, block[0] == block[1], block[0] == block[2]), (2, True, False))
 
-    def test_the_minimized_t_in_drops_the_unobserved_lit_bit(self):
+    def test_the_moore_quotient_drops_the_unobserved_lit_bit(self):
         full = fe.encode(DOMAIN, PROBLEM, "F(at_r1)")
-        mini = fe.encode(DOMAIN, PROBLEM, "F(at_r1)", minimize=True)
-        self.assertEqual((full[4], mini[4]), (4, 2))
+        mini = fe.encode(DOMAIN, PROBLEM, "F(at_r1)", moore_quotient=True)
+        self.assertEqual((full.t_in_states, mini.t_in_states), (4, 2))
 
     def test_the_hoa_header_and_lambda_follow_the_reachable_states(self):
         part, hoa, ins, outs, n, n_act = fe.encode(DOMAIN, PROBLEM, "F(at_r1)")

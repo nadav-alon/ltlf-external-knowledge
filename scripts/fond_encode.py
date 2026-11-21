@@ -8,7 +8,7 @@ The domain is the knowledge, the goal is phi:
   free outputs   a0..a{k-1}   the agent's action, binary-coded; 0 = no-op,
                               a code past the last ground action = no-op
 
-One T_in state per reachable PDDL state, found by breadth-first search from
+One T_in state per reachable PDDL state, found by exhaustive search from
 the problem's init.  An action whose precondition fails is a no-op.  The
 state's lambda is the observed fluents' valuation and reads nothing of the
 current letter, so the Moore condition holds, as in scripts/slippery_world.py.
@@ -23,9 +23,11 @@ Subcommands:
                                     print one JSON line: product states with and without T_in
 """
 import itertools
+from collections import deque, namedtuple
 import json
 import math
 import os
+import pathlib
 import re
 import subprocess
 import sys
@@ -102,6 +104,7 @@ class Model:
             self._atoms_of(eff, written)
         self.dynamic_preds = {a[0] for a in written}
         self.ground = [g for a in self.actions for g in self._ground(a)]
+        self._branches = [self._outcomes(eff) for _, _, eff in self.ground]
 
     def _action(self, a):
         kv = {a[i]: a[i + 1] for i in range(2, len(a) - 1, 2)}
@@ -121,10 +124,6 @@ class Model:
         if isinstance(e, str):
             return env.get(e, e)
         return [self._sub(x, env) for x in e]
-
-    def _holds(self, pre, state, env):
-        pre = self._sub(pre, env)
-        return self._eval(pre, state)
 
     def _eval(self, p, state):
         if p[0] == "and":
@@ -201,15 +200,15 @@ class Model:
         _, pre, eff = self.ground[action]
         if not self._eval(pre, state):
             return state
-        branches = self._outcomes(eff)
+        branches = self._branches[action]
         adds, dels = branches[min(nat, len(branches) - 1)]
         return frozenset((state - set(dels)) | set(adds))
 
     def reachable(self):
         start = frozenset(a for a in self.init if a[0] in self.dynamic_preds)
-        order, index, todo = [start], {start: 0}, [start]
+        order, index, todo = [start], {start: 0}, deque([start])
         while todo:
-            s = todo.pop()
+            s = todo.popleft()
             for act in [None, *range(len(self.ground))]:
                 for nat in (0, 1):
                     t = self.step(s, act, nat)
@@ -228,7 +227,7 @@ def ap(atom):
     return "_".join(atom).replace("-", "_")
 
 
-def observed_atoms(model, states, goal):
+def observed_atoms(states, goal):
     names = {ap(a): a for s in states for a in s}
     return sorted(n for n in names if re.search(r"\b%s\b" % re.escape(n), goal)), names
 
@@ -258,14 +257,17 @@ def quotient(labels, trans):
     return [renum[b] for b in block], len(renum)
 
 
-def encode(domain_text, problem_text, goal, minimize=False):
-    """Return (part, hoa, ins, outs, T_in states, ground actions) for the case.
+Encoded = namedtuple("Encoded", "part hoa inputs outputs t_in_states ground_actions")
 
-    With `minimize`, states that no goal fluent can tell apart are merged.
+
+def encode(domain_text, problem_text, goal, moore_quotient=False):
+    """Return an Encoded for the case.
+
+    With `moore_quotient`, states that no goal fluent can tell apart are merged.
     """
     m = Model(domain_text, problem_text)
     order, index = m.reachable()
-    obs, names = observed_atoms(m, order, goal)
+    obs, names = observed_atoms(order, goal)
     missing = set(re.findall(r"[a-z][a-z0-9_]*", goal)) - set(names) - {"f", "g", "x", "u", "r", "w", "t", "true", "false"}
     if missing:
         raise ValueError("goal mentions unknown fluents: %s" % sorted(missing))
@@ -281,7 +283,7 @@ def encode(domain_text, problem_text, goal, minimize=False):
     trans = [tuple(index[m.step(s, c - 1 if 1 <= c <= len(m.ground) else None, n)]
                    for c, n in letters) for s in order]
     labels = [tuple(names[o] in s for o in obs) for s in order]
-    block, n_blocks = quotient(labels, trans) if minimize else (list(range(len(order))), len(order))
+    block, n_blocks = quotient(labels, trans) if moore_quotient else (list(range(len(order))), len(order))
     rep = {}
     for s, b in enumerate(block):
         rep.setdefault(b, s)
@@ -321,7 +323,7 @@ def encode(domain_text, problem_text, goal, minimize=False):
         out.append("state %d: %s" % (b, " & ".join("(%s)" % x for x in lits)))
     part = "input_free: ev\ninput_known: %s\noutput_free: %s\noutput_known:\n" % (
         " ".join(obs), " ".join(acts))
-    return part, "\n".join(out) + "\n", ",".join(["ev"] + obs), ",".join(acts), n_blocks, len(m.ground)
+    return Encoded(part, "\n".join(out) + "\n", ",".join(["ev"] + obs), ",".join(acts), n_blocks, len(m.ground))
 
 
 # ---------------------------------------------------------------- measuring
@@ -330,19 +332,22 @@ def product_states(binary, args, env):
     with tempfile.NamedTemporaryFile("r", suffix=".json", dir=env["TMPDIR"]) as f:
         r = subprocess.run([binary, "--dfa-product", *args, "--benchmark=" + f.name],
                            capture_output=True, text=True, env=env)
-        data = json.load(f)
-    metrics = {x["label"]: x["value"] for x in data["metrics"]}
-    return r.returncode, metrics.get("product_states")
+        text = f.read()
+    metrics = {x["label"]: x["value"] for x in json.loads(text)["metrics"]} if text.strip() else {}
+    if "product_states" not in metrics:
+        raise RuntimeError("%s reported no product_states (rc=%d): %s" % (binary, r.returncode, r.stderr.strip()))
+    return r.returncode, metrics["product_states"]
 
 
 def measure(binary, domain_text, problem_text, goal, workdir):
     env = dict(os.environ, TMPDIR=workdir)
     row = {}
-    for tag, mini in (("", False), ("_min", True)):
-        part, hoa, ins, outs, n_states, n_actions = encode(domain_text, problem_text, goal, mini)
+    for tag, mini in (("", False), ("_moore", True)):
+        enc = encode(domain_text, problem_text, goal, mini)
+        part, hoa, ins, outs, n_states, n_actions = enc
         stem = os.path.join(workdir, "case")
-        open(stem + ".part", "w").write(part)
-        open(stem + ".tin", "w").write(hoa)
+        pathlib.Path(stem + ".part").write_text(part)
+        pathlib.Path(stem + ".tin").write_text(hoa)
         rc, n = product_states(binary, [
             "--formula", goal, "--part-file", stem + ".part",
             "--known-input-transducer", stem + ".tin"], env)
@@ -353,7 +358,7 @@ def measure(binary, domain_text, problem_text, goal, workdir):
         "--formula", goal, "--inputs", ins, "--outputs", outs], env)
     row.update(ground_actions=n_actions, product_without=without,
                verdict_without=VERDICT.get(rc, rc))
-    for tag in ("", "_min"):
+    for tag in ("", "_moore"):
         row["prune_ratio" + tag] = round(row["product_with" + tag] / without, 2)
     return row
 
@@ -361,16 +366,16 @@ def measure(binary, domain_text, problem_text, goal, workdir):
 def main(argv):
     if len(argv) == 6 and argv[1] == "encode":
         _, _, dom, prob, stem, goal = argv
-        part, hoa, _, _, n, _ = encode(open(dom).read(), open(prob).read(), goal)
-        open(stem + ".part", "w").write(part)
-        open(stem + ".tin", "w").write(hoa)
-        open(stem + ".goal.ltlf", "w").write(goal + "\n")
-        print("%d T_in states" % n)
+        enc = encode(pathlib.Path(dom).read_text(), pathlib.Path(prob).read_text(), goal)
+        pathlib.Path(stem + ".part").write_text(enc.part)
+        pathlib.Path(stem + ".tin").write_text(enc.hoa)
+        pathlib.Path(stem + ".goal.ltlf").write_text(goal + "\n")
+        print("%d T_in states" % enc.t_in_states)
         return 0
     if len(argv) == 6 and argv[1] == "measure":
         _, _, binary, dom, prob, goal = argv
         with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as w:
-            print(json.dumps(measure(binary, open(dom).read(), open(prob).read(), goal, w)))
+            print(json.dumps(measure(binary, pathlib.Path(dom).read_text(), pathlib.Path(prob).read_text(), goal, w)))
         return 0
     print(__doc__)
     return 2
