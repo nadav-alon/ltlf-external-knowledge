@@ -2,13 +2,16 @@
 
 Research for #79 (subticket of #76).
 Sources are tagged **[fetched]** (read this session) or **[snippet]** (search summary only).
-Numbers in §3 were measured this session with `ltlf-ek-synth --dfa-product` (Release, Spot 2.15.1); the generator was a scratch script and is not kept, so §2 states the encoding rules it implemented.
+Numbers in §3 were measured this session with `ltlf-ek-synth --dfa-product` (Release, Spot 2.15.1), except `U`, which was a hand-demoted `--dfa-product` run (`ltlf-ek-synth` cannot run the `dfa-product-unpruned` bench subject).
+The generator was a scratch script and is not kept, so **the numbers cannot be regenerated from this note**: §2 states the encoding rules for Single-Counter only; the Double-Counters `t_out` for the environment counter and residual Goal, and the four Nim clock conjuncts, were not written down.
 
 ## Answer
 
 Three families have a natural split, and I encoded all three and measured the prune ratio: **Single-Counter**, **Double-Counters** and **Nim**.
-Every prune ratio is **above 1** (1.0 to 20): the knowledge costs product states on these families, it does not save them.
-The split is in every case an *output* knowledge strategy `t_out`, never an input one: **no environment assumption in the corpus determines an input**, so the ticket's "environment assumptions as T_in" finds nothing in these corpora.
+Every prune ratio is **at least 1** (1.0 to 20): the knowledge costs product states on these families, it does not save them, except `nim 1 heap, size 1` (ratio 1.00), where it is inert.
+**Assumption awaiting the developer's decision:** #79 asks for "environment assumptions as T_in", and I read "natural knowledge split" more broadly, as including `t_out` (the parent #76 speaks of T_in/T_out).
+Under that reading the split is in every case an *output* knowledge strategy `t_out`.
+Under the strict `t_in` reading the answer is **none**: **no environment assumption in the corpus determines an input**, so these corpora have nothing to encode (§4).
 The one corpus whose assumptions are separated from the guarantee (the GR(1) families) states only constraints on free inputs, which cannot be a `t_in` (§4).
 
 ## 1. What the three papers benchmark on
@@ -21,9 +24,9 @@ The one corpus whose assumptions are separated from the guarantee (the GR(1) fam
   The paper says the patterns use each variable once, so preprocessing or one-step (un)realizability reduces them to true or false; the games are "the most challenging".
 - **Syft / LydiaSyft** (<https://github.com/whitemech/LydiaSyft>, `examples/TLSF/` **[fetched]**) ships those same groups as `.tlsf` files (`Two-player-Game/{Single-Counter,Double-Counter,Nim}`, `Patterns/{GFand,Uright}`, `Random/`), plus two families with an explicit environment assumption: `FairnessStability/counter` and `GR1benchmarks/{finding_nemo,workstation_supply,tcp_handshake}`.
   The two sets come from Zhu et al. (IJCAI 2021), the GFSynth benchmarks, also mirrored at `SYNTCOMP/benchmarks` `tlsf/ltl_f` **[fetched]**.
-- **Lydia** (<https://github.com/whitemech/lydia>): a formula-to-DFA tool, so it has no synthesis corpus of its own beyond `examples/counter_1.ltlf` **[fetched]**.
+- **Lydia** (<https://github.com/whitemech/lydia>): a formula-to-DFA tool, so its repository has no synthesis corpus of its own beyond `examples/counter_1.ltlf` **[fetched]**.
 
-Not checked: the Syft and Lydia papers' own text (I read their repositories, not the papers).
+Not checked: the Syft and Lydia papers' own text (I read their repositories, not the papers), so "Lydia has no synthesis corpus" holds for the repository only.
 
 ## 2. Encodings
 
@@ -50,11 +53,11 @@ For every case the knowledge instance, the monolithic instance under `dfa-produc
 ## 3. Measured
 
 `K` is `product_states` of `dfa-product` with `t_out` over the residual Goal.
-`U` is `product_states` of `dfa-product` on the same Goal with the known variables demoted to free (the `dfa-product-unpruned` arm): the **prune ratio** is `K/U`.
-`M` is `product_states` of `dfa-product` on the published monolithic formula, so `K/M` is the **nk-product ratio**.
+`U` is `product_states` of `dfa-product` on the same Goal with the known variables demoted to free (the same quantity as the `dfa-product-unpruned` bench subject): the **prune ratio** is `K/U`.
+`M` is `product_states` of `dfa-product` on the published monolithic formula, so `K/M` is a **monolithic ratio**, specific to this note (not the glossary's *nk-product ratio*, which needs a ψ_in and a `-nk` baseline; these cases have none).
 "Goal" is the Goal DFA's state count.
 
-| case | Goal | `t_out` states | K | U | prune ratio | M | K/M | verdict (ltlfsynt / ours) |
+| case | Goal | `t_out` states | K | U | prune ratio | M | monolithic ratio K/M | verdict (ltlfsynt / ours) |
 |---|---|---|---|---|---|---|---|---|
 | single N=1 | 4 | 5 | 10 | 4 | 2.50 | 15 | 0.67 | realizable / realizable |
 | single N=2 | 4 | 9 | 20 | 4 | 5.00 | 27 | 0.74 | realizable / realizable |
@@ -72,8 +75,8 @@ For every case the knowledge instance, the monolithic instance under `dfa-produc
 
 Reading it:
 
-- Prune ratio is above 1 everywhere, and for Single-Counter it grows with `t_out`'s 2^(N+1)+1 states: `cons` prunes nothing, since a deterministic register never makes a letter inconsistent, so the product only gains the register's states.
-  This is the "above 1 where the world model lives in the knowledge" case of the glossary's *prune ratio*, here for `t_out`.
+- Prune ratio is at least 1 everywhere (exactly 1 only for the inert `nim 1 heap, size 1`), and for Single-Counter it grows with `t_out`'s 2^(N+1)+1 states: I infer that `cons` prunes little or nothing, since a deterministic register should make no letter inconsistent, so the product only gains the register's states (not measured: K counts reachable states, which cannot tell `cons` pruning from plain unreachability).
+  The glossary's *Prune ratio* says "**above 1** where the world model lives in $\Tin$ (the slippery arms)"; this note extends that to `t_out`, since the denominator (`Iknown`/`Oknown` demoted to free) covers it too.
 - Against the monolithic instance the knowledge product is smaller only on Single-Counter (0.67 to 0.81), and the gap closes as N grows; on Double-Counters and Nim it is larger (1.17 to 1.80).
   Single-Counter is also not a game at all once all outputs are known: nothing is left for the controller to choose, so it is a monitor with a counter blow-up.
 - Whether this says anything about speed was not measured; only state counts were.
