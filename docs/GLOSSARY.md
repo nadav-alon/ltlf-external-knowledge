@@ -864,6 +864,15 @@ the existing term or update this file via `/glossary` — do not let drift happe
 - **C++:** `aggregate(...)`.
 - **Do not call it:** minimization, dedup, quotient.
 
+### T_in Moore quotient
+- **`main.tex`:** none (implementation-only; a research-note measurement).
+- **Definition:** the coarsest merge of `t_in` states that agree on the observed
+  valuation (λ) and, letter by letter, on their successors' blocks — the smallest
+  `t_in` with the same observable behaviour. Unlike *Aggregation* it loses no
+  knowledge: it merges states of the *transducer*, not product states on ψ.
+- **Python:** `quotient(...)`, `encode(..., moore_quotient=True)` in `scripts/fond_encode.py`.
+- **Do not call it:** minimization (reserved against *Aggregation*'s list), aggregation.
+
 ### Game solving (SolveDfa)
 - **`main.tex`:** `SolveDfa`$(P)$ (Methods 1 & 2, `alg:nfa_product:solve`
   / `alg:dfa_product:solve`); black-boxed, returns the controller $C$.

@@ -71,7 +71,9 @@ below keep it true.
 ## Tests
 
 One run writes a behavior's test and its code together. Tests are GoogleTest, under `tests/`, each
-new file added to the `unit_tests` target in `CMakeLists.txt`.
+new file added to the `unit_tests` target in `CMakeLists.txt`. A Python script under `scripts/` is the
+exception: its `unittest` file sits beside it and is wired in as a ctest `add_test` (see `hard_race_py`,
+`fond_encode_py`).
 
 Use the cheapest oracle layer that establishes the truth, and the review checks that a changed
 method is covered by each layer that applies:
