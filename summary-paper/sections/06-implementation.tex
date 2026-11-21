@@ -8,7 +8,7 @@ The code is a C++ library on top of Spot, and three command-line tools that only
 
 \tool{ltlf-ek-synth} is the synthesis tool.
 It takes an $\LTLf$ formula $\varphi$, a \emph{part file} that splits the atomic propositions into $\Ifree$, $\Iknown$, $\Ofree$ and $\Oknown$, and one transducer file for each non-empty known set.
-A flag selects the method: \texttt{--nfa-product} and \texttt{--dfa-product} for Methods~1 and~2 over explicit automata, \texttt{--mtnfa-product} and \texttt{--mtdfa-product} for the same methods over Spot's MTDFA representation, and \texttt{--otf-mtdfa-product} for Method~3.
+A flag selects the method: \texttt{--nfa-product} and \texttt{--dfa-product} for Methods~1 and~2 over explicit automata, \texttt{--mtnfa-product} and \texttt{--mtdfa-product} for the same methods over Spot's MTDFA representation, and \texttt{--otf-mtdfa-product} for Method~3.1.
 The tool prints \texttt{REALIZABLE} or \texttt{UNREALIZABLE} and signals the verdict in its exit code.
 With \texttt{--model-check} it also runs the controller verifier of \cref{sec:verification} on the synthesized controller, or on a controller read from a file.
 
