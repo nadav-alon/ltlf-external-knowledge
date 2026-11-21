@@ -3,10 +3,10 @@
 \guide{Shared interface: every method takes $(\varphi,\mathcal{I},\mathcal{O},\Tin,\Tout)$ and returns
 a controller or ``unrealizable''. State the common correctness claim once here.}
 
-We present three methods for solving the problem of \cref{def:problem}.
+We present three methods for solving the problem of \cref{def:problem}, Methods~1, 2 and~3.1; the aggregating variants, Methods~3.2 and~3.3 of \cref{sec:intro}, are out of scope and not described further in this paper.
 Each takes an $\LTLf$ specification $\varphi$ over $\mathcal{I}$ and $\mathcal{O}$ and the transducers $\Tin$ and $\Tout$, and returns either a controller $T_C$ under which every trace consistent with $\Tin$ and $\Tout$ (\cref{def:consistency}) satisfies $\varphi$, or \textsc{Unrealizable}.
 All three take the product of an automaton for $\varphi$ with the transducers and solve the resulting game; they differ in the automaton and in how much of the product they build.
-The first method uses an NFA for $\varphi$, the second a DFA, and the third builds the DFA product on the fly, exploring only the part of the product that is reachable in the game.
+Method~1 uses an NFA for $\varphi$, Method~2 a DFA, and Method~3.1 builds the DFA product on the fly, exploring only the part of the product that is reachable in the game.
 
 \subsection{Method 1: NFA Product}\label{sec:nfa}
 \subsubsection{From \texorpdfstring{$\LTLf$}{LTLf} to a Small NFA}
@@ -100,10 +100,10 @@ The case without $r$ is symmetric, through $(q_{\bar o}, s_0)$.
 So the system wins from $(q_0, s_0)$, and the winning strategy is the copy controller $T_C$ of \cref{fig:running-tc}.
 \end{example}
 
-\subsection{Method 3: On-the-Fly DFA Product}\label{sec:otf}
+\subsection{Method 3.1: On-the-Fly DFA Product}\label{sec:otf}
 \guide{Why on-the-fly: build only the part of the product the game reaches.}
 Method~2 builds the whole product before solving, even though the game may only ever visit a small part of it.
-The third method builds the same product DFA on the fly, starting from the initial state and exploring only states reachable through consistent letters.
+Method~3.1 builds the same product DFA on the fly, starting from the initial state and exploring only states reachable through consistent letters.
 
 \subsubsection{Construction}
 \guide{Construction; what is explored; early termination.}
@@ -147,7 +147,7 @@ In practice the method builds only the states reachable under the external knowl
 Each method can be implemented over more than one representation of its automata; switching the representation gives a second implementation of the same method.
 In the explicit representation, every automaton is a graph whose edges are labeled with letters.
 In the symbolic representation, every automaton is an MTDFA (\cref{sec:background}), or for Method~1 its nondeterministic version, an MTNFA, which stores the transitions of each state as one MTBDD, so a state's moves on all letters are handled at once.
-Methods~1 and~2 exist in both representations, while Method~3 exists only in the symbolic one, since formula progression is provided by the MTDFA construction (\cref{tab:methods}).
+Methods~1 and~2 exist in both representations, while Method~3.1 exists only in the symbolic one, since formula progression is provided by the MTDFA construction (\cref{tab:methods}).
 
 \subsection{Comparison of the Methods}
 \begin{table}[H]
@@ -157,9 +157,9 @@ Methods~1 and~2 exist in both representations, while Method~3 exists only in the
 \toprule
 Method & Goal automaton & Representation(s) & Worst-case arena size \\
 \midrule
-1 NFA product     & NFA, $2^{O(|\varphi|)}$       & explicit, symbolic & $2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ \\
-2 DFA product     & DFA, $2^{2^{O(|\varphi|)}}$   & explicit, symbolic & $2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ \\
-3 On-the-fly DFA  & progressed formulas           & symbolic           & $2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ \\
+1 NFA product      & NFA, $2^{O(|\varphi|)}$       & explicit, symbolic & $2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ \\
+2 DFA product      & DFA, $2^{2^{O(|\varphi|)}}$   & explicit, symbolic & $2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ \\
+3.1 On-the-fly DFA & progressed formulas           & symbolic           & $2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ \\
 \bottomrule
 \end{tabular}
 \end{table}
