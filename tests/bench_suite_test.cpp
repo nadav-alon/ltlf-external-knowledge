@@ -260,6 +260,9 @@ TEST(BenchSuiteRunBenchCase, OpensExactlyOneBenchScopeAndClosesItBeforeReturning
 }
 
 TEST(BenchSuiteRunBenchCaseDeathTest, UnderAnAlreadyActiveScopeAsserts) {
+#ifdef NDEBUG
+  GTEST_SKIP() << "the nested-install check is an assert(), compiled out under NDEBUG";
+#endif
   // "Nested BenchScope. Already forbidden (asserts) by the shipped
   // infrastructure; the runner must open exactly one per case" (PRD "Edge
   // cases"): run_bench_case's own `BenchScope scope;` hits the shipped
