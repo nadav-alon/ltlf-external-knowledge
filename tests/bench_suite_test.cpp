@@ -260,15 +260,15 @@ TEST(BenchSuiteRunBenchCase, OpensExactlyOneBenchScopeAndClosesItBeforeReturning
 }
 
 TEST(BenchSuiteRunBenchCaseDeathTest, UnderAnAlreadyActiveScopeAsserts) {
-#ifdef NDEBUG
-  GTEST_SKIP() << "the nested-install check is an assert(), compiled out under NDEBUG";
-#endif
   // "Nested BenchScope. Already forbidden (asserts) by the shipped
   // infrastructure; the runner must open exactly one per case" (PRD "Edge
   // cases"): run_bench_case's own `BenchScope scope;` hits the shipped
   // nested-install assert when a BenchScope is already active on this
   // thread -- the same mechanism tests/bench_test.cpp's BenchScopeDeathTest
   // pins directly on BenchScope; this pins it through run_bench_case.
+#ifdef NDEBUG
+  GTEST_SKIP() << "the nested-install check is an assert(), compiled out under NDEBUG";
+#endif
   const BenchCase c = FamilyNamed("cons-inert").instantiate(Params(2, true));
   const BenchSubject& subject = SubjectNamed("dfa-product");
   BenchScope outer;
