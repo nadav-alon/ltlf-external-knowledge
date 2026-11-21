@@ -6,7 +6,7 @@ a controller or ``unrealizable''. State the common correctness claim once here.}
 We present three methods for solving the problem of \cref{def:problem}, Methods~1, 2 and~3.1; the aggregating variants, Methods~3.2 and~3.3 of \cref{sec:intro}, are out of scope and not described further in this paper.
 Each takes an $\LTLf$ specification $\varphi$ over $\mathcal{I}$ and $\mathcal{O}$ and the transducers $\Tin$ and $\Tout$, and returns either a controller $T_C$ under which every trace consistent with $\Tin$ and $\Tout$ (\cref{def:consistency}) satisfies $\varphi$, or \textsc{Unrealizable}.
 All three take the product of an automaton for $\varphi$ with the transducers and solve the resulting game; they differ in the automaton and in how much of the product they build.
-The first method uses an NFA for $\varphi$, the second a DFA, and the third builds the DFA product on the fly, exploring only the part of the product that is reachable in the game.
+Method~1 uses an NFA for $\varphi$, Method~2 a DFA, and Method~3.1 builds the DFA product on the fly, exploring only the part of the product that is reachable in the game.
 
 \subsection{Method 1: NFA Product}\label{sec:nfa}
 \subsubsection{From \texorpdfstring{$\LTLf$}{LTLf} to a Small NFA}
@@ -157,9 +157,9 @@ Methods~1 and~2 exist in both representations, while Method~3.1 exists only in t
 \toprule
 Method & Goal automaton & Representation(s) & Worst-case arena size \\
 \midrule
-1 NFA product     & NFA, $2^{O(|\varphi|)}$       & explicit, symbolic & $2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ \\
-2 DFA product     & DFA, $2^{2^{O(|\varphi|)}}$   & explicit, symbolic & $2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ \\
-3.1 On-the-fly DFA& progressed formulas           & symbolic           & $2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ \\
+1 NFA product      & NFA, $2^{O(|\varphi|)}$       & explicit, symbolic & $2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ \\
+2 DFA product      & DFA, $2^{2^{O(|\varphi|)}}$   & explicit, symbolic & $2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ \\
+3.1 On-the-fly DFA & progressed formulas           & symbolic           & $2^{2^{O(|\varphi|)}} \cdot |\Sin| \cdot |\Sout|$ \\
 \bottomrule
 \end{tabular}
 \end{table}
