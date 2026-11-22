@@ -92,6 +92,12 @@ target_link_libraries(ltlf-ek-synth PRIVATE ltlf_ek)
 add_executable(ltlf-ek-deps src/ltlf_ek_deps.cpp)
 target_link_libraries(ltlf-ek-deps PRIVATE ltlf_ek)
 
+# --- prune-ratio-probe: data source of docs/research/2026-11-22-syntcomp-fin-prune-ratio.md.
+# Not built by default; the prune_ratio_probe_builds ctest builds it so API
+# drift is caught. ---
+add_executable(prune-ratio-probe EXCLUDE_FROM_ALL scripts/prune_ratio_probe.cpp)
+target_link_libraries(prune-ratio-probe PRIVATE ltlf_ek)
+
 # --- ltlf-ek-bench: Phase 2 timing runner (docs/prd/benchmark-suite.md
 # "Phase 2 (cont.) -- the timing runner") ---
 add_executable(ltlf-ek-bench src/ltlf_ek_bench.cpp)
@@ -233,6 +239,11 @@ if(LTLF_EK_BUILD_TESTS)
   add_test(NAME sweep_report_py
            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_sweep_report.py
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
+  add_test(NAME prune_ratio_sweep_py
+           COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_prune_ratio_sweep.py
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
+  add_test(NAME prune_ratio_probe_builds
+           COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR} --target prune-ratio-probe)
   add_test(NAME sweep_pairs_py
            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_sweep_pairs.py
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
