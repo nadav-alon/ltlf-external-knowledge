@@ -136,6 +136,8 @@ class Model:
             (v, t), = typed_list(p[1])
             return all(self._eval(self._sub(p[2], {v: o}), state)
                        for o in self.objects.get(t, []))
+        if p[0] == "=":
+            return p[1] == p[2]
         if p[0] not in self.dynamic_preds:
             return tuple(p) in self.init
         return tuple(p) in state
@@ -160,6 +162,8 @@ class Model:
             return all(self._static_ok(x) for x in p[1:])
         if p[0] == "forall":
             return True
+        if p[0] == "=":
+            return p[1] == p[2]
         if p[0] == "not":
             q = p[1]
             if q[0] in ("and", "not", "forall") or q[0] in self.dynamic_preds:

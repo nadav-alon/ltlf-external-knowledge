@@ -24,6 +24,10 @@ PROBLEM = """
 """
 
 
+def model_with(action_pddl):
+    return fe.Model(DOMAIN.rstrip()[:-1] + action_pddl + ")", PROBLEM)
+
+
 def model():
     return fe.Model(DOMAIN, PROBLEM)
 
@@ -67,6 +71,12 @@ class FondEncode(unittest.TestCase):
         m = model()
         lit = m.step(m.reachable()[0][0], action(m, "flip_"), 1)
         self.assertEqual(m.step(lit, action(m, "flip_"), 0), lit)
+
+    def test_a_positive_equality_precondition_holds_only_for_the_same_object(self):
+        m = model_with("""(:action stay :parameters (?a ?b - room)
+            :precondition (= ?a ?b) :effect (lit))""")
+        self.assertEqual(sorted(g[0] for g in m.ground if g[0].startswith("stay")),
+                         ["stay_r0_r0", "stay_r1_r1"])
 
     def test_quotient_merges_states_the_observed_label_cannot_separate(self):
         # states 0,1 differ only by an unobserved bit and move alike; 2 is observed differently.
