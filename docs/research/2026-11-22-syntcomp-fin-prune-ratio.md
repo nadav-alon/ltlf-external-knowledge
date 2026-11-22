@@ -3,7 +3,7 @@
 Research for #77 (subticket of #76).
 Every number here was measured this session, on the SYNTCOMP `tlsf-fin` corpus at `SYNTCOMP/benchmarks` commit `13336b3` (the HEAD of a fresh sparse clone, not the `2d53c6b` the 2026-08-18 sweep pinned: see §5), Release build, Spot 2.15.1, **Mealy** turn order (the corpus declares Moore).
 Raw rows: `docs/research/data/2026-11-22-prune-ratio-rows.jsonl` (one line per instance, all 1742).
-Regenerate with `scripts/prune_ratio_probe.cpp` (compile line in its header) and `scripts/prune_ratio_sweep.py`.
+Regenerate with `scripts/prune_ratio_probe.cpp` (CMake target `prune-ratio-probe`) and `scripts/prune_ratio_sweep.py`.
 
 ## Answer
 
@@ -58,8 +58,9 @@ The 2 GiB first-pass MEMOUT rows are kept in `docs/research/data/2026-11-22-prun
 - Tier 1 "analysed" = 388 outputs-direction rows (32 + 343 + 13), the same 388 as the dependency sweep; 6 of them carry a known output, as there.
   The ratio is measured on those 6 and on 3 of tier 2.
 
-The 8 GiB container cap the ticket worried about was not hit: this box has 19 GiB, the first pass ran 6 workers under a 2 GiB virtual cap each, and the re-run 3 workers under 8 GiB.
-So the whole corpus was attempted; nothing was subsetted.
+The ticket's 8 GiB container cap did bite: `case_04_50/04` and `/43` are MEMOUT (`std::bad_alloc`) even at the 8 GiB re-run (above).
+Every file was attempted, but the 20 s / 8 GiB caps left 847 TIMEOUT (tier 2) + 4 TIMEOUT and 2 MEMOUT (tier 1) unmeasured, so the time and memory caps in effect chose the measured subset.
+The box has 19 GiB; the first pass ran 6 workers under a 2 GiB virtual cap each, the re-run 3 workers under 8 GiB.
 
 ## 3. Why these cases (inferred, not measured)
 

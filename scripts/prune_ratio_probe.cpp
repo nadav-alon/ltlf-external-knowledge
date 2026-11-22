@@ -3,13 +3,12 @@
 // driver (scripts/prune_ratio_sweep.py) can cap memory with `ulimit -v` and
 // time with its own timeout.
 //
-// Deliberately NOT a CMake target (precedent: scripts/otf_game_solving_gap_probe.cpp).
-// Compile out of tree against a Release build/libltlf_ek.a:
+// An EXCLUDE_FROM_ALL CMake target, so a library API change that breaks it
+// shows up in the `prune_ratio_probe_builds` ctest.  Build it with
 //
-//   c++ -std=c++20 -O2 -I include -isystem /usr/local/include \
-//       scripts/prune_ratio_probe.cpp build/libltlf_ek.a \
-//       -L /usr/local/lib -lspot -lbddx -Wl,-rpath,/usr/local/lib \
-//       -o build/prune-ratio-probe
+//   cmake --build build --target prune-ratio-probe
+//
+// which writes build/prune-ratio-probe (use a Release build for timings).
 //
 //   prune-ratio-probe FORMULA_FILE PART_FILE
 //
@@ -44,6 +43,31 @@ using namespace ltlf_ek;
 using Clock = std::chrono::steady_clock;
 
 namespace {
+
+// `what` strings can carry quotes, backslashes and newlines (Spot parse errors
+// quote the formula), any of which would make the row invalid JSON.
+std::string JsonEscaped(const std::string& in) {
+  static const char* hex = "0123456789abcdef";
+  std::string out;
+  for (const unsigned char c : in) {
+    switch (c) {
+      case '"': out += "\\\""; break;
+      case '\\': out += "\\\\"; break;
+      case '\n': out += "\\n"; break;
+      case '\r': out += "\\r"; break;
+      case '\t': out += "\\t"; break;
+      default:
+        if (c < 0x20) {
+          out += "\\u00";
+          out += hex[c >> 4];
+          out += hex[c & 15];
+        } else {
+          out += static_cast<char>(c);
+        }
+    }
+  }
+  return out;
+}
 
 double Since(Clock::time_point t) {
   return std::chrono::duration<double>(Clock::now() - t).count();
@@ -143,7 +167,8 @@ int main(int argc, char** argv) {
     std::cout << "}\n";
     return 0;
   } catch (const std::exception& e) {
-    std::cout << "{\"status\":\"ERR\",\"what\":\"" << e.what() << "\"}\n";
+    std::cout << "{\"status\":\"ERR\",\"what\":\"" << JsonEscaped(e.what())
+              << "\"}\n";
     return 1;
   }
 }

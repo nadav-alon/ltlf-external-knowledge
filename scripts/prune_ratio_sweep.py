@@ -32,6 +32,13 @@ PROBE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "build",
 TIER1_MAX_AP = 16
 THRESHOLD = 0.5
 
+# Row outcomes: one each, never folded into another.
+MEASURED = "MEASURED"
+NO_KNOWLEDGE = "NO_KNOWLEDGE"
+PARTIAL = "PARTIAL"
+TIMEOUT = "TIMEOUT"
+MEMOUT = "MEMOUT"
+
 
 def prune_ratio(row):
     """K/U, or None when the row has no two measured product sizes."""
@@ -42,32 +49,44 @@ def prune_ratio(row):
 
 
 def classify(row):
-    """One outcome per row, never folded into another (the 2026-08-18 rule)."""
+    """One outcome per row: a TIMEOUT or MEMOUT row is never folded into a measured one."""
     st = row.get("status")
     if st != "OK":
         return st
     if row.get("known_outputs") == 0:
-        return "NO_KNOWLEDGE"
+        return NO_KNOWLEDGE
     if prune_ratio(row) is None:
-        return "PARTIAL"  # extraction done, a product did not finish
-    return "MEASURED"
+        return PARTIAL  # extraction done, a product did not finish
+    return MEASURED
 
 
 def candidates(rows):
     """Measured rows with ratio < THRESHOLD, smallest ratio first."""
-    out = [(prune_ratio(r), r) for r in rows if classify(r) == "MEASURED"]
+    out = [(prune_ratio(r), r) for r in rows if classify(r) == MEASURED]
     return sorted([(q, r) for q, r in out if q < THRESHOLD],
                   key=lambda qr: (qr[0], qr[1]["file"]))
 
 
-def run_one(path, rel, tier, cap_kib, timeout_s):
-    row = {"file": rel, "tier": tier}
+def n_ap(conv):
+    return len(conv["inputs"]) + len(conv["outputs"])
+
+
+def last_json_line(lines):
+    """The last `{` line parsed, or None when there is none or it is truncated."""
+    if not lines:
+        return None
     try:
-        with open(path) as f:
-            conv = tlsf_adapter.convert(f.read())
-    except tlsf_adapter.NeedsTlsf as e:
-        return dict(row, status="NEEDS_TLSF", what=str(e))
-    row["n_ap"] = len(conv["inputs"]) + len(conv["outputs"])
+        return json.loads(lines[-1])
+    except ValueError:
+        return None
+
+
+def run_one(rel, tier, cap_kib, timeout_s, conv):
+    """`conv` is the tlsf_adapter.convert result, or its NeedsTlsf exception."""
+    row = {"file": rel, "tier": tier}
+    if isinstance(conv, tlsf_adapter.NeedsTlsf):
+        return dict(row, status="NEEDS_TLSF", what=str(conv))
+    row["n_ap"] = n_ap(conv)
     with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as d:
         fpath, ppath = os.path.join(d, "f.ltlf"), os.path.join(d, "p.part")
         with open(fpath, "w") as f:
@@ -81,23 +100,17 @@ def run_one(path, rel, tier, cap_kib, timeout_s):
         row["wall"] = round(time.time() - t0, 3)
     lines = [ln for ln in p.stdout.splitlines() if ln.startswith("{")]
     if p.returncode == 137 or (p.returncode < 0):
-        got = {}
-        if lines:  # a partial line is not valid JSON; keep only what completed
-            try:
-                got = json.loads(lines[-1])
-            except ValueError:
-                pass
-        return dict(row, status="TIMEOUT", **{k: v for k, v in got.items()
+        got = last_json_line(lines) or {}  # a partial line is dropped
+        return dict(row, status=TIMEOUT, **{k: v for k, v in got.items()
                                               if k != "status"})
     if not lines:
-        why = "MEMOUT" if "bad_alloc" in p.stderr else "ERR"
+        why = MEMOUT if "bad_alloc" in p.stderr else "ERR"
         return dict(row, status=why, what=p.stderr.strip()[-200:])
-    try:
-        got = json.loads(lines[-1])
-    except ValueError:
+    got = last_json_line(lines)
+    if got is None:
         return dict(row, status="ERR", what="unparsable probe output")
     if got.get("status") == "ERR" and "bad_alloc" in got.get("what", ""):
-        got["status"] = "MEMOUT"
+        got["status"] = MEMOUT
     return dict(row, **got)
 
 
@@ -146,15 +159,15 @@ def main():
         try:
             with open(p) as f:
                 c = tlsf_adapter.convert(f.read())
-            tier = 1 if len(c["inputs"]) + len(c["outputs"]) <= TIER1_MAX_AP else 2
-        except tlsf_adapter.NeedsTlsf:
-            tier = 1
-        tiers[tier].append((p, rel))
+        except tlsf_adapter.NeedsTlsf as e:
+            tiers[1].append((p, rel, e))  # run_one turns the exception into a row
+            continue
+        tiers[1 if n_ap(c) <= TIER1_MAX_AP else 2].append((p, rel, c))
     rng = random.Random(a.seed)
     order = []
     for t in (1, 2):
         rng.shuffle(tiers[t])
-        order += [(p, rel, t) for p, rel in tiers[t]]
+        order += [(p, rel, t, c) for p, rel, c in tiers[t]]
     deadline = time.time() + a.deadline_min * 60 if a.deadline_min else None
     cap_kib = int(a.cap_gib * 1024 * 1024)
     with open(a.out, "a") as out, \
@@ -166,9 +179,9 @@ def main():
                 nxt = next(it, None)
                 if nxt is None:
                     break
-                p, rel, t = nxt
-                pending.add(ex.submit(run_one, p, rel, t, cap_kib,
-                                      a.timeout1 if t == 1 else a.timeout2))
+                p, rel, t, c = nxt
+                pending.add(ex.submit(run_one, rel, t, cap_kib,
+                                      a.timeout1 if t == 1 else a.timeout2, c))
             if not pending:
                 break
             fin, pending = concurrent.futures.wait(
