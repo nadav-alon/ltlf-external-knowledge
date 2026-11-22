@@ -266,6 +266,9 @@ TEST(BenchSuiteRunBenchCaseDeathTest, UnderAnAlreadyActiveScopeAsserts) {
   // nested-install assert when a BenchScope is already active on this
   // thread -- the same mechanism tests/bench_test.cpp's BenchScopeDeathTest
   // pins directly on BenchScope; this pins it through run_bench_case.
+#ifdef NDEBUG
+  GTEST_SKIP() << "the nested-install check is an assert(), compiled out under NDEBUG";
+#endif
   const BenchCase c = FamilyNamed("cons-inert").instantiate(Params(2, true));
   const BenchSubject& subject = SubjectNamed("dfa-product");
   BenchScope outer;

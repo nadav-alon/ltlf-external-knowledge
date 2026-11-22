@@ -409,11 +409,14 @@ TEST(BenchReport, MonotonicContainmentHoldsAcrossANestedTree) {
 
 // ---------------------------------------------------------------------------
 // Unit: nested BenchScope asserts (death test, PRD "Test oracles" /
-// "Edge cases"). Relies on assert() being active, i.e. a non-NDEBUG build --
+// "Edge cases"). Skips under NDEBUG, where the assert() is compiled out;
 // this project's CMakeLists.txt defaults CMAKE_BUILD_TYPE to Debug.
 // ---------------------------------------------------------------------------
 
 TEST(BenchScopeDeathTest, NestedBenchScopeInstallAsserts) {
+#ifdef NDEBUG
+  GTEST_SKIP() << "the nested-install check is an assert(), compiled out under NDEBUG";
+#endif
   BenchScope outer;
   EXPECT_DEATH({ BenchScope inner; }, "");
 }
