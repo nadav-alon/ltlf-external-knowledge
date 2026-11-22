@@ -233,6 +233,9 @@ if(LTLF_EK_BUILD_TESTS)
   add_test(NAME sweep_report_py
            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_sweep_report.py
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
+  add_test(NAME prune_ratio_sweep_py
+           COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_prune_ratio_sweep.py
+           WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
   add_test(NAME sweep_pairs_py
            COMMAND python3 ${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_sweep_pairs.py
            WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/scripts)
