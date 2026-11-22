@@ -166,6 +166,8 @@ class Model:
             return p[1] == p[2]
         if p[0] == "not":
             q = p[1]
+            if q[0] == "=":
+                return q[1] != q[2]
             if q[0] in ("and", "not", "forall") or q[0] in self.dynamic_preds:
                 return True
             return tuple(q) not in self.init

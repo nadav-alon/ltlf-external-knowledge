@@ -78,6 +78,12 @@ class FondEncode(unittest.TestCase):
         self.assertEqual(sorted(g[0] for g in m.ground if g[0].startswith("stay")),
                          ["stay_r0_r0", "stay_r1_r1"])
 
+    def test_a_negated_equality_precondition_is_not_grounded_for_the_same_object(self):
+        m = model_with("""(:action move :parameters (?a ?b - room)
+            :precondition (not (= ?a ?b)) :effect (lit))""")
+        self.assertEqual(sorted(g[0] for g in m.ground if g[0].startswith("move")),
+                         ["move_r0_r1", "move_r1_r0"])
+
     def test_quotient_merges_states_the_observed_label_cannot_separate(self):
         # states 0,1 differ only by an unobserved bit and move alike; 2 is observed differently.
         block, n = fe.quotient([(0,), (0,), (1,)], [(2, 2), (2, 2), (2, 2)])
