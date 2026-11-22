@@ -37,6 +37,11 @@ class FondEncode(unittest.TestCase):
         # go r0 r1 and go r1 r0; go r0 r0 has no door; flip has no parameters.
         self.assertEqual(sorted(g[0] for g in model().ground), ["flip_", "go_r0_r1", "go_r1_r0"])
 
+    def test_domain_constants_are_objects_and_a_problem_may_declare_none(self):
+        dom = DOMAIN.replace("(:predicates", "(:constants r0 r1 - room)\n  (:predicates")
+        prob = PROBLEM.replace("(:objects r0 r1 - room)", "")
+        self.assertEqual(len(fe.Model(dom, prob).reachable()[0]), 4)
+
     def test_reachable_states_are_position_times_lit(self):
         order, _ = model().reachable()
         self.assertEqual(len(order), 4)

@@ -85,7 +85,8 @@ class Model:
         for sec in section(dom, ":types"):
             for n, t in typed_list(sec[1:]):
                 self.parent[n] = t
-        objs = typed_list(section(prob, ":objects")[0][1:])
+        objs = [x for sec in section(dom, ":constants") + section(prob, ":objects")
+                for x in typed_list(sec[1:])]
         self.objects = {}
         for o, t in objs:
             while True:
