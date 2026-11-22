@@ -4,7 +4,7 @@ Research for #78 (subticket of #76).
 Everything below was run this session; the encoder is `scripts/fond_encode.py`, tested by `scripts/test_fond_encode.py`.
 Corpus: [whitemech/FOND4LTLf](https://github.com/whitemech/FOND4LTLf) at `011d9d9a5bfd6406d2c358faf8f63167f6c839bb`, `tests/data/pddl-domains/` **[fetched]**.
 That repository ships fifteen-odd problems each of `tireworld` and `zenotravel` plus `robot-coffee`, and its LTLf/PLTLf goals live in test strings, not in files.
-Other classic FOND families (blocksworld, faults, acrobatics, first-responders) are not in it, and the standard FOND suites (PRP, MyND, IPC-2008 FOND) were **not looked for**, so they were **not surveyed**.
+Blocksworld and faults are in it (corrected in `docs/research/2026-11-22-fond-blocksworld-faults.md`); other classic FOND families (acrobatics, first-responders) are not, and the standard FOND suites (PRP, MyND, IPC-2008 FOND) were **not looked for**, so they were **not surveyed**.
 
 ## Answer
 
