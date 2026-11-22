@@ -1346,10 +1346,11 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   **above 1** where the world model lives in $\Tin$ (the slippery arms), since the
   knowledge product then carries the transducer's states on top of the Goal's and is
   larger than the knowledge-free one. It is not a "fraction kept"; read a value above
-  1 as the knowledge costing states, not saving them. It is the class criterion for
-  **pruning** members only (ratio below 1, no 0.5 cut); the other member kind is a
-  [verdict flip](#verdict-flip). Knowledge counts toward either kind only when the
-  Goal entails it, not when it strengthens the spec.
+  1 as the knowledge costing states, not saving them. It selects **pruning** cases
+  only (ratio below 1, no 0.5 cut); the other kind of case a benchmark selects for is
+  a [verdict flip](#verdict-flip). A pruning case may be realizable or unrealizable;
+  the ranking, ascending by ratio, marks the verdict. Knowledge counts only when the
+  Goal entails it (see [verdict flip](#verdict-flip)).
 - **C++:** the `dfa-product-unpruned` bench subject (`src/bench_suite.cpp`); the
   ratio itself is computed by `scripts/sweep_report.py`, not stored. The report
   prints beside it the [nk-product ratio](#nk-product-ratio).
@@ -1357,17 +1358,19 @@ keeps the reserved-not-wired `--otf-dfa-product` (`src/cli.cpp`'s
   nk-product ratio, which has its own name.
 
 ### Verdict flip
-- **`main.tex`:** none (implementation-only: a benchmark class criterion).
-- **Definition:** the second member kind of the benchmark's class, beside the
-  [prune ratio](#prune-ratio)'s pruning members: a case where the knowledge-free
-  instance is `unrealizable` and the instance with the knowledge is `realizable`.
-  It is sized by the [T_in Moore quotient](#t_in-moore-quotient), because the world
-  model lives in $\Tin$ here, as in the FOND domains. Both realizable and
-  unrealizable cases count. Knowledge counts toward a verdict flip, as toward a
-  pruning member, only when the Goal entails it; a $\tout$ split counts only then,
-  and knowledge that strengthens the spec does not.
-- **C++:** none; read off the two verdicts of a case.
-- **Do not call it:** a prune-ratio member, a flip of the Goal, a strengthened spec.
+- **`main.tex`:** none (implementation-only: a benchmark selection criterion).
+- **Definition:** the second kind of case a benchmark selects for, beside the
+  pruning cases of the [prune ratio](#prune-ratio): a case where the knowledge-free
+  instance is UNREALIZABLE and the instance with the knowledge is REALIZABLE (the
+  [ltlfsynt verdict](#ltlfsynt-verdict) strings). It is measured by the number of
+  states of the [T_in Moore quotient](#t_in-moore-quotient) of the case's `t_in`,
+  because the world model lives in $\Tin$ here, as in the FOND domains. Knowledge
+  counts toward either kind of case only when the Goal entails it: a $\tout$ split
+  counts only then, and knowledge that strengthens the Goal formula does not.
+- **Python:** the state count comes from `encode(..., moore_quotient=True)` in
+  `scripts/fond_encode.py`; the flip itself is read off the two verdicts of a case.
+- **Do not call it:** a prune-ratio member, realizability flip, verdict change,
+  unrealizable-to-realizable case.
 
 ### Nk-product ratio
 - **`main.tex`:** none (implementation-only: a benchmark report column).
