@@ -15,7 +15,8 @@ current letter, so the Moore condition holds, as in scripts/slippery_world.py.
 
 Supported PDDL: :typing with a type hierarchy, and / not / forall
 preconditions, effects built of and / not / atoms with at most one top-level
-`oneof` of two branches.  Anything else raises.
+`oneof` of two branches.  Domain `:constants` are read as objects, and a
+problem may omit `:objects`.  Anything else raises.
 
 Subcommands:
   encode DOMAIN PROBLEM STEM GOAL   write STEM.{part,tin,goal.ltlf} and print the state count
@@ -85,7 +86,8 @@ class Model:
         for sec in section(dom, ":types"):
             for n, t in typed_list(sec[1:]):
                 self.parent[n] = t
-        objs = typed_list(section(prob, ":objects")[0][1:])
+        objs = [x for sec in section(dom, ":constants") + section(prob, ":objects")
+                for x in typed_list(sec[1:])]
         self.objects = {}
         for o, t in objs:
             while True:
