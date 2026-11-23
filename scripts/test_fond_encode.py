@@ -24,6 +24,11 @@ PROBLEM = """
 """
 
 
+def model_with_action(action_pddl):
+    """DOMAIN with one more action appended."""
+    return fe.Model(DOMAIN.rstrip()[:-1] + action_pddl + ")", PROBLEM)
+
+
 def model():
     return fe.Model(DOMAIN, PROBLEM)
 
@@ -67,6 +72,29 @@ class FondEncode(unittest.TestCase):
         m = model()
         lit = m.step(m.reachable()[0][0], action(m, "flip_"), 1)
         self.assertEqual(m.step(lit, action(m, "flip_"), 0), lit)
+
+    def test_a_positive_equality_precondition_holds_only_for_the_same_object(self):
+        m = model_with_action("""(:action stay :parameters (?a ?b - room)
+            :precondition (= ?a ?b) :effect (lit))""")
+        self.assertEqual(sorted(g[0] for g in m.ground if g[0].startswith("stay")),
+                         ["stay_r0_r0", "stay_r1_r1"])
+        s0 = m.reachable()[0][0]
+        self.assertNotEqual(m.step(s0, action(m, "stay_r0_r0"), 0), s0)
+
+    def test_a_negated_equality_precondition_is_not_grounded_for_the_same_object(self):
+        m = model_with_action("""(:action move :parameters (?a ?b - room)
+            :precondition (not (= ?a ?b)) :effect (lit))""")
+        self.assertEqual(sorted(g[0] for g in m.ground if g[0].startswith("move")),
+                         ["move_r0_r1", "move_r1_r0"])
+        s0 = m.reachable()[0][0]
+        self.assertNotEqual(m.step(s0, action(m, "move_r0_r1"), 0), s0)
+
+    def test_an_equality_under_forall_is_evaluated_by_object_name(self):
+        # (not (= ?x ?a)) fails for x = a, so no object satisfies the forall.
+        m = model_with_action("""(:action alone :parameters (?a - room)
+            :precondition (forall (?x - room) (not (= ?x ?a))) :effect (lit))""")
+        s0 = m.reachable()[0][0]
+        self.assertEqual(m.step(s0, action(m, "alone_r0"), 0), s0)
 
     def test_quotient_merges_states_the_observed_label_cannot_separate(self):
         # states 0,1 differ only by an unobserved bit and move alike; 2 is observed differently.

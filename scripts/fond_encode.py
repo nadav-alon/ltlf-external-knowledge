@@ -13,10 +13,10 @@ the problem's init.  An action whose precondition fails is a no-op.  The
 state's lambda is the observed fluents' valuation and reads nothing of the
 current letter, so the Moore condition holds, as in scripts/slippery_world.py.
 
-Supported PDDL: :typing with a type hierarchy, and / not / forall
-preconditions, effects built of and / not / atoms with at most one top-level
-`oneof` of two branches.  Domain `:constants` are read as objects, and a
-problem may omit `:objects`.  Anything else raises.
+Supported PDDL: :typing with a type hierarchy, and / not / forall / `=`
+(object-name identity) preconditions, effects built of and / not / atoms with
+at most one top-level `oneof` of two branches.  Domain `:constants` are read as
+objects, and a problem may omit `:objects`.  Anything else raises.
 
 Subcommands:
   encode DOMAIN PROBLEM STEM GOAL   write STEM.{part,tin,goal.ltlf} and print the state count
@@ -136,6 +136,8 @@ class Model:
             (v, t), = typed_list(p[1])
             return all(self._eval(self._sub(p[2], {v: o}), state)
                        for o in self.objects.get(t, []))
+        if p[0] == "=":
+            return p[1] == p[2]
         if p[0] not in self.dynamic_preds:
             return tuple(p) in self.init
         return tuple(p) in state
@@ -155,13 +157,17 @@ class Model:
         return out
 
     def _static_ok(self, p):
-        """False iff a static atom in p already contradicts init."""
+        """False iff a static atom in p already contradicts init, or a ground equality fails."""
         if p[0] == "and":
             return all(self._static_ok(x) for x in p[1:])
         if p[0] == "forall":
             return True
+        if p[0] == "=":
+            return self._eval(p, None)
         if p[0] == "not":
             q = p[1]
+            if q[0] == "=":
+                return not self._eval(q, None)
             if q[0] in ("and", "not", "forall") or q[0] in self.dynamic_preds:
                 return True
             return tuple(q) not in self.init
